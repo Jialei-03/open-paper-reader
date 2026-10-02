@@ -207,6 +207,13 @@ export function WorkspaceSidebar({
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => navigate("offline")}>
+              本机论文 · 离线使用
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <SidebarMenu className="workspace-footer-settings">
           <SidebarMenuItem>
             <SidebarMenuButton asChild>

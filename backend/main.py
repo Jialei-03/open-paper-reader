@@ -1344,6 +1344,10 @@ def create_app(settings=None):
     if dist.is_dir():
         app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
 
+        @app.get("/offline-worker.js", include_in_schema=False)
+        def offline_worker():
+            return FileResponse(dist / "offline-worker.js", media_type="application/javascript", headers={"Cache-Control": "no-cache"})
+
         @app.get("/{path:path}", include_in_schema=False)
         def spa(path: str):
             if path.startswith("api/"):

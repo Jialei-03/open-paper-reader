@@ -1,4 +1,5 @@
 import "./styles";
+import { offlineOwner, setOfflineOwner } from "./lib/offline";
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ProductSite } from "./features/ProductSite";
@@ -13,6 +14,11 @@ import { api, errorStatus } from "./api";
  * graph…) is most of the code, so it loads once there is a session, and the
  * shared-paper viewer loads only for a share link.
  */
+const OfflineWorkspace = lazy(() =>
+  import("./features/OfflineWorkspace").then((module) => ({
+    default: module.OfflineWorkspace,
+  })),
+);
 const Workspace = lazy(() =>
   import("./Workspace").then((module) => ({ default: module.Workspace })),
 );
@@ -95,6 +101,7 @@ function AuthGate() {
     [error, setError] = useState("");
   const setUser = (value: any) => {
     remember(!!value);
+    setOfflineOwner(value?.id || "");
     setSignedUser(value);
   };
   const [route, setRoute] = useState(location.hash.slice(1) || "dashboard");
@@ -104,7 +111,11 @@ function AuthGate() {
     api("/auth/me")
       .then((x) => setUser(x.user))
       .catch((e) => {
-        if (errorStatus(e) === 401) remember(false);
+        if (errorStatus(e) === 401) {
+          remember(false);
+          setOfflineOwner("");
+        } else if (errorStatus(e) === 0 && offlineOwner())
+          location.hash = "offline";
         else setError(e.message);
       })
       .finally(() => setBoot(false));
@@ -162,6 +173,14 @@ function Root() {
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
+  if (hash === "#offline" || (!navigator.onLine && offlineOwner()))
+    return (
+      <StaleRelease>
+        <Suspense fallback={<Boot />}>
+          <OfflineWorkspace />
+        </Suspense>
+      </StaleRelease>
+    );
   return !hash ||
     hash === "#home" ||
     hash === "#features" ||

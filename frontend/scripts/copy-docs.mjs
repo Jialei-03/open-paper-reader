@@ -19,3 +19,30 @@ for (const [source, name] of [
 ]) {
   await copyFile("node_modules/" + source, "dist/licenses/" + name);
 }
+
+// Explicit download prepares the full local reader, including PDF workers/fonts.
+const { readdir, readFile, writeFile } = await import("node:fs/promises");
+const { createHash } = await import("node:crypto");
+async function offlineAssets(folder) {
+  const files = [];
+  for (const entry of await readdir(folder, { withFileTypes: true })) {
+    const path = `${folder}/${entry.name}`;
+    if (entry.isDirectory()) files.push(...(await offlineAssets(path)));
+    else if (
+      /\.(js|mjs|css|woff2?|bcmap|ttf|otf|wasm|pfb)$/i.test(path) ||
+      path.includes("/icons/")
+    )
+      files.push("/" + path.slice(5));
+  }
+  return files.sort();
+}
+await writeFile(
+  "dist/assets/offline-manifest.json",
+  JSON.stringify({
+    version: createHash("sha256")
+      .update(await readFile("dist/index.html"))
+      .digest("hex")
+      .slice(0, 16),
+    files: await offlineAssets("dist/assets"),
+  }),
+);
