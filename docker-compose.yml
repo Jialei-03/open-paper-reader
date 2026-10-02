@@ -1,0 +1,79 @@
+# Zhijian (纸间) — one command to try it, a short edit to run it for real.
+#
+#   cp .env.example .env      # set POSTGRES_PASSWORD at least
+#   docker compose up -d --build
+#   open http://localhost:8765 and register the first account
+#
+# Services
+#   db      PostgreSQL 17
+#   web     the API and the built frontend (applies database migrations on start)
+#   worker  the research-assistant worker: reading guides, quizzes, page translation,
+#           and the assistant itself. Without it those tasks stay queued.
+#
+# The layout-translation worker and the assistant's code sandbox need Docker access
+# and are optional; see docs/DEPLOYMENT.md.
+name: zhijian
+
+x-app: &app
+  image: zhijian:local
+  restart: unless-stopped
+  # Every variable in .env reaches the containers, so the settings in
+  # docs/CONFIGURATION.md work here exactly as they do without Docker. The lines
+  # under `environment` take precedence: they are the ones that must differ inside
+  # a container (database, storage, the listening port) plus a few with defaults.
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    APP_ENV: ${APP_ENV:-development}
+    APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8765}
+    DATABASE_URL: postgresql+psycopg://paper:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/paper
+    STORAGE_DIR: /data/files
+    # APP_PORT in .env only chooses the published port; inside the container it is fixed.
+    APP_PORT: "8765"
+    REGISTRATION: ${REGISTRATION:-open}
+    # Which proxies may set X-Forwarded-* (see docs/DEPLOYMENT.md before changing).
+    FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+  volumes:
+    - data:/data
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paper
+      POSTGRES_USER: paper
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paper -d paper"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    <<: *app
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    # Loopback only by default. Put a TLS reverse proxy in front for anything public
+    # (docs/DEPLOYMENT.md), or set BIND_ADDRESS=0.0.0.0 on a trusted network.
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8765}:8765"
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    # The image's health check probes the web port, which a worker does not open.
+    healthcheck:
+      disable: true
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  db:
+  data:

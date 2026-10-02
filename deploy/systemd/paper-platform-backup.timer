@@ -1,0 +1,12 @@
+# Example timer for paper-platform-backup.service: daily, with a little jitter.
+[Unit]
+Description=Daily Zhijian backup
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+RandomizedDelaySec=300
+Persistent=true
+Unit=paper-platform-backup.service
+
+[Install]
+WantedBy=timers.target

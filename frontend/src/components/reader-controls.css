@@ -1,0 +1,182 @@
+@font-face {
+  font-family: "Pretendard Variable";
+  src: url("../../node_modules/pretendard/dist/web/variable/woff2/PretendardVariable.woff2")
+    format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* Measured reference values, kept separate from layout and product behavior. */
+.reader-page .reader-control {
+  height: 32px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0 10px;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  background: transparent;
+  box-shadow: none;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease;
+}
+.reader-page .reader-control[data-size^="icon"] {
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+.reader-page .reader-control svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.5;
+}
+.reader-page .reader-control:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+.reader-page .reader-control:disabled {
+  opacity: 0.45;
+}
+.reader-page .reader-control[aria-pressed="true"],
+.reader-page .reader-control[data-state="open"] {
+  color: var(--foreground);
+  background: var(--secondary);
+  box-shadow: inset 0 0 0 1px var(--input);
+}
+.reader-page .reader-control:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.reader-action-rail [data-slot="toggle-group-item"] {
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.reader-action-rail [data-slot="toggle-group-item"][data-state="on"] {
+  background: var(--secondary);
+  color: var(--foreground);
+  box-shadow: inset 0 0 0 1px var(--input);
+}
+.reader-action-rail [data-slot="toggle-group-item"]:hover {
+  background: var(--accent);
+}
+.reader-control-tooltip {
+  font-size: 12px;
+  font-weight: 400;
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+.reader-header-tools .reader-zoom-field[data-slot="input-group"] {
+  position: relative;
+  width: 108px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: none;
+  gap: 0;
+  padding: 0;
+  background: var(--popover);
+}
+.reader-header-tools .reader-zoom-field input {
+  padding: 0 4px 0 10px;
+  font-size: 13px;
+  font-weight: 550;
+  text-align: left;
+}
+.reader-zoom-field [data-slot="input-group-addon"] {
+  padding: 0 5px 0 0;
+  gap: 0;
+}
+.reader-zoom-field .reader-zoom-mode {
+  position: absolute;
+  left: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 550;
+  color: var(--foreground);
+  pointer-events: none;
+}
+.reader-zoom-field[data-mode-label="true"]:not(:focus-within) input,
+.reader-zoom-field[data-mode-label="true"]:not(:focus-within)
+  .reader-zoom-percent {
+  color: transparent;
+}
+.reader-zoom-field:focus-within .reader-zoom-mode {
+  display: none;
+}
+.reader-zoom-field:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.reader-header-tools .reader-zoom-field button {
+  width: 20px;
+  height: 26px;
+  min-height: 26px;
+  border-radius: 4px;
+}
+.reader-zoom-field button[data-state="open"] svg {
+  transform: rotate(180deg);
+}
+.reader-zoom-field button svg {
+  transition: transform 120ms ease;
+}
+.reader-header-tools .pdf-zoom-controls {
+  order: -1;
+}
+.reader-header-tools .pdf-toolbar > div:not(.pdf-zoom-controls) > label {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  height: 32px;
+  padding-right: 8px;
+  gap: 2px;
+  color: var(--muted-foreground);
+}
+.reader-header-tools .pdf-toolbar label input {
+  border: 0;
+  box-shadow: none;
+  width: 36px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 550;
+}
+.reader-header-tools .pdf-toolbar label input::-webkit-inner-spin-button {
+  appearance: none;
+}
+/* These primitives are shared by the library, settings and reader. */
+:is(
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"],
+  [data-slot="select-content"],
+  [data-slot="popover-content"]
+):not(.quick-model-surface) {
+  border-radius: 10px;
+  border-color: var(--border);
+  background: var(--popover);
+  color: var(--foreground);
+  box-shadow: var(--shadow-overlay);
+}
+[data-slot="dropdown-menu-content"].reader-component-menu[data-state] {
+  width: 184px;
+  min-width: 184px;
+  max-height: min(440px, var(--radix-dropdown-menu-content-available-height));
+  overflow-y: auto;
+  animation: none;
+}
+.pdf-outline button {
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 450;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-page .reader-control,
+  .reader-zoom-field button svg {
+    transition: none;
+  }
+}

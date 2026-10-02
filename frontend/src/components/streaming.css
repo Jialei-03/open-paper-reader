@@ -1,0 +1,71 @@
+.streaming-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+
+.streaming-status::before {
+  content: "";
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: streaming-pulse 1.2s ease-in-out infinite;
+}
+
+.streaming-markdown > .streaming-status {
+  margin-top: 0.35rem;
+}
+
+.streaming-item {
+  animation: streaming-reveal 180ms ease-out both;
+}
+
+@keyframes streaming-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes streaming-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streaming-item,
+  .streaming-status::before {
+    animation: none;
+  }
+}
+
+.streaming-markdown[data-typing="true"] .markdown > :last-child::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.12em;
+  background: currentColor;
+  animation: streaming-pulse 0.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streaming-markdown[data-typing="true"] .markdown > :last-child::after {
+    animation: none;
+  }
+}

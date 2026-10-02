@@ -1,0 +1,20 @@
+{
+  "name": "agent-runtime",
+  "version": "1.0.0",
+  "description": "Zhijian's research assistant runtime: a Pi agent with workspace skills, isolated coding tools and public web access",
+  "scripts": {
+    "test": "node --test runner.test.mjs"
+  },
+  "keywords": [],
+  "author": "The Zhijian Authors",
+  "license": "MIT",
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.85.1",
+    "@earendil-works/pi-ai": "0.85.1",
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "ipaddr.js": "2.5.0",
+    "undici": "6.28.1"
+  },
+  "private": true,
+  "type": "module"
+}

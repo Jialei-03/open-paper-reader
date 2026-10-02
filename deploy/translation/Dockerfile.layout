@@ -1,0 +1,29 @@
+FROM python:3.13.12-slim-bookworm
+
+COPY backend/requirements-layout.txt /tmp/requirements-layout.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-layout.txt
+# Upstream hardcodes a home cache. Keep this small, explicit patch so the
+# unprivileged job UID can use its own mounted directory without changing HOME.
+RUN python - <<'PY'
+import importlib.util
+from pathlib import Path
+p = Path(importlib.util.find_spec('babeldoc.const').origin)
+s = p.read_text()
+old = 'CACHE_FOLDER = Path.home() / ".cache" / "babeldoc"'
+assert s.count(old) == 1
+p.write_text(s.replace(old, 'CACHE_FOLDER = Path(os.environ.get("PAPER_LAYOUT_CACHE", str(Path.home() / ".cache" / "babeldoc")))'))
+PY
+# Download public model/font assets at build time. Jobs run without a network.
+RUN python -c "from babeldoc.assets.assets import warmup; warmup()" \
+    && mkdir -p /opt/layout-assets \
+    && cp -a /root/.cache/babeldoc/. /opt/layout-assets/ \
+    && rm -rf /root/.cache
+COPY deploy/translation/patch_layout_fonts.py /tmp/patch_layout_fonts.py
+RUN python /tmp/patch_layout_fonts.py
+COPY deploy/translation/patch_layout_quality.py /tmp/patch_layout_quality.py
+RUN python /tmp/patch_layout_quality.py
+WORKDIR /app
+COPY backend/layout_translation_worker.py /app/layout_translation_worker.py
+ENV PAPER_LAYOUT_ASSETS=/opt/layout-assets PYTHONDONTWRITEBYTECODE=1
+USER 10001:10001
+ENTRYPOINT ["python", "/app/layout_translation_worker.py"]

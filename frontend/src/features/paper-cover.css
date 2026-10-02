@@ -1,0 +1,68 @@
+/* First-page preview: a sheet of paper resting on a soft tinted mat. */
+.paper-cover {
+  --mat: #e7f3f8;
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--mat);
+  display: grid;
+  place-items: end center;
+}
+.paper-cover[data-tint="blue"] {
+  --mat: var(--brand-soft, #e7f3f8);
+}
+.paper-cover[data-tint="yellow"] {
+  --mat: var(--tag-yellow-bg, #f7eed3);
+}
+.paper-cover[data-tint="green"] {
+  --mat: var(--tag-green-bg, #e5eee7);
+}
+.paper-cover[data-tint="pink"] {
+  --mat: var(--tag-pink-bg, #f5e3ee);
+}
+.paper-cover[data-tint="orange"] {
+  --mat: var(--tag-orange-bg, #fae9dc);
+}
+.paper-cover[data-tint="purple"] {
+  --mat: var(--tag-purple-bg, #eee5f4);
+}
+.paper-cover img {
+  width: 74%;
+  height: auto;
+  align-self: end;
+  margin-top: 9%;
+  border-radius: 3px 3px 0 0;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px #37352f14,
+    0 8px 24px -6px #37352f40;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: paper-cover-in 0.3s ease-out;
+}
+.paper-cover-mark {
+  align-self: center;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #37352f38;
+}
+:where(.paper-card):hover .paper-cover img {
+  transform: translateY(-4px);
+}
+@keyframes paper-cover-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .paper-cover img {
+    animation: none;
+    transition: none;
+  }
+}

@@ -1,0 +1,108 @@
+.pdf-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+  flex-shrink: 0;
+}
+.pdf-search-bar input {
+  min-width: 70px;
+  max-width: 260px;
+  height: 30px;
+  font-size: 13px;
+}
+.pdf-search-bar [role="status"] {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin: 0 4px;
+  white-space: nowrap;
+}
+.pdf-search-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.pdf-search-highlight span {
+  position: absolute;
+  background: rgba(255, 185, 35, 0.38);
+  outline: 1px solid rgba(206, 133, 0, 0.5);
+  border-radius: 2px;
+}
+.pdf-thumbnails {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 8px;
+}
+.pdf-thumbnail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.pdf-thumbnail canvas {
+  width: 136px;
+  min-height: 160px;
+  background: white;
+  box-shadow: 0 1px 4px #0002;
+}
+.pdf-thumbnail:hover {
+  background: var(--muted);
+}
+.pdf-thumbnail[aria-current="page"] {
+  border-color: var(--foreground);
+  background: var(--muted);
+  color: var(--foreground);
+}
+.pdf-navigation-tabs {
+  position: sticky;
+  top: 0;
+  background: var(--background);
+  z-index: 1;
+  padding: 8px;
+}
+.pdf-ai-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  width: 180px;
+}
+.pdf-ai-actions button {
+  justify-content: flex-start;
+  font-size: 13px;
+  height: 32px;
+}
+.pdf-link-targets {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.pdf-link-targets a,
+.pdf-link-targets button {
+  position: absolute;
+  pointer-events: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.pdf-link-targets a:focus-visible,
+.pdf-link-targets button:focus-visible {
+  outline: 2px solid #558edc;
+  background: #558edc22;
+}
+.pdf-link-error {
+  font-size: 12px;
+  padding: 6px 10px;
+  color: var(--muted-foreground);
+}

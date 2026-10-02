@@ -1,0 +1,19 @@
+# Example unit, optional: lets the assistant run Python/Bash/file tools in a
+# throw-away container (deploy/Dockerfile.agent-sandbox). Without it those tools
+# report that they are unavailable; nothing falls back to running on the host.
+[Unit]
+Description=Zhijian assistant sandbox broker
+After=docker.service
+Requires=docker.service
+
+[Service]
+ExecStart=/usr/bin/python3 /srv/paper-platform/app/deploy/sandbox_broker.py
+Restart=always
+RuntimeDirectory=paper-sandbox
+RuntimeDirectoryMode=0755
+UMask=0077
+MemoryMax=192M
+TasksMax=32
+
+[Install]
+WantedBy=multi-user.target

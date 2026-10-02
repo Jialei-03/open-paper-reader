@@ -1,0 +1,220 @@
+/* Page-level settings with a quiet category divider. */
+.settings-page.page {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 32px;
+  color: var(--foreground);
+}
+.settings-surface {
+  min-height: 750px;
+  background: var(--background);
+  border: 0;
+  border-radius: 0;
+}
+.settings-heading {
+  height: 68px;
+  padding: 20px 24px;
+}
+.settings-heading h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.settings-layout[data-slot="tabs"] {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  min-height: 682px;
+}
+.settings-navigation[data-slot="tabs-list"] {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  flex: 0 0 208px;
+  width: 208px;
+  min-height: 682px;
+  padding: 12px;
+  gap: 4px;
+  border-right: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+.settings-navigation [data-slot="tabs-trigger"] {
+  flex: 0 0 36px;
+  height: 36px;
+  padding: 8px 12px;
+  justify-content: flex-start;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none !important;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.settings-navigation [data-slot="tabs-trigger"][data-state="active"],
+.settings-navigation [data-slot="tabs-trigger"]:hover {
+  color: var(--foreground);
+  background: var(--accent);
+}
+.settings-panels {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 32px 40px;
+}
+.settings-panel {
+  min-width: 0;
+}
+.settings-panel > [data-slot="card"] {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  gap: 20px;
+}
+.settings-panel > [data-slot="card"] + [data-slot="card"] {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border);
+}
+.settings-panel > [data-slot="card"] > [data-slot="card-header"],
+.settings-panel > [data-slot="card"] > [data-slot="card-content"],
+.settings-panel > [data-slot="card"] > [data-slot="card-footer"] {
+  padding: 0;
+}
+.settings-panel [data-slot="card-title"] {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.settings-panel [data-slot="card-description"] {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--muted-foreground);
+}
+.settings-panel [data-slot="input"],
+.settings-panel [data-slot="select-trigger"] {
+  min-height: 46px;
+  border-radius: 8px;
+  background: var(--accent);
+  box-shadow: none;
+}
+.settings-panel [data-slot="item"] {
+  border-radius: 8px;
+  box-shadow: none;
+}
+.settings-panel [data-slot="card-header"] > .flex {
+  flex-wrap: wrap;
+}
+.settings-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.settings-model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-model-row:first-child {
+  padding-top: 4px;
+}
+.settings-model-row:last-child {
+  border-bottom: 0;
+}
+.settings-model-row strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.settings-model-row .text-sm {
+  font-size: 12px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+.settings-model-row [data-slot="badge"] {
+  font-size: 10px;
+  font-weight: 500;
+}
+@media (max-width: 768px) {
+  .settings-page.page {
+    padding: 16px 12px;
+  }
+  .settings-surface {
+    min-height: 0;
+  }
+  .settings-heading {
+    height: 60px;
+    padding: 16px 20px;
+  }
+  .settings-layout[data-slot="tabs"] {
+    flex-direction: column;
+    min-height: 0;
+  }
+  .settings-navigation[data-slot="tabs-list"] {
+    flex-direction: row;
+    flex: none;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    padding: 8px 12px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-navigation [data-slot="tabs-trigger"] {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .settings-navigation [data-slot="tabs-trigger"] svg {
+    display: none;
+  }
+  .settings-panels {
+    padding: 24px 20px 32px;
+  }
+  .settings-panel [data-slot="card-header"].flex {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .settings-panel [data-slot="item"] {
+    flex-wrap: wrap;
+  }
+}
+
+.appearance-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px;
+}
+.appearance-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.appearance-option:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--accent);
+}
+.appearance-option svg {
+  width: 18px;
+  height: 18px;
+}
+.appearance-option input {
+  accent-color: var(--primary);
+}

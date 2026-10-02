@@ -1,0 +1,248 @@
+{
+  "story-compare.webp": {
+    "width": 890,
+    "height": 770,
+    "pixelRatio": 2,
+    "version": "ba8356936f46"
+  },
+  "story-trace.webp": {
+    "width": 890,
+    "height": 560,
+    "pixelRatio": 2,
+    "version": "67d90e6c03dd"
+  },
+  "organize.webp": {
+    "width": 482,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "322ace3fe5cd"
+  },
+  "chat.webp": {
+    "width": 482,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "309cdcce7f8d"
+  },
+  "notes-sources.webp": {
+    "width": 482,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "edc7ac87fec0"
+  },
+  "permission.webp": {
+    "width": 486,
+    "height": 370,
+    "pixelRatio": 2,
+    "version": "964c158ca7c2"
+  },
+  "capabilities.webp": {
+    "width": 419,
+    "height": 440,
+    "pixelRatio": 2,
+    "version": "18abf5b81a0c"
+  },
+  "story-note.webp": {
+    "width": 612,
+    "height": 560,
+    "pixelRatio": 2,
+    "version": "3c6f5dc23bb5"
+  },
+  "story-library.webp": {
+    "width": 660,
+    "height": 580,
+    "pixelRatio": 2,
+    "version": "ab7cd095dcf6"
+  },
+  "dark.webp": {
+    "width": 1280,
+    "height": 640,
+    "pixelRatio": 2,
+    "version": "1e821db4ddd9"
+  },
+  "explain.webp": {
+    "width": 470,
+    "height": 494,
+    "pixelRatio": 2,
+    "version": "7efa5737859f"
+  },
+  "region.webp": {
+    "width": 710,
+    "height": 368,
+    "pixelRatio": 2,
+    "version": "8c906f1b6cae"
+  },
+  "formula.webp": {
+    "width": 470,
+    "height": 494,
+    "pixelRatio": 2,
+    "version": "e3b6adc5e8ef"
+  },
+  "table.webp": {
+    "width": 470,
+    "height": 356,
+    "pixelRatio": 2,
+    "version": "59d272d92de0"
+  },
+  "translate.webp": {
+    "width": 1216,
+    "height": 500,
+    "pixelRatio": 2,
+    "version": "455d4bcf4ccb"
+  },
+  "layout.webp": {
+    "width": 1216,
+    "height": 560,
+    "pixelRatio": 2,
+    "version": "27e68638f04d"
+  },
+  "translate-selection.webp": {
+    "width": 470,
+    "height": 440,
+    "pixelRatio": 2,
+    "version": "c63cdc187e48"
+  },
+  "guide.webp": {
+    "width": 470,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "20caf5d1be40"
+  },
+  "quiz.webp": {
+    "width": 470,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "cc9ee1472762"
+  },
+  "ai-highlights.webp": {
+    "width": 1216,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "7167970d0186"
+  },
+  "figures.webp": {
+    "width": 470,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "f59bd16bf85a"
+  },
+  "outline.webp": {
+    "width": 700,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "c17ba6bc0c33"
+  },
+  "search.webp": {
+    "width": 700,
+    "height": 360,
+    "pixelRatio": 2,
+    "version": "14573c072e15"
+  },
+  "cite.webp": {
+    "width": 540,
+    "height": 460,
+    "pixelRatio": 2,
+    "version": "2d85b886bbf7"
+  },
+  "citations.webp": {
+    "width": 470,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "268536e89672"
+  },
+  "palette.webp": {
+    "width": 620,
+    "height": 380,
+    "pixelRatio": 2,
+    "version": "ae9944c7a8ea"
+  },
+  "comment.webp": {
+    "width": 540,
+    "height": 380,
+    "pixelRatio": 2,
+    "version": "d0774edf5916"
+  },
+  "ink.webp": {
+    "width": 1157,
+    "height": 650,
+    "pixelRatio": 2,
+    "version": "685123680210"
+  },
+  "notes.webp": {
+    "width": 470,
+    "height": 744,
+    "pixelRatio": 2,
+    "version": "4bdb892813d9"
+  },
+  "import.webp": {
+    "width": 528,
+    "height": 700,
+    "pixelRatio": 2,
+    "version": "236715e206a4"
+  },
+  "library.webp": {
+    "width": 1070,
+    "height": 520,
+    "pixelRatio": 2,
+    "version": "45cec1983346"
+  },
+  "batch.webp": {
+    "width": 1070,
+    "height": 330,
+    "pixelRatio": 2,
+    "version": "ed1df8850a57"
+  },
+  "quicksearch.webp": {
+    "width": 512,
+    "height": 360,
+    "pixelRatio": 2,
+    "version": "3ce41ae37b94"
+  },
+  "graph.webp": {
+    "width": 1035,
+    "height": 640,
+    "pixelRatio": 2,
+    "version": "f47fdc2c2122"
+  },
+  "share.webp": {
+    "width": 512,
+    "height": 360,
+    "pixelRatio": 2,
+    "version": "050d45e67fee"
+  },
+  "export.webp": {
+    "width": 420,
+    "height": 150,
+    "pixelRatio": 2,
+    "version": "d921138dfddc"
+  },
+  "models.webp": {
+    "width": 512,
+    "height": 750,
+    "pixelRatio": 2,
+    "version": "695155185e08"
+  },
+  "compare-en-formula.webp": {
+    "width": 612,
+    "height": 491,
+    "pixelRatio": 1.75,
+    "version": "996c955a68ac"
+  },
+  "compare-zh-formula.webp": {
+    "width": 612,
+    "height": 491,
+    "pixelRatio": 1.75,
+    "version": "0c67379ff1a8"
+  },
+  "compare-en-figure.webp": {
+    "width": 612,
+    "height": 483,
+    "pixelRatio": 1.75,
+    "version": "a9b4dbe3a2c5"
+  },
+  "compare-zh-figure.webp": {
+    "width": 612,
+    "height": 483,
+    "pixelRatio": 1.75,
+    "version": "61fb66353852"
+  }
+}

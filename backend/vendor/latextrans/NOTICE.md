@@ -1,0 +1,1 @@
+Parser and reconstruction code adapted from https://github.com/NiuTrans/LaTeXTrans at 0b4979916f98bf85452d6791e5145651d85a9652 (MIT). Changes: retain section boundaries, remove UI/tokenizer dependencies, include only used utilities, reject escaping paths and unresolved placeholders. The upstream network clients, agent orchestration and compiler are not used.
