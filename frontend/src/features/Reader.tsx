@@ -1294,9 +1294,15 @@ export function Reader({
                             ),
                           ) === page
                         }
+                        referenceTargetPage={
+                          selectionSide !== translation?.source_file &&
+                          selected === translation?.source_file
+                            ? aligned?.source?.page
+                            : undefined
+                        }
                         reference={
                           selectionSide !== translation?.source_file &&
-                          aligned?.source?.page === page &&
+                          aligned?.source &&
                           selected === translation?.source_file
                             ? aligned.source.quote
                             : new URLSearchParams(route.split("?")[1]).get(
@@ -1388,9 +1394,14 @@ export function Reader({
                           }
                           page={translatedPage}
                           setPage={setTranslatedPage}
+                          referenceTargetPage={
+                            selectionSide !== translation?.translated_file
+                              ? aligned?.translated?.page
+                              : undefined
+                          }
                           reference={
                             selectionSide !== translation?.translated_file &&
-                            aligned?.translated?.page === translatedPage
+                            aligned?.translated
                               ? aligned.translated.quote
                               : ""
                           }
@@ -1827,6 +1838,7 @@ function FilePreview({
   referenceLine = false,
   referencePrefix = "",
   referencePage = false,
+  referenceTargetPage,
   reference = "",
   file,
   page,
@@ -1853,6 +1865,7 @@ function FilePreview({
   referencePrefix?: string;
   reference?: string;
   referencePage?: boolean;
+  referenceTargetPage?: number;
   referenceLine?: boolean;
   file: SourceFile;
   page: number;
@@ -1896,6 +1909,7 @@ function FilePreview({
         onQuote={onQuote}
         reference={reference}
         referencePage={referencePage}
+        referenceTargetPage={referenceTargetPage}
         referencePrefix={referencePrefix}
         region={region}
         onRegion={onRegion}

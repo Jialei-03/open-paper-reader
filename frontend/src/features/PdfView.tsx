@@ -127,6 +127,7 @@ type Props = {
   reference?: string;
   referencePrefix?: string;
   referencePage?: boolean;
+  referenceTargetPage?: number;
   file: SourceFile;
   /** Readers know a paper by its title; downloads and exports are named after it. */
   paperTitle?: string;
@@ -145,6 +146,7 @@ export function PdfView({
   reference = "",
   referencePrefix = "",
   referencePage = false,
+  referenceTargetPage,
   file,
   paperTitle,
   page,
@@ -1203,7 +1205,7 @@ export function PdfView({
                       ? search.matches[search.index]
                       : undefined
                   }
-                  active={number === valid}
+                  active={number === valid || number === referenceTargetPage}
                   width={width}
                   zoom={pairedTranslation && zoom === "auto" ? "fit" : zoom}
                   root={sheet}
@@ -1234,7 +1236,9 @@ export function PdfView({
                   previewQuote={
                     sourcePreview?.page === number ? sourcePreview.quote : ""
                   }
-                  reference={number === valid ? reference : ""}
+                  reference={
+                    number === (referenceTargetPage || valid) ? reference : ""
+                  }
                   referencePrefix={referencePrefix}
                   referencePage={number === valid && referencePage}
                   onRegion={(rect, selectedPage, at) => {

@@ -1399,10 +1399,52 @@ test("Translation: model settings stay private and bilingual references open bot
     "data-rendered",
     "true",
   );
+  // Keep the counterpart on a different page. Selecting the translated
+  // sentence must render and navigate its matching original, independently
+  // of the viewport's active-page tracking after the responsive redraw.
+  const remotePage = leftPdf
+    .locator(".pdf-page")
+    .nth(1)
+    .locator(".textLayer")
+    .getByText("Second page for navigation verification.", { exact: false });
+  await remotePage.scrollIntoViewIfNeeded();
+  await expect(remotePage).toBeInViewport();
   await selectedText.scrollIntoViewIfNeeded();
   await expect(selectedText).toBeInViewport();
-  await selectedText.click({ clickCount: 3 });
+  // A triple click selects a DOM paragraph, which may include another PDF
+  // line after responsive redraws. This fixture aligns a single sentence.
+  const sentenceBox = await selectedText.boundingBox();
+  expect(sentenceBox).not.toBeNull();
+  await page.mouse.move(
+    sentenceBox!.x + 2,
+    sentenceBox!.y + sentenceBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    sentenceBox!.x + sentenceBox!.width - 2,
+    sentenceBox!.y + sentenceBox!.height / 2,
+    { steps: 12 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(() =>
+      rightPdf.evaluate((root) => {
+        const selection = window.getSelection();
+        return (
+          !!selection?.anchorNode &&
+          root.contains(selection.anchorNode) &&
+          !!selection.focusNode &&
+          root.contains(selection.focusNode) &&
+          selection.toString().replace(/\s/g, "").length >= 8 &&
+          "Evidence stays connected to its source."
+            .replace(/\s/g, "")
+            .includes(selection.toString().replace(/\s/g, ""))
+        );
+      }),
+    )
+    .toBe(true);
   await expect(leftPdf.locator(".pdf-reference-lines")).toHaveCount(1);
+  await expect(leftPdf.locator(".pdf-reference-lines")).toBeInViewport();
   await expect(page.getByRole("dialog", { name: "研究助手" })).toBeHidden();
   await page.screenshot({
     path: "../test-results/pdf-selection-counterpart.png",
