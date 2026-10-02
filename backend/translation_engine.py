@@ -655,6 +655,24 @@ def prepare_compile_source(main):
             + r"\makeatletter\AtBeginDocument{\@ifpackageloaded{unicode-math}{\@ifundefined{bm}{}{\renewcommand{\bm}[1]{\symbf{#1}}}}{}}\makeatother" + "\n"
         )
         tex = tex.replace(r"\begin{document}", bold + r"\begin{document}", 1)
+    # Author/title macros store their arguments before begin{document}.
+    # Defining an active character later cannot repair those already-tokenized
+    # characters. Install symbol mappings immediately after the class so 8-bit
+    # fonts never receive raw daggers/arrows, including in thanks/texttt macros.
+    early_marker = "% paper-workspace early Unicode symbol mappings"
+    if early_marker not in tex and any(symbol in sources for symbol in "†‡→"):
+        documentclass = re.search(
+            r"\\documentclass(?:\[[^\]]*\])?\s*\{[^{}]+\}", tex
+        )
+        if documentclass:
+            block = (
+                "\n" + early_marker + "\n"
+                + r"\usepackage{newunicodechar}" + "\n"
+                + r"\newunicodechar{†}{\ensuremath{\dagger}}" + "\n"
+                + r"\newunicodechar{‡}{\ensuremath{\ddagger}}" + "\n"
+                + r"\newunicodechar{→}{\ensuremath{\rightarrow}}" + "\n"
+            )
+            tex = tex[:documentclass.end()] + block + tex[documentclass.end():]
     main.write_text(tex)
 
 

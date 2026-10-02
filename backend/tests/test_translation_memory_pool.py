@@ -65,12 +65,12 @@ def test_memory_checkpoint_and_cancel_check_work_with_one_connection(env, monkey
                 {
                     "original": "Legacy source sentence.",
                     "translation": "旧译文。",
-                    "kind": "text",
                 }
             ]
         )
         with maker() as d:
             assert len(list(d.scalars(select(TranslationMemory)))) == 3
+        assert memory.lookup(["Legacy source sentence."])[0]["kind"] == "text"
         # A fresh worker reads the durable checkpoint without provider calls.
         monkeypatch.setattr(
             "backend.translation_memory.complete",

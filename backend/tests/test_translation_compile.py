@@ -152,3 +152,20 @@ def test_disable_ligatures_guard_and_dagger_override_are_idempotent(tmp_path):
     before = (main.read_text(), cls.read_text())
     engine.prepare_compile_source(main)
     assert (main.read_text(), cls.read_text()) == before
+
+
+def test_unicode_symbol_mapping_precedes_stored_author_macros(tmp_path):
+    main = tmp_path / 'main.tex'
+    original = r'\documentclass[twocolumn]{article}\author{Name\thanks{† Equal contribution}}\begin{document}\texttt{step→next}\end{document}'
+    main.write_text(original)
+    engine.prepare_compile_source(main)
+    content = main.read_text()
+    dagger = content.index(r'\newunicodechar{†}{\ensuremath{\dagger}}')
+    arrow = content.index(r'\newunicodechar{→}{\ensuremath{\rightarrow}}')
+    assert content.index(r'\documentclass') < dagger < content.index(r'\author')
+    assert arrow < content.index(r'\author')
+    assert r'Name\thanks{† Equal contribution}' in content
+    assert r'\texttt{step→next}' in content
+    engine.prepare_compile_source(main)
+    assert main.read_text() == content
+    assert content.count('% paper-workspace early Unicode symbol mappings') == 1

@@ -242,3 +242,37 @@ def test_completed_layout_does_not_hide_missing_guide(env):
     with app.state.maker() as d:
         row = d.scalar(select(PaperPreparation))
         assert row.status == "failed" and row.guide_status == "failed"
+
+
+def test_source_controls_page_number_hint_and_literal_json_newlines(env, monkeypatch):
+    app, a, _, settings, _, f = fixture(env)
+    from backend.models import User
+    from backend.reading_artifacts import check_result
+
+    with app.state.maker() as d:
+        owner = d.scalar(select(User.id).where(User.username == "alice"))
+    source = "This is an ordinary source sentence."
+    monkeypatch.setattr(
+        "backend.translation_memory.complete",
+        lambda *args, **kwargs: '{"sentences":[{"id":0,"kind":"page_number",'
+        '"translation":"这是普通的\n原文句子。"}]}',
+    )
+    memory = SentenceMemory(settings, app.state.maker, owner, f["sha256"], {})
+    result = memory.translate([source])
+    assert result[0]["kind"] == "text"
+    check_result(
+        "page_translation", json.dumps({"paragraphs": result}),
+        parameters={"page": 1, "language": "zh"}, expected={1},
+        evidence_pages={1}, evidence_text={"1": source},
+    )
+    # A previously cached incorrect hint is repaired without another model call.
+    with app.state.maker() as d:
+        saved = d.scalar(select(TranslationMemory))
+        saved.kind = "page_number"
+        d.commit()
+    monkeypatch.setattr(
+        "backend.translation_memory.complete",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("No duplicate call")),
+    )
+    assert memory.translate([source])[0]["kind"] == "text"
+    assert memory.lookup([source])[0]["kind"] == "text"
