@@ -1377,12 +1377,31 @@ test("Translation: model settings stay private and bilingual references open bot
   await page.screenshot({ path: "../test-results/pdf-fit-mobile-fixed.png" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: "../test-results/pdf-comparison.png" });
-  // Selecting translated PDF text highlights its counterpart without writing notes or opening AI.
-  await rightPdf
+  // Resizing from mobile starts a new PDF/text-layer render. Select only after
+  // the real page is visible and that render finishes, as a reader would.
+  const selectedText = rightPdf
     .getByTestId("pdf-text-layer")
     .first()
-    .getByText(quote, { exact: false })
-    .selectText();
+    .getByText(quote, { exact: false });
+  await selectedText.scrollIntoViewIfNeeded();
+  await expect(selectedText).toBeInViewport();
+  await expect(rightPdf.locator(".pdf-pages")).toHaveCSS("zoom", "1");
+  await expect(rightPdf.locator("canvas").first()).toHaveAttribute(
+    "data-rendered",
+    "true",
+  );
+  await expect
+    .poll(() =>
+      rightPdf
+        .getByTestId("pdf-text-layer")
+        .first()
+        .evaluate(
+          (layer) => layer.clientWidth / layer.parentElement!.clientWidth,
+        ),
+    )
+    .toBeCloseTo(1, 2);
+  // Selecting translated PDF text highlights its counterpart without writing notes or opening AI.
+  await selectedText.selectText();
   await rightPdf
     .getByTestId("pdf-text-layer")
     .first()
