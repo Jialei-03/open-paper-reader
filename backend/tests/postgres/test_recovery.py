@@ -102,6 +102,10 @@ def parallel_requests(app, client, path, payloads, method="POST"):
 def test_concurrent_enqueue_and_resume_are_single_tasks(pg_env):
     app, a, _, settings = pg_env
     owner, model = configure(app, a, settings)
+    # The per-account limits are off by default; this test is about how they hold
+    # when requests arrive at the same moment.
+    settings.agent_active_limit = 1
+    settings.agent_daily_runs = 100
     session = a.post("/api/v1/agent/sessions", json={}).json()["id"]
     path = f"/api/v1/agent/sessions/{session}/runs"
     payload = {"json": {"prompt": "one task", "model_config_id": model}}
@@ -119,6 +123,23 @@ def test_concurrent_enqueue_and_resume_are_single_tasks(pg_env):
     with app.state.maker() as d:
         assert d.scalar(select(func.count()).select_from(AgentRun)) == 2
         assert d.get(AgentQuota, owner).runs == 2
+
+
+def test_default_unlimited_tasks_accept_parallel_requests(pg_env):
+    app, a, _, settings = pg_env
+    owner, model = configure(app, a, settings)
+    assert settings.agent_active_limit == 0
+    assert settings.agent_daily_runs == 0
+    session = a.post("/api/v1/agent/sessions", json={}).json()["id"]
+    responses = parallel_requests(
+        app, a, f"/api/v1/agent/sessions/{session}/runs",
+        [{"json": {"prompt": "parallel task", "model_config_id": model}}] * 6,
+    )
+    assert [r.status_code for r in responses] == [200] * 6
+    assert len({r.json()["id"] for r in responses}) == 6
+    with app.state.maker() as d:
+        assert d.scalar(select(func.count()).select_from(AgentRun)) == 6
+        assert d.get(AgentQuota, owner) is None
 
 
 def test_concurrent_note_writes_preserve_revision(pg_env):
