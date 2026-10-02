@@ -205,6 +205,7 @@ export function AgentPanel({
     limits: string[];
   } | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(true);
   const [selected, setSelected] = useState(
     () => localStorage.getItem("agent-session:" + userId) || "",
   );
@@ -323,9 +324,7 @@ export function AgentPanel({
   };
   const fail = (e: unknown) => setError((e as Error).message);
   async function loadSessions() {
-    const rows = await api<Session[]>(
-      paperId ? `/agent/sessions?paper_id=${paperId}` : "/agent/sessions",
-    );
+    const rows = await api<Session[]>("/agent/sessions");
     setSessions(rows);
     return rows;
   }
@@ -382,6 +381,7 @@ export function AgentPanel({
   useEffect(() => {
     if (!open) return;
     let live = true;
+    setSessionsLoading(true);
     setPaperSession("");
     api<typeof catalog>("/agent/capabilities")
       .then((value) => {
@@ -389,9 +389,7 @@ export function AgentPanel({
       })
       .catch(fail);
     Promise.all([
-      api<Session[]>(
-        paperId ? `/agent/sessions?paper_id=${paperId}` : "/agent/sessions",
-      ),
+      api<Session[]>("/agent/sessions"),
       api<{ models: Model[]; active_id: string }>("/translation-settings"),
       paperMode
         ? send(`/papers/${paperId}/discussion`, {})
@@ -413,26 +411,30 @@ export function AgentPanel({
             ? requestedSession.current.id
             : "";
         requestedSession.current = null;
-        if (discussion) {
-          setPaperSession(discussion.id);
-          const remembered = localStorage.getItem(
-            `agent-paper-session:${userId}:${paperId}`,
-          );
+        if (discussion) setPaperSession(discussion.id);
+        // Navigation changes the available reading context, not the active chat.
+        // Both surfaces share the same list and keep an existing selection.
+        setSelected((current) => {
+          const remembered = paperId
+            ? localStorage.getItem(`agent-paper-session:${userId}:${paperId}`)
+            : "";
+          const available = (id: string | null) =>
+            !!id && (rows.some((s) => s.id === id) || discussion?.id === id);
           const id =
             requested ||
-            (rows.some((s) => s.id === remembered)
-              ? remembered!
-              : discussion.id);
-          setSelected(id);
-          selectPaperSession(paperId, id);
-        } else
-          setSelected(
-            (s) =>
-              requested ||
-              (rows.some((x) => x.id === s) ? s : rows[0]?.id || ""),
-          );
+            (available(current)
+              ? current
+              : available(remembered)
+                ? remembered!
+                : discussion?.id || rows[0]?.id || "");
+          if (paperId) selectPaperSession(paperId, id);
+          return id;
+        });
       })
-      .catch(fail);
+      .catch(fail)
+      .finally(() => {
+        if (live) setSessionsLoading(false);
+      });
     return () => {
       live = false;
     };
@@ -1260,6 +1262,7 @@ export function AgentPanel({
                         void uploadFiles(pasted);
                       }
                     }}
+                    disabled={sessionsLoading}
                     aria-label="给 Agent 的消息"
                     placeholder={
                       paperMode
