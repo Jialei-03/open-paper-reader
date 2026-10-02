@@ -1,13 +1,17 @@
+<p align="center"><img src="docs/brand/banner.svg" alt="纸间 · Zhijian：开源论文阅读工作台，可在线使用或自行部署" width="100%"></p>
+
 <h1 align="center">纸间 · Zhijian</h1>
 
-<p align="center"><strong>论文阅读工作台，助手全程参与。</strong></p>
+<p align="center"><strong>开源的论文阅读工作台，助手全程参与。</strong></p>
 
 <p align="center">
 在一个窗口里读论文、翻译、批注、写笔记。研究助手实际读取原文，结论带着页码，能跨论文比较，也能动手整理，做过什么都可以核对。<br>
-纸间以持续提供在线论文阅读服务为主，可直接使用 [纸间在线服务](https://papers.dougao.online)。
-
-当前代码仓库保持私有，先完善产品和服务，再由维护者决定何时公开。仓库保留部署说明和 MIT 许可证，供未来开源与协作使用；代码发布与线上服务独立管理。
+纸间采用 MIT 许可证，既可直接使用维护者提供的在线服务，也可自行部署。欢迎一起改进阅读体验、模型接入和研究工作流。
 </p>
+
+<p align="center"><a href="https://papers.dougao.online">在线使用</a> · <a href="docs/DEPLOYMENT.md">自行部署</a> · <a href="CONTRIBUTING.md">参与共创</a></p>
+
+> 当前仓库暂时保持私有，公开时间由维护者决定；线上服务持续提供。
 
 <p align="center">
   <a href="https://github.com/Jialei-03/zhijian/actions/workflows/verify.yml"><img alt="CI" src="https://github.com/Jialei-03/zhijian/actions/workflows/verify.yml/badge.svg"></a>
@@ -20,8 +24,8 @@
 
 | | |
 | --- | --- |
-| ![研究助手读取三篇论文并比较，每一项标明证据页](frontend/public/assets/showcase/story-compare.webp)<br>**助手读过原文，再回答。** 勾选几篇论文，它逐篇读取全文，按研究问题、方法、数据、结果与局限整理成表，每一项标明出自哪一页。 | ![研究助手的操作记录：展开后能看到它读了哪些文件](frontend/public/assets/showcase/story-trace.webp)<br>**做过什么，一目了然。** 每个回答都可以展开「N 项操作」，看到它读了哪几份文件、做了哪些修改；写入之后回读核对，并给出可点开的凭证。 |
-| ![原文与译文并排，悬停译文时原文里对应的句子亮起](frontend/public/assets/showcase/translate.webp)<br>**逐句对照翻译。** 译文以论文的文字层为准，悬停一句译文，原文里对应的那一句亮起。 | ![框选图表后弹出的菜单：解释、翻译、向 AI 提问、复制为图片](frontend/public/assets/showcase/region.webp)<br>**指哪里，问哪里。** 选中文字或框住图表、公式、表格，解释、翻译、提问、摘录都在手边。 |
+| <img src="docs/brand/showcase/story-compare.jpg" alt="研究助手读取三篇论文并比较，每一项标明证据页" width="440" height="293"><br>**助手读过原文，再回答。** 勾选几篇论文，它逐篇读取全文，按研究问题、方法、数据、结果与局限整理成表，每一项标明出自哪一页。 | <img src="docs/brand/showcase/story-trace.jpg" alt="研究助手的操作记录：展开后能看到它读了哪些文件" width="440" height="293"><br>**做过什么，一目了然。** 每个回答都可以展开「N 项操作」，看到它读了哪几份文件、做了哪些修改；写入之后回读核对，并给出可点开的凭证。 |
+| <img src="docs/brand/showcase/translate.jpg" alt="原文与译文并排，悬停译文时原文里对应的句子亮起" width="440" height="293"><br>**逐句对照翻译。** 译文以论文的文字层为准，悬停一句译文，原文里对应的那一句亮起。 | <img src="docs/brand/showcase/region.jpg" alt="框选图表后弹出的菜单：解释、翻译、向 AI 提问、复制为图片" width="440" height="293"><br>**指哪里，问哪里。** 选中文字或框住图表、公式、表格，解释、翻译、提问、摘录都在手边。 |
 
 ## 纸间是什么
 

@@ -1,13 +1,17 @@
+<p align="center"><img src="docs/brand/banner.svg" alt="Zhijian: an open-source paper-reading workspace, online and self-hosted" width="100%"></p>
+
 <h1 align="center">Zhijian (纸间)</h1>
 
-<p align="center"><strong>A paper-reading workspace, with a research assistant alongside you.</strong></p>
+<p align="center"><strong>An open-source paper-reading workspace, with a research assistant alongside you.</strong></p>
 
 <p align="center">
 Read, translate, annotate and take notes in one window. The assistant actually reads the paper: answers cite the page, it can compare several papers and organize your library, and you can check everything it did.<br>
-Zhijian focuses on providing an online paper-reading service. Use [Zhijian online](https://papers.dougao.online) directly.
-
-This repository remains private while the product and service are developed. The maintainer will decide when to publish it. Deployment documentation and an MIT license are prepared for future open-source collaboration; repository releases and service deployments are managed independently.
+MIT licensed. Use the maintainer's hosted service directly, or deploy your own instance. Contributions to the reading experience, model integrations and research workflows are welcome.
 </p>
+
+<p align="center"><a href="https://papers.dougao.online">Use online</a> · <a href="docs/DEPLOYMENT.md">Self-host</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+
+> The repository is temporarily private; the maintainer will decide when to publish it. The online service remains available.
 
 <p align="center">
   <a href="https://github.com/Jialei-03/zhijian/actions/workflows/verify.yml"><img alt="CI" src="https://github.com/Jialei-03/zhijian/actions/workflows/verify.yml/badge.svg"></a>
@@ -22,8 +26,8 @@ This repository remains private while the product and service are developed. The
 
 | | |
 | --- | --- |
-| ![The assistant reads three papers and compares them, each row citing the evidence page](frontend/public/assets/showcase/story-compare.webp)<br>**The assistant reads the paper, then answers.** Select a few papers and it reads each in full, then lays out the research question, method, data, results and limits in a table, every cell citing a page. | ![The assistant's action log, expanded to show which files it read](frontend/public/assets/showcase/story-trace.webp)<br>**See what it did.** Every answer expands into "N actions": which files it read and what it changed. Writes are read back and verified, with a receipt you can open. |
-| ![Original and translation side by side; hovering a translated sentence lights up the matching source sentence](frontend/public/assets/showcase/translate.webp)<br>**Sentence-aligned translation.** The translation is checked against the paper's own text layer; hover a sentence and the matching original lights up. | ![The menu after box-selecting a figure: explain, translate, ask AI, copy as image](frontend/public/assets/showcase/region.webp)<br>**Point, then ask.** Select text or box a figure, formula or table; explain, translate, ask and clip are one key away. |
+| <img src="docs/brand/showcase/story-compare.jpg" alt="The assistant reads three papers and compares them, each row citing the evidence page" width="440" height="293"><br>**The assistant reads the paper, then answers.** Select a few papers and it reads each in full, then lays out the research question, method, data, results and limits in a table, every cell citing a page. | <img src="docs/brand/showcase/story-trace.jpg" alt="The assistant's action log, expanded to show which files it read" width="440" height="293"><br>**See what it did.** Every answer expands into "N actions": which files it read and what it changed. Writes are read back and verified, with a receipt you can open. |
+| <img src="docs/brand/showcase/translate.jpg" alt="Original and translation side by side; hovering a translated sentence lights up the matching source sentence" width="440" height="293"><br>**Sentence-aligned translation.** The translation is checked against the paper's own text layer; hover a sentence and the matching original lights up. | <img src="docs/brand/showcase/region.jpg" alt="The menu after box-selecting a figure: explain, translate, ask AI, copy as image" width="440" height="293"><br>**Point, then ask.** Select text or box a figure, formula or table; explain, translate, ask and clip are one key away. |
 
 ## What it is
 
