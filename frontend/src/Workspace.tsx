@@ -1,3 +1,4 @@
+import { closeFileDownload } from "./lib/file-download";
 import { importArxiv } from "./lib/arxiv-import";
 import { AgentLayoutProvider } from "./lib/agent-layout";
 import { rememberPaper } from "./lib/recent-papers";
@@ -410,6 +411,7 @@ export function Workspace({
               go={go}
               logout={() =>
                 run(async () => {
+                  closeFileDownload();
                   await send("/auth/logout", {});
                   void clearPaperCovers();
                   setUser(null);

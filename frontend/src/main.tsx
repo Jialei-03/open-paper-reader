@@ -1,4 +1,6 @@
+import { closeFileDownload } from "./lib/file-download";
 import "./styles";
+import { FileDownloadDialog } from "./components/FileDownloadDialog";
 import { offlineOwner, setOfflineOwner } from "./lib/offline";
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -147,7 +149,10 @@ function AuthGate() {
       <AccountRecovery
         key={routePath}
         mode={routePath}
-        onReset={() => setUser(null)}
+        onReset={() => {
+          closeFileDownload();
+          setUser(null);
+        }}
       />
     );
   if (!user)
@@ -196,4 +201,9 @@ function Root() {
     <AuthGate />
   );
 }
-createRoot(document.getElementById("root")!).render(<Root />);
+createRoot(document.getElementById("root")!).render(
+  <>
+    <Root />
+    <FileDownloadDialog />
+  </>,
+);

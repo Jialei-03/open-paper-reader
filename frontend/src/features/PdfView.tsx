@@ -1,3 +1,4 @@
+import { downloadFile } from "../lib/file-download";
 import { PdfRenderRetention } from "../lib/pdf-render-retention";
 import { PdfRegionAdjustment } from "./PdfRegionAdjustment";
 import { PdfLoadProgress, type PdfLoadBytes } from "./PdfLoadProgress";
@@ -180,28 +181,13 @@ export function PdfView({
     setDownloading(true);
     setLinkError("");
     try {
-      const response = await fetch(`/api/v1/files/${file.id}/annotated-pdf`, {
-        credentials: "same-origin",
-      });
-      if (!response.ok) {
-        const result = await response
-          .json()
-          .catch(() => ({ detail: "带批注 PDF 下载失败" }));
-        throw new Error(
-          typeof result.detail === "string"
-            ? result.detail
-            : "带批注 PDF 下载失败",
-        );
-      }
-      const url = URL.createObjectURL(await response.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = paperFileName(
-        (paperTitle || file.name).replace(/\.pdf$/i, ""),
-        "-批注",
+      await downloadFile(
+        `/api/v1/files/${file.id}/annotated-pdf`,
+        paperFileName(
+          (paperTitle || file.name).replace(/\.pdf$/i, ""),
+          "-批注",
+        ),
       );
-      a.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
       setLinkError(error instanceof Error ? error.message : "下载失败");
     } finally {
@@ -1005,10 +991,18 @@ export function PdfView({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
-              <a href={`/api/v1/files/${file.id}/content?download=true`}>
-                下载原文件
-              </a>
+            <DropdownMenuItem
+              onSelect={() => {
+                setLinkError("");
+                void downloadFile(
+                  `/api/v1/files/${file.id}/content?download=true`,
+                  paperFileName(
+                    (paperTitle || file.name).replace(/\.pdf$/i, ""),
+                  ),
+                ).catch((error: Error) => setLinkError(error.message));
+              }}
+            >
+              下载原文件
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void downloadAnnotated()}>
               下载带批注 PDF

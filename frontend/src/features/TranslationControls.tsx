@@ -1,3 +1,4 @@
+import { downloadFile } from "../lib/file-download";
 import { Choice } from "../components/Choice";
 import {
   Field,
@@ -103,26 +104,12 @@ export function TranslationControls({
     setExporting(true);
     setExportError("");
     try {
-      const response = await fetch(
+      await downloadFile(
         `/api/v1/papers/${id}/merged-pdf?translation_job_id=${encodeURIComponent(job.id)}&order=${order}`,
-      );
-      if (!response.ok) {
-        const detail = await response.json().catch(() => null);
-        throw new Error(
-          typeof detail?.detail === "string"
-            ? detail.detail
-            : `合并下载失败（${response.status}）`,
-        );
-      }
-      const url = URL.createObjectURL(await response.blob());
-      const link = document.createElement("a");
-      link.href = url;
-      link.download =
         order === "original-first"
           ? "论文-原文与译文.pdf"
-          : "论文-译文与原文.pdf";
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+          : "论文-译文与原文.pdf",
+      );
     } catch (error) {
       setExportError((error as Error).message);
     } finally {
