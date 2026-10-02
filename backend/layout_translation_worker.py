@@ -194,6 +194,27 @@ def model_request(text, structured):
             PENDING.pop(identifier, None)
 
 
+def document_worker_count(document):
+    """The finite document workload sets concurrency, rather than an account cap."""
+    return max(1, sum(len(page.pdf_paragraph) for page in document.page))
+
+
+def install_document_dispatch(high_level):
+    # BabelDOC requires an integer pool size. Compute it after parsing, when
+    # the actual paragraph workload is known; do not use an arbitrary ceiling.
+    for name in ("ILTranslator", "ILTranslatorLLMOnly"):
+        original = getattr(high_level, name)
+
+        class DocumentTranslator(original):
+            def translate(self, document):
+                self.translation_config.pool_max_workers = document_worker_count(
+                    document
+                )
+                return super().translate(document)
+
+        setattr(high_level, name, DocumentTranslator)
+
+
 async def run(config):
     emit({"type": "progress_start", "stage": "准备版面引擎"})
     assets = os.environ.get("PAPER_LAYOUT_ASSETS")
@@ -208,7 +229,10 @@ async def run(config):
                 if link.is_symlink() and link.resolve() == directory.resolve():
                     continue
                 link.symlink_to(directory, target_is_directory=True)
-    from babeldoc.format.pdf.high_level import async_translate
+    from babeldoc.format.pdf import high_level
+
+    install_document_dispatch(high_level)
+    async_translate = high_level.async_translate
     from babeldoc.format.pdf.translation_config import (
         TranslationConfig,
         WatermarkOutputMode,
@@ -222,6 +246,15 @@ async def run(config):
         def __init__(self):
             # No translation text is shared through BabelDOC's global cache.
             super().__init__("en", "zh", ignore_cache=True)
+
+        def translate(self, text, ignore_cache=False, rate_limit_params=None):
+            # Parent owns upstream retries; bypass BabelDOC's global QPS gate.
+            self.translate_call_count += 1
+            return self.do_translate(text, rate_limit_params)
+
+        def llm_translate(self, text, ignore_cache=False, rate_limit_params=None):
+            self.translate_call_count += 1
+            return self.do_llm_translate(text, rate_limit_params)
 
         def do_translate(self, text, rate_limit_params=None):
             return model_request(text, False)
@@ -261,8 +294,6 @@ async def run(config):
         working_dir=output / "work",
         no_dual=True,
         use_rich_pbar=False,
-        qps=3,
-        pool_max_workers=3,
         auto_extract_glossary=False,
         watermark_output_mode=WatermarkOutputMode.NoWatermark,
         only_include_translated_page=True,

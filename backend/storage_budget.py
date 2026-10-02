@@ -13,6 +13,7 @@ from .models import (
     InkStroke,
     NoteImage,
     ReadingArtifact,
+    TranslationMemory,
     TextAnnotation,
     User,
 )
@@ -37,6 +38,7 @@ def usage(d, owner):
             ("handwriting", InkStroke),
             ("text_annotations", TextAnnotation),
             ("reading_artifacts", ReadingArtifact),
+            ("translation_memory", TranslationMemory),
             ("saved_citations", SavedCitation),
             ("paper_shares", PaperShare),
             ("note_images", NoteImage),

@@ -1,3 +1,4 @@
+import { useReadingArtifacts } from "./useReadingArtifacts";
 import { useEffect, useRef, useState } from "react";
 import { api, send, type SourceFile } from "../api";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -146,6 +147,7 @@ export function ReadingInsights({
     [rows, setRows] = useState<Artifact[]>([]),
     [models, setModels] = useState<InferenceModel[]>([]),
     [model, setModel] = useState("");
+  useReadingArtifacts<Artifact>(paperId, setRows);
   const [count, setCount] = useState("5"),
     [difficulty, setDifficulty] = useState("easy"),
     [sending, setSending] = useState(false),
@@ -155,15 +157,17 @@ export function ReadingInsights({
     [submitted, setSubmitted] = useState(false);
   const current = useRef(file.id);
   current.current = file.id;
-  const active = rows.find(
+  const candidates = rows.filter(
     (row) =>
       row.file_id === file.id &&
       row.kind === kind &&
-      row.model_config_id === model &&
       (kind === "guide" ||
         (row.parameters?.question_count === Number(count) &&
           row.parameters?.difficulty === difficulty)),
   );
+  const active =
+    candidates.find((row) => row.model_config_id === model) ||
+    candidates.find((row) => row.status === "completed");
   useEffect(() => {
     if (view) setKind(view);
   }, [view]);

@@ -153,7 +153,9 @@ def closest_span(original, source, cursor, similarity=0.93, whole=False):
     `source`. Near `cursor` unless `whole`, which looks through all of `source`."""
     if len(original) < 12:
         return None
-    window = source[cursor:] if whole else source[cursor : cursor + len(original) * 2 + 400]
+    window = (
+        source[cursor:] if whole else source[cursor : cursor + len(original) * 2 + 400]
+    )
     blocks = [
         b
         for b in difflib.SequenceMatcher(
@@ -164,7 +166,12 @@ def closest_span(original, source, cursor, similarity=0.93, whole=False):
     if not blocks or sum(b.size for b in blocks) < similarity * len(original):
         return None
     start = cursor + max(0, blocks[0].b - blocks[0].a)
-    end = cursor + min(len(window), blocks[-1].b + blocks[-1].size + (len(original) - blocks[-1].a - blocks[-1].size))
+    end = cursor + min(
+        len(window),
+        blocks[-1].b
+        + blocks[-1].size
+        + (len(original) - blocks[-1].a - blocks[-1].size),
+    )
     return (start, end) if end > start else None
 
 
@@ -173,7 +180,9 @@ def wrapped_words_of(text):
     # Do not normalize arbitrary hyphens (e.g. subtraction or re-sign/resign).
     return {
         m.group(1) + m.group(2)
-        for m in re.finditer(r"(?<!\w)([A-Za-z]+)-[ \t]*\n[ \t]*([A-Za-z]+)(?!\w)", text)
+        for m in re.finditer(
+            r"(?<!\w)([A-Za-z]+)-[ \t]*\n[ \t]*([A-Za-z]+)(?!\w)", text
+        )
     }
 
 
@@ -213,7 +222,9 @@ def verify_translation(result, text, ordered=True):
     source, offsets = translation_text_map(text, wrapped_words)
     cursor, covered = 0, bytearray(len(source))
     for paragraph in result.paragraphs:
-        if paragraph.kind == "page_number" and not re.fullmatch(r"(?:[0-9]+|[ivxlcdmIVXLCDM]+)", paragraph.original.strip()):
+        if paragraph.kind == "page_number" and not re.fullmatch(
+            r"(?:[0-9]+|[ivxlcdmIVXLCDM]+)", paragraph.original.strip()
+        ):
             raise ValueError("页码分类包含正文，请重试")
         original, _ = translation_text_map(paragraph.original, wrapped_words)
         position = source.find(original, cursor)
@@ -225,7 +236,7 @@ def verify_translation(result, text, ordered=True):
         cursor = end if ordered else max(cursor, end)
         covered[position:end] = b"\x01" * len(original)
         # Never retain the model's typographic substitutions as PDF evidence.
-        paragraph.original = text[offsets[position]:offsets[end - 1] + 1]
+        paragraph.original = text[offsets[position] : offsets[end - 1] + 1]
     if not source or sum(covered) / len(source) < 0.95:
         raise ValueError("本页译文不完整，请重试")
 
@@ -239,7 +250,9 @@ def normalize_guide(value):
         and all(isinstance(item, str) for item in summary)
     ):
         sentences = [
-            s for s in re.findall(r"[^。！？!?]+[。！？!?]?", "".join(summary)) if s.strip()
+            s
+            for s in re.findall(r"[^。！？!?]+[。！？!?]?", "".join(summary))
+            if s.strip()
         ]
         if len(sentences) >= 3:
             return {**value, "summary": sentences[:2] + ["".join(sentences[2:])]}
@@ -355,6 +368,24 @@ def artifact_prompt(file, body, direct=False):
 def artifact_output(d, row):
     value = public(row)
     value.pop("evidence_text", None)
+    if (row.parameters or {}).get("preparation_id"):
+        from .models import PaperPreparation
+
+        parent = d.get(PaperPreparation, row.parameters["preparation_id"])
+        if row.status != "completed" and parent:
+            value["status"] = (
+                parent.status
+                if parent.status in {"queued", "running"}
+                else "cancelled"
+                if parent.status == "paused"
+                else "failed"
+            )
+            value["error"] = (
+                "自动准备已暂停，可在准备状态中继续"
+                if parent.status == "paused"
+                else parent.error
+            )
+        return value
     run = d.get(AgentRun, row.run_id) if row.run_id else None
     if row.status != "completed":
         value["status"] = run.status if run else "failed"
@@ -600,6 +631,77 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
         cfg = read_config(settings, a["id"], body.model_config_id)
         if not cfg.get("api_key") or not cfg.get("model"):
             raise HTTPException(409, "请先选择可用模型")
+        # The browser follows one preparation task instead of starting a second
+        # page translator. Explicit regeneration retains its existing semantics.
+        if (
+            body.kind in {"guide", "page_translation"}
+            and not body.regenerate
+            and body.language == "zh"
+        ):
+            from .models import PaperPreparation
+            from .preparation_worker import artifact_key
+
+            existing = (
+                d.scalar(
+                    select(ReadingArtifact)
+                    .where(
+                        ReadingArtifact.owner == a["id"],
+                        ReadingArtifact.file_id == file.id,
+                        ReadingArtifact.kind == body.kind,
+                    )
+                    .order_by(ReadingArtifact.updated_at.desc())
+                )
+                if body.kind == "guide"
+                else next(
+                    (
+                        r
+                        for r in d.scalars(
+                            select(ReadingArtifact)
+                            .where(
+                                ReadingArtifact.owner == a["id"],
+                                ReadingArtifact.file_id == file.id,
+                                ReadingArtifact.kind == body.kind,
+                            )
+                            .order_by(ReadingArtifact.updated_at.desc())
+                        )
+                        if r.parameters.get("page") == body.page
+                        and r.parameters.get("language") == "zh"
+                    ),
+                    None,
+                )
+            )
+            if existing and existing.parameters.get("preparation_id"):
+                return artifact_output(d, existing)
+            parent = d.scalar(
+                select(PaperPreparation).where(
+                    PaperPreparation.owner == a["id"],
+                    PaperPreparation.file_id == file.id,
+                    PaperPreparation.status.in_(["queued", "running"]),
+                )
+            )
+            if parent:
+                cfg = read_config(settings, a["id"])
+                parameters = (
+                    {"page": body.page, "language": "zh"}
+                    if body.kind == "page_translation"
+                    else {}
+                )
+                row = ReadingArtifact(
+                    owner=a["id"],
+                    paper_id=id,
+                    file_id=file.id,
+                    version_id=file.version_id,
+                    file_sha256=file.sha256,
+                    cache_key=artifact_key(parent, file, cfg, body.kind, parameters),
+                    kind=body.kind,
+                    model_config_id=cfg.get("id", ""),
+                    model=cfg["model"],
+                    parameters={**parameters, "preparation_id": parent.id},
+                    size=2048,
+                )
+                d.add(row)
+                d.commit()
+                return artifact_output(d, row)
         strength = task_options(cfg, task_of(artifact=body.kind))
         parameters = (
             {"question_count": body.question_count, "difficulty": body.difficulty}
@@ -687,6 +789,9 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
                 )[:100],
             )
             d.add(session)
+        row.parameters = (
+            {**parameters, "_regenerate": now()} if body.regenerate else parameters
+        )
         row.status, row.error, row.result, row.evidence_pages = "queued", "", {}, []
         row.evidence_text = {}
         row.size, row.updated_at = RESERVE, now()

@@ -78,6 +78,19 @@ services:
       web:
         condition: service_healthy
 
+  preparation:
+    <<: *app
+    command: ["preparation-worker"]
+    healthcheck:
+      test: ["CMD", "docker-entrypoint.sh", "healthcheck-worker", "preparation"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    depends_on:
+      web:
+        condition: service_healthy
+
 volumes:
   db:
   data:

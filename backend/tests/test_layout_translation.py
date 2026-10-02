@@ -180,6 +180,8 @@ def test_layout_worker_stops_after_valid_terminal_event(monkeypatch, tmp_path):
         def __init__(self, *args, **kwargs):
             pass
 
+    modules["babeldoc.format.pdf.high_level"].ILTranslator = Translator
+    modules["babeldoc.format.pdf.high_level"].ILTranslatorLLMOnly = Translator
     modules["babeldoc.format.pdf.high_level"].async_translate = translate
     modules["babeldoc.format.pdf.translation_config"].TranslationConfig = (
         lambda **kwargs: SimpleNamespace(get_working_file_path=lambda name: tracking)

@@ -1,3 +1,4 @@
+import { PaperPreparation } from "./PaperPreparation";
 import { OfflineDownload } from "./OfflineDownload";
 import { createPortal } from "react-dom";
 import {
@@ -747,6 +748,7 @@ export function Reader({
           {f?.mime === "application/pdf" && (
             <OfflineDownload paper={paper} file={f} />
           )}
+          <PaperPreparation paperId={id} versionId={paper.current_version} />
           <div ref={setToolbarHost} className="reader-header-tools" />
           {f?.mime === "application/pdf" && (
             <ReaderButton

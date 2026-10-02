@@ -57,6 +57,10 @@ def process_layout(settings, maker, job_id, config, work, progress):
             current = d.get(TranslationJob, job_id)
             return not current or current.status != "running"
 
+    from .translation_memory import SentenceMemory
+
+    config = {**config, "_shared_sentence_translator": SentenceMemory(settings, maker, job.owner, source.sha256, config, cancelled=cancelled).layout}
+
     completed = 0
 
     def update_progress(event):

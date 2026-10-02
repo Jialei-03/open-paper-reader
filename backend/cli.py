@@ -61,7 +61,7 @@ def backup(settings, output):
                 json.dumps(
                     {
                         "format": "paper-platform-backup",
-                        "schema_version": 15,
+                        "schema_version": 16,
                         "created_at": now(),
                         "data": data,
                     },
@@ -116,7 +116,7 @@ def restore(settings, source):
             payload = json.loads(z.read("backup.json"))
             if payload.get("format") != "paper-platform-backup" or payload.get(
                 "schema_version"
-            ) not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}:
+            ) not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}:
                 raise ValueError("Unsupported backup schema")
             data = payload["data"]
             if payload["schema_version"] == 1:
@@ -180,6 +180,23 @@ def restore(settings, source):
                 data.setdefault("saved_citations", [])
             if payload["schema_version"] < 15:
                 data.setdefault("paper_shares", [])
+            if payload["schema_version"] < 16:
+                for table in (
+                    "preparation_settings",
+                    "paper_preparations",
+                    "translation_memory",
+                ):
+                    data.setdefault(table, [])
+                for job in data["translation_jobs"]:
+                    job.setdefault("preparation_id", "")
+            for preparation in data["paper_preparations"]:
+                if preparation["status"] in {"queued", "running", "waiting"}:
+                    preparation["status"] = "paused"
+                    preparation["stage"] = "从备份恢复，请确认后继续"
+            for job in data["translation_jobs"]:
+                if job.get("preparation_id") and job["status"] in {"queued", "running"}:
+                    job["status"] = "cancelled"
+                    job["stage"] = "从备份恢复，自动准备已暂停"
             expected = {
                 t.name for t in Base.metadata.sorted_tables if t.name not in EXCLUDED
             }

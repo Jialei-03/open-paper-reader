@@ -12,7 +12,7 @@ def test_wait_does_not_consume_execution_and_is_cumulative(tmp_path, monkeypatch
     monkeypatch.setattr(
         agent_budget.time, "sleep", lambda n: clock.__setitem__(0, clock[0] + n)
     )
-    config = {"_platform_limit_dir": str(tmp_path)}
+    config = {"_platform_limit_dir": str(tmp_path), "_platform_concurrency_limit": 3}
     budget = agent_budget.RunBudget(execution=10, waiting=1)
     with ExitStack() as slots:
         for _ in range(3):
@@ -38,7 +38,7 @@ def test_wait_does_not_consume_execution_and_is_cumulative(tmp_path, monkeypatch
 
 
 def test_wait_cancelled_and_slot_reusable(tmp_path):
-    config = {"_platform_limit_dir": str(tmp_path)}
+    config = {"_platform_limit_dir": str(tmp_path), "_platform_concurrency_limit": 3}
     budget = agent_budget.RunBudget()
     with pytest.raises(ValueError, match="任务已停止"):
         budget.acquire(config, lambda: True)
@@ -62,7 +62,7 @@ def test_cancellation_during_busy_wait(tmp_path, monkeypatch):
     monkeypatch.setattr(
         agent_budget.time, "sleep", lambda n: clock.__setitem__(0, clock[0] + n)
     )
-    config = {"_platform_limit_dir": str(tmp_path)}
+    config = {"_platform_limit_dir": str(tmp_path), "_platform_concurrency_limit": 3}
     budget = agent_budget.RunBudget(execution=10)
     with ExitStack() as slots:
         for _ in range(3):

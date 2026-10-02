@@ -274,6 +274,7 @@ class TranslationJob(Base):
     engine: Mapped[str] = mapped_column(
         String(20), default="latex", server_default="latex"
     )
+    preparation_id: Mapped[str] = mapped_column(String(36), default="", server_default="")
     status: Mapped[str] = mapped_column(String(24), default="queued")
     stage: Mapped[str] = mapped_column(String(100), default="等待处理")
     completed: Mapped[int] = mapped_column(Integer, default=0)
@@ -351,6 +352,49 @@ class ReadingArtifact(Base):
     size: Mapped[int] = mapped_column(Integer, default=131072)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class PreparationSetting(Base):
+    __tablename__ = "preparation_settings"
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class PaperPreparation(Base):
+    __tablename__ = "paper_preparations"
+    __table_args__ = (UniqueConstraint("owner", "file_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    paper_id: Mapped[str] = mapped_column(ForeignKey("papers.id"), index=True)
+    file_id: Mapped[str] = mapped_column(ForeignKey("files.id"))
+    version_id: Mapped[str] = mapped_column(String(36))
+    status: Mapped[str] = mapped_column(String(24), default="queued")
+    stage: Mapped[str] = mapped_column(String(100), default="等待自动准备")
+    completed: Mapped[int] = mapped_column(Integer, default=0)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    guide_status: Mapped[str] = mapped_column(String(24), default="queued")
+    translation_status: Mapped[str] = mapped_column(String(24), default="queued")
+    layout_status: Mapped[str] = mapped_column(String(24), default="queued")
+    error: Mapped[str] = mapped_column(String(500), default="")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    retry_at: Mapped[str] = mapped_column(String(40), default="")
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class TranslationMemory(Base):
+    __tablename__ = "translation_memory"
+    __table_args__ = (UniqueConstraint("owner", "cache_key"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    file_sha256: Mapped[str] = mapped_column(String(64), index=True)
+    cache_key: Mapped[str] = mapped_column(String(64))
+    original: Mapped[str] = mapped_column(Text)
+    translation: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(16), default="text")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
 
 
 class AgentQuota(Base):

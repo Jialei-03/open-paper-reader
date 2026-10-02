@@ -33,7 +33,7 @@ def translation_client(proxy):
     return httpx.Client(
         proxy=proxy,
         timeout=httpx.Timeout(20, connect=15),
-        limits=httpx.Limits(max_connections=3, max_keepalive_connections=3,
+        limits=httpx.Limits(max_connections=None, max_keepalive_connections=20,
                            keepalive_expiry=120),
         trust_env=False,
         follow_redirects=False,
@@ -73,7 +73,6 @@ def google_translate(text, language="zh"):
 class QuickTranslator:
     def __init__(self):
         self.lock = threading.Lock()
-        self.slots = threading.BoundedSemaphore(3)
         self.cache = OrderedDict()
         self.starts = OrderedDict()
 
@@ -94,14 +93,10 @@ class QuickTranslator:
             self.starts.move_to_end(owner)
             while len(self.starts) > 1024:
                 self.starts.popitem(last=False)
-        if not self.slots.acquire(blocking=False):
-            raise HTTPException(429, "快速翻译繁忙，请稍后再试")
         try:
             result = google_translate(text, language)
         except (httpx.HTTPError, ValueError, TypeError, KeyError, IndexError):
             raise HTTPException(503, "免费基础翻译暂不可用，可改用 AI 翻译") from None
-        finally:
-            self.slots.release()
         with self.lock:
             self.cache[key] = (current, result)
             self.cache.move_to_end(key)

@@ -109,7 +109,7 @@ def _first_waiter(root, own):
 @contextmanager
 def model_slot(config, timeout=540, cancelled=None):
     location = config.get("_platform_limit_dir")
-    concurrency = config.get("_platform_concurrency_limit", 3)
+    concurrency = config.get("_platform_concurrency_limit", 0)
     if not location or concurrency == 0:
         if cancelled and cancelled():
             raise ValueError("任务已停止；已完成操作保留")

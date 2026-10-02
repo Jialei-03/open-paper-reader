@@ -1,3 +1,4 @@
+import { useReadingArtifacts } from "./useReadingArtifacts";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -62,7 +63,7 @@ type Artifact = {
   status: string;
   run_id: string;
   error: string;
-  parameters: { page?: number; language?: string };
+  parameters: { page?: number; language?: string; preparation_id?: string };
   result?: { paragraphs?: Paragraph[] };
   preview?: { paragraphs?: Paragraph[] };
 };
@@ -121,6 +122,7 @@ export function ParallelTranslation({
   const [model, setModel] = useState("");
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [rows, setRows] = useState<Artifact[]>([]);
+  useReadingArtifacts<Artifact>(paperId, setRows);
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const [loading, setLoading] = useState(true);
@@ -131,16 +133,29 @@ export function ParallelTranslation({
   const epoch = useRef(0);
   const mounted = useRef(true);
   const jobs = useRef(new Map<string, string>());
+  const preparationJobs = useRef(new Set<string>());
   const scope = `${file.id}:${model}:${language}`;
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
-  const scoped = rows.filter(
+  const candidates = rows.filter(
     (r) =>
       r.file_id === file.id &&
       r.kind === "page_translation" &&
-      r.model_config_id === model &&
       r.parameters.language === language,
   );
+  // An existing translation remains readable after the default model changes.
+  const scoped = [...new Set(candidates.map((row) => row.parameters.page))]
+    .map(
+      (target) =>
+        candidates.find(
+          (row) =>
+            row.parameters.page === target && row.model_config_id === model,
+        ) ||
+        candidates.find(
+          (row) => row.parameters.page === target && row.status === "completed",
+        ),
+    )
+    .filter((row): row is Artifact => !!row);
   const completed = new Set(
     scoped
       .filter((r) => r.status === "completed")
@@ -281,6 +296,15 @@ export function ParallelTranslation({
               r.parameters.language === language &&
               r.parameters.page === target,
           );
+          if (!row && !regenerate)
+            row = rowsRef.current.find(
+              (r) =>
+                r.file_id === file.id &&
+                r.kind === "page_translation" &&
+                r.parameters.language === language &&
+                r.parameters.page === target &&
+                r.status === "completed",
+            );
           if (
             !row ||
             (!pending(row) && (row.status !== "completed" || regenerate))
@@ -289,12 +313,17 @@ export function ParallelTranslation({
           }
           // A stop during submission must also cancel the run returned afterwards.
           if (!live()) {
-            if (pending(row))
+            if (pending(row) && row!.run_id)
               await send(`/agent/runs/${row!.run_id}/cancel`, {});
+            else if (pending(row) && row!.parameters.preparation_id)
+              await send(`/papers/${paperId}/preparation`, { action: "pause" });
             return;
           }
           merge(row!);
-          if (pending(row)) jobs.current.set(row!.id, row!.run_id);
+          if (pending(row) && row!.run_id)
+            jobs.current.set(row!.id, row!.run_id);
+          if (pending(row) && row!.parameters.preparation_id)
+            preparationJobs.current.add(row!.id);
           while (live() && pending(row)) {
             await new Promise((resolve) => setTimeout(resolve, 700));
             if (!live()) return;
@@ -302,6 +331,7 @@ export function ParallelTranslation({
             if (live()) merge(row);
           }
           jobs.current.delete(row!.id);
+          preparationJobs.current.delete(row!.id);
           if (row!.status !== "completed") {
             failures.push(target);
             if (row!.error) reasons.add(row!.error);
@@ -317,10 +347,8 @@ export function ParallelTranslation({
           );
       }
     };
-    // Keep six pages moving while leaving capacity for interactive AI tasks.
-    await Promise.all(
-      Array.from({ length: Math.min(6, targets.length) }, worker),
-    );
+    // Submit all requested pages; the server owns scheduling and content reuse.
+    await Promise.all(Array.from({ length: targets.length }, worker));
     if (live()) {
       setBusy(false);
       setMessage("");
@@ -333,15 +361,24 @@ export function ParallelTranslation({
   async function stop() {
     epoch.current++;
     setBusy(false);
-    const runs = new Set([
-      ...jobs.current.values(),
-      ...scoped.filter(pending).map((r) => r.run_id),
-    ]);
+    const runs = new Set(
+      [
+        ...jobs.current.values(),
+        ...scoped.filter(pending).map((r) => r.run_id),
+      ].filter(Boolean),
+    );
+    const pausePreparation =
+      preparationJobs.current.size > 0 ||
+      scoped.some((row) => pending(row) && !!row.parameters.preparation_id);
     jobs.current.clear();
+    preparationJobs.current.clear();
     try {
-      await Promise.all(
-        [...runs].map((id) => send(`/agent/runs/${id}/cancel`, {})),
-      );
+      await Promise.all([
+        ...[...runs].map((id) => send(`/agent/runs/${id}/cancel`, {})),
+        ...(pausePreparation
+          ? [send(`/papers/${paperId}/preparation`, { action: "pause" })]
+          : []),
+      ]);
       if (mounted.current) {
         setRows(await api<Artifact[]>(`/papers/${paperId}/reading-artifacts`));
         setMessage("已停止，完成的译文已保留");

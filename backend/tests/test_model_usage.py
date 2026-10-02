@@ -136,7 +136,7 @@ def test_usage_backup_roundtrip_and_previous_schema(env, tmp_path):
     usage.finish(app.state.maker, identifier, {"input": 10, "output": 20}, "pi")
     path = tmp_path / "backup.zip"
     backup(settings, path)
-    for legacy in (False, 7, 8):
+    for legacy in (False, 7, 8, 15):
         source = path
         if legacy:
             source = tmp_path / "legacy.zip"
@@ -148,9 +148,18 @@ def test_usage_backup_roundtrip_and_previous_schema(env, tmp_path):
                 payload["schema_version"] = legacy
                 if legacy == 7:
                     payload["data"].pop("model_usage")
-                else:
+                elif legacy == 8:
                     for row in payload["data"]["model_usage"]:
                         row.pop("reserved_tokens")
+                if legacy == 15:
+                    for table in (
+                        "preparation_settings",
+                        "paper_preparations",
+                        "translation_memory",
+                    ):
+                        payload["data"].pop(table)
+                    for job in payload["data"]["translation_jobs"]:
+                        job.pop("preparation_id")
                 target.writestr("backup.json", json.dumps(payload))
         target_settings = Settings(
             database_url=f"sqlite:///{tmp_path}/restored-{legacy}.db",

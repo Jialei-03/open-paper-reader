@@ -1,4 +1,4 @@
-"""Single worker: python -m backend.translation_worker. Web requests never run TeX."""
+"""Single dispatcher: python -m backend.translation_worker. Web requests never run TeX."""
 
 import fcntl
 import hashlib
@@ -8,7 +8,7 @@ import logging
 import os
 import shutil
 import signal
-import sys
+import threading
 import tarfile
 import time
 import traceback
@@ -20,6 +20,8 @@ from .arxiv_import import download, extract_source
 from .config import Settings, database
 from .models import File, Paper, TranslationJob, now
 from .translation_engine import align, compile_project, translate_project
+from .translation_dispatch import TaskExecutor
+from .translation_resources import rendering_memory
 from .translation_settings import read_config
 from .translations import store_file
 
@@ -89,6 +91,11 @@ def process(settings, maker, job_id):
                 raise
             return f.id
 
+    def cancelled():
+        with maker() as d:
+            current = d.get(TranslationJob, job_id)
+            return not current or current.status != "running"
+
     try:
         if shutil.disk_usage(work).free < settings.storage_min_free:
             raise ValueError("服务器临时空间不足，请清理空间后重试；翻译检查点保留")
@@ -102,7 +109,10 @@ def process(settings, maker, job_id):
         if job.engine == "pdf":
             from .pdf_layout_jobs import process_layout
 
-            process_layout(settings, maker, job_id, config, work, progress)
+            with rendering_memory(
+                1400 * 1024**2, cancelled, lambda: progress(0, 100, "等待排版运行内存")
+            ):
+                process_layout(settings, maker, job_id, config, work, progress)
             return
         progress(0, 0, "下载固定版本的原文与源码")
         raw = download("/pdf/" + arxiv)
@@ -138,7 +148,12 @@ def process(settings, maker, job_id):
             work / "source", work / "translated", config, progress, cached=cache
         )
         progress(len(units), len(units), "编译中文 PDF")
-        translated = compile_project(work / "translated")
+        with rendering_memory(
+            1200 * 1024**2,
+            cancelled,
+            lambda: progress(len(units), len(units), "等待编译运行内存"),
+        ):
+            translated = compile_project(work / "translated")
         progress(len(units), len(units), "保存中文 PDF")
         progress(len(units), len(units), "建立原译文对照")
         alignment = align(units, Path(settings.storage) / source_file, translated)
@@ -232,7 +247,9 @@ def main():
     logging.basicConfig(level=logging.WARNING)
     logging.getLogger("backend.translation_engine").setLevel(logging.INFO)
     logging.getLogger("backend.translation_cache").setLevel(logging.INFO)
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    stopping = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: stopping.set())
+    signal.signal(signal.SIGINT, lambda *_: stopping.set())
     os.umask(0o077)
     settings = Settings.env()
     _engine, maker = database(settings)
@@ -251,41 +268,97 @@ def main():
                 )
             )
             d.commit()
-        last_cleanup = 0
-        while True:
-            if time.monotonic() - last_cleanup >= 3600 or not last_cleanup:
+        run_queue(settings, maker, stopping)
+
+
+def dispatch_queued(settings, maker, executor, active):
+    """Atomically claim queued jobs, then dispatch each independent job once."""
+    with maker() as d:
+        queued = list(
+            d.scalars(
+                select(TranslationJob.id)
+                .where(TranslationJob.status == "queued")
+                .order_by(TranslationJob.created_at)
+            )
+        )
+    for job_id in queued:
+        # A requeued job must not race its previous thread's final cleanup.
+        if job_id in active:
+            continue
+        with maker() as d:
+            claimed = (
+                d.execute(
+                    update(TranslationJob)
+                    .where(
+                        TranslationJob.id == job_id, TranslationJob.status == "queued"
+                    )
+                    .values(status="running", updated_at=now())
+                ).rowcount
+                == 1
+            )
+            d.commit()
+        if not claimed:
+            continue
+        try:
+            active[job_id] = executor.submit(process, settings, maker, job_id)
+        except Exception:
+            with maker() as d:
+                d.execute(
+                    update(TranslationJob)
+                    .where(
+                        TranslationJob.id == job_id, TranslationJob.status == "running"
+                    )
+                    .values(status="queued", updated_at=now())
+                )
+                d.commit()
+            raise
+
+
+def run_queue(settings, maker, stopping):
+    last_cleanup = 0
+    active = {}
+    with TaskExecutor(thread_name_prefix="translation-job") as executor:
+        while not stopping.is_set():
+            for job_id, future in list(active.items()):
+                if future.done():
+                    try:
+                        future.result()
+                    except Exception:
+                        logging.getLogger(__name__).exception("Translation job crashed")
+                        with maker() as d:
+                            d.execute(
+                                update(TranslationJob)
+                                .where(
+                                    TranslationJob.id == job_id,
+                                    TranslationJob.status == "running",
+                                )
+                                .values(
+                                    status="failed",
+                                    stage="翻译未完成",
+                                    error="处理失败，请检查模型配置后重试",
+                                    updated_at=now(),
+                                )
+                            )
+                            d.commit()
+                    del active[job_id]
+            # A completed job's cleanup may still be writing its scratch dir.
+            # Maintenance waits for dispatch threads to be idle, not DB status.
+            if not active and (
+                not last_cleanup or time.monotonic() - last_cleanup >= 3600
+            ):
                 from .translation_cache import sweep
 
                 try:
-                    cleaned = sweep(settings, maker, worker_locked=True)
-                    if cleaned["removed"]:
-                        logging.getLogger("backend.translation_cache").info(
-                            "Removed %s expired scratch directories; freed %s bytes",
-                            cleaned["removed"],
-                            cleaned["freed_bytes"],
-                        )
-                except Exception:  # maintenance must not stop job processing
+                    sweep(settings, maker, worker_locked=True)
+                except Exception:
                     logging.getLogger(__name__).exception(
                         "Translation cache cleanup failed"
                     )
                 last_cleanup = time.monotonic()
-            with maker() as d:
-                job = d.scalar(
-                    select(TranslationJob)
-                    .where(TranslationJob.status == "queued")
-                    .order_by(TranslationJob.created_at)
-                )
-                if job:
-                    job.status = "running"
-                    job.updated_at = now()
-                    job_id = job.id
-                    d.commit()
-                else:
-                    job_id = None
-            if job_id:
-                process(settings, maker, job_id)
-            else:
-                time.sleep(2)
+            dispatch_queued(settings, maker, executor, active)
+            stopping.wait(0.5)
+        # Keep the process lock until already dispatched jobs have drained.
+        # A forced process stop remains recoverable from running checkpoints.
 
 
 if __name__ == "__main__":

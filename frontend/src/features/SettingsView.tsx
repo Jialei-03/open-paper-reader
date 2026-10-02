@@ -1,3 +1,4 @@
+import { PreparationSettings } from "./PaperPreparation";
 import { AppearanceSettings } from "../components/Appearance";
 import { ModelUsage } from "./ModelUsage";
 import { StorageUsage } from "./StorageUsage";
@@ -173,6 +174,7 @@ export function SettingsView({ user, tick, run, setModal, close }: any) {
           <div className="settings-panels">
             <TabsContent value="models" className="settings-panel">
               <TranslationSettings run={run} />
+              <PreparationSettings />
               <ModelUsage key={`model-${user.id}`} tick={tick} />
             </TabsContent>
             <TabsContent value="appearance" className="settings-panel">

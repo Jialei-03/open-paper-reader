@@ -445,7 +445,9 @@ def run(app, job_id, cfg):
             if not text.strip():
                 raise ValueError(NO_TEXT)
             phase("model")
-            answer = translate_page(ask, text, page, parameters["language"])
+            from .translation_memory import SentenceMemory
+            memory = SentenceMemory(settings, maker, owner, artifact_file.sha256, {**bound, "_memory_revision": parameters.get("_regenerate", "")}, parameters["language"], cancelled)
+            answer = memory.page(ask, text, page)
         elif context.get("source") == "region":
             phase("preparing")
             content = boxed(

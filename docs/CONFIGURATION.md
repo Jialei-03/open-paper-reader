@@ -98,7 +98,7 @@
 | `ARXIV_PROXY` | 空 | 只用于下载 arXiv 的 HTTP 代理，例如 `http://127.0.0.1:7890` |
 | `TRANSLATION_CACHE_DAYS` | `7` | 已完成翻译的中间文件在验证产物后多久过期；`0` 关闭。失败、取消和进行中的任务检查点不会按此清理 |
 | `TRANSLATION_ORPHAN_DAYS` | `30` | 失去所属任务的中间文件保留天数；`0` 关闭 |
-| `TRANSLATION_BATCH_WORKERS` | `3` | 一篇论文内并行的模型请求数 |
+| `TRANSLATION_BATCH_WORKERS` | 不再使用 | 翻译批次按实际待处理任务并发执行，无固定线程上限 |
 | `TRANSLATION_TEX_IMAGE` | `paper-tex:2026-09` | 编译翻译后 LaTeX 的 Docker 镜像名（见 [部署](DEPLOYMENT.md#可选组件)） |
 | `PDF_LAYOUT_IMAGE` | 空 | 普通 PDF 版面翻译的 Docker 镜像名；不设置时该功能未启用 |
 | `PDF_STRUCTURE_PYTHON` | 空 | 一个装有 `docling_core` 的 Python 的路径，用于「图表」面板里的图表与公式识别；不设置时该接口返回 503，其余功能不受影响 |
@@ -127,3 +127,5 @@
 | `REALMEM_FIXTURE_DIR` | 一个目录，含 `manifest.json` 和一篇真实论文的原始文件，用于可选的集成测试；不设置时相关用例被跳过 |
 | `E2E_TEST_PASSWORD` | 浏览器测试的账户密码；`npx playwright test` 会自动生成 |
 | `BENCH_DIR`、`BENCH_PASSWORD`、`PLATFORM_MODEL_CONFIG` | 真实模型基准脚本 `scripts/bench_model.py` 用，见 [性能](PERFORMANCE.md) |
+
+自动导读、共用逐句译文与布局生成见 [自动准备论文](PREPARATION.md)。

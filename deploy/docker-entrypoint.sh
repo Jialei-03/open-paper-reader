@@ -14,11 +14,14 @@ case "$role" in
   translation-worker)
     exec python -m backend.translation_worker
     ;;
+  preparation-worker)
+    exec python -m backend.preparation_worker
+    ;;
   healthcheck-worker)
     # A worker opens no port. It holds an exclusive lock on this file for as long as
     # it runs (that is how a second worker is refused), so if the lock cannot be
     # taken, a worker is alive.
-    exec python - "$(dirname "${STORAGE_DIR:-/data/files}")/agent-worker.lock" <<'PY'
+    exec python - "$(dirname "${STORAGE_DIR:-/data/files}")/${2:-agent}-worker.lock" <<'PY'
 import errno
 import fcntl
 import sys

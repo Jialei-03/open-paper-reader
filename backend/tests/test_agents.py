@@ -314,7 +314,10 @@ def test_pi_worker_tool_loop_and_followup(env, monkeypatch, protocol, vision):
     import backend.agent_worker as worker
     from backend.platform_model import ModelSlotBusy, model_slot
 
-    slot_config = {"_platform_limit_dir": str(settings.storage) + "-test-slots"}
+    slot_config = {
+        "_platform_limit_dir": str(settings.storage) + "-test-slots",
+        "_platform_concurrency_limit": 3,
+    }
     actual_execute = worker.execute
 
     async def check_tool_slots(*args, **kwargs):

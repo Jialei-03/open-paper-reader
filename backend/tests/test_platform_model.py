@@ -120,7 +120,9 @@ def test_open_registration_and_shared_model_privacy(env, monkeypatch):
 
 
 def occupy(directory, ready):
-    with model_slot({"_platform_limit_dir": directory}):
+    with model_slot(
+        {"_platform_limit_dir": directory, "_platform_concurrency_limit": 3}
+    ):
         ready.put(True)
         time.sleep(30)
 
@@ -140,12 +142,21 @@ def test_three_slots_cross_process_and_crash_releases(tmp_path):
 
         with (
             pytest.raises(ValueError, match="等待超时"),
-            model_slot({"_platform_limit_dir": str(tmp_path)}, timeout=0.2),
+            model_slot(
+                {
+                    "_platform_limit_dir": str(tmp_path),
+                    "_platform_concurrency_limit": 3,
+                },
+                timeout=0.2,
+            ),
         ):
             raise AssertionError("fourth call must wait")
         children[0].terminate()
         children[0].join(timeout=5)
-        with model_slot({"_platform_limit_dir": str(tmp_path)}, timeout=1):
+        with model_slot(
+            {"_platform_limit_dir": str(tmp_path), "_platform_concurrency_limit": 3},
+            timeout=1,
+        ):
             pass
     finally:
         for child in children:
@@ -163,7 +174,7 @@ def test_translation_calls_share_agent_slots(tmp_path, monkeypatch):
 
     from backend import translation_settings as models
 
-    config = {"_platform_limit_dir": str(tmp_path)}
+    config = {"_platform_limit_dir": str(tmp_path), "_platform_concurrency_limit": 3}
     guard = threading.Lock()
     active = maximum = 0
 
@@ -273,7 +284,7 @@ def test_model_waiters_are_fifo_and_dead_waiter_is_removed(tmp_path):
     import multiprocessing
 
     context = multiprocessing.get_context("spawn")
-    config = {"_platform_limit_dir": str(tmp_path)}
+    config = {"_platform_limit_dir": str(tmp_path), "_platform_concurrency_limit": 3}
     holders = [model_slot(config) for _ in range(3)]
     for holder in holders:
         holder.__enter__()
@@ -316,7 +327,10 @@ def test_busy_shared_jobs_do_not_hide_ready_private_job(env, tmp_path, monkeypat
     from backend.models import AgentRun, AgentSession
 
     app, _, _, settings = env
-    shared = {"_platform_limit_dir": str(tmp_path / "slots")}
+    shared = {
+        "_platform_limit_dir": str(tmp_path / "slots"),
+        "_platform_concurrency_limit": 3,
+    }
     with app.state.maker() as d:
         ids = []
         for index in range(3):
@@ -355,3 +369,33 @@ def test_busy_shared_jobs_do_not_hide_ready_private_job(env, tmp_path, monkeypat
             assert agent_worker.ready_job(d, settings).id == ids[2]
     with app.state.maker() as d:
         assert agent_worker.ready_job(d, settings).id == ids[1]
+
+
+def test_missing_concurrency_configuration_allows_twenty_simultaneous_leases(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier, Lock
+
+    config = {"_platform_limit_dir": str(tmp_path / "default-slots")}
+    simultaneous = Barrier(20, timeout=5)
+    guard = Lock()
+    active = maximum = 0
+
+    def request(number):
+        nonlocal active, maximum
+        with model_slot(config, timeout=0):
+            with guard:
+                active += 1
+                maximum = max(maximum, active)
+            try:
+                # Every lease must coexist, rather than merely finish eventually.
+                simultaneous.wait()
+                return number
+            finally:
+                with guard:
+                    active -= 1
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        assert list(pool.map(request, range(20))) == list(range(20))
+    assert maximum == 20
+    assert active == 0
+    assert not (tmp_path / "default-slots").exists()

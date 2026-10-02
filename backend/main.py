@@ -457,6 +457,10 @@ def create_app(settings=None):
     from .bulk_downloads import install_bulk_download_routes
 
     install_bulk_download_routes(app, settings, db, auth, human, owned)
+
+    from .paper_preparation import install_preparation_routes
+
+    install_preparation_routes(app, settings, db, auth, human, owned)
     from .note_export import install_note_export_routes
 
     install_note_export_routes(app, settings, db, auth, owned)
@@ -720,7 +724,7 @@ def create_app(settings=None):
         files = list(
             d.scalars(select(File).where(File.paper_id == id, File.owner == a["id"]))
         )
-        from .models import TranslationJob
+        from .models import TranslationJob, PaperPreparation, TranslationMemory
 
         if d.scalar(
             select(TranslationJob.id).where(
@@ -729,7 +733,8 @@ def create_app(settings=None):
             )
         ):
             fail(409, "请先取消翻译任务，再删除论文")
-        for model in (TranslationJob, Event, Feedback, InkStroke, TextAnnotation, ReadingArtifact, SavedCitation, PaperShare, File, Version):
+        d.execute(delete(TranslationMemory).where(TranslationMemory.owner == a["id"], TranslationMemory.file_sha256.in_([f.sha256 for f in files])))
+        for model in (PaperPreparation, TranslationJob, Event, Feedback, InkStroke, TextAnnotation, ReadingArtifact, SavedCitation, PaperShare, File, Version):
             d.execute(delete(model).where(model.paper_id == id, model.owner == a["id"]))
         d.execute(
             delete(Revision).where(Revision.owner == a["id"], Revision.object_id == id)

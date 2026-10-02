@@ -10,15 +10,16 @@ import subprocess
 import threading
 import uuid
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import as_completed
 from pathlib import Path
 
 import regex
 from pylatexenc.latex2text import LatexNodes2Text
 from pylatexenc.latexwalker import LatexWalker, get_default_latex_context_db
 from pylatexenc.macrospec import MacroSpec
-from pypdf import PdfReader
+from .pdf_text import extract_pdf_pages
 
+from .translation_dispatch import TaskExecutor
 from .translation_settings import complete
 from .vendor.latextrans.parser import LatexParser
 from .vendor.latextrans.reconstruct import LatexConstructor
@@ -26,7 +27,7 @@ from .vendor.latextrans.utils import find_main_tex_file
 
 KEEP = re.compile(r"__PW_KEEP_\d+__")
 PROTECTED = regex.compile(
-    r"<PLACEHOLDER_[^>]+>|(?<!\\)\$\$[\s\S]*?(?<!\\)\$\$|(?<!\\)\$[^$]*?(?<!\\)\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\(?:cite\w*|ref|eqref|label|url|texttt|begin|end|bibliography|bibliographystyle)(?:\[[^\]]*\])?\s*(\{(?:[^{}]|(?1))*\})|\\[a-zA-Z@]+\*?|\\.|[{}]",
+    r"<PLACEHOLDER_[^>]+>|(?<!\\)\$\$[\s\S]*?(?<!\\)\$\$|(?<!\\)\$[^$]*?(?<!\\)\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\(?:cite\w*|Cref|cref|autoref|ref|eqref|label|url|texttt|begin|end|bibliography|bibliographystyle)(?:\[[^\]]*\])*\s*(\{(?:[^{}]|(?1))*\})|\\[a-zA-Z@]+\*?|\\.|[{}]",
     regex.MULTILINE,
 )
 
@@ -153,6 +154,22 @@ def batch_policy(config):
 BIG_BATCH = {"minimax-m3"}
 
 
+def unit_needs_chinese(unit, known_names=frozenset()):
+    """Only natural-language passages require Chinese output, not TeX alone."""
+    text = KEEP.sub("", unit["masked"]).strip()
+    if not re.search(r"[A-Za-z\u3400-\u9fff]", text):
+        return False
+    heading = re.fullmatch(
+        r"\s*\\(?:section|subsection|subsubsection|paragraph)\*?(?:\[[^\]]*\])?\{[^{}\n]*\}\s*",
+        unit["source_tex"],
+    )
+    # A single CamelCase identifier occurring elsewhere in the original is
+    # an established method/component name. Do not invent a Chinese name.
+    if heading and text in known_names and re.fullmatch(r"[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]+)+", text):
+        return False
+    return True
+
+
 def translate_project(source, output, config, progress, cached=None):
     shutil.copytree(source, output, dirs_exist_ok=True)
     parser = LatexParser(str(source), str(output))
@@ -172,6 +189,9 @@ def translate_project(source, output, config, progress, cached=None):
     for file in sorted(Path(source).rglob("*.tex")):
         for match in definition.finditer(file.read_text(errors="replace")):
             macros[match[1]] = match[2][1:-1]
+    source_text = "\n".join(p.read_text(errors="replace") for p in sorted(Path(source).rglob("*.tex")))
+    names = Counter(re.findall(r"\b[A-Z][a-z0-9]+(?:[A-Z][A-Za-z0-9]+)+\b", source_text))
+    known_names = {name for name, occurrences in names.items() if occurrences > 1}
     units = []
     unit_number = 0
     for row in targets:
@@ -217,6 +237,14 @@ def translate_project(source, output, config, progress, cached=None):
         if u["source_tex"] in by_source
     }
     for u in units:
+        if u["id"] not in cache and not unit_needs_chinese(u, known_names):
+            cache[u["id"]] = {
+                "id": u["id"],
+                "source_tex": u["source_tex"],
+                "source_text": u["source_text"],
+                "translated_tex": u["source_tex"],
+                "translated_text": u["source_text"],
+            }
         if u["id"] in cache:
             saved = cache[u["id"]]
             saved["source_text"] = u["source_text"]
@@ -385,8 +413,7 @@ def translate_project(source, output, config, progress, cached=None):
     batches = translation_batches(pending_units, budget=budget, max_units=max_units)
     report({}, "并行翻译正文与图表说明")
     failure = None
-    with ThreadPoolExecutor(
-        max_workers=max(1, min(16, int(os.getenv("TRANSLATION_BATCH_WORKERS", "3")))),
+    with TaskExecutor(
         thread_name_prefix="paper-translation",
     ) as executor:
         futures = [executor.submit(translate_batch, batch) for batch in batches]
@@ -442,12 +469,165 @@ def translate_project(source, output, config, progress, cached=None):
     return list(cache.values())
 
 
+def prepare_compile_source(main):
+    """Repair explicit XeTeX compatibility issues without discarding content."""
+    # A standalone line break immediately after a section starts in vertical
+    # mode and is invalid TeX. Preserve the following paragraph and all table,
+    # equation and in-paragraph breaks.
+    orphan = regex.compile(r"(\\(?:sub)*section\*?(?:\[[^\]]*\])?(\{(?:[^{}]|(?2))*\})[ \t]*\n(?:[ \t]*\n)*)([ \t]*\\\\[ \t]*\n)")
+    for path in main.parent.rglob("*.tex"):
+        content = path.read_text(errors="replace")
+        repaired = orphan.sub(r"\1", content)
+        if repaired != content:
+            path.write_text(repaired)
+    # pdfTeX output assignments can also live in a bundled class, not only
+    # the main TeX document. Guard them without defining a fake primitive.
+    for path in [*main.parent.rglob("*.tex"), *main.parent.rglob("*.cls"), *main.parent.rglob("*.sty")]:
+        content = path.read_text(errors="replace")
+        repaired = re.sub(r"(?m)^([ \t]*)\\pdfoutput[ \t]*=?[ \t]*([01])\b", r"\1\\ifdefined\\pdfoutput\\pdfoutput=\2\\fi", content)
+        if repaired != content:
+            path.write_text(repaired)
+    tex = main.read_text()
+    # A translated title occasionally has its closing brace before the final
+    # plain-text words. Plain text cannot occur here in the preamble: recover
+    # it into the same title argument, never change commands or comments.
+    document = tex.find(r"\begin{document}")
+    if document >= 0:
+        preamble, body = tex[:document], tex[document:]
+        pattern = regex.compile(r"(\\title(?:\[[^\]]*\])?)(\{(?:[^{}]|(?2))*\})([^\\{}%\n]+)")
+        preamble = pattern.sub(
+            lambda m: m[1] + m[2][:-1] + m[3].rstrip() + "}" + m[3][len(m[3].rstrip()):]
+            if m[3].strip() else m[0], preamble,
+        )
+        tex = preamble + body
+    # Recover a specific escaped citation-brace corruption only when the
+    # original source confirms the complete unchanged citation key list.
+    original_dir = main.parent.parent / "source"
+    if original_dir.is_dir():
+        labels = set()
+        for path in original_dir.rglob("*.tex"):
+            labels.update(re.findall(r"\\label\{([^{}]+)\}", path.read_text(errors="replace")))
+        aliases = {}
+        for label in labels:
+            normalized = label.replace("–", "-").replace("—", "-")
+            aliases.setdefault(normalized, set()).add(label)
+        safe_labels = {label for label, originals in aliases.items() if len(originals) == 1}
+        # If a cached translation changed a label to natural-language words,
+        # recover only a uniquely missing source reference within that unit.
+        recovered_keys = {}
+        ref_keys = re.compile(r"\\(?:Cref|cref|autoref|ref|eqref)\*?\{([^{}]+)\}")
+        for cache_file in (main.parent.parent / "recovered-units.json", main.parent.parent / "units.json"):
+            if not cache_file.is_file():
+                continue
+            for unit in json.loads(cache_file.read_text()).values():
+                original = ref_keys.findall(unit.get("source_tex", ""))
+                translated = ref_keys.findall(unit.get("translated_tex", ""))
+                missing = set(original) - set(translated)
+                unknown = set(translated) - labels
+                if len(original) == len(translated) and len(missing) == len(unknown) == 1:
+                    old, new = next(iter(unknown)), next(iter(missing))
+                    if new in labels:
+                        recovered_keys.setdefault(old, set()).add(new)
+        recovered_keys = {old: next(iter(values)) for old, values in recovered_keys.items() if len(values) == 1}
+        reference = re.compile(r"(\\(?:label|Cref|cref|autoref|ref|eqref)\*?\{)([^{}]+)(\})")
+        for path in main.parent.rglob("*.tex"):
+            content = path.read_text(errors="replace")
+            def repair_reference(match):
+                key = recovered_keys.get(match[2], match[2]).replace("–", "-").replace("—", "-")
+                return match[1] + key + match[3] if key in safe_labels else match[0]
+            repaired = reference.sub(repair_reference, content)
+            if repaired != content:
+                path.write_text(repaired)
+        tex = main.read_text()
+    if original_dir.is_dir():
+        citations = set()
+        for path in original_dir.rglob("*.tex"):
+            for keys in re.findall(r"\\cite\w*(?:\[[^\]]*\])*\{([^{}]+)\}", path.read_text(errors="replace")):
+                citations.add(tuple(key.strip() for key in keys.split(",")))
+        broken = re.compile(r"(\\cite\w*(?:\[[^\]]*\])*)(\\\{\{\\\})([^{}\n]+)\}")
+        def repair_citation(match):
+            keys = tuple(key.strip() for key in re.split("[,、，]", match[3]))
+            return match[1] + "{" + ", ".join(keys) + "}" if keys in citations else match[0]
+        tex = broken.sub(repair_citation, tex)
+    # The bundled 2016 apple_emoji package uses pdfTeX's UTF-8 byte scanner,
+    # which cannot run under XeTeX. Only omit it when no mapped character or
+    # package command is used anywhere in the project's TeX files.
+    emoji = main.parent / "apple_emoji.sty"
+    if emoji.is_file() and r"\UTFviii@four@octets" in emoji.read_text():
+        codes = {int(x, 16) for x in re.findall(r"\\DeclareUnicodeCharacter\{([A-Fa-f0-9]+)\}", emoji.read_text())}
+        sources = "\n".join(p.read_text(errors="replace") for p in main.parent.rglob("*.tex"))
+        if not any(ord(c) in codes for c in sources) and not re.search(r"\\(?:private@Apple|AppleEmoji|appleemoji)", sources):
+            tex = re.sub(r"\\usepackage(?:\[[^\]]*\])?\{apple_emoji\}", "% unused pdfTeX-only apple_emoji omitted\n", tex)
+    # Some arXiv preambles load mutually exclusive packages even though the
+    # obsolete subfigure command is unused. Retain subcaption and its layout;
+    # never remove subfigure if the source actually uses its commands.
+    sources = "\n".join(p.read_text(errors="replace") for p in main.parent.rglob("*.tex"))
+    if re.search(r"\\usepackage(?:\[[^\]]*\])?\{subcaption\}", tex) and not re.search(r"\\(?:subfigure|subtable)\b", sources):
+        tex = re.sub(r"\\usepackage(?:\[[^\]]*\])?\{subfigure\}", "% unused subfigure conflicts with subcaption\n", tex)
+    # Preload options before ctex/fontspec/class dependencies can load xcolor.
+    color_options = set()
+    for options in re.findall(r"\\usepackage\[([^\]]+)\]\{xcolor\}", sources):
+        color_options.update(option.strip() for option in options.split(",") if option.strip() in {"table", "dvipsnames", "svgnames", "x11names"})
+    if color_options and "paper-workspace xcolor options" not in tex:
+        tex = "% paper-workspace xcolor options\n" + r"\PassOptionsToPackage{" + ",".join(sorted(color_options)) + r"}{xcolor}" + "\n" + tex
+    sources += "\n" + "\n".join(p.read_text(errors="replace") for p in main.parent.rglob("*.bib"))
+    punctuation = {"’": r"\textquoteright", "‘": r"\textquoteleft", "“": r"\textquotedblleft", "”": r"\textquotedblright", "–": r"\textendash", "—": r"\textemdash", "…": r"\textellipsis"}
+    if "paper-workspace Unicode punctuation v2" not in tex:
+        definitions = []
+        for symbol, command in punctuation.items():
+            if symbol in sources:
+                definitions.append(r"\newunicodechar{" + symbol + r"}{\ifmmode\mbox{" + command + r"}\else" + command + r"\fi}")
+        import unicodedata
+        accents = {"\u0300": r"\`", "\u0301": r"\'", "\u0302": r"\^", "\u0303": r"\~", "\u0304": r"\=", "\u0306": r"\u", "\u0307": r"\.", "\u0308": r'\"', "\u030a": r"\r", "\u030b": r"\H", "\u030c": r"\v", "\u0327": r"\c", "\u0328": r"\k"}
+        for symbol in sorted(set(sources)):
+            decomposed = unicodedata.normalize("NFD", symbol)
+            if len(decomposed) == 2 and decomposed[0].isascii() and decomposed[0].isalpha() and decomposed[1] in accents:
+                command = accents[decomposed[1]] + "{" + decomposed[0] + "}"
+                definitions.append(r"\newunicodechar{" + symbol + "}{" + command + "}")
+        if definitions:
+            block = "% paper-workspace Unicode punctuation v2\n" + r"\usepackage{newunicodechar}" + "\n" + "\n".join(definitions) + "\n"
+            tex = tex.replace(r"\begin{document}", block + r"\begin{document}", 1)
+    marker = "% paper-workspace Unicode text symbols v2"
+    if marker not in tex and any(symbol in sources for symbol in "†‡"):
+        symbols = (
+            marker + "\n" + r"\usepackage{newunicodechar}" + "\n"
+            + r"\newunicodechar{†}{\ensuremath{\dagger}}" + "\n"
+            + r"\newunicodechar{‡}{\ensuremath{\ddagger}}" + "\n"
+        )
+        tex = tex.replace(r"\begin{document}", symbols + r"\begin{document}", 1)
+    # Keep acmart's manuscript spacing when ctex changes the Chinese default.
+    if (main.parent / "acmart.cls").is_file() and "paper-workspace ACM spacing" not in tex:
+        spacing = (
+            "% paper-workspace ACM spacing\n"
+            + r"\makeatletter\AtBeginDocument{\@ifundefined{ACM@origbaselinestretch}{}{\let\baselinestretch\ACM@origbaselinestretch}}\makeatother" + "\n"
+        )
+        tex = tex.replace(r"\begin{document}", spacing + r"\begin{document}", 1)
+    # Kernel symbol footnotes select Unicode text daggers in 8-bit fonts.
+    # Select their existing math variant instead; preserve all footnote numbers.
+    if "paper-workspace symbolic footnotes" not in tex:
+        symbols = (
+            "% paper-workspace symbolic footnotes\n"
+            + r"\makeatletter\AtBeginDocument{\let\pw@fnsymbol\@fnsymbol\def\@fnsymbol#1{\ensuremath{\pw@fnsymbol{#1}}}}\makeatother" + "\n"
+        )
+        tex = tex.replace(r"\begin{document}", symbols + r"\begin{document}", 1)
+    # bm uses legacy 8-bit mathchar operations; unicode-math supplies its own
+    # bold command for XeTeX's extended math codes.
+    if "paper-workspace Unicode bold math" not in tex:
+        bold = (
+            "% paper-workspace Unicode bold math\n"
+            + r"\makeatletter\AtBeginDocument{\@ifpackageloaded{unicode-math}{\@ifundefined{bm}{}{\renewcommand{\bm}[1]{\symbf{#1}}}}{}}\makeatother" + "\n"
+        )
+        tex = tex.replace(r"\begin{document}", bold + r"\begin{document}", 1)
+    main.write_text(tex)
+
+
 def compile_project(directory):
     main = Path(find_main_tex_file(str(directory)) or "")
     if not main.is_file() or not main.resolve().is_relative_to(
         Path(directory).resolve()
     ):
         raise ValueError("未找到安全的 LaTeX 主文件")
+    prepare_compile_source(main)
     relative = main.relative_to(directory).as_posix()
     image = os.getenv("TRANSLATION_TEX_IMAGE", "paper-tex:2026-09")
     # Project code gets no network, host secrets or shell escape. TeX resources are bounded.
@@ -458,6 +638,7 @@ def compile_project(directory):
         "--name",
         container,
         "--rm",
+        "--pull=never",
         "--network=none",
         "--read-only",
         "--cap-drop=ALL",
@@ -482,6 +663,7 @@ def compile_project(directory):
         image,
         "latexmk",
         "-norc",
+        "-gg",
         "-xelatex",
         "-interaction=nonstopmode",
         "-halt-on-error",
@@ -513,7 +695,7 @@ def compile_project(directory):
     target = Path(directory) / "build" / (main.stem + ".pdf")
     if result.returncode or not target.exists():
         errors = re.findall(
-            r"(?:LaTeX Error:|Package \w+ Error:|Missing character:|Undefined control sequence\.|Emergency stop\.)[^\n]*",
+            r"(?:LaTeX Error:|Class \w+ Error:|(?:Package )?fontspec Error:|Package \w+ Error:|Missing character:|Undefined control sequence\.|Emergency stop\.|I can\'t find file)[^\n]*",
             log,
         )
         message = errors[0][:180] if errors else "宏包或排版编译失败"
@@ -557,8 +739,8 @@ def locate(text, pages):
 
 
 def align(units, source_pdf, translated_pdf):
-    source = [p.extract_text() or "" for p in PdfReader(source_pdf).pages]
-    target = [p.extract_text() or "" for p in PdfReader(translated_pdf).pages]
+    source = extract_pdf_pages(source_pdf)
+    target = extract_pdf_pages(translated_pdf)
     return [
         {
             "id": u["id"],

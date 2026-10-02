@@ -1,0 +1,242 @@
+import json
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from sqlalchemy import select
+from backend.models import (
+    PaperPreparation,
+    ReadingArtifact,
+    TranslationMemory,
+    AgentSession,
+    TranslationJob,
+)
+from backend.paper_preparation import ensure
+from backend.preparation_worker import reconcile, process
+from backend.translation_memory import SentenceMemory
+from backend.tests.test_acceptance import env, paper, attach
+from backend.tests.test_agents import pdf_bytes
+
+
+def fixture(env):
+    app, a, b, settings = env
+    p = paper(a)
+    f = attach(a, p, "paper.pdf", pdf_bytes())
+    return app, a, b, settings, p, f
+
+
+def test_preparation_reconciles_without_browser_and_is_owner_scoped(env, monkeypatch):
+    app, a, b, settings, p, f = fixture(env)
+    reconcile(settings, app.state.maker)
+    reconcile(settings, app.state.maker)
+    assert a.get(f"/api/v1/papers/{p['id']}/preparation").json()["status"] == "queued"
+    assert b.get(f"/api/v1/papers/{p['id']}/preparation").status_code == 404
+    with app.state.maker() as d:
+        assert len(list(d.scalars(select(PaperPreparation)))) == 1
+    assert (
+        a.post(
+            f"/api/v1/papers/{p['id']}/preparation", json={"action": "pause"}
+        ).json()["status"]
+        == "paused"
+    )
+    reconcile(settings, app.state.maker)
+    assert a.get(f"/api/v1/papers/{p['id']}/preparation").json()["status"] == "paused"
+    assert (
+        a.post(
+            f"/api/v1/papers/{p['id']}/preparation", json={"action": "resume"}
+        ).json()["status"]
+        == "queued"
+    )
+    assert a.patch("/api/v1/preparation-settings", json={"enabled": False}).json() == {
+        "enabled": False
+    }
+    with app.state.maker() as d:
+        assert not list(d.scalars(select(AgentSession)))
+
+
+def test_shared_units_survive_failure_reuse_layout_and_isolate_owners(env, monkeypatch):
+    app, a, b, settings, p, f = fixture(env)
+    with app.state.maker() as d:
+        owners = list(
+            d.scalars(
+                select(__import__("backend.models", fromlist=["User"]).User).order_by(
+                    __import__("backend.models", fromlist=["User"]).User.username
+                )
+            )
+        )
+    calls = []
+
+    def complete(cfg, system, content, **kwargs):
+        calls.append(content)
+        units = json.loads(content)
+        return json.dumps(
+            {
+                "sentences": [
+                    {
+                        "id": u["id"],
+                        "kind": "text",
+                        "translation": "翻译 " + u["original"],
+                    }
+                    for u in units
+                ]
+            }
+        )
+
+    monkeypatch.setattr("backend.translation_memory.complete", complete)
+    cfg = {"model": "test", "base_url": "https://api.openai.com/v1"}
+    m = SentenceMemory(settings, app.state.maker, owners[0].id, f["sha256"], cfg)
+    originals = ["First source sentence.", "Second source sentence."]
+    with ThreadPoolExecutor(2) as pool:
+        results = list(pool.map(lambda _: m.translate(originals), range(2)))
+    assert len(calls) == 1 and results[0] == results[1]
+    source = "## Here is the input:\n" + json.dumps(
+        [{"id": 7, "input": " ".join(originals)}]
+    )
+    result = json.loads(m.layout(source, True))
+    assert result == [
+        {"id": 7, "output": " ".join(r["translation"] for r in results[0])}
+    ]
+    assert len(calls) == 1
+    SentenceMemory(settings, app.state.maker, owners[1].id, f["sha256"], cfg).translate(
+        originals
+    )
+    assert len(calls) == 2
+
+    def fail(*a, **kw):
+        raise ValueError("HTTP 429")
+
+    monkeypatch.setattr("backend.translation_memory.complete", fail)
+    import pytest
+
+    with pytest.raises(ValueError):
+        m.translate(["Third source sentence."])
+    assert m.translate(originals) == results[0]
+
+
+def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monkeypatch):
+    app, a, b, settings, p, f = fixture(env)
+    cfg = {
+        "id": "test",
+        "api_key": "private-test",
+        "model": "test",
+        "base_url": "https://api.openai.com/v1",
+        "protocol": "openai",
+    }
+    monkeypatch.setattr("backend.preparation_worker.read_config", lambda *args: cfg)
+    monkeypatch.setattr("backend.preparation_worker.bind", lambda cfg, *args: cfg)
+    # A deterministic page extraction, and the actual shared translator interface.
+    monkeypatch.setattr(
+        "backend.preparation_worker.extract_pdf_pages",
+        lambda *args, **kw: ["Hello world."],
+    )
+    guide = {
+        "keywords": ["memory"],
+        "summary": ["一", "二", "三"],
+        "sections": [
+            {"title": t, "body": "正文", "pages": [1]}
+            for t in ["研究问题", "方法", "主要结果", "适用边界"]
+        ],
+    }
+    calls = []
+
+    def complete(cfg, system, content, **kwargs):
+        calls.append(system)
+        if system.startswith("Translate each"):
+            return json.dumps(
+                {"sentences": [{"id": 0, "kind": "text", "translation": "你好世界。"}]}
+            )
+        return json.dumps(guide, ensure_ascii=False)
+
+    monkeypatch.setattr("backend.preparation_worker.complete", complete)
+    monkeypatch.setattr("backend.translation_memory.complete", complete)
+    settings.pdf_layout_image = "test-image"
+    reconcile(settings, app.state.maker)
+    with app.state.maker() as d:
+        row = d.scalar(select(PaperPreparation))
+        row.status = "running"
+        identifier = row.id
+        d.commit()
+    process(settings, app.state.maker, identifier)
+    with app.state.maker() as d:
+        assert len(list(d.scalars(select(ReadingArtifact)))) == 2
+        assert len(list(d.scalars(select(AgentSession)))) == 0
+        assert len(list(d.scalars(select(TranslationJob)))) == 1
+        row = d.get(PaperPreparation, identifier)
+        row.status = "running"
+        d.commit()
+    process(settings, app.state.maker, identifier)
+    assert len(calls) == 2
+    with app.state.maker() as d:
+        assert len(list(d.scalars(select(TranslationJob)))) == 1
+
+    with app.state.maker() as d:
+        job = d.scalar(select(TranslationJob))
+        job.status = "failed"
+        job.error = "Compile fixture failure"
+        row = d.get(PaperPreparation, identifier)
+        row.status = "running"
+        d.commit()
+    process(settings, app.state.maker, identifier)
+    with app.state.maker() as d:
+        assert len(list(d.scalars(select(TranslationJob)))) == 1
+        assert d.get(PaperPreparation, identifier).layout_status == "failed"
+    assert len(calls) == 2
+
+
+def test_pause_only_cancels_owned_automatic_layout_and_resume_reuses_job(env):
+    app, a, b, settings, p, f = fixture(env)
+    reconcile(settings, app.state.maker)
+    other = paper(a)
+    with app.state.maker() as d:
+        row = d.scalar(select(PaperPreparation))
+        automatic = TranslationJob(
+            arxiv_id="",
+            owner=row.owner,
+            paper_id=p["id"],
+            version_id=p["current_version"],
+            source_file=f["id"],
+            preparation_id=row.id,
+            status="running",
+        )
+        manual = TranslationJob(
+            arxiv_id="",
+            owner=row.owner,
+            paper_id=other["id"],
+            version_id=other["current_version"],
+            status="queued",
+        )
+        d.add_all([automatic, manual])
+        d.commit()
+        automatic_id = automatic.id
+        manual_id = manual.id
+    a.post(f"/api/v1/papers/{p['id']}/preparation", json={"action": "pause"})
+    with app.state.maker() as d:
+        assert d.get(TranslationJob, automatic_id).status == "cancelled"
+        assert d.get(TranslationJob, manual_id).status == "queued"
+    a.post(f"/api/v1/papers/{p['id']}/preparation", json={"action": "resume"})
+    with app.state.maker() as d:
+        assert d.get(TranslationJob, automatic_id).status == "queued"
+        assert len(list(d.scalars(select(TranslationJob)))) == 2
+
+
+def test_completed_layout_does_not_hide_missing_guide(env):
+    app, a, b, settings, p, f = fixture(env)
+    reconcile(settings, app.state.maker)
+    with app.state.maker() as d:
+        row = d.scalar(select(PaperPreparation))
+        row.status = "waiting"
+        row.translation_status = "completed"
+        row.guide_status = "failed"
+        d.add(
+            TranslationJob(
+                arxiv_id="",
+                owner=row.owner,
+                paper_id=p["id"],
+                version_id=p["current_version"],
+                source_file=f["id"],
+                status="completed",
+            )
+        )
+        d.commit()
+    reconcile(settings, app.state.maker)
+    with app.state.maker() as d:
+        row = d.scalar(select(PaperPreparation))
+        assert row.status == "failed" and row.guide_status == "failed"
