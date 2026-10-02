@@ -43,14 +43,3 @@ def test_file_delivery_rejects_symlinks(env, tmp_path):
     blob.unlink()
     blob.symlink_to(target)
     assert alice.get(f"/api/v1/files/{record['id']}/content").status_code == 404
-
-
-def test_offline_worker_has_javascript_type_and_revalidates(env):
-    _, alice, _, _ = env
-    worker = alice.get("/offline-worker.js")
-    assert worker.status_code == 200
-    assert "javascript" in worker.headers["content-type"]
-    assert worker.headers["cache-control"] == "no-cache"
-    assert "PREPARE" in worker.text
-    manifest = alice.get("/assets/offline-manifest.json").json()
-    assert manifest["files"] and all(path.startswith("/assets/") for path in manifest["files"])

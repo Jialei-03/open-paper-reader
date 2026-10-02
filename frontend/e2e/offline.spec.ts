@@ -72,6 +72,19 @@ test("Offline: browser restart retains PDF and notes, sync avoids duplicates and
   }
   try {
     let page = await context.newPage();
+    const worker = await page.request.get("/offline-worker.js");
+    expect(worker.status()).toBe(200);
+    expect(worker.headers()["content-type"]).toContain("javascript");
+    expect(worker.headers()["cache-control"]).toBe("no-cache");
+    expect(await worker.text()).toContain("PREPARE");
+    const manifest = await (
+      await page.request.get("/assets/offline-manifest.json")
+    ).json();
+    expect(manifest.files.length).toBeGreaterThan(0);
+    expect(
+      manifest.files.every((path: string) => path.startsWith("/assets/")),
+    ).toBeTruthy();
+
     await page.goto("/#dashboard");
     await page.getByLabel("用户名", { exact: true }).fill("alice");
     await page
