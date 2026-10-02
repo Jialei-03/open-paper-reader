@@ -95,6 +95,8 @@ def test_shared_units_survive_failure_reuse_layout_and_isolate_owners(env, monke
         {"id": 7, "output": " ".join(r["translation"] for r in results[0])}
     ]
     assert len(calls) == 1
+    bob_paper = paper(b)
+    attach(b, bob_paper, "same.pdf", pdf_bytes())
     SentenceMemory(settings, app.state.maker, owners[1].id, f["sha256"], cfg).translate(
         originals
     )

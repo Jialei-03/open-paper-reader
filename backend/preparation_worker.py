@@ -68,6 +68,7 @@ def artifact_key(row, file, config, kind, parameters):
 def save_artifact(settings, maker, row, file, config, kind, parameters, result):
     key = artifact_key(row, file, config, kind, parameters)
     with maker() as d:
+        lock_owner(d, row.owner)
         current = d.get(PaperPreparation, row.id)
         if not current or current.status != "running" or not enabled(d, row.owner):
             raise ValueError("自动准备已停止")
@@ -138,12 +139,16 @@ def process(settings, maker, identifier):
 
     def progress(**values):
         with maker() as d:
-            current = d.get(PaperPreparation, identifier)
-            if not current or current.status != "running":
+            changed = d.execute(
+                update(PaperPreparation)
+                .where(
+                    PaperPreparation.id == identifier,
+                    PaperPreparation.status == "running",
+                )
+                .values(**values, updated_at=now())
+            )
+            if changed.rowcount != 1:
                 raise ValueError("自动准备已停止")
-            for key, value in values.items():
-                setattr(current, key, value)
-            current.updated_at = now()
             d.commit()
 
     try:
@@ -182,13 +187,15 @@ def process(settings, maker, identifier):
                 if r.status == "completed" and r.parameters.get("language") == "zh"
             }
             guide_ready = any(r.status == "completed" for r in guides)
-            for cached in pages:
-                if (
-                    cached.status == "completed"
-                    and cached.model == config["model"]
-                    and cached.parameters.get("language") == "zh"
-                ):
-                    memory.remember(cached.result.get("paragraphs", []))
+        # Close the reader session before seeding memory: remember/stop own
+        # their transactions and must never require a nested pool connection.
+        for cached in pages:
+            if (
+                cached.status == "completed"
+                and cached.model == config["model"]
+                and cached.parameters.get("language") == "zh"
+            ):
+                memory.remember(cached.result.get("paragraphs", []))
         progress(
             guide_status="completed" if guide_ready else "running",
             translation_status="running",
@@ -375,13 +382,20 @@ def process(settings, maker, identifier):
     except Exception as error:  # noqa: BLE001 — persist provider and parsing failures so the worker survives
         LOG.warning("Preparation %s failed: %s", identifier, type(error).__name__)
         with maker() as d:
-            current = d.get(PaperPreparation, identifier)
-            if current and current.status == "running":
-                current.status = "failed"
-                current.error = str(error)[:500]
-                current.stage = "准备未完成，已完成内容保留"
-                current.updated_at = now()
-                d.commit()
+            d.execute(
+                update(PaperPreparation)
+                .where(
+                    PaperPreparation.id == identifier,
+                    PaperPreparation.status == "running",
+                )
+                .values(
+                    status="failed",
+                    error=str(error)[:500],
+                    stage="准备未完成，已完成内容保留",
+                    updated_at=now(),
+                )
+            )
+            d.commit()
 
 
 def reconcile(settings, maker):
@@ -478,9 +492,16 @@ def main():
                 ):
                     if row.id in active or not enabled(d, row.owner):
                         continue
-                    row.status = "running"
-                    row.updated_at = now()
-                    ids.append(row.id)
+                    changed = d.execute(
+                        update(PaperPreparation)
+                        .where(
+                            PaperPreparation.id == row.id,
+                            PaperPreparation.status == "queued",
+                        )
+                        .values(status="running", updated_at=now())
+                    )
+                    if changed.rowcount == 1:
+                        ids.append(row.id)
                 d.commit()
             for identifier in ids:
                 active[identifier] = pool.submit(process, settings, maker, identifier)

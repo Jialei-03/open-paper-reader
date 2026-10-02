@@ -16,9 +16,9 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from .models import TranslationMemory
+from .models import File, TranslationMemory
 from .sentence_alignment import sentences
-from .storage_budget import require_space
+from .storage_budget import lock_owner, require_space
 from .translation_settings import complete
 
 
@@ -81,6 +81,14 @@ class SentenceMemory:
     def key(self, original):
         return identity(self.checksum, self.config, self.language, original)
 
+    def verify_source(self, d):
+        if not d.scalar(
+            select(File.id)
+            .where(File.owner == self.owner, File.sha256 == self.checksum)
+            .limit(1)
+        ):
+            raise ValueError("原文已删除，未保存新译文")
+
     def lookup(self, originals):
         keys = [self.key(text) for text in originals]
         with self.maker() as d:
@@ -106,24 +114,33 @@ class SentenceMemory:
 
     def remember(self, pairs):
         # Called only after the existing reading artifact schema/source validators.
+        if self.cancelled():
+            return
+        unique = {self.key(pair["original"]): pair for pair in pairs}
         with self.maker() as d:
-            for pair in pairs:
-                key = self.key(pair["original"])
-                if d.scalar(
-                    select(TranslationMemory.id).where(
+            lock_owner(d, self.owner)
+            self.verify_source(d)
+            existing = set(
+                d.scalars(
+                    select(TranslationMemory.cache_key).where(
                         TranslationMemory.owner == self.owner,
-                        TranslationMemory.cache_key == key,
+                        TranslationMemory.cache_key.in_(unique),
                     )
-                ):
-                    continue
-                size = (
-                    len(pair["original"].encode())
-                    + len(pair["translation"].encode())
-                    + 512
                 )
-                require_space(d, self.settings, self.owner, size)
-                from sqlalchemy.exc import IntegrityError
+            )
+            incoming = {
+                key: pair for key, pair in unique.items() if key not in existing
+            }
+            sizes = {
+                key: len(pair["original"].encode())
+                + len(pair["translation"].encode())
+                + 512
+                for key, pair in incoming.items()
+            }
+            require_space(d, self.settings, self.owner, sum(sizes.values()))
+            from sqlalchemy.exc import IntegrityError
 
+            for key, pair in incoming.items():
                 try:
                     with d.begin_nested():
                         d.add(
@@ -134,14 +151,15 @@ class SentenceMemory:
                                 original=pair["original"],
                                 translation=pair["translation"],
                                 kind=pair["kind"],
-                                size=size,
+                                size=sizes[key],
                             )
                         )
                         d.flush()
                 except IntegrityError:
                     pass
-            if not self.cancelled():
-                d.commit()
+            # Completed validated memory is a checkpoint. Publishing reading
+            # artifacts checks cancellation separately, after this transaction.
+            d.commit()
 
     @contextlib.contextmanager
     def guard(self, keys):
@@ -153,19 +171,23 @@ class SentenceMemory:
             info = Path(self.settings.storage).stat()
             os.chown(root, info.st_uid, info.st_gid)
             os.chown(root.parent, info.st_uid, info.st_gid)
+        if self.cancelled():
+            raise ValueError("翻译已停止")
         with contextlib.ExitStack() as stack:
             for key in sorted(set(keys)):
                 handle = stack.enter_context((root / key).open("a"))
                 if os.geteuid() == 0:
                     os.fchown(handle.fileno(), info.st_uid, info.st_gid)
                 while True:
-                    if self.cancelled():
-                        raise ValueError("翻译已停止")
                     try:
                         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
                         break
                     except BlockingIOError:
+                        if self.cancelled():
+                            raise ValueError("翻译已停止")
                         time.sleep(0.1)
+            if self.cancelled():
+                raise ValueError("翻译已停止")
             yield
 
     def page(self, ask, text, page):
@@ -284,12 +306,31 @@ class SentenceMemory:
                 if self.cancelled():
                     raise ValueError("翻译已停止")
                 with self.maker() as d:
+                    lock_owner(d, self.owner)
+                    self.verify_source(d)
+                    # Recheck after acquiring the writer lock: a legacy artifact
+                    # may have seeded the same unit during the provider call.
+                    existing = {
+                        row.cache_key: row
+                        for row in d.scalars(
+                            select(TranslationMemory).where(
+                                TranslationMemory.owner == self.owner,
+                                TranslationMemory.cache_key.in_(missing),
+                            )
+                        )
+                    }
+                    saved.update(existing)
+                    sizes = {
+                        key: len(keys[key].encode()) + len(indexed[i][0].encode()) + 512
+                        for i, key in enumerate(missing)
+                        if key not in existing
+                    }
+                    require_space(d, self.settings, self.owner, sum(sizes.values()))
                     for i, key in enumerate(missing):
+                        if key in existing:
+                            continue
                         text, kind = indexed[i]
-                        size = len(keys[key].encode()) + len(text.encode()) + 512
-                        require_space(d, self.settings, self.owner, size)
-                        if self.cancelled():
-                            raise ValueError("翻译已停止")
+                        size = sizes[key]
                         row = TranslationMemory(
                             owner=self.owner,
                             file_sha256=self.checksum,
