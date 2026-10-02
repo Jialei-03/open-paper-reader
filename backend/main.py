@@ -453,6 +453,10 @@ def create_app(settings=None):
     from .pdf_export import install_pdf_export_routes
 
     install_pdf_export_routes(app, settings, db, auth, owned)
+
+    from .bulk_downloads import install_bulk_download_routes
+
+    install_bulk_download_routes(app, settings, db, auth, human, owned)
     from .note_export import install_note_export_routes
 
     install_note_export_routes(app, settings, db, auth, owned)

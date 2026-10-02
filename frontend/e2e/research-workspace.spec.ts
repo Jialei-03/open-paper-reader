@@ -1377,6 +1377,11 @@ test("Translation: model settings stay private and bilingual references open bot
   await page.screenshot({ path: "../test-results/pdf-fit-mobile-fixed.png" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: "../test-results/pdf-comparison.png" });
+  // The synchronized scrolling assertions above are complete. Let each view
+  // position its quote independently while the responsive redraw settles.
+  await page.getByLabel("同步滚动", { exact: true }).click();
+  await page.getByRole("option", { name: "独立滚动", exact: true }).click();
+  await page.getByRole("button", { name: "适合宽度", exact: true }).click();
   // Return to the quote with the reader controls after responsive layouts.
   // Use a real pointer selection: it activates the correct paired view and
   // remains attached to the current text layer rather than a stale DOM range.
@@ -1389,13 +1394,13 @@ test("Translation: model settings stay private and bilingual references open bot
     .first()
     .locator(".textLayer")
     .getByText(quote, { exact: false });
-  await selectedText.scrollIntoViewIfNeeded();
-  await expect(selectedText).toBeInViewport();
   await expect(rightPdf.locator(".pdf-pages")).toHaveCSS("zoom", "1");
   await expect(rightPdf.locator("canvas").first()).toHaveAttribute(
     "data-rendered",
     "true",
   );
+  await selectedText.scrollIntoViewIfNeeded();
+  await expect(selectedText).toBeInViewport();
   await selectedText.click({ clickCount: 3 });
   await expect(leftPdf.locator(".pdf-reference-lines")).toHaveCount(1);
   await expect(page.getByRole("dialog", { name: "研究助手" })).toBeHidden();
