@@ -1382,9 +1382,12 @@ test("Translation: model settings stay private and bilingual references open bot
   // remains attached to the current text layer rather than a stale DOM range.
   await page.getByLabel("PDF 页码", { exact: true }).fill("1");
   await page.getByLabel("PDF 页码", { exact: true }).press("Enter");
+  // Scroll tracking can mark page 2 active while page 1 remains visible.
+  // Target the physical page rather than its changing active-page test ID.
   const selectedText = rightPdf
-    .getByTestId("pdf-text-layer")
+    .locator(".pdf-page")
     .first()
+    .locator(".textLayer")
     .getByText(quote, { exact: false });
   await selectedText.scrollIntoViewIfNeeded();
   await expect(selectedText).toBeInViewport();
