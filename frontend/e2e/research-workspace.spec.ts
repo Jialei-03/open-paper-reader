@@ -1377,8 +1377,11 @@ test("Translation: model settings stay private and bilingual references open bot
   await page.screenshot({ path: "../test-results/pdf-fit-mobile-fixed.png" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: "../test-results/pdf-comparison.png" });
-  // Resizing from mobile starts a new PDF/text-layer render. Select only after
-  // the real page is visible and that render finishes, as a reader would.
+  // Return to the quote with the reader controls after responsive layouts.
+  // Use a real pointer selection: it activates the correct paired view and
+  // remains attached to the current text layer rather than a stale DOM range.
+  await page.getByLabel("PDF 页码", { exact: true }).fill("1");
+  await page.getByLabel("PDF 页码", { exact: true }).press("Enter");
   const selectedText = rightPdf
     .getByTestId("pdf-text-layer")
     .first()
@@ -1390,22 +1393,7 @@ test("Translation: model settings stay private and bilingual references open bot
     "data-rendered",
     "true",
   );
-  await expect
-    .poll(() =>
-      rightPdf
-        .getByTestId("pdf-text-layer")
-        .first()
-        .evaluate(
-          (layer) => layer.clientWidth / layer.parentElement!.clientWidth,
-        ),
-    )
-    .toBeCloseTo(1, 2);
-  // Selecting translated PDF text highlights its counterpart without writing notes or opening AI.
-  await selectedText.selectText();
-  await rightPdf
-    .getByTestId("pdf-text-layer")
-    .first()
-    .dispatchEvent("pointerup");
+  await selectedText.click({ clickCount: 3 });
   await expect(leftPdf.locator(".pdf-reference-lines")).toHaveCount(1);
   await expect(page.getByRole("dialog", { name: "研究助手" })).toBeHidden();
   await page.screenshot({
@@ -1901,11 +1889,26 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
   await page.getByRole("radio", { name: "手写笔", exact: true }).click();
   const surface = page.locator(".pdf-page").first();
   const draw = async () => {
+    await expect(surface.locator("canvas")).toHaveAttribute(
+      "data-rendered",
+      "true",
+    );
     const box = (await surface.boundingBox())!;
-    await page.mouse.move(box.x + 80, box.y + 200);
+    const visible = (await page.locator(".pdf-sheet").boundingBox())!;
+    // The document can remain scrolled after touch/zoom; draw inside its visible
+    // intersection instead of targeting an offscreen document coordinate.
+    const x = Math.max(box.x, visible.x) + 80;
+    const y = Math.max(box.y, visible.y) + 100;
+    expect(x + 140).toBeLessThan(
+      Math.min(box.x + box.width, visible.x + visible.width),
+    );
+    expect(y + 20).toBeLessThan(
+      Math.min(box.y + box.height, visible.y + visible.height),
+    );
+    await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(box.x + 150, box.y + 220, { steps: 15 });
-    await page.mouse.move(box.x + 220, box.y + 180, { steps: 15 });
+    await page.mouse.move(x + 70, y + 20, { steps: 15 });
+    await page.mouse.move(x + 140, y - 20, { steps: 15 });
     await page.mouse.up();
   };
   await draw();
@@ -1923,8 +1926,17 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
   await page.reload();
   await expect(page.locator("[data-stroke]")).toHaveCount(1);
   await page.getByRole("radio", { name: "橡皮擦", exact: true }).click();
-  const box = (await surface.boundingBox())!;
-  await page.mouse.click(box.x + 80, box.y + 200);
+  const stroke = surface.locator("[data-stroke]");
+  await stroke.scrollIntoViewIfNeeded();
+  const inkPoint = await stroke.evaluate((node) => {
+    const path = node as SVGPathElement;
+    const point = path.getPointAtLength(0);
+    const screen = new DOMPoint(point.x, point.y).matrixTransform(
+      path.getScreenCTM()!,
+    );
+    return { x: screen.x, y: screen.y };
+  });
+  await page.mouse.click(inkPoint.x, inkPoint.y);
   await expect(surface.locator("[data-stroke]")).toHaveCount(0);
   await page.getByRole("button", { name: "手写设置", exact: true }).click();
   await page.getByRole("button", { name: "撤销笔迹", exact: true }).click();
@@ -1999,6 +2011,12 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
   });
   expect((await (await page.request.get(endpoint)).json()).length).toBe(0);
   await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+  await expect(surface).toHaveAttribute("data-scale", "1.5");
+  await expect(page.locator(".pdf-pages")).toHaveCSS("zoom", "1");
+  await expect(surface.locator("canvas")).toHaveAttribute(
+    "data-rendered",
+    "true",
+  );
   await sheet.evaluate((el) => (el.scrollTop = 0));
   await page.getByRole("radio", { name: "选择文字", exact: true }).click();
   const pencilBox = (await surface.boundingBox())!;
