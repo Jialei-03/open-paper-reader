@@ -27,7 +27,7 @@ from .vendor.latextrans.utils import find_main_tex_file
 
 KEEP = re.compile(r"__PW_KEEP_\d+__")
 PROTECTED = regex.compile(
-    r"<PLACEHOLDER_[^>]+>|(?<!\\)\$\$[\s\S]*?(?<!\\)\$\$|(?<!\\)\$[^$]*?(?<!\\)\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\(?:cite\w*|Cref|cref|autoref|ref|eqref|label|url|texttt|begin|end|bibliography|bibliographystyle)(?:\[[^\]]*\])*\s*(\{(?:[^{}]|(?1))*\})|\\[a-zA-Z@]+\*?|\\.|[{}]",
+    r"<PLACEHOLDER_[^>]+>|(?<!\\)\$\$[\s\S]*?(?<!\\)\$\$|(?<!\\)\$[^$]*?(?<!\\)\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\\(?:cite\w*|Cref|cref|autoref|ref|eqref|label|url|texttt|begin|end|bibliography|bibliographystyle)\*?(?:\[[^\]]*\])*\s*(\{(?:[^{}]|(?1))*\})|\\[a-zA-Z@]+\*?|\\.|[{}]",
     regex.MULTILINE,
 )
 
@@ -154,6 +154,20 @@ def batch_policy(config):
 BIG_BATCH = {"minimax-m3"}
 
 
+REFERENCE_COMMANDS = regex.compile(
+    r"(\\(?:cite\w*|Cref|cref|ref|autoref|eqref|label)\*?)"
+    r"((?:\s*\[[^\]]*\])*)\s*(\{(?:[^{}]|(?3))*\})"
+)
+
+
+def reference_arguments(tex):
+    """Compare atomic reference commands and every original argument."""
+    return Counter(
+        (match[1], tuple(re.findall(r"\[[^\]]*\]", match[2])), match[3])
+        for match in REFERENCE_COMMANDS.finditer(tex)
+    )
+
+
 def unit_needs_chinese(unit, known_names=frozenset()):
     """Only natural-language passages require Chinese output, not TeX alone."""
     text = KEEP.sub("", unit["masked"]).strip()
@@ -230,7 +244,14 @@ def translate_project(source, output, config, progress, cached=None):
         raise ValueError("论文超过当前单任务 400 段限制")
     if not units:
         raise ValueError("未找到可翻译正文")
-    by_source = {value["source_tex"]: value for value in (cached or {}).values()}
+    by_source = {
+        value["source_tex"]: value
+        for value in (cached or {}).values()
+        if isinstance(value.get("source_tex"), str)
+        and isinstance(value.get("translated_tex"), str)
+        and reference_arguments(value["source_tex"])
+        == reference_arguments(value["translated_tex"])
+    }
     cache = {
         u["id"]: {**by_source[u["source_tex"]], "id": u["id"]}
         for u in units
@@ -485,6 +506,13 @@ def prepare_compile_source(main):
     for path in [*main.parent.rglob("*.tex"), *main.parent.rglob("*.cls"), *main.parent.rglob("*.sty")]:
         content = path.read_text(errors="replace")
         repaired = re.sub(r"(?m)^([ \t]*)\\pdfoutput[ \t]*=?[ \t]*([01])\b", r"\1\\ifdefined\\pdfoutput\\pdfoutput=\2\\fi", content)
+        disabled = regex.compile(
+            r"(?m)^([ \t]*)(\\DisableLigatures(?:\[[^\]]*\])?\s*(\{(?:[^{}]|(?3))*\}))"
+        )
+        repaired = disabled.sub(
+            lambda m: m[1] + r"\ifdefined\XeTeXversion\else " + m[2] + r"\fi",
+            repaired,
+        )
         if repaired != content:
             path.write_text(repaired)
     tex = main.read_text()
@@ -602,6 +630,15 @@ def prepare_compile_source(main):
             + r"\makeatletter\AtBeginDocument{\@ifundefined{ACM@origbaselinestretch}{}{\let\baselinestretch\ACM@origbaselinestretch}}\makeatother" + "\n"
         )
         tex = tex.replace(r"\begin{document}", spacing + r"\begin{document}", 1)
+    # Legacy symbol-footnote definitions can bypass active Unicode mappings.
+    # Use the equivalent math glyph for both direct 	extdagger commands.
+    if "paper-workspace dagger commands" not in tex:
+        daggers = (
+            "% paper-workspace dagger commands\n"
+            + r"\renewcommand{\textdagger}{\ensuremath{\dagger}}"
+            + r"\renewcommand{\textdaggerdbl}{\ensuremath{\ddagger}}" + "\n"
+        )
+        tex = tex.replace(r"\begin{document}", daggers + r"\begin{document}", 1)
     # Kernel symbol footnotes select Unicode text daggers in 8-bit fonts.
     # Select their existing math variant instead; preserve all footnote numbers.
     if "paper-workspace symbolic footnotes" not in tex:

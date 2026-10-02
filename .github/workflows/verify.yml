@@ -130,9 +130,9 @@ jobs:
           curl -fsS -c jar -X POST http://127.0.0.1:8765/api/v1/auth/register \
             -H 'Content-Type: application/json' -H 'Origin: http://localhost:8765' \
             -d '{"username":"ci_user","password":"ci-password-123456"}'
-      - name: Both processes are still up
+      - name: All application processes are still up
         run: |
           docker compose ps
-          test "$(docker compose ps --status running --services | sort | tr '\n' ' ')" = "db web worker "
+          test "$(docker compose ps --status running --services | sort | tr '\n' ' ')" = "db preparation web worker "
       - if: failure()
         run: docker compose logs --no-color --tail 200

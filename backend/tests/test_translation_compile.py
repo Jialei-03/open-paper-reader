@@ -138,3 +138,17 @@ def test_corrupted_reference_dash_only_recovers_existing_original_label(tmp_path
     engine.prepare_compile_source(main)
     assert r'\Cref{appendix-evaluation-metric}' in main.read_text()
     assert r'\Cref{unknown–label}' in main.read_text()
+
+
+def test_disable_ligatures_guard_and_dagger_override_are_idempotent(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text(r'\documentclass{article}\begin{document}中文\end{document}')
+    cls = tmp_path / 'template.cls'
+    cls.write_text('\\DisableLigatures{encoding=*, family=*}\n')
+    engine.prepare_compile_source(main)
+    assert cls.read_text() == '\\ifdefined\\XeTeXversion\\else \\DisableLigatures{encoding=*, family=*}\\fi\n'
+    assert r'\renewcommand{\textdagger}{\ensuremath{\dagger}}' in main.read_text()
+    assert r'\renewcommand{\textdaggerdbl}{\ensuremath{\ddagger}}' in main.read_text()
+    before = (main.read_text(), cls.read_text())
+    engine.prepare_compile_source(main)
+    assert (main.read_text(), cls.read_text()) == before
