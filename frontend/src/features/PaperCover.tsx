@@ -6,6 +6,7 @@ const tints = ["blue", "yellow", "green", "pink", "orange", "purple"] as const;
 const cache = new Map<string, string>();
 const pending = new Map<string, Promise<string>>();
 let queue: Promise<unknown> = Promise.resolve();
+let cacheGeneration = 0;
 
 function tintFor(id: string) {
   let n = 0;
@@ -51,9 +52,13 @@ async function readCover(key: string): Promise<string> {
     }
   });
 }
-async function writeCover(key: string, url: string) {
+async function writeCover(key: string, url: string, generation: number) {
   const db = await openDb();
   if (!db) return;
+  if (generation !== cacheGeneration) {
+    db.close();
+    return;
+  }
   try {
     const store = db.transaction(STORE, "readwrite").objectStore(STORE);
     store.put({ key, url, at: Date.now() });
@@ -76,7 +81,10 @@ async function writeCover(key: string, url: string) {
 }
 /** Forget every stored cover, e.g. on sign-out so the next person sees none. */
 export async function clearPaperCovers() {
+  ++cacheGeneration;
   cache.clear();
+  pending.clear();
+  queue = Promise.resolve();
   const db = await openDb();
   if (!db) return;
   try {
@@ -87,7 +95,13 @@ export async function clearPaperCovers() {
 }
 
 // Render one first page at a time so a long library never floods the worker.
-async function generate(paperId: string, versionId: string, key: string) {
+async function generate(
+  paperId: string,
+  versionId: string,
+  key: string,
+  generation: number,
+) {
+  if (generation !== cacheGeneration) throw new Error("obsolete cover");
   const files = await api<SourceFile[]>("/papers/" + paperId + "/files");
   const file =
     files.find(
@@ -121,8 +135,9 @@ async function generate(paperId: string, versionId: string, key: string) {
     canvas.height = Math.ceil(viewport.height);
     await page.render({ canvas, viewport }).promise;
     const url = canvas.toDataURL("image/jpeg", 0.82);
+    if (generation !== cacheGeneration) throw new Error("obsolete cover");
     cache.set(key, url);
-    void writeCover(key, url);
+    void writeCover(key, url, generation);
     return url;
   } finally {
     void task.destroy();
@@ -134,17 +149,25 @@ function render(paperId: string, versionId: string): Promise<string> {
   if (hit) return Promise.resolve(hit);
   const running = pending.get(key);
   if (running) return running;
+  const generation = cacheGeneration;
   const job = readCover(key).then((stored) => {
+    if (generation !== cacheGeneration) throw new Error("obsolete cover");
     if (stored) {
       cache.set(key, stored);
       return stored;
     }
-    const work = queue.then(() => generate(paperId, versionId, key));
+    const work = queue.then(() =>
+      generate(paperId, versionId, key, generation),
+    );
     queue = work.catch(() => undefined);
     return work;
   });
   pending.set(key, job);
-  job.finally(() => pending.delete(key)).catch(() => undefined);
+  job
+    .finally(() => {
+      if (pending.get(key) === job) pending.delete(key);
+    })
+    .catch(() => undefined);
   return job;
 }
 

@@ -290,3 +290,81 @@ test("arXiv HTML and abstract links with navigation parameters import the same p
   });
   expect(removed.ok()).toBeTruthy();
 });
+
+test("A cover finishing after sign-out cannot repopulate private storage", async ({
+  page,
+}) => {
+  await login(page);
+  const csrf = (await page.context().cookies()).find(
+    (c) => c.name === "paper_csrf",
+  )!.value;
+  const created = await page.request.post("/api/v1/papers", {
+    headers: { "X-CSRF-Token": csrf, "Idempotency-Key": crypto.randomUUID() },
+    data: { title: "Late cover privacy verification" },
+  });
+  expect(created.ok()).toBeTruthy();
+  const paper = await created.json();
+  const uploaded = await page.request.post(`/api/v1/papers/${paper.id}/files`, {
+    headers: { "X-CSRF-Token": csrf, "Idempotency-Key": crypto.randomUUID() },
+    multipart: {
+      version_id: paper.current_version,
+      file: {
+        name: "late-cover.pdf",
+        mimeType: "application/pdf",
+        buffer: paperPdf("Late cover privacy verification"),
+      },
+    },
+  });
+  expect(uploaded.ok()).toBeTruthy();
+  const file = await uploaded.json();
+  let start!: () => void, release!: () => void;
+  const started = new Promise<void>((resolve) => {
+    start = resolve;
+  });
+  const paused = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**/api/v1/files/${file.id}/content`, async (route) => {
+    const response = await route.fetch();
+    start();
+    await paused;
+    await route.fulfill({ response });
+  });
+  // Observe completion of the real JPEG render, not an arbitrary wait after the response.
+  await page.evaluate(() => {
+    (window as any).lateCoverRenders = 0;
+    const original = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function (...args) {
+      const result = original.apply(this, args);
+      if (args[0] === "image/jpeg") (window as any).lateCoverRenders++;
+      return result;
+    };
+  });
+  await page.goto("/#library?view=grid");
+  await started;
+  await page.getByRole("button", { name: "alice" }).click();
+  await page.getByRole("menuitem", { name: "退出登录" }).click();
+  await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
+  const renders = await page.evaluate(() => (window as any).lateCoverRenders);
+  release();
+  await expect
+    .poll(() => page.evaluate(() => (window as any).lateCoverRenders))
+    .toBeGreaterThan(renders);
+  const stored = await page.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const open = indexedDB.open("paper-covers", 1);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const transaction = db.transaction("covers");
+          const count = transaction.objectStore("covers").count();
+          transaction.oncomplete = () => {
+            resolve(count.result);
+            db.close();
+          };
+        };
+      }),
+  );
+  expect(stored).toBe(0);
+});
