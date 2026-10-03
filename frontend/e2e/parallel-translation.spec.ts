@@ -96,11 +96,14 @@ test("Translation comparison: options, sentence hover, language cache and all-pa
       },
     }),
   );
+  let artifactReads = 0;
   await page.route(
     `**/api/v1/papers/${paper.id}/reading-artifacts`,
     (route) => {
-      if (route.request().method() === "GET")
+      if (route.request().method() === "GET") {
+        artifactReads++;
         return route.fulfill({ json: rows });
+      }
       const data = route.request().postDataJSON();
       requests.push(data);
       const row = {
@@ -247,11 +250,45 @@ test("Translation comparison: options, sentence hover, language cache and all-pa
   await expect(panel.getByTestId("translation-passage")).toContainText(
     "zh 译文",
   );
+  const readsBeforeHover = artifactReads;
   await panel.getByTestId("translation-passage").hover();
   const marker = page.locator(
     '[data-pdf-page="1"] .pdf-reference-fill:not(.is-leaving) .pdf-reference-underline',
   );
   await expect(marker.first()).toBeVisible();
+  // A real background discovery refresh must preserve the stationary hover.
+  await expect.poll(() => artifactReads).toBeGreaterThan(readsBeforeHover);
+  await expect(panel.getByTestId("translation-passage")).toHaveAttribute(
+    "data-active",
+    "true",
+  );
+  await expect(marker.first()).toBeVisible();
+  const backgroundPage = {
+    ...rows[0],
+    id: "background-page-2",
+    status: "running",
+    run_id: "background-run",
+    parameters: { page: 2, language: "zh" },
+    result: null,
+    preview: { paragraphs: [] },
+  };
+  const assertHoverAfterRefresh = async (before: number) => {
+    await expect.poll(() => artifactReads).toBeGreaterThan(before);
+    await expect(panel.getByTestId("translation-passage")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await expect(marker.first()).toBeVisible();
+  };
+  let readsBeforeChange = artifactReads;
+  rows.push(backgroundPage);
+  await assertHoverAfterRefresh(readsBeforeChange);
+  readsBeforeChange = artifactReads;
+  backgroundPage.status = "completed";
+  await assertHoverAfterRefresh(readsBeforeChange);
+  readsBeforeChange = artifactReads;
+  rows.splice(rows.indexOf(backgroundPage), 1);
+  await assertHoverAfterRefresh(readsBeforeChange);
   await expect
     .poll(() =>
       marker.first().evaluate((e) => e.getBoundingClientRect().height),

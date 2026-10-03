@@ -1,10 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { api } from "../api";
 
 /** Discover artifacts created by background preparation, including an empty initial list. */
-export function useReadingArtifacts<T>(
+export function useReadingArtifacts<T extends { id: string }>(
   paperId: string,
-  onRows: (rows: T[]) => void,
+  onRows: Dispatch<SetStateAction<T[]>>,
 ) {
   const callback = useRef(onRows);
   callback.current = onRows;
@@ -21,7 +21,22 @@ export function useReadingArtifacts<T>(
         const rows = await api<T[]>(`/papers/${paperId}/reading-artifacts`, {
           signal: controller.signal,
         });
-        if (live) callback.current(rows);
+        if (live)
+          callback.current((previous) => {
+            // Keep unchanged result objects stable: polling must not reset an
+            // existing sentence hover when another page advances in the background.
+            const existing = new Map(previous.map((row) => [row.id, row]));
+            const next = rows.map((row) => {
+              const old = existing.get(row.id);
+              return old && JSON.stringify(old) === JSON.stringify(row)
+                ? old
+                : row;
+            });
+            return next.length === previous.length &&
+              next.every((row, index) => row === previous[index])
+              ? previous
+              : next;
+          });
       } catch {
         // Keep already available content usable when offline.
       } finally {

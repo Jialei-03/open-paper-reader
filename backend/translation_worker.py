@@ -30,6 +30,49 @@ class Cancelled(Exception):
     pass
 
 
+def preserve_layout_diagnostics(work):
+    """Keep bounded private failure evidence before removing engine scratch.
+
+    Tracking contains document text, so it must stay outside public file-store
+    routes, and neither it nor engine logs are copied to application logs.
+    """
+    layout = work / "layout"
+    if not layout.is_dir():
+        return
+    destination = work / "layout-diagnostics"
+    if destination.is_symlink():
+        raise ValueError("Invalid layout diagnostics directory")
+    destination.mkdir(mode=0o700, exist_ok=True)
+    destination.chmod(0o700)
+    for previous in destination.iterdir():
+        if previous.is_file() or previous.is_symlink():
+            previous.unlink()
+    budget = 24 * 1024**2
+    records = []
+    candidates = sorted(layout.rglob("translate_tracking.json")) + sorted(
+        layout.glob("engine-*.log")
+    )
+    for source in candidates:
+        if source.is_symlink() or not source.resolve().is_relative_to(layout.resolve()):
+            continue
+        limit = 16 * 1024**2 if source.name == "translate_tracking.json" else 2 * 1024**2
+        size = source.stat().st_size
+        record = {"source": str(source.relative_to(layout)), "bytes": size}
+        if size > limit or size > budget:
+            record["retained"] = False
+        else:
+            target = destination / f"{len(records):02d}-{source.name}"
+            with source.open("rb") as incoming, target.open("xb") as outgoing:
+                target.chmod(0o600)
+                shutil.copyfileobj(incoming, outgoing)
+            budget -= size
+            record.update(retained=True, file=target.name)
+        records.append(record)
+    manifest = destination / "manifest.json"
+    manifest.write_text(json.dumps(records))
+    manifest.chmod(0o600)
+
+
 def process(settings, maker, job_id):
     with maker() as d:
         job = d.get(TranslationJob, job_id)
@@ -96,6 +139,7 @@ def process(settings, maker, job_id):
             current = d.get(TranslationJob, job_id)
             return not current or current.status != "running"
 
+    layout_failed = False
     try:
         if shutil.disk_usage(work).free < settings.storage_min_free:
             raise ValueError("服务器临时空间不足，请清理空间后重试；翻译检查点保留")
@@ -213,6 +257,7 @@ def process(settings, maker, job_id):
     except Cancelled:
         pass
     except Exception as error:  # noqa: BLE001 -- isolate failed jobs from the worker loop
+        layout_failed = job.engine == "pdf"
         logging.getLogger(__name__).error(
             "Translation job %s: %s\n%s",
             job_id,
@@ -236,6 +281,13 @@ def process(settings, maker, job_id):
                 )
                 d.commit()
     finally:
+        if layout_failed:
+            try:
+                preserve_layout_diagnostics(work)
+            except (OSError, ValueError):
+                logging.getLogger(__name__).warning(
+                    "Could not retain private layout diagnostics for job %s", job_id
+                )
         if (work / "translated/compile.log").exists():
             shutil.copy2(work / "translated/compile.log", work / "compile.log")
         # Credentials never enter the project mount. Keep only the unit cache for diagnostics.

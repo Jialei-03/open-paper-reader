@@ -42,6 +42,8 @@ def options(config):
 # (guide, quiz) and answering questions is what thinking is for: those keep it.
 FAST = {"translate", "extract", "probe"}
 ARTIFACT_TASKS = {
+    "guide": "analyze",
+    "quiz": "analyze",
     "page_translation": "translate",
     "outline": "extract",
     "highlights": "extract",
@@ -75,18 +77,22 @@ UNCHOSEN = {
         "chat": {"thinking_mode": "default", "reasoning_effort": "medium"},
     },
 }
-NOT_CHOSEN = {"thinking_mode": "default", "reasoning_effort": "default"}
 
 
 def task_options(config, task="chat"):
     """The inference options a job of this kind should use with this model."""
+    task = ARTIFACT_TASKS.get(task, task)
     model = config.get("model", "").lower()
     if task in FAST and model in LOWEST:
         return dict(LOWEST[model])
     chosen = options(config)
     # A strength the reader picked is always theirs; an unpicked one is ours.
-    if chosen == NOT_CHOSEN and task in UNCHOSEN.get(model, {}):
-        return dict(UNCHOSEN[model][task])
+    if (chosen["reasoning_effort"] == "default"
+            and chosen["thinking_mode"] in {"default", "adaptive"}
+            and task in UNCHOSEN.get(model, {})):
+        # Adaptive selects the thinking mode, not a reasoning strength. Supply
+        # the measured task default while preserving that selected mode.
+        return {**UNCHOSEN[model][task], "thinking_mode": chosen["thinking_mode"]}
     return chosen
 
 

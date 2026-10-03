@@ -234,3 +234,32 @@ def test_connection_tests_use_the_fast_strength(env, monkeypatch):
     assert response.status_code == 200, response.text
     assert sent[0]["reasoning_effort"] == "low"
     assert "thinking" not in sent[0]
+
+
+@pytest.mark.parametrize("task", ["guide", "quiz", "analyze"])
+def test_adaptive_analysis_without_explicit_effort_uses_low_on_wire(task):
+    # Automatic preparation calls guide directly; reader actions use analyze.
+    # Both must retain adaptive while supplying the same fast task default.
+    cfg = flash(thinking_mode="adaptive", reasoning_effort="default")
+    selected = task_options(cfg, task)
+    assert selected == {"thinking_mode": "adaptive", "reasoning_effort": "low"}
+    assert request_options({**cfg, **selected}) == {
+        "thinking": {"type": "adaptive"}, "reasoning_effort": "low"
+    }
+    assert cfg["reasoning_effort"] == "default"
+
+
+@pytest.mark.parametrize("task", ["guide", "quiz", "analyze"])
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_direct_analysis_names_preserve_explicit_user_strength(task, effort):
+    cfg = flash(thinking_mode="adaptive", reasoning_effort=effort)
+    assert task_options(cfg, task) == {"thinking_mode": "adaptive", "reasoning_effort": effort}
+    assert request_options({**cfg, **task_options(cfg, task)})["reasoning_effort"] == effort
+
+
+def test_direct_guide_and_chat_apply_distinct_defaults_without_changing_mode():
+    assert task_options(flash(), "guide") == FAST_FLASH
+    cfg = flash(thinking_mode="adaptive", reasoning_effort="default")
+    assert task_options(cfg, "chat") == {"thinking_mode": "adaptive", "reasoning_effort": "medium"}
+    custom = {"model": "custom", "protocol": "openai", **options(cfg)}
+    assert task_options(custom, "guide") == options(custom)
