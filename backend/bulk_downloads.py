@@ -1,24 +1,18 @@
 # ruff: noqa: B008
-"""Owner-scoped original/translated PDF bundles, streamed from temporary storage."""
+"""Owner-scoped plans for downloading original/translated PDFs individually."""
 import hashlib
 import os
 import re
 import stat
-import tempfile
-import threading
-import zipfile
 from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Query
-from starlette.background import BackgroundTask
-from starlette.responses import StreamingResponse
 from sqlalchemy import select
 
 from .models import File, Paper, TranslationJob
 
-_SLOTS = threading.BoundedSemaphore(2)
 _MAX_BYTES = 256 * 1024**2
 
 
@@ -63,8 +57,12 @@ def install_bulk_download_routes(app, settings, db, auth, human, owned):
                 missing.append({"paper_id": paper.id, "title": paper.title, "reason": "没有原文 PDF" if mode == "original" else "当前版本尚无已完成的译文 PDF"})
             for file in choices:
                 try:
-                    with _open(settings, file):
-                        pass
+                    with _open(settings, file) as source:
+                        digest = hashlib.sha256()
+                        while chunk := source.read(64 * 1024):
+                            digest.update(chunk)
+                        if digest.hexdigest() != file.sha256:
+                            raise HTTPException(409, "文件已变更或不完整，请重新选择后下载")
                 except HTTPException as error:
                     missing.append({"paper_id": paper.id, "title": paper.title, "reason": error.detail})
                     continue
@@ -77,49 +75,4 @@ def install_bulk_download_routes(app, settings, db, auth, human, owned):
     @app.get("/api/v1/paper-downloads/plan")
     def preview(ids: str = Query(min_length=1, max_length=3800), mode: Literal["original", "translated"] = "original", a=Depends(auth), d=Depends(db)):
         files, missing, total = plan(ids, mode, a, d)
-        return {"papers": len({paper.id for paper, _ in files}), "files": len(files), "total_size": total, "missing": missing}
-
-    @app.get("/api/v1/paper-downloads/archive")
-    def archive(ids: str = Query(min_length=1, max_length=3800), mode: Literal["original", "translated"] = "original", a=Depends(auth), d=Depends(db)):
-        files, missing, total = plan(ids, mode, a, d)
-        if not files:
-            raise HTTPException(409, "所选论文没有可下载的原文 PDF" if mode == "original" else "所选论文没有已完成的译文 PDF")
-        if not _SLOTS.acquire(blocking=False):
-            raise HTTPException(429, "正在准备其他下载，请稍后重试")
-        try:
-            spool = tempfile.TemporaryFile()
-        except OSError:
-            _SLOTS.release()
-            raise HTTPException(507, "服务器临时空间不足，请稍后重试") from None
-        released = False
-        def close():
-            nonlocal released
-            if not released:
-                released = True
-                spool.close()
-                _SLOTS.release()
-        try:
-            with zipfile.ZipFile(spool, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as bundle:
-                for index, (paper, file) in enumerate(files, 1):
-                    filename = f"{index:03d}-{_name(paper.title)}/{'原文' if mode == 'original' else '译文'}.pdf"
-                    digest = hashlib.sha256()
-                    with _open(settings, file) as source, bundle.open(filename, "w") as target:
-                        while chunk := source.read(64 * 1024):
-                            digest.update(chunk)
-                            target.write(chunk)
-                    if digest.hexdigest() != file.sha256:
-                        raise HTTPException(409, "文件已变更或不完整，请重新选择后下载")
-                if missing:
-                    bundle.writestr("未下载论文.txt", "\n".join(f"{row['title']}：{row['reason']}" for row in missing))
-            length = spool.tell()
-            spool.seek(0)
-            def chunks():
-                try:
-                    while chunk := spool.read(64 * 1024):
-                        yield chunk
-                finally:
-                    close()
-            return StreamingResponse(chunks(), media_type="application/zip", headers={"Content-Length": str(length), "Content-Disposition": f'attachment; filename="papers-{mode}.zip"', "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}, background=BackgroundTask(close))
-        except Exception:
-            close()
-            raise
+        return {"papers": len({paper.id for paper, _ in files}), "files": len(files), "total_size": total, "missing": missing, "downloads": [{"paper_id": paper.id, "file_id": file.id, "name": f"{index:03d}-{_name(paper.title)}-{'原文' if mode == 'original' else '译文'}.pdf", "url": f"/api/v1/files/{file.id}/content?download=true", "size": file.size} for index, (paper, file) in enumerate(files, 1)]}

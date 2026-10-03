@@ -2,14 +2,12 @@
 
 import fcntl
 import hashlib
-import io
 import json
 import logging
 import os
 import shutil
 import signal
 import threading
-import tarfile
 import time
 import traceback
 from pathlib import Path
@@ -19,8 +17,8 @@ from sqlalchemy import select, update
 from .arxiv_import import download, extract_source
 from .config import Settings, database
 from .models import File, Paper, TranslationJob, now
-from .translation_engine import align, compile_project, translate_project
 from .translation_dispatch import TaskExecutor
+from .translation_engine import align, compile_project, translate_project
 from .translation_resources import rendering_memory
 from .translation_settings import read_config
 from .translations import store_file
@@ -183,9 +181,6 @@ def process(settings, maker, job_id):
         raw = download("/src/" + arxiv)
         progress(0, 0, "解析章节、公式和图表")
         extract_source(raw, work / "source")
-        attach(
-            "arxiv-source-" + arxiv.replace("/", "-") + ".tar.gz", raw, "source_archive"
-        )
         cache_path = work / "units.json"
         cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
         units = translate_project(
@@ -202,15 +197,6 @@ def process(settings, maker, job_id):
         progress(len(units), len(units), "建立原译文对照")
         alignment = align(units, Path(settings.storage) / source_file, translated)
         # Publish output only after all validation and alignment complete.
-        archive = io.BytesIO()
-        with tarfile.open(fileobj=archive, mode="w:gz") as t:
-            for f in (work / "translated").rglob("*"):
-                if (
-                    f.is_file()
-                    and "build" not in f.relative_to(work / "translated").parts
-                    and f.name != "compile.log"
-                ):
-                    t.add(f, arcname=str(f.relative_to(work / "translated")))
         created = []
         try:
             with maker() as d:
@@ -224,15 +210,6 @@ def process(settings, maker, job_id):
                     translated.read_bytes(),
                 )
                 created.append(f.id)
-                archive_file = store_file(
-                    d,
-                    settings,
-                    paper,
-                    version_id,
-                    "zh-source-" + arxiv.replace("/", "-") + ".tar.gz",
-                    archive.getvalue(),
-                )
-                created.append(archive_file.id)
                 result = d.execute(
                     update(TranslationJob)
                     .where(
@@ -240,7 +217,7 @@ def process(settings, maker, job_id):
                     )
                     .values(
                         translated_file=f.id,
-                        translated_archive=archive_file.id,
+                        translated_archive="",
                         alignment=alignment,
                         status="completed",
                         stage="翻译完成",

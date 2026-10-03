@@ -3,6 +3,7 @@ export type FileDownloadState = {
   loaded: number;
   total: number;
   file?: File;
+  files?: File[];
   error?: string;
   sharing?: boolean;
 } | null;
@@ -69,63 +70,84 @@ export function browserSave(file: File) {
 }
 /** Fetch authenticated bytes without navigating the installed web app. */
 export async function downloadFile(source: string | Blob, name?: string) {
+  return downloadFiles([{ source, name }]);
+}
+/** Prepare separate files; mobile Safari receives them in one save gesture. */
+export async function downloadFiles(
+  items: { source: string | Blob; name?: string }[],
+) {
+  if (!items.length) return;
   closeFileDownload();
   const operation = new AbortController();
   controller = operation;
   update({
-    name: name || "下载文件",
+    name:
+      items.length > 1 ? `${items.length} 个 PDF` : items[0].name || "下载文件",
     loaded: 0,
-    total: source instanceof Blob ? source.size : 0,
+    total: 0,
   });
   try {
-    let blob: Blob;
-    if (source instanceof Blob) blob = source;
-    else {
-      const response = await fetch(source, {
-        credentials: "same-origin",
-        signal: operation.signal,
-      });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => null);
-        throw new Error(
-          typeof detail?.detail === "string"
-            ? detail.detail
-            : `下载失败（${response.status}），请重试`,
-        );
+    const files: File[] = [];
+    for (const item of items) {
+      const source = item.source;
+      let name = item.name;
+      let blob: Blob;
+      if (source instanceof Blob) blob = source;
+      else {
+        const response = await fetch(source, {
+          credentials: "same-origin",
+          signal: operation.signal,
+        });
+        if (!response.ok) {
+          const detail = await response.json().catch(() => null);
+          throw new Error(
+            typeof detail?.detail === "string"
+              ? detail.detail
+              : `下载失败（${response.status}），请重试`,
+          );
+        }
+        if (operation.signal.aborted || controller !== operation) return;
+        name ||= responseName(response);
+        const total = Number(response.headers.get("Content-Length")) || 0;
+        update({ name, loaded: 0, total });
+        if (!response.body) blob = await response.blob();
+        else {
+          const reader = response.body.getReader();
+          const chunks: BlobPart[] = [];
+          let loaded = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            loaded += value.byteLength;
+            if (controller === operation) update({ name, loaded, total });
+          }
+          blob = new Blob(chunks, {
+            type:
+              response.headers.get("Content-Type")?.split(";")[0] ||
+              "application/octet-stream",
+          });
+        }
       }
       if (operation.signal.aborted || controller !== operation) return;
-      name ||= responseName(response);
-      const total = Number(response.headers.get("Content-Length")) || 0;
-      update({ name, loaded: 0, total });
-      if (!response.body) blob = await response.blob();
-      else {
-        const reader = response.body.getReader();
-        const chunks: BlobPart[] = [];
-        let loaded = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          loaded += value.byteLength;
-          if (controller === operation) update({ name, loaded, total });
-        }
-        blob = new Blob(chunks, {
-          type:
-            response.headers.get("Content-Type")?.split(";")[0] ||
-            "application/octet-stream",
-        });
-      }
+      if (!blob.size) throw new Error("文件为空，请重试");
+      const file = new File([blob], cleanName(name || "下载文件"), {
+        type: blob.type || "application/octet-stream",
+      });
+      files.push(file);
     }
-    if (operation.signal.aborted || controller !== operation) return;
-    if (!blob.size) throw new Error("文件为空，请重试");
-    const file = new File([blob], cleanName(name || "下载文件"), {
-      type: blob.type || "application/octet-stream",
-    });
     controller = null;
+    const file = files[0];
     if (mobileFileSave())
-      update({ name: file.name, loaded: file.size, total: file.size, file });
+      update({
+        name: files.length > 1 ? `${files.length} 个 PDF` : file.name,
+        loaded: files.reduce((n, f) => n + f.size, 0),
+        total: files.reduce((n, f) => n + f.size, 0),
+        file,
+        files,
+      });
     else {
-      browserSave(file);
+      files.forEach(browserSave);
       update(null);
     }
   } catch (error) {
@@ -135,7 +157,7 @@ export async function downloadFile(source: string | Blob, name?: string) {
       update(
         mobileFileSave()
           ? {
-              name: name || "下载文件",
+              name: items[0].name || "下载文件",
               loaded: 0,
               total: 0,
               error:
@@ -152,15 +174,16 @@ export function sharePreparedFile() {
   if (!state?.file || state.sharing) return;
   const prepared = state;
   const file = state.file;
-  if (!navigator.share || !navigator.canShare?.({ files: [file] })) {
-    browserSave(file);
+  const files = state.files || [file];
+  if (!navigator.share || !navigator.canShare?.({ files })) {
+    files.forEach(browserSave);
     update(null);
     return;
   }
   update({ ...prepared, sharing: true, error: undefined });
   // No await before share: long network operations happen in downloadFile.
   void navigator
-    .share({ files: [file] })
+    .share({ files })
     .then(() => {
       if (state?.file === file) update(null);
     })

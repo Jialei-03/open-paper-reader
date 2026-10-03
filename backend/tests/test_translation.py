@@ -319,6 +319,7 @@ def test_worker_publishes_files_and_alignment_and_backup_roundtrips(
     worker.process(settings, app.state.maker, job["id"])
     result = a.get(f"/api/v1/papers/{p['id']}/translations").json()[0]
     assert result["status"] == "completed"
+    assert not result["translated_archive"] and not result["source_archive"]
     assert result["alignment"] == [
         {
             "id": "u1",

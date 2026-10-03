@@ -1,4 +1,4 @@
-import { downloadFile } from "../lib/file-download";
+import { downloadFiles } from "../lib/file-download";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,7 @@ export function PaperBatchActions({
     papers: number;
     files: number;
     total_size: number;
+    downloads: { name: string; url: string; size: number }[];
     missing: { paper_id: string; title: string; reason: string }[];
   } | null>(null);
   const prepareDownload = async (mode: "original" | "translated") => {
@@ -53,9 +54,8 @@ export function PaperBatchActions({
       if (plan.missing.length || !plan.files)
         setDownloadPlan({ ...plan, mode, ids });
       else
-        await downloadFile(
-          `/api/v1/paper-downloads/archive?ids=${encodeURIComponent(ids)}&mode=${mode}`,
-          `${mode === "original" ? "原文" : "译文"}-${plan.papers}篇.zip`,
+        await downloadFiles(
+          plan.downloads.map((file) => ({ source: file.url, name: file.name })),
         );
     } catch (error) {
       onError((error as Error).message);
@@ -214,8 +214,8 @@ export function PaperBatchActions({
             <DialogTitle>确认批量下载</DialogTitle>
             <DialogDescription>
               {downloadPlan?.papers || 0} 篇可下载，
-              {downloadPlan?.missing.length || 0} 项缺少文件。可用文件将打包为
-              ZIP。
+              {downloadPlan?.missing.length || 0} 项缺少文件。每篇论文分别保存为
+              PDF。
             </DialogDescription>
           </DialogHeader>
           <ul className="max-h-64 space-y-2 overflow-auto text-sm">
@@ -231,9 +231,11 @@ export function PaperBatchActions({
               const plan = downloadPlan!;
               setDownloadPlan(null);
               setBusy(true);
-              void downloadFile(
-                `/api/v1/paper-downloads/archive?ids=${encodeURIComponent(plan.ids)}&mode=${plan.mode}`,
-                `${plan.mode === "original" ? "原文" : "译文"}-${plan.papers}篇.zip`,
+              void downloadFiles(
+                plan.downloads.map((file) => ({
+                  source: file.url,
+                  name: file.name,
+                })),
               )
                 .catch((error) => onError((error as Error).message))
                 .finally(() => setBusy(false));
