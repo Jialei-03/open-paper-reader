@@ -19,7 +19,7 @@ from sqlalchemy import select, update
 
 from .config import Settings, database
 from .direct_runs import page_units, whole_paper
-from .model_options import task_options
+from .model_options import task_of, task_options
 from .model_usage import bind
 from .models import File, Paper, PaperPreparation, ReadingArtifact, TranslationJob, now
 from .paper_preparation import enabled, ensure
@@ -254,7 +254,7 @@ def process(settings, maker, identifier):
                 kind="guide", language="zh", page=1, question_count=5, difficulty="easy"
             )
             guide_cfg = bind(
-                {**config, **task_options(config, "guide")},
+                {**config, **task_options(config, task_of(artifact=body.kind))},
                 maker,
                 settings,
                 row.owner,

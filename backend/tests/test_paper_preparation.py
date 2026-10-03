@@ -120,7 +120,7 @@ def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monke
     cfg = {
         "id": "test",
         "api_key": "private-test",
-        "model": "test",
+        "model": "MiniMax-M3.1-Flash-Preview",
         "base_url": "https://api.openai.com/v1",
         "protocol": "openai",
     }
@@ -145,6 +145,7 @@ def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monke
     calls = []
 
     def complete(cfg, system, content, **kwargs):
+        assert cfg["reasoning_effort"] == "low"
         calls.append(system)
         if system.startswith("Translate each"):
             return json.dumps(
