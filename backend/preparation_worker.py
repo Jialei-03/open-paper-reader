@@ -208,9 +208,20 @@ def process(settings, maker, identifier):
                 raise ValueError("自动准备已停止")
             units = page_units(texts[number])
             if units is None:
-                raise ValueError("页面内容过长或无法可靠分句，请单独处理")
-            pairs = memory.translate([u["original"] for u in units])
-            result = {"paragraphs": pairs}
+                # Dense tables or unusual line layouts need the same verified
+                # layout-aware fallback as an explicit reader translation.
+                result = json.loads(
+                    memory.page(
+                        lambda s, c: complete(translated, s, c, cancelled=stop),
+                        texts[number], number,
+                    )
+                )
+                result["paragraphs"] = [
+                    memory._validate_unit(pair["original"], pair)
+                    for pair in result["paragraphs"]
+                ]
+            else:
+                result = {"paragraphs": memory.translate([u["original"] for u in units])}
             # Verify complete source coverage and one source sentence per result.
             check_result(
                 "page_translation",
@@ -220,6 +231,8 @@ def process(settings, maker, identifier):
                 evidence_pages={number},
                 evidence_text={str(number): texts[number]},
             )
+            if units is None:
+                memory.remember(result["paragraphs"])
             save_artifact(
                 settings,
                 maker,

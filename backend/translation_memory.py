@@ -13,6 +13,7 @@ import re
 import time
 import unicodedata
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 
@@ -51,6 +52,67 @@ def source_kind(original, kind="text"):
     ):
         return "text"
     return kind
+
+
+def immutable_metadata(original):
+    """Only complete URL footnotes or a full list of abbreviated author names.
+
+    Content classification comes from the source, never a model-provided kind.
+    Preserve PDF control characters in provenance, but never accept NUL.
+    """
+    if "\x00" in original:
+        return False
+    lines = [line.strip() for line in original.splitlines() if line.strip()]
+    found_url = False
+    previous_url = ""
+    all_urls = bool(lines)
+    for line in lines:
+        if re.fullmatch(r"[0-9]{1,4}", line):
+            previous_url = ""
+            continue
+        match = re.fullmatch(r"(?:URL[ \t]+|[0-9]*[ \t]*)(https?://[^\s]+)", line, re.I)
+        if not match:
+            # Join only syntactically incomplete URL wraps: query identifiers
+            # after '=', or path fragments containing URL punctuation. PDFium's
+            # discretionary control-2 glyph is ignored only for classification.
+            # The stored original and passthrough output retain it verbatim.
+            fragment = line.replace("\x02", "")
+            uri_fragment = re.fullmatch(r"[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+", fragment)
+            query_id = (previous_url.endswith("=")
+                        and re.search(r"[A-Za-z]", fragment)
+                        and re.search(r"[0-9]", fragment))
+            path_fragment = (previous_url.endswith(("/", "-", "&", "?"))
+                             and re.search(r"[/_?=&%#-]", fragment))
+            if uri_fragment and (query_id or path_fragment):
+                previous_url += fragment
+                continue
+        if not match:
+            all_urls = False
+            break
+        try:
+            url = urlsplit(match.group(1))
+            if not url.hostname or not re.fullmatch(r"[A-Za-z0-9.-]+", url.hostname):
+                all_urls = False
+                break
+        except ValueError:
+            all_urls = False
+            break
+        found_url = True
+        previous_url = match.group(1)
+    if all_urls and found_url:
+        return True
+    initial = r"(?:[A-Z]\.(?:-[A-Za-z]\.)?[ \t]*)+"
+    surname = r"[A-Z][a-z]+(?:[-'][A-Z]?[a-z]+)*"
+    names = [name.strip() for name in original.split(',')]
+    complete = 0
+    for index, name in enumerate(names):
+        if re.fullmatch(initial + r"[ \t]+" + surname, name):
+            complete += 1
+        elif index == len(names) - 1 and re.fullmatch(initial, name):
+            pass
+        else:
+            return False
+    return complete >= 3
 
 
 def identity(checksum, config, language, original):
@@ -246,6 +308,11 @@ class SentenceMemory:
                     TranslationMemory.cache_key.in_(keys),
                 )))
             missing = [text for key, text in keys.items() if key not in existing]
+            unchanged = [text for text in missing if immutable_metadata(text)]
+            if unchanged:
+                self.remember([{"original": text, "translation": text, "kind": "text"}
+                               for text in unchanged])
+                missing = [text for text in missing if not immutable_metadata(text)]
             if missing:
                 self._translate_batch(missing)
             result = self.lookup(originals)
@@ -261,12 +328,15 @@ class SentenceMemory:
         if (not isinstance(text, str) or not text.strip() or "\x00" in text or len(text) > 24000
                 or kind not in {"text", "heading", "caption", "figure_text", "page_number"}):
             raise ValueError("分句返回格式不正确")
+        if immutable_metadata(original) and normalized(text) != normalized(original):
+            raise ValueError("引用链接和作者元数据不得改写")
         if (placeholder_counts(original) != placeholder_counts(text)
                 or code_constants(original) != code_constants(text)):
             raise ValueError("公式或格式标记发生变化")
         if (self.language.startswith("zh")
                 and len(re.findall(r"[A-Za-z]+", MARKERS.sub("", original))) > 8
-                and not re.search(r"[\u3400-\u9fff]", text)):
+                and not re.search(r"[\u3400-\u9fff]", text)
+                and not (immutable_metadata(original) and normalized(text) == normalized(original))):
             raise ValueError("片段未返回中文")
         return {"original": original, "translation": text.strip(),
                 "kind": source_kind(original, kind)}

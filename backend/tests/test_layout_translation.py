@@ -46,6 +46,70 @@ def test_layout_bridge_keeps_model_credentials_in_parent(monkeypatch, tmp_path):
     assert calls == [("synthetic-secret", "Hello")]
 
 
+def test_layout_bridge_opens_extensionless_stored_pdf(tmp_path):
+    from pypdf import PdfWriter
+
+    source = tmp_path / "opaque-file-id"
+    writer = PdfWriter()
+    writer.add_blank_page(width=200, height=300)
+    writer.write(source)
+    original = source.read_bytes()
+    runtime = tmp_path / "pdf-runtime"
+    runtime.write_text(
+        f"#!{sys.executable}\n"
+        "import sys,json,pathlib,shutil,pypdfium2\n"
+        "c=json.loads(sys.stdin.readline());p=pathlib.Path(c['input_file'])\n"
+        "assert p.suffix=='.pdf'\n"
+        "d=pypdfium2.PdfDocument(p);assert len(d)==1;d.close()\n"
+        "out=pathlib.Path(c['output_dir'])/'translated.pdf';shutil.copyfile(p,out)\n"
+        "print(json.dumps({'type':'finish','pdf':str(out)}),flush=True)\n"
+    )
+    runtime.chmod(0o700)
+    pdf, _ = layout_translation.translate_pdf(
+        runtime, source, tmp_path / "out", {}, lambda _: None, lambda: False
+    )
+    assert pdf.read_bytes() == original
+    assert source.read_bytes() == original
+
+
+def test_layout_container_mounts_extensionless_source_as_readonly_pdf(
+    monkeypatch, tmp_path
+):
+    import subprocess
+
+    source = tmp_path / "opaque-file-id"
+    source.write_bytes(b"%PDF-1.7\nfixture")
+    runtime = tmp_path / "container-runtime"
+    runtime.write_text(
+        f"#!{sys.executable}\n"
+        "import sys,json,pathlib\n"
+        "c=json.loads(sys.stdin.readline());assert c['input_file']=='/input.pdf'\n"
+        "p=pathlib.Path(c['output_dir'])/'translated.pdf';p.write_bytes(b'%PDF-1.7')\n"
+        "print(json.dumps({'type':'finish','pdf':str(p)}),flush=True)\n"
+    )
+    runtime.chmod(0o700)
+    calls = []
+    popen = subprocess.Popen
+
+    def launch(command, **kwargs):
+        calls.append(command)
+        return popen([str(runtime)], **kwargs)
+
+    monkeypatch.setattr(layout_translation.subprocess, "Popen", launch)
+    monkeypatch.setattr(layout_translation.subprocess, "run", lambda *a, **k: None)
+    layout_translation.translate_pdf(
+        None, source, tmp_path / "out", {}, lambda _: None, lambda: False,
+        container_image="test-layout-image",
+    )
+    mounted = next(value for value in calls[0] if value.endswith("dst=/input.pdf,readonly"))
+    staged = next((tmp_path / "out").glob("source-*.pdf"))
+    assert mounted == f"type=bind,src={staged},dst=/input.pdf,readonly"
+    assert staged.read_bytes() == source.read_bytes()
+    assert staged.stat().st_mode & 0o777 == 0o600
+    assert staged.stat().st_uid == layout_translation.os.getuid()
+    assert calls[0][-1] == "test-layout-image"
+
+
 def test_layout_bridge_rejects_output_outside_job(monkeypatch, tmp_path):
     monkeypatch.setattr(layout_translation, "complete", lambda *args, **kwargs: "你好")
     with pytest.raises(ValueError, match="输出不符合"):

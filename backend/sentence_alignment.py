@@ -8,11 +8,36 @@ ABBREVIATIONS = re.compile(
     re.IGNORECASE,
 )
 END = re.compile(r"""[.!?。！？]+["'”’）)\]]*""")
+DOT_LEADERS = re.compile(
+    r"\.(?:[ \t]*\.){4,}(?=[ \t]*[0-9]+[ \t]*\r?$)", re.MULTILINE
+)
 
 
 def sentences(text):
+    # A wrapped bibliography URL may have no final period. A new numbered
+    # reference still begins a separate source unit, in both reader and layout.
+    boundaries = [
+        match.span()
+        for match in re.finditer(r"\r?\n(?=[ \t]*\[[0-9]+\][ \t])", text)
+        if re.search(
+            r"https?://[^\s]+(?:\r?\n[^\s]+)*[ \t]*$", text[:match.start()]
+        )
+    ]
+    if boundaries:
+        blocks, begin = [], 0
+        for start, end in boundaries:
+            blocks.append(text[begin:start])
+            begin = end
+        blocks.append(text[begin:])
+        return [sentence for block in blocks for sentence in sentences(block)]
     result, start = [], 0
+    leaders = [match.span() for match in DOT_LEADERS.finditer(text)]
     for match in END.finditer(text):
+        # Contents-page leaders are layout, not hundreds of tiny sentences.
+        # Keep every dot in the source span; ordinary three-dot prose ellipses
+        # and genuine sentence-ending punctuation retain their existing rules.
+        if any(begin <= match.start() < end for begin, end in leaders):
+            continue
         stop = match.end()
         tail = text[stop:]
         if tail and not tail[0].isspace() and match.group()[0] not in "。！？":

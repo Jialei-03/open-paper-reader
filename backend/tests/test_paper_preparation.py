@@ -1,4 +1,5 @@
 import json
+import pytest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from sqlalchemy import select
@@ -113,7 +114,8 @@ def test_shared_units_survive_failure_reuse_layout_and_isolate_owners(env, monke
     assert m.translate(originals) == results[0]
 
 
-def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monkeypatch):
+@pytest.mark.parametrize("canonical", [True, False])
+def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monkeypatch, canonical):
     app, a, b, settings, p, f = fixture(env)
     cfg = {
         "id": "test",
@@ -124,6 +126,9 @@ def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monke
     }
     monkeypatch.setattr("backend.preparation_worker.read_config", lambda *args: cfg)
     monkeypatch.setattr("backend.preparation_worker.bind", lambda cfg, *args: cfg)
+    if not canonical:
+        monkeypatch.setattr("backend.preparation_worker.page_units", lambda _: None)
+        monkeypatch.setattr("backend.direct_runs.page_units", lambda _: None)
     # A deterministic page extraction, and the actual shared translator interface.
     monkeypatch.setattr(
         "backend.preparation_worker.extract_pdf_pages",
@@ -145,6 +150,8 @@ def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monke
             return json.dumps(
                 {"sentences": [{"id": 0, "kind": "text", "translation": "你好世界。"}]}
             )
+        if system.startswith("You translate one page"):
+            return json.dumps({"paragraphs": [{"original": "Hello world.", "translation": "你好世界。", "kind": "text"}]})
         return json.dumps(guide, ensure_ascii=False)
 
     monkeypatch.setattr("backend.preparation_worker.complete", complete)

@@ -29,6 +29,33 @@ def test_scientific_boundaries_preserve_abbreviations_numbers_and_quotes():
     ]
 
 
+def test_contents_dot_leaders_preserve_source_without_fake_sentences():
+    from backend.direct_runs import page_units
+
+    source = "Contents\nIntroduction " + ". " * 350 + "2\nMethods ......... 4"
+    units = page_units(source)
+    assert units and len(units) < 10
+    assert "".join(unit["original"] for unit in units).replace(" ", "") == source.replace(" ", "")
+    assert sentences("We stopped... Another sentence.") == [
+        "We stopped...", "Another sentence."
+    ]
+    assert sentences("First sentence. Second sentence.") == [
+        "First sentence.", "Second sentence."
+    ]
+
+
+def test_wrapped_bibliography_url_does_not_absorb_next_reference():
+    text = "https://example.org/long-path/\r\ncontinued-path/\r\n[83] Prolific. 2022. A genuine research title."
+    result = sentences(text)
+    assert result == [
+        "https://example.org/long-path/\r\ncontinued-path/",
+        "[83] Prolific.", "2022. A genuine research title.",
+    ]
+    assert sentences("The result follows\n[83] under the tested conditions.") == [
+        "The result follows\n[83] under the tested conditions."
+    ]
+
+
 def test_alignment_translates_identified_sources_not_zipped_target_punctuation():
     text = "The baseline fails. Our model works."
     result = PageTranslation.model_validate(

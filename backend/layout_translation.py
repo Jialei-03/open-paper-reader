@@ -68,6 +68,20 @@ def translate_pdf(
     source = Path(source).resolve()
     output.mkdir(mode=0o700, parents=True, exist_ok=True)
     container = f"paper-layout-{uuid.uuid4().hex}" if container_image else None
+    # Stored files use opaque IDs without extensions. BabelDOC infers the
+    # document type from the filename, so give the engine a PDF-named view.
+    # File-store ownership can differ from the worker UID. A capability-free
+    # container cannot bypass mode 0600 even as root: stage an owned snapshot.
+    # Keep the original immutable and the container mount read-only.
+    staged_source = source
+    engine_source = Path("/input.pdf") if container else source
+    if container or source.suffix.lower() != ".pdf":
+        staged_source = output / f"source-{uuid.uuid4().hex}.pdf"
+        with source.open("rb") as original, staged_source.open("xb") as staged:
+            os.chmod(staged_source, 0o600)
+            shutil.copyfileobj(original, staged)
+        if not container:
+            engine_source = staged_source
     command = [str(runtime), "-m", "backend.layout_translation_worker"]
     if container:
         command = [
@@ -90,7 +104,7 @@ def translate_pdf(
             "--user",
             f"{os.getuid()}:{os.getgid()}",
             "--mount",
-            f"type=bind,src={source},dst={source},readonly",
+            f"type=bind,src={staged_source},dst={engine_source},readonly",
             "--mount",
             f"type=bind,src={output},dst={output}",
             "--env",
@@ -180,7 +194,7 @@ def translate_pdf(
     try:
         write(
             {
-                "input_file": str(Path(source).resolve()),
+                "input_file": str(engine_source),
                 "output_dir": str(output.resolve()),
                 "pages": pages,
                 "batch_tokens": 4000

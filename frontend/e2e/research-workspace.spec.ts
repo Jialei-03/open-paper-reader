@@ -2069,11 +2069,30 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
   );
   await sheet.evaluate((el) => (el.scrollTop = 0));
   await page.getByRole("radio", { name: "选择文字", exact: true }).click();
-  const pencilBox = (await surface.boundingBox())!;
+  // Touch momentum and zoom-anchor restoration can keep the page origin
+  // outside the viewport. A Pencil must land on the visible PDF, not the
+  // sidebar or toolbar at a stale document-relative coordinate.
+  let pencilPoint = { x: 0, y: 0 };
+  await expect
+    .poll(async () => {
+      const bounds = (await surface.boundingBox())!;
+      const viewport = (await sheet.boundingBox())!;
+      pencilPoint = {
+        x: Math.max(bounds.x, viewport.x) + 80,
+        y: Math.max(bounds.y, viewport.y) + 200,
+      };
+      return surface.evaluate(
+        (root, start) =>
+          root.contains(document.elementFromPoint(start.x, start.y)) &&
+          root.contains(document.elementFromPoint(start.x + 100, start.y + 30)),
+        pencilPoint,
+      );
+    })
+    .toBe(true);
   await cdp.send("Input.dispatchMouseEvent", {
     type: "mousePressed",
-    x: pencilBox.x + 80,
-    y: pencilBox.y + 200,
+    x: pencilPoint.x,
+    y: pencilPoint.y,
     button: "left",
     buttons: 1,
     clickCount: 1,
@@ -2082,8 +2101,8 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
   });
   await cdp.send("Input.dispatchMouseEvent", {
     type: "mouseMoved",
-    x: pencilBox.x + 180,
-    y: pencilBox.y + 230,
+    x: pencilPoint.x + 100,
+    y: pencilPoint.y + 30,
     button: "left",
     buttons: 1,
     pointerType: "pen",
@@ -2091,8 +2110,8 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
   });
   await cdp.send("Input.dispatchMouseEvent", {
     type: "mouseReleased",
-    x: pencilBox.x + 180,
-    y: pencilBox.y + 230,
+    x: pencilPoint.x + 100,
+    y: pencilPoint.y + 30,
     button: "left",
     buttons: 0,
     clickCount: 1,
