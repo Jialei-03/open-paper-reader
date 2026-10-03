@@ -194,6 +194,25 @@ def model_request(text, structured):
             PENDING.pop(identifier, None)
 
 
+def llm_model_request(prompt):
+    """Support both pinned BabelDOC batch and single-paragraph fallback protocols."""
+    if prompt is None:
+        return None  # BabelDOC probes whether LLM translation is supported.
+    batch_marker = "## Here is the input:\n"
+    fallback_marker = "Now translate the following text:\n\n"
+    batch_index = prompt.find(batch_marker)
+    fallback_index = prompt.find(fallback_marker)
+    if fallback_index >= 0 and (batch_index < 0 or fallback_index < batch_index):
+        # Legacy fallback expects plain translated text, not a JSON array.
+        paragraph = prompt.split(fallback_marker, 1)[1]
+        if paragraph.strip():
+            return model_request(paragraph, False)
+    elif batch_index >= 0:
+        # Keep the batch prompt: the parent validates and extracts its schema.
+        return model_request(prompt, True)
+    raise ValueError("版面翻译协议不匹配")
+
+
 def document_worker_count(document):
     """The finite document workload sets concurrency, rather than an account cap."""
     return max(1, sum(len(page.pdf_paragraph) for page in document.page))
@@ -274,10 +293,7 @@ async def run(config):
             return f"</b{identifier}>", r"<\s*/\s*b\s*" + str(identifier) + r"\s*>"
 
         def do_llm_translate(self, text, rate_limit_params=None):
-            # BabelDOC probes LLM support with None before dispatching text.
-            if text is None:
-                return None
-            return model_request(text, True)
+            return llm_model_request(text)
 
     input_file = Path(config["input_file"]).resolve(strict=True)
     output = Path(config["output_dir"]).resolve()

@@ -5,6 +5,33 @@ import pytest
 from backend import layout_translation
 
 
+def test_layout_llm_protocol_supports_plain_fallback_without_translating_prompt(
+    monkeypatch,
+):
+    from backend import layout_translation_worker as worker
+
+    calls = []
+    monkeypatch.setattr(
+        worker,
+        "model_request",
+        lambda text, structured: calls.append((text, structured)) or "已翻译",
+    )
+    paragraph = "A real paragraph with {v1} and <b2>important text</b2>."
+    batch = 'Rules\n## Here is the input:\n[{"id": 0, "input": "Hello"}]'
+    assert worker.llm_model_request(batch) == "已翻译"
+    assert (
+        worker.llm_model_request(
+            "Rules\nNow translate the following text:\n\n" + paragraph
+        )
+        == "已翻译"
+    )
+    assert calls == [(batch, True), (paragraph, False)]
+    assert worker.llm_model_request(None) is None
+    with pytest.raises(ValueError, match="协议不匹配"):
+        worker.llm_model_request("Unknown schema: Hello")
+    assert len(calls) == 2
+
+
 def fake_runtime(tmp_path, escaped=False):
     runtime = tmp_path / "runtime"
     runtime.write_text(
@@ -98,10 +125,17 @@ def test_layout_container_mounts_extensionless_source_as_readonly_pdf(
     monkeypatch.setattr(layout_translation.subprocess, "Popen", launch)
     monkeypatch.setattr(layout_translation.subprocess, "run", lambda *a, **k: None)
     layout_translation.translate_pdf(
-        None, source, tmp_path / "out", {}, lambda _: None, lambda: False,
+        None,
+        source,
+        tmp_path / "out",
+        {},
+        lambda _: None,
+        lambda: False,
         container_image="test-layout-image",
     )
-    mounted = next(value for value in calls[0] if value.endswith("dst=/input.pdf,readonly"))
+    mounted = next(
+        value for value in calls[0] if value.endswith("dst=/input.pdf,readonly")
+    )
     staged = next((tmp_path / "out").glob("source-*.pdf"))
     assert mounted == f"type=bind,src={staged},dst=/input.pdf,readonly"
     assert staged.read_bytes() == source.read_bytes()
