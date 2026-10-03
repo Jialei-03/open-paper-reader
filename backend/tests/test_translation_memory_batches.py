@@ -1,4 +1,5 @@
 import json
+import re
 import pytest
 from sqlalchemy import select
 from backend.models import File
@@ -84,7 +85,8 @@ def test_formula_guard_failure_keeps_other_units_and_requires_repair(env, monkey
     source = ['Valid sentence.', 'A formula {v2} remains here.']
     def complete(config, system, content, **kwargs):
         rows = json.loads(answer(decode(content)))
-        for row in rows['sentences']:row['translation'] = row['translation'].replace('{v2}', '{v3}')
+        for row in rows['sentences']:
+            row['translation'] = re.sub(r'__PW_LAYOUT_KEEP_[a-f0-9]{12}_[0-9]+__', '{v3}', row['translation'])
         return json.dumps(rows)
     monkeypatch.setattr('backend.translation_memory.complete', complete)
     with pytest.raises(TranslationUnitError, match='标记'):

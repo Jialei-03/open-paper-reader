@@ -284,3 +284,38 @@ def test_source_controls_page_number_hint_and_literal_json_newlines(env, monkeyp
     )
     assert memory.translate([source])[0]["kind"] == "text"
     assert memory.lookup([source])[0]["kind"] == "text"
+
+
+def test_prepared_artifacts_record_actual_task_options_on_create_and_retry(env):
+    from backend.models import File
+    from backend.preparation_worker import save_artifact, artifact_key
+
+    app, a, b, settings, p, f = fixture(env)
+    reconcile(settings, app.state.maker)
+    config = {"id": "fixture-profile", "model": "MiniMax-M3.1-Flash-Preview",
+              "base_url": "https://api.openai.com/v1", "protocol": "openai",
+              "thinking_mode": "adaptive", "reasoning_effort": "default"}
+    with app.state.maker() as d:
+        row = d.scalar(select(PaperPreparation)); row.status = "running"
+        file = d.get(File, f["id"])
+        d.commit()
+    guide_key = artifact_key(row, file, config, "guide", {})
+    save_artifact(settings, app.state.maker, row, file, config, "guide", {}, {"summary": ["导读"]})
+    save_artifact(settings, app.state.maker, row, file, config, "page_translation",
+                  {"page": 1, "language": "zh"}, {"paragraphs": []})
+    with app.state.maker() as d:
+        guide = d.scalar(select(ReadingArtifact).where(ReadingArtifact.kind == "guide"))
+        page = d.scalar(select(ReadingArtifact).where(ReadingArtifact.kind == "page_translation"))
+        assert guide.model_options == {"thinking_mode": "adaptive", "reasoning_effort": "low"}
+        assert page.model_options == {"thinking_mode": "default", "reasoning_effort": "low"}
+        guide_id = guide.id
+        guide.model_options = {"thinking_mode": "default", "reasoning_effort": "low"}
+        guide.model_config_id = "old-profile"
+        d.commit()
+    save_artifact(settings, app.state.maker, row, file, config, "guide", {}, {"summary": ["更新导读"]})
+    with app.state.maker() as d:
+        guide = d.get(ReadingArtifact, guide_id)
+        assert guide.cache_key == guide_key
+        assert guide.model_config_id == config["id"]
+        assert guide.model_options == {"thinking_mode": "adaptive", "reasoning_effort": "low"}
+        assert len(list(d.scalars(select(ReadingArtifact)))) == 2

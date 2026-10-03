@@ -94,10 +94,14 @@ def save_artifact(settings, maker, row, file, config, kind, parameters, result):
                 kind=kind,
                 model_config_id=config.get("id", ""),
                 model=config["model"],
-                model_options=task_options(config, "translate"),
                 parameters={**parameters, "preparation_id": row.id},
             )
             d.add(value)
+        # Existing placeholders and retried artifacts must record the options
+        # used for this artifact, rather than the translation task defaults.
+        value.model_config_id = config.get("id", "")
+        value.model = config["model"]
+        value.model_options = task_options(config, task_of(artifact=kind))
         value.result = result
         value.status = "completed"
         value.error = ""
