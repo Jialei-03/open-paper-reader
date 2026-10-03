@@ -2013,7 +2013,6 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
     el.scrollLeft = 150;
     el.scrollTop = 0;
   });
-  const initialLeft = await sheet.evaluate((el) => el.scrollLeft);
   const viewport = (await sheet.boundingBox())!;
   const x = viewport.x + 100,
     y = viewport.y + 350;
@@ -2021,6 +2020,10 @@ test("Handwriting: pen ink, finger scroll, erase undo, durable save and retry", 
     type: "touchStart",
     touchPoints: [{ x, y }],
   });
+  // touchStart transfers viewport ownership from the zoom anchor to native
+  // panning. Sample its actual start position after that event is processed,
+  // not while CDP is still waiting and the 300ms zoom restore can run.
+  const initialLeft = await sheet.evaluate((el) => el.scrollLeft);
   for (let i = 1; i <= 10; i++)
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchMove",
