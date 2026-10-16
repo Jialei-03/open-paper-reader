@@ -1,0 +1,117 @@
+.paper-reading-tools {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.paper-tools-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.paper-tools-language,
+.paper-tools-actions,
+.paper-tools-export,
+.paper-tools-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.paper-tools-language > span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.paper-tools-language [data-slot="select-trigger"] {
+  width: 92px;
+}
+.paper-tools-actions {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+.paper-tools-caption,
+.paper-tools-working {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.paper-translation-paragraphs article {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.paper-translation-paragraphs article:first-child {
+  padding-top: 0;
+}
+.paper-translation-paragraphs p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.paper-translation-paragraphs summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.paper-translation-paragraphs details p {
+  margin: 8px 0 12px;
+  color: var(--muted-foreground);
+}
+.paper-paragraph-translation {
+  margin-top: 8px;
+}
+.paper-highlights {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.paper-highlight-suggestion {
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid #d6ad45;
+  border-radius: 7px;
+  background: var(--background);
+  transition: background 120ms ease;
+}
+.paper-highlight-suggestion:hover {
+  background: var(--accent);
+}
+.paper-highlight-suggestion:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.paper-highlight-suggestion > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.paper-highlight-suggestion.category-method {
+  border-left-color: #72a39b;
+}
+.paper-highlight-suggestion.category-results {
+  border-left-color: #9c8bb8;
+}
+.paper-highlight-suggestion blockquote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .paper-highlight-suggestion {
+    transition: none;
+  }
+}
+
+.paper-tools-overlay-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}

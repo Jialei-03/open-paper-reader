@@ -1,0 +1,42 @@
+.paper-figures {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.paper-figures article {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
+.paper-figures h3 {
+  font-size: 13px;
+  font-weight: 600;
+}
+.paper-figures small {
+  color: var(--muted-foreground);
+}
+.paper-figures article > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.paper-figures article img {
+  max-width: 100%;
+  height: auto;
+  margin-top: 10px;
+  border-radius: 4px;
+}
+.paper-explanation-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  color: var(--muted-foreground);
+  margin-top: 6px;
+}

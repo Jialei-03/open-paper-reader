@@ -1,0 +1,15 @@
+# Example unit: a consistent offline backup (stops the writers, copies, restarts
+# whatever was running). ExecStopPost restarts them even if the backup is killed.
+# Install deploy/backup_production.py as /srv/paper-platform/ops/backup.py.
+[Unit]
+Description=Consistent local Zhijian backup
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/srv/paper-platform/venv/bin/python /srv/paper-platform/ops/backup.py
+ExecStopPost=/srv/paper-platform/venv/bin/python /srv/paper-platform/ops/backup.py --recover
+TimeoutStartSec=900
+TimeoutStopSec=180

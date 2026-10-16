@@ -1,0 +1,24 @@
+# Example unit, optional: full-paper translation from arXiv LaTeX source. It starts
+# throw-away Docker containers (TeX; see deploy/translation/), so it runs as root
+# and needs Docker. Skip it if you do not use that feature.
+[Unit]
+Description=Zhijian translation worker
+After=network-online.target docker.service paper-platform.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/srv/paper-platform/app
+EnvironmentFile=/etc/paper-platform/app.env
+ExecStart=/srv/paper-platform/venv/bin/python -m backend.translation_worker
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=768M
+
+[Install]
+WantedBy=multi-user.target

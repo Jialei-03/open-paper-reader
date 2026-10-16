@@ -1,0 +1,38 @@
+# Example unit for a native (non-Docker) install. Adjust the paths and the user;
+# see docs/DEPLOYMENT.md for the layout this assumes:
+#   /srv/paper-platform/app     the repository (with frontend/dist built)
+#   /srv/paper-platform/venv    the Python virtualenv
+#   /etc/paper-platform/app.env the environment file (mode 0600)
+#   /var/lib/paper-platform     files (STORAGE_DIR) and private configuration
+[Unit]
+Description=Zhijian API and frontend
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=paper-platform
+Group=paper-platform
+WorkingDirectory=/srv/paper-platform/app
+EnvironmentFile=/etc/paper-platform/app.env
+# The schema is created and updated by migrations, never by the application itself.
+ExecStartPre=/srv/paper-platform/venv/bin/python -m alembic upgrade head
+# Behind a reverse proxy on the same host. Keep one worker: the rate limiter is per process.
+ExecStart=/srv/paper-platform/venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8765 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --no-access-log
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/paper-platform
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+MemoryMax=768M
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

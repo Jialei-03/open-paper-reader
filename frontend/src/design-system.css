@@ -1,0 +1,686 @@
+/*
+ * 纸间 design system layer. Loaded last so pages share one set of decisions:
+ * one brand blue, warm ink neutrals, three radii (8 / 14 / 20), two elevations
+ * (card, lift), one page-title scale, and one empty-state pattern.
+ */
+::selection {
+  background: color-mix(in srgb, var(--brand) 24%, transparent);
+}
+:focus-visible {
+  outline-color: var(--ring);
+}
+
+/* Page titles */
+.page > .page-head h1,
+.page.library-page > .page-head h1,
+.page h1.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+}
+.page-head p {
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* Empty states: a soft tile, one sentence, one action */
+[data-slot="empty"] {
+  gap: 14px;
+  padding: 56px 24px;
+}
+[data-slot="empty-icon"] {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  box-shadow: var(--shadow-card);
+}
+[data-slot="empty-icon"] svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.6;
+}
+[data-slot="empty-description"] {
+  max-width: 320px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--muted-foreground);
+}
+.library-empty {
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface-subtle);
+  margin-top: 8px;
+}
+.page.library-page .library-empty,
+.page.library-page > .empty {
+  border-top: 0;
+}
+
+/* Settings are a page, without a surrounding card or shadow ring. */
+.settings-surface {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.settings-heading h1 {
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+
+/* Quiet, consistent scrollbars for the workspace */
+.main,
+.settings-panels,
+.reader-layout {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 18%, transparent)
+    transparent;
+}
+
+/* Reader: pages rest on a warm gray desk instead of blending into the chrome */
+html:not(.dark) .reader-layout .reader-document,
+html:not(.dark) .reader-layout .pdf-sheet {
+  background: #efeeea;
+}
+.reader-layout .pdf-page {
+  box-shadow:
+    0 0 0 1px #37352f12,
+    0 8px 24px -10px #37352f40;
+  border-radius: 2px;
+}
+
+/* Sign-in: a calm sheet on a pastel backdrop */
+.login-page {
+  background:
+    radial-gradient(60% 50% at 15% 0%, var(--brand-soft), transparent 70%),
+    radial-gradient(50% 45% at 90% 100%, var(--tag-yellow-bg), transparent 70%),
+    var(--background) !important;
+}
+.login-page [data-slot="card"] {
+  border: 0;
+  border-radius: 20px;
+  padding-block: 32px;
+  box-shadow: var(--shadow-lift);
+}
+.login-page [data-slot="card-title"] {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+.login-page [data-slot="card-description"] {
+  font-size: 14px;
+}
+.login-page [data-slot="input"] {
+  height: 40px;
+  border-radius: 8px;
+}
+.login-page form [data-slot="button"] {
+  height: 40px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+/*
+ * Motion. Short, purposeful, and always opt-out: everything here is gated on
+ * prefers-reduced-motion. Entrances use opacity + a few px of rise and finish
+ * with no lingering transform, so fixed panels and popovers are unaffected.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes ds-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes ds-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes ds-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Route change: the page content settles in */
+  .main > .page {
+    animation: ds-rise 260ms var(--ease-enter) backwards;
+  }
+
+  /* Library: cards and rows arrive one after another */
+  .paper-grid > .paper-card {
+    animation: ds-rise 360ms var(--ease-enter) backwards;
+  }
+  .paper-grid > .paper-card:nth-child(2) {
+    animation-delay: 40ms;
+  }
+  .paper-grid > .paper-card:nth-child(3) {
+    animation-delay: 80ms;
+  }
+  .paper-grid > .paper-card:nth-child(4) {
+    animation-delay: 120ms;
+  }
+  .paper-grid > .paper-card:nth-child(5) {
+    animation-delay: 160ms;
+  }
+  .paper-grid > .paper-card:nth-child(6) {
+    animation-delay: 200ms;
+  }
+  .paper-grid > .paper-card:nth-child(n + 7) {
+    animation-delay: 240ms;
+  }
+  .page table tbody tr {
+    animation: ds-fade 300ms ease-out backwards;
+  }
+  .page table tbody tr:nth-child(2) {
+    animation-delay: 30ms;
+  }
+  .page table tbody tr:nth-child(3) {
+    animation-delay: 60ms;
+  }
+  .page table tbody tr:nth-child(4) {
+    animation-delay: 90ms;
+  }
+  .page table tbody tr:nth-child(n + 5) {
+    animation-delay: 120ms;
+  }
+  [data-slot="empty"] [data-slot="empty-icon"] {
+    animation: ds-pop 420ms var(--ease-enter) 60ms backwards;
+  }
+
+  /* Press feedback for every button */
+  [data-slot="button"] {
+    transition:
+      background-color 0.12s ease,
+      color 0.12s ease,
+      border-color 0.12s ease,
+      box-shadow 0.12s ease,
+      transform 0.1s ease;
+  }
+  [data-slot="button"]:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Sign-in sheet */
+  .login-page [data-slot="card"] {
+    animation: ds-rise 420ms var(--ease-enter) backwards;
+  }
+
+  /* Landing: the first screen arrives in sequence */
+  .lp-hero h1 {
+    animation: ds-rise 640ms var(--ease-enter) backwards;
+  }
+  .lp-hero .product-lead {
+    animation: ds-rise 640ms var(--ease-enter) 90ms backwards;
+  }
+  .lp-hero .product-cta {
+    animation: ds-rise 640ms var(--ease-enter) 170ms backwards;
+  }
+  .lp-hero .product-preview {
+    animation: ds-rise 800ms var(--ease-enter) 260ms backwards;
+  }
+  .lp-card,
+  .is-landing .product-workflow article {
+    transition:
+      transform 0.25s var(--ease-enter),
+      box-shadow 0.25s ease;
+  }
+  .showcase-stage,
+  .lp-stage {
+    transition: opacity 0.2s ease;
+  }
+}
+
+/* Public shared paper: same language as the product */
+.shared-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  height: 56px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--background);
+}
+.shared-brand {
+  flex: none;
+}
+.shared-badge {
+  margin-left: auto;
+  flex: none;
+  padding: 3px 12px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.shared-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--background);
+}
+.shared-toolbar a {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--brand-ink);
+}
+.shared-toolbar a:hover {
+  background: var(--brand-soft);
+}
+html:not(.dark) .shared-desk {
+  background: #efeeea;
+}
+.shared-desk .pdf-page {
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 1px #37352f12,
+    0 8px 24px -10px #37352f40;
+}
+.shared-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 72px 24px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.shared-state a {
+  color: var(--brand-ink);
+  font-weight: 500;
+}
+.shared-spinner {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2.5px solid color-mix(in srgb, var(--brand) 20%, transparent);
+  border-top-color: var(--brand);
+  animation: ds-spin 0.8s linear infinite;
+}
+.shared-page-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, #ffffff 30%, #f4f3ef 50%, #ffffff 70%);
+  background-size: 250% 100%;
+  animation: ds-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes ds-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ds-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shared-spinner,
+  .shared-page-skeleton {
+    animation-duration: 3s;
+  }
+}
+
+/* PDF import: drop zone in the dialog and the workspace-wide drop overlay */
+.pdf-drop-zone {
+  margin-bottom: 20px;
+  border: 1.5px dashed color-mix(in srgb, var(--foreground) 22%, transparent);
+  border-radius: 16px;
+  background: var(--surface-subtle);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.pdf-drop-zone[data-over="true"],
+.pdf-drop-zone:hover {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+.pdf-drop-zone > button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 26px 20px;
+  text-align: center;
+  cursor: pointer;
+}
+.pdf-drop-zone strong {
+  font-size: 15px;
+  font-weight: 650;
+}
+.pdf-drop-zone > button > span:last-child {
+  font-size: 12.5px;
+  color: var(--muted-foreground);
+}
+.pdf-drop-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: var(--background);
+  color: var(--brand-ink);
+  box-shadow: var(--shadow-card);
+}
+.pdf-drop-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.import-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 16px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.import-divider::before,
+.import-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hairline);
+}
+.pdf-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--background) 80%, transparent);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.pdf-drop-overlay > div {
+  display: flex;
+  min-width: min(440px, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 56px 32px;
+  border: 2px dashed var(--brand);
+  border-radius: 24px;
+  background: var(--brand-soft);
+  color: var(--foreground);
+  text-align: center;
+}
+.pdf-drop-overlay strong {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.pdf-drop-overlay > div > span:last-child {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pdf-drop-overlay {
+    animation: ds-fade 160ms ease-out;
+  }
+  .pdf-drop-overlay > div {
+    animation: ds-pop 220ms var(--ease-enter);
+  }
+}
+
+/*
+ * Reader chrome. The header holds only what changes how the paper is shown
+ * (pages, zoom, search, download). Everything you open beside the paper is a
+ * panel on the rail, grouped by intent — understand, mark and write, look up —
+ * each with a name under its icon so nothing has to be hovered to be found.
+ */
+.reader-page {
+  --reader-rail-width: 64px;
+  grid-template-columns:
+    var(--reader-navigation-width, 0px) var(--reader-outline-width, 216px)
+    minmax(0, 1fr) var(--reader-rail-width);
+}
+.reader-page[data-outline-open="false"] {
+  grid-template-columns:
+    var(--reader-navigation-width, 0px) 0 minmax(0, 1fr)
+    var(--reader-rail-width);
+}
+.reader-page .reader-action-rail {
+  align-items: stretch;
+  gap: 2px;
+  padding: 8px 6px 16px;
+  scrollbar-width: none;
+}
+.reader-page .reader-action-rail::-webkit-scrollbar {
+  display: none;
+}
+.reader-page .reader-action-rail button.rail-toggle {
+  align-self: center;
+  margin-bottom: 4px;
+}
+.reader-page .reader-action-rail .rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.reader-page .reader-action-rail button.rail-tab[data-reader-control] {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 0;
+  border-radius: 10px;
+  color: var(--muted-foreground);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.reader-page .reader-action-rail button.rail-tab svg {
+  width: 18px;
+  height: 18px;
+}
+.reader-page .reader-action-rail button.rail-tab:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.reader-page .reader-action-rail button.rail-tab[aria-pressed="true"] {
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  box-shadow: none;
+}
+.reader-page .reader-action-rail .rail-divider {
+  align-self: center;
+  width: 28px;
+  margin: 2px 0 6px;
+}
+.reader-page .reader-annotation-host {
+  display: flex;
+  justify-content: center;
+}
+@media (max-width: 1100px) {
+  .reader-page {
+    --reader-rail-width: 44px;
+    --reader-outline-width: 180px;
+  }
+  .reader-page .reader-action-rail {
+    padding-inline: 4px;
+  }
+  .reader-page .reader-action-rail button.rail-tab[data-reader-control] {
+    height: 36px;
+    padding: 0;
+  }
+  .reader-page .reader-action-rail button.rail-tab span {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .reader-page {
+    --reader-rail-width: 40px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .reader-page .reader-action-rail button.rail-tab {
+    transition:
+      background-color 140ms ease,
+      color 140ms ease;
+  }
+}
+
+/* Panel bodies that hold several sections scroll as one column. */
+.reader-panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.reader-panel-heading h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.reader-panel-scroll .reader-annotations-host {
+  flex: none;
+  overflow: visible;
+}
+
+/* Translation: how to read it, then what has been translated. */
+.reader-page .reader-translation-panel {
+  padding: 0;
+}
+.translation-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.translation-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.translation-section-head h3,
+.translation-records > h3 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.translation-section-head p {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted-foreground);
+}
+.translation-records {
+  padding: 18px 20px 24px;
+}
+.translation-records > [aria-label="阅读活动记录"] {
+  overflow: visible;
+  padding: 12px 0 0;
+}
+
+/* Marks: the AI's suggested key points sit above your own highlights. */
+.reader-ai-highlights {
+  margin: 14px 16px 0;
+  padding: 2px 14px;
+  border-radius: 12px;
+  background: var(--surface-subtle);
+}
+.reader-ai-highlights > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  list-style: none;
+}
+.reader-ai-highlights > summary::-webkit-details-marker {
+  display: none;
+}
+.reader-ai-highlights > summary svg {
+  width: 15px;
+  height: 15px;
+  color: var(--brand);
+}
+.reader-ai-highlights[open] > summary {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.reader-ai-highlights > :last-child {
+  margin-bottom: 12px;
+}
+.pdf-annotations-heading [data-slot="toggle-group"] {
+  gap: 0;
+}
+
+.reader-ai-flow {
+  display: flex;
+  flex-direction: column;
+}
+.reader-ai-flow > .reader-panel-heading {
+  flex: none;
+}
+.reader-ai-flow .reader-agent-host {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+/* The header's controls stay together; no lone button in the corner. */
+.reader-page .reader-browser-toolbar > button:last-child {
+  margin-left: 0;
+}
+
+/* Layout translation: one call to action, the rest quiet. */
+.reader-page .translation-section .translation-controls,
+.reader-page .translation-section .translation-controls > div {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px 10px;
+  padding: 0;
+  border: 0;
+}
+.reader-page .translation-section .translation-controls {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.translation-section [data-slot="toggle-group"] {
+  justify-content: flex-start;
+}

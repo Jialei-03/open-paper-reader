@@ -1,0 +1,430 @@
+.reading-insights {
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.insights-config {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+.insights-quiz-options,
+.insights-generate,
+.insights-status,
+.insights-quiz-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.insights-generate,
+.insights-status {
+  margin-bottom: 14px;
+}
+.insights-status,
+.insights-empty {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.insights-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 12px 0;
+}
+.reading-insights section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.reading-insights h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.reading-insights p {
+  white-space: pre-wrap;
+}
+.reading-insights ol {
+  padding-left: 20px;
+  list-style: decimal;
+}
+.reading-insights li {
+  margin-bottom: 6px;
+}
+.insights-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.insights-evidence button {
+  padding: 0;
+  font-size: 11px;
+  height: 24px;
+}
+.insights-question [role="group"] {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.insights-question [role="group"] button {
+  white-space: normal;
+  text-align: left;
+  justify-content: flex-start;
+  height: auto;
+  min-height: 34px;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 8px;
+}
+.insights-question button[aria-pressed="true"] {
+  border-color: var(--foreground);
+  background: var(--muted);
+}
+.insights-question .answer-correct {
+  background: #e8f5ec !important;
+  color: #175c30;
+  border-color: #61a57a !important;
+  opacity: 1 !important;
+}
+.insights-question .answer-wrong {
+  background: #fbecec !important;
+  color: #9b2424;
+  border-color: #d48b8b !important;
+  opacity: 1 !important;
+}
+.insights-answer {
+  padding: 10px 0 0;
+  font-size: 12px;
+}
+.guide-card {
+  padding: 10px 0;
+}
+.guide-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.guide-card-heading > button:first-child {
+  margin-right: auto;
+}
+.guide-card-heading > button:first-child svg {
+  transition: transform 180ms ease;
+}
+.guide-card-heading > button[data-state="closed"] svg {
+  transform: rotate(-90deg);
+}
+.guide-card-content[data-expanded="false"] {
+  max-height: 135px;
+  overflow: hidden;
+}
+.guide-card-content[data-expanded="false"][data-clipped="true"] {
+  mask-image: linear-gradient(#000 65%, transparent);
+}
+.guide-card-expand {
+  display: flex;
+  margin-left: auto;
+}
+.guide-card [data-slot="collapsible-content"] {
+  overflow: hidden;
+}
+.reader-ai-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 12px 0;
+}
+.reader-ai-questions button {
+  height: auto;
+  white-space: normal;
+  font-size: 11px;
+  padding: 4px 7px;
+}
+.reader-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.reader-annotations-host {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.pdf-annotations-docked {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (max-width: 1200px) {
+  .reader-ai-tool-label {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-card-heading svg {
+    transition: none;
+  }
+}
+
+.reader-ai-flow {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  background: var(--background);
+}
+.reader-ai-flow .reader-agent-host {
+  height: 100%;
+}
+.reader-ai-flow .agent-panel {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.reader-ai-flow .agent-window-title[hidden],
+.reader-ai-flow .agent-session-controls[hidden] {
+  display: none;
+}
+.reader-ai-flow .reading-insights {
+  padding: 0;
+}
+.reader-ai-flow .reader-ai-questions {
+  padding: 12px 0;
+}
+/* Measured against the reference reader, 1440px, 2026-09-29. */
+html:not(.dark) .reader-page {
+  --reader-canvas: #fff;
+  --background: #fff;
+  --card: #fff;
+  --border: #e4e4e7;
+  --foreground: #292929;
+  --muted-foreground: #6b7280;
+  background: #fff;
+}
+.reader-ai-flow .insights-config[hidden],
+.reader-ai-flow .insights-generate[hidden] {
+  display: none;
+}
+.reader-ai-flow [data-slot="message-scroller-content"] {
+  padding: 0 20px 20px;
+  gap: 24px;
+}
+.reader-ai-flow .guide-card {
+  padding: 0 0 18px;
+}
+.reader-ai-flow .guide-card-heading {
+  height: 52px;
+  gap: 6px;
+}
+.reader-ai-flow .guide-card-heading button {
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  color: #9ca3af;
+  box-shadow: none;
+}
+.reader-ai-flow .guide-card-heading button:first-child {
+  width: auto;
+  height: 21px;
+  border-radius: 0;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  background: transparent;
+}
+.reader-ai-flow .guide-card-heading svg {
+  width: 12px;
+  height: 12px;
+}
+.reader-ai-flow .guide-card-content {
+  font-size: 16px;
+  line-height: 1.65;
+}
+.reader-ai-flow .guide-card-expand {
+  height: 24px;
+  border: 1px solid #e4e4e7;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 13.2px;
+  font-weight: 500;
+  color: #6b7280;
+  background: var(--background);
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    box-shadow 0.15s;
+}
+.reader-ai-flow .insights-keywords button {
+  height: 28px;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-weight: 400;
+  font-size: 14px;
+  box-shadow: none;
+}
+.reader-discussion-heading {
+  margin: 0;
+  padding: 14px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.reader-ai-flow .reader-ai-questions {
+  padding: 0;
+  gap: 6px;
+}
+.reader-ai-flow .reader-ai-questions button {
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-size: 13px;
+  line-height: 19.5px;
+  font-weight: 550;
+  box-shadow: none;
+}
+.reader-ai-flow .agent-composer {
+  padding: 12px 16px 16px;
+  border-top: 0;
+  background: var(--background);
+}
+.reader-ai-flow .agent-composer [data-slot="input-group"] {
+  border: 1px solid #d4d4d8;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px #0000000d;
+}
+.reader-ai-flow .agent-composer textarea {
+  min-height: 60px;
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.reader-ai-flow .agent-composer [data-slot="input-group-addon"] {
+  padding: 8px 10px;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.reader-ai-flow .agent-composer button {
+  border-radius: 999px;
+}
+.reader-ai-flow .agent-composer button[type="submit"] {
+  width: 28px;
+  height: 28px;
+}
+.reader-page .reader-browser-toolbar button {
+  border-radius: 7px;
+  box-shadow: none;
+}
+.reader-page .reader-action-rail button,
+.reader-page .reader-action-rail [data-slot="toggle-group-item"] {
+  width: 36px;
+  height: 36px;
+  border-radius: 7px;
+  transition:
+    background 0.12s,
+    color 0.12s,
+    box-shadow 0.12s;
+}
+.reader-page .reader-action-rail button svg {
+  width: 18px;
+  height: 18px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reader-page .reader-action-rail button,
+  .reader-ai-flow .guide-card-expand {
+    transition: none;
+  }
+}
+.reader-ai-flow .guide-card-content .markdown {
+  font-size: 16px;
+  line-height: 1.65;
+}
+.reader-ai-flow .guide-card-content .markdown h2 {
+  font-size: 20px;
+  line-height: 1.25;
+}
+.reader-ai-flow .guide-card-content section {
+  border: 0;
+  padding: 8px 0;
+}
+.reader-page .reader-browser-toolbar {
+  height: 56px;
+}
+.reader-page {
+  grid-template-rows: 56px minmax(0, 1fr);
+}
+.reader-page .reader-browser-toolbar button {
+  height: 32px;
+  min-height: 32px;
+}
+.reader-page .reader-browser-toolbar button[data-size="icon"] {
+  width: 32px;
+}
+html:not(.dark)
+  .app:has(.reader-page)
+  .workspace-sidebar
+  [data-slot="sidebar-inner"] {
+  background: #fff;
+}
+.reader-ai-flow .agent-composer .quick-model-trigger,
+.reader-ai-flow .agent-composer button[aria-label="添加参考论文"] {
+  border: 1px solid #e4e4e7;
+  height: 30px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  box-shadow: none;
+}
+.reader-ai-flow .agent-composer .quick-model-trigger {
+  max-width: 165px;
+}
+.reader-ai-flow .agent-composer [data-slot="input-group"] {
+  position: relative;
+}
+.reader-ai-flow .agent-composer textarea {
+  padding-right: 106px;
+}
+.reader-ai-flow .agent-composer button[aria-label="添加附件"],
+.reader-ai-flow .agent-composer button[aria-label="对话设置"],
+.reader-ai-flow .agent-composer button[aria-label="停止"],
+.reader-ai-flow .agent-composer button[type="submit"] {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+}
+.reader-ai-flow .agent-composer button[aria-label="对话设置"] {
+  right: 44px;
+}
+.reader-ai-flow .agent-composer button[aria-label="添加附件"] {
+  right: 76px;
+}
+.reader-ai-flow .agent-composer [data-slot="input-group-addon"] > span {
+  display: none;
+}
+.reader-ai-flow .agent-composer .quick-model-trigger {
+  max-width: 146px;
+}
+@media (max-width: 700px) {
+  .reader-page:not([data-aux-dock="bottom"])
+    .reader-layout:has(.reader-ai-flow)
+    > [data-panel]:has(> .document-panel),
+  .reader-layout:has(.reader-ai-flow) > .document-panel {
+    display: none !important;
+  }
+  .reader-ai-flow [data-slot="message-scroller-content"] {
+    padding-inline: 12px;
+  }
+  .reader-ai-flow .agent-composer {
+    padding: 8px;
+  }
+  .reader-ai-flow .agent-composer .quick-model-trigger {
+    max-width: 125px;
+  }
+}

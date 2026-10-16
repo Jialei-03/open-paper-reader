@@ -1,0 +1,393 @@
+/* Reader and notes surfaces. */
+.reader-page {
+  --reader-navigation-width: 0px;
+  --reader-outline-width: 216px;
+  grid-template-columns:
+    var(--reader-navigation-width) var(--reader-outline-width)
+    minmax(0, 1fr) 56px;
+  grid-template-rows: 56px minmax(0, 1fr);
+  font-family:
+    "Pretendard Variable",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+.reader-page[data-outline-open="false"] {
+  --reader-outline-width: 0px;
+  grid-template-columns: var(--reader-navigation-width) 0 minmax(0, 1fr) 56px;
+}
+.reader-page .reader-browser-toolbar {
+  height: 56px;
+}
+.reader-page .reader-action-rail {
+  gap: 10px;
+  padding: 12px 8px;
+}
+.reader-page .reader-action-rail button,
+.reader-page .reader-action-rail button[data-size="icon"],
+.reader-page .reader-annotation-host button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: var(--control-radius, 7px);
+}
+.reader-page .reader-layout .notebook-heading {
+  flex: 0 0 64px;
+  min-height: 64px;
+  padding: 0 16px;
+  gap: 8px;
+}
+.reader-page .notebook-heading h2 {
+  font-size: 13px;
+  font-weight: 600;
+}
+.notebook-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.reader-page .notebook-header-actions button {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 4px;
+  color: var(--muted-foreground);
+  border-radius: var(--control-radius, 7px);
+}
+.reader-page .notebook-header-actions svg {
+  width: 14px;
+  height: 14px;
+}
+.reader-page .reader-layout .notebook-body {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-width: 0;
+}
+.reader-page .paper-note {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100%;
+  min-width: 0;
+  margin: 0;
+}
+.live-note {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.note-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  min-height: 38px;
+  border-bottom: 1px solid var(--border);
+}
+.note-title-row input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+.note-save-status {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.live-note > .note-format-toolbar {
+  order: -1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px;
+  min-height: 41px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+}
+.reader-page .live-note > .note-format-toolbar button,
+.live-note > .note-format-toolbar button {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 5px;
+  border-radius: var(--control-radius, 7px);
+  font-size: 13px;
+  font-weight: 600;
+}
+.live-note > .note-format-toolbar svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.6;
+}
+.live-note .note-reference {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+}
+.live-note .note-reference > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.live-note .live-note-editor {
+  flex: 1;
+  min-height: 220px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.75;
+}
+.live-note
+  .note-reference[data-empty="true"]
+  .live-note-editor
+  > p:first-child::before {
+  content: "在此自由记录……";
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+}
+.live-note > [role="alert"],
+.live-note > [role="status"] {
+  margin: 8px 16px;
+}
+.note-reference-menu {
+  width: 250px;
+  padding: 10px;
+}
+.note-reference-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.note-reference-actions button {
+  justify-content: flex-start;
+  border: 0;
+  box-shadow: none;
+  font-size: 13px;
+}
+.note-reference-menu p {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 10px 4px 2px;
+}
+.notebook-page.notebook-page {
+  max-width: none;
+  padding: 24px 32px;
+}
+.notes-library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+.notes-library-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.notes-library-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 240px;
+}
+.notes-library-search svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+}
+.notes-library-search input {
+  height: 32px;
+  font-size: 13px;
+  box-shadow: none;
+}
+.notes-library-caption {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.notes-library-list {
+  display: flex;
+  flex-direction: column;
+}
+.notes-library-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.notes-library-row:hover {
+  background: var(--muted);
+}
+.notes-library-row > svg {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+}
+.notes-library-content {
+  min-width: 0;
+  flex: 1;
+}
+.notes-library-content h2 {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  margin: 0 0 4px;
+}
+.notes-library-title {
+  display: block;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-bottom: 4px;
+}
+.notes-library-content p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  .reader-page,
+  .reader-page[data-outline-open="false"] {
+    grid-template-columns: 0 0 minmax(0, 1fr) 40px;
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+  .reader-page .reader-navigation-rail {
+    display: none;
+  }
+  .reader-page .reader-browser-toolbar {
+    height: 48px;
+  }
+  .reader-page .reader-action-rail {
+    padding-inline: 2px;
+  }
+  .reader-page
+    .reader-layout
+    > [data-panel].document-panel:has(~ .notes-panel) {
+    display: none !important;
+  }
+  .reader-page .reader-layout > [data-panel].notes-panel {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+  }
+  .reader-page
+    .reader-layout:has(.notes-panel)
+    > [data-slot="resizable-handle"] {
+    display: none;
+  }
+  .notebook-page.notebook-page {
+    padding: 20px 16px;
+  }
+  .notes-library-header {
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .notes-library-search {
+    width: min(220px, 65%);
+  }
+  .notes-library-row {
+    padding-inline: 0;
+  }
+}
+/* Change the split axis without remounting the PDF or the live note editor. */
+.reader-page[data-aux-dock="bottom"] .reader-layout {
+  flex-direction: column;
+}
+.reader-page[data-aux-dock="bottom"] .reader-layout > .document-panel,
+.reader-page[data-aux-dock="bottom"] .reader-layout > .notes-panel {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+.reader-page[data-aux-dock="bottom"] .reader-layout > .notes-panel {
+  border-left: 0;
+}
+.reader-page[data-aux-dock="bottom"] .reader-layout .notebook-heading {
+  min-height: 44px;
+  height: 44px;
+  padding: 6px 14px;
+}
+.reader-page[data-aux-dock="bottom"] .reader-layout .notebook-body {
+  padding: 10px 16px 24px;
+}
+.reader-page .notebook[aria-label="论文导读与测验"] > .reading-insights,
+.reader-page .notebook[aria-label="引用文献"] > .citation-cards {
+  min-height: 0;
+  overflow: auto;
+  flex: 1;
+}
+@media (max-width: 700px) {
+  .reader-page[data-aux-dock="bottom"]
+    .reader-layout
+    > .document-panel:has(~ .notes-panel) {
+    display: flex !important;
+  }
+
+  .reader-page[data-aux-dock="bottom"]
+    .reader-layout
+    > [data-slot="resizable-handle"] {
+    display: flex !important;
+    height: 1px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+  .reader-page[data-aux-dock="bottom"] .notebook-header-actions {
+    gap: 0;
+  }
+  .reader-page[data-aux-dock="bottom"] .notebook-header-actions button {
+    width: 26px;
+    min-width: 26px;
+  }
+}
+
+.reader-page[data-aux-dock="bottom"] .reader-layout > [data-panel] {
+  min-height: 0;
+  min-width: 0;
+}
+.reader-page[data-aux-dock="bottom"]
+  .reader-layout
+  > [data-panel]
+  > .notes-panel,
+.reader-page[data-aux-dock="bottom"]
+  .reader-layout
+  > [data-panel]
+  > .document-panel {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
+.reader-page[data-aux-dock="bottom"]
+  .reader-layout
+  > [data-panel]:has(> .document-panel) {
+  display: flex !important;
+}
+.reader-page[data-aux-dock="bottom"]
+  .reader-layout
+  > [data-panel]:has(> .notes-panel) {
+  min-height: 0;
+}

@@ -1,0 +1,35 @@
+.pdf-region-adjustment {
+  position: absolute;
+  inset: -2px;
+  pointer-events: auto;
+  cursor: move;
+  touch-action: none;
+}
+.pdf-region-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #d99800;
+  border-radius: 50%;
+  background: white;
+}
+.pdf-region-handle.nw {
+  top: -7px;
+  left: -7px;
+  cursor: nwse-resize;
+}
+.pdf-region-handle.ne {
+  top: -7px;
+  right: -7px;
+  cursor: nesw-resize;
+}
+.pdf-region-handle.sw {
+  bottom: -7px;
+  left: -7px;
+  cursor: nesw-resize;
+}
+.pdf-region-handle.se {
+  bottom: -7px;
+  right: -7px;
+  cursor: nwse-resize;
+}

@@ -1,0 +1,271 @@
+.parallel-reader-workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.parallel-reader-document {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pdf-translation-slot {
+  display: none;
+}
+.pdf-view[data-paired-translation] .pdf-page-pair {
+  display: grid;
+  grid-template-columns: minmax(0, var(--translation-source-width)) minmax(
+      0,
+      1fr
+    );
+  grid-template-rows: auto auto;
+  align-items: start;
+  gap: 0 20px;
+  width: 100%;
+}
+.pdf-view[data-paired-translation] .pdf-translation-slot {
+  display: block;
+  height: auto;
+  min-height: 0;
+  grid-column: 2;
+  grid-row: 1;
+}
+.pdf-view[data-paired-translation] .pdf-page-number {
+  grid-column: 1 / -1;
+}
+.pdf-view[data-paired-translation="only"] .pdf-page-pair {
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+.pdf-view[data-paired-translation="only"] .pdf-page-pair > .pdf-source-pane {
+  display: none;
+}
+.pdf-view[data-paired-translation="only"] .pdf-translation-slot {
+  grid-column: 1;
+  height: auto;
+}
+.pdf-view[data-paired-translation="only"] .parallel-translation {
+  height: auto;
+  min-height: 0;
+}
+.pdf-view[data-paired-translation="only"] .parallel-translation-body {
+  overflow: visible;
+}
+.parallel-translation {
+  height: auto;
+  min-height: var(--paired-page-height, 0px);
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  padding: 5px;
+}
+.parallel-translation-heading,
+.parallel-translation-footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 5px;
+  font-size: 12px;
+}
+.parallel-translation-heading {
+  min-height: 44px;
+  flex-wrap: wrap;
+}
+.parallel-translation-start,
+.parallel-translation-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.parallel-translation-start {
+  flex-shrink: 0;
+}
+.parallel-translation-actions {
+  margin-left: auto;
+}
+.parallel-translation-heading button {
+  height: 34px;
+  border-radius: 9px;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.parallel-translation-actions button {
+  width: 34px;
+  border: 1px solid rgb(232, 227, 216);
+}
+.parallel-translation-start > button {
+  padding-inline: 8px;
+}
+.parallel-translation-heading [data-slot="select-trigger"] {
+  width: 86px;
+  height: 34px;
+}
+.parallel-page-number {
+  margin-inline: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.parallel-translation-body {
+  overflow: visible;
+  flex: 1;
+  min-height: 0;
+  padding: 5px;
+  font-size: 16px;
+  line-height: 1.8;
+}
+.translation-passage {
+  padding: 0 3px;
+  margin-bottom: 12px;
+  border-radius: 4px;
+  transition: background-color 140ms ease;
+  outline-offset: 3px;
+}
+.translation-passage[data-active="true"] {
+  background: var(--muted);
+}
+.translation-passage .markdown {
+  font-size: inherit;
+  line-height: inherit;
+}
+.translation-passage .markdown > p {
+  margin-block: 0;
+}
+.parallel-translation-footer {
+  color: var(--muted-foreground);
+}
+.parallel-translation-empty {
+  color: var(--muted-foreground);
+  padding-block: 40px;
+  font-size: 13px;
+  text-align: center;
+}
+.parallel-translation-empty svg {
+  margin: 0 auto 16px;
+}
+.pdf-reference-preview.pdf-reference-fill .pdf-reference-underline {
+  background: color-mix(in srgb, var(--foreground) 14%, transparent);
+  border: 0;
+  border-radius: 2px;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .translation-passage {
+    transition: none;
+  }
+}
+
+.translation-passage[data-kind="heading"] {
+  font-weight: 600;
+  margin-top: 20px;
+}
+.translation-passage[data-kind="caption"] {
+  color: var(--muted-foreground);
+  font-size: 0.9em;
+}
+.translation-passage[data-kind="page_number"] {
+  display: none;
+}
+.translation-passage details {
+  font-size: 0.85em;
+  color: var(--muted-foreground);
+}
+.translation-passage summary {
+  cursor: pointer;
+  padding-block: 4px;
+}
+
+.pdf-translation-controls:empty {
+  display: none;
+}
+.pdf-translation-controls {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.pdf-translation-controls .parallel-translation-heading {
+  padding: 4px 16px;
+}
+.translation-figure-text {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-bottom: 16px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+.translation-figure-text summary {
+  cursor: pointer;
+}
+.translation-figure-text[open] summary {
+  margin-bottom: 12px;
+}
+
+.pdf-view[data-paired-translation] .pdf-source-pane {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.pdf-view[data-paired-translation] .pdf-translation-slot {
+  position: relative;
+  min-width: 0;
+}
+.translation-splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -16px;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  border-inline: 5px solid transparent;
+  background: var(--border);
+  background-clip: padding-box;
+}
+.translation-splitter:hover,
+.translation-splitter:focus-visible {
+  background-color: var(--primary);
+}
+
+/* Keep the source page available while its longer translation is read. Tall
+   PDFs still scroll through their full height before their bottom sticks. */
+.pdf-view[data-paired-translation="parallel"] .pdf-source-pane {
+  position: sticky;
+  top: min(
+    0px,
+    calc(var(--pdf-viewport-height, 100vh) - var(--paired-page-height) - 16px)
+  );
+}
+
+/* A narrow reading pane cannot fit two legible columns. Stack each translated
+   page beneath its source, including when a desktop side panel narrows it. */
+.pdf-view[data-paired-translation="parallel"][data-translation-layout="stacked"]
+  .pdf-page-pair {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  gap: 12px 0;
+}
+.pdf-view[data-paired-translation="parallel"][data-translation-layout="stacked"]
+  .pdf-source-pane {
+  position: static;
+  grid-column: 1;
+  grid-row: 1;
+}
+.pdf-view[data-paired-translation="parallel"][data-translation-layout="stacked"]
+  .pdf-translation-slot {
+  grid-column: 1;
+  grid-row: 2;
+}
+.pdf-view[data-paired-translation="parallel"][data-translation-layout="stacked"]
+  .pdf-page-number {
+  grid-row: 3;
+}
+.pdf-view[data-translation-layout="stacked"] .translation-splitter {
+  display: none;
+}
+.pdf-view[data-translation-layout="stacked"] .parallel-translation {
+  min-height: 0;
+}

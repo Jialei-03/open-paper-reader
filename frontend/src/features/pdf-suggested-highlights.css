@@ -1,0 +1,44 @@
+.pdf-suggested-highlights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+.pdf-suggested-highlights span {
+  position: absolute;
+  pointer-events: none;
+  background: rgb(244 200 58 / 24%);
+}
+.pdf-suggested-highlights span[data-category="method"] {
+  background: rgb(74 181 151 / 22%);
+}
+.pdf-suggested-highlights span[data-category="results"] {
+  background: rgb(151 120 218 / 22%);
+}
+[data-highlight-style="deep"] .pdf-suggested-highlights span {
+  background: rgb(244 200 58 / 42%);
+}
+[data-highlight-style="deep"]
+  .pdf-suggested-highlights
+  span[data-category="method"] {
+  background: rgb(74 181 151 / 40%);
+}
+[data-highlight-style="deep"]
+  .pdf-suggested-highlights
+  span[data-category="results"] {
+  background: rgb(151 120 218 / 40%);
+}
+[data-highlight-style="line"] .pdf-suggested-highlights span {
+  background: transparent;
+  border-bottom: 2px solid #d5a719;
+}
+[data-highlight-style="line"]
+  .pdf-suggested-highlights
+  span[data-category="method"] {
+  border-color: #429a7f;
+}
+[data-highlight-style="line"]
+  .pdf-suggested-highlights
+  span[data-category="results"] {
+  border-color: #9471c6;
+}

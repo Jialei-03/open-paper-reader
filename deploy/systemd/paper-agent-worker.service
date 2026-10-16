@@ -1,0 +1,36 @@
+# Example unit: the assistant worker (reading guides, quizzes, page translation, the
+# assistant). Needs Node.js >= 22 and `npm --prefix agent-runtime ci --omit=dev`.
+[Unit]
+Description=Zhijian assistant worker
+After=network-online.target paper-platform.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=paper-platform
+Group=paper-platform
+WorkingDirectory=/srv/paper-platform/app
+EnvironmentFile=/etc/paper-platform/app.env
+Environment=AGENT_NODE=/usr/bin/node
+ExecStart=/srv/paper-platform/venv/bin/python -m backend.agent_worker
+Restart=always
+RestartSec=5
+TimeoutStopSec=10
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/paper-platform
+CapabilityBoundingSet=
+RestrictSUIDSGID=true
+MemoryMax=768M
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=64
+LimitNOFILE=1024
+LimitFSIZE=67108864
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=Zhijian automatic paper preparation
+After=network-online.target paper-platform.service
+
+[Service]
+Type=simple
+User=paper-platform
+Group=paper-platform
+WorkingDirectory=/srv/paper-platform/app
+EnvironmentFile=/etc/paper-platform/app.env
+ExecStart=/srv/paper-platform/venv/bin/python -m backend.preparation_worker
+Restart=always
+RestartSec=5
+TimeoutStopSec=300
+UMask=0077
+LimitNOFILE=65536
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/paper-platform
+
+[Install]
+WantedBy=multi-user.target
