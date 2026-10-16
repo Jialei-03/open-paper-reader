@@ -8,7 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-SERVICES = ('paper-platform', 'paper-translation-worker', 'paper-agent-worker')
+# The web process and every worker can write database rows and stored files.
+# Stop producers first, then consumers; restart consumers before the web process.
+SERVICES = ('paper-translation-worker', 'paper-agent-worker',
+            'paper-preparation-worker', 'paper-platform')
 STATE = Path('/run/paper-platform-backup-recovery.json')
 LOCK = Path('/run/lock/paper-platform-backup.lock')
 

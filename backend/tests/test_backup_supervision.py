@@ -14,14 +14,14 @@ def test_partial_stop_recovers_only_previously_active(tmp_path, monkeypatch):
     calls = []
     def ctl(*args):
         calls.append(args)
-        code = (args[-1] == 'paper-agent-worker') if args[0] == 'is-active' else (args[0] == 'stop')
+        code = (args[-1] in {'paper-agent-worker', 'paper-preparation-worker'}) if args[0] == 'is-active' else (args[0] == 'stop')
         return SimpleNamespace(returncode=int(code))
     monkeypatch.setattr(backup, 'systemctl', ctl)
     state = tmp_path / 'state'
     with pytest.raises(RuntimeError):
         backup.quiesce(state)
     backup.recover(state)
-    assert [c for c in calls if c[0] == 'start'] == [('start', 'paper-platform'), ('start', 'paper-translation-worker')]
+    assert [c for c in calls if c[0] == 'start'] == [('start', 'paper-translation-worker'), ('start', 'paper-platform')]
     assert not state.exists()
 
 
@@ -60,3 +60,21 @@ def test_journal_rejects_unrelated_service(tmp_path, monkeypatch):
     monkeypatch.setattr(backup, 'systemctl', lambda *args: pytest.fail('must not execute'))
     with pytest.raises(ValueError):
         backup.recover(state)
+
+
+def test_backup_quiesces_preparation_and_recovers_after_interruption(tmp_path, monkeypatch):
+    calls = []
+    def ctl(*args):
+        calls.append(args)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(backup, 'systemctl', ctl)
+    state = tmp_path / 'state'
+    active = backup.quiesce(state)
+    assert ('stop', 'paper-preparation-worker') in calls
+    assert calls.index(('stop', 'paper-platform')) < calls.index(('stop', 'paper-preparation-worker'))
+    assert state.exists()
+    # Simulate ExecStopPost in a fresh process: only the durable journal remains.
+    backup.recover(state)
+    assert [c[1] for c in calls if c[0] == 'start'] == active
+    assert calls.index(('start', 'paper-preparation-worker')) < calls.index(('start', 'paper-platform'))
+    assert not state.exists()

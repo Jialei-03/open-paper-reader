@@ -80,10 +80,11 @@ docker compose up -d --build     # 新的迁移在 web 启动时自动执行
 先停掉写入者，再备份数据库和文件，这样两者对应同一个时间点：
 
 ```bash
-docker compose stop web worker
+docker compose stop web preparation worker
+# 如果另行安装了翻译 worker，也必须先停掉它。
 docker compose exec db pg_dump -U paper paper > paper-$(date +%F).sql
 docker run --rm -v zhijian_data:/data -v "$PWD":/backup alpine tar czf /backup/paper-data-$(date +%F).tgz -C /data .
-docker compose start web worker
+docker compose start worker preparation web
 ```
 
 应用自己也有可移植的备份格式（含用户、密码哈希和全部记录，不含会话和令牌），见 [运维](OPERATIONS.md)。无论用哪种，都要放到另一台机器上保存，并且演练过恢复才算有备份。
@@ -145,7 +146,7 @@ curl -fsS http://127.0.0.1:8765/api/v1/health
 
 ### 定时备份
 
-`deploy/backup_production.py` 是一个一致性离线备份：停掉写入者、备份、再恢复之前在运行的服务；即使备份被杀掉，`ExecStopPost` 也会把服务拉起来。
+`deploy/backup_production.py` 是一个一致性离线备份：停掉网页、自动准备、助手和翻译工作进程，备份后恢复之前在运行的服务。即使备份被杀掉，`ExecStopPost` 也会根据持久恢复记录把服务拉起来；本来没有运行的可选进程不会被意外启动。升级备份脚本时也要更新 `/srv/paper-platform/ops/backup.py`，不能只更新应用目录里的副本。
 
 ```bash
 install -d -m 0700 /srv/paper-platform/ops
@@ -157,6 +158,22 @@ systemctl daemon-reload && systemctl enable --now paper-platform-backup.timer
 备份写到 `/var/backups/paper-platform/`（`paper-时间.zip`），在本机保留 14 天；设置 `PAPER_BACKUP_RECIPIENT_FILE` 还会生成用 age 加密的恢复包。**本机备份抵御不了整机丢失**，请定期把它们复制到别处，并演练恢复，见 [运维恢复](OPERATIONS-RECOVERY.md)。
 
 ## 可选组件
+
+### 发布内容校验
+
+提交号不能识别部署后手动修改的源码。使用发布清单同时校验源码、运行时脚本与实际构建的前端，在测试结束、打包前生成：
+
+```bash
+python scripts/release_manifest.py --include-build --write release-manifest.json
+```
+
+把清单和同一份构建一起上传到新的发布目录，切换服务之前验证：
+
+```bash
+python scripts/release_manifest.py --verify release-manifest.json
+```
+
+输出的内容摘要标识这份候选版本，包括尚未提交的改动。新增、丢失或修改文件都会使校验失败。清单不包含环境密钥、用户数据和依赖安装目录。不要在正在提供服务的发布目录里直接修改应用源码；保留前一发布目录以便回滚。
 
 这些功能都需要 Docker，并且彼此独立；不装也不影响其他功能。
 
