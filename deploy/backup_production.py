@@ -62,6 +62,23 @@ def publish(partial, target):
         os.close(fd)
 
 
+def prune(out, keep):
+    """Keep the newest `keep` completed backups (a .zip and its .age share a name).
+
+    Runs only after a new backup was published, so there is never a moment with
+    none. Partial files from interrupted runs are left for inspection.
+    """
+    import re
+    stamps = {}
+    for path in out.iterdir():
+        match = re.fullmatch(r'(paper-\d{8}T\d{6}(?:\d{6})?Z)\.(zip|age)', path.name)
+        if match and path.is_file() and not path.is_symlink():
+            stamps.setdefault(match.group(1), []).append(path)
+    for stamp in sorted(stamps)[:-max(keep, 1)]:
+        for path in stamps[stamp]:
+            path.unlink()
+
+
 def main():
     os.umask(0o077)
     assert os.geteuid() == 0
@@ -97,12 +114,7 @@ def main():
                 publish(encrypted_partial, encrypted)
         finally:
             recover()
-        cutoff = datetime.datetime.now(datetime.timezone.utc).timestamp() - 14 * 86400
-        import re
-        for old in out.iterdir():
-            if (re.fullmatch(r'paper-\d{8}T\d{6}(?:\d{6})?Z\.(zip|age)', old.name)
-                    and not old.is_symlink() and old.is_file() and old.stat().st_mtime < cutoff):
-                old.unlink()
+        prune(out, int(os.getenv('PAPER_BACKUP_KEEP', '1')))
         print(json.dumps({'backup': str(target), 'table_counts': counts,
                           'services_restored': active, 'encrypted_backup': str(encrypted) if encrypted else None}))
 

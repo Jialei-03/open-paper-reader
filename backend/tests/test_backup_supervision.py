@@ -78,3 +78,34 @@ def test_backup_quiesces_preparation_and_recovers_after_interruption(tmp_path, m
     assert [c[1] for c in calls if c[0] == 'start'] == active
     assert calls.index(('start', 'paper-preparation-worker')) < calls.index(('start', 'paper-platform'))
     assert not state.exists()
+
+
+def test_prune_keeps_only_the_newest_backups(tmp_path):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "backup_production", "deploy/backup_production.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    names = [
+        "paper-20261014T201916901773Z.zip",
+        "paper-20261014T201916901773Z.age",
+        "paper-20261015T201916901773Z.zip",
+        "paper-20261015T201916901773Z.age",
+        "paper-20261016T201916901773Z.zip",
+        "paper-20261016T201916901773Z.age",
+        "paper-20261016T201916901773Z.zip.partial",
+        "notes.txt",
+    ]
+    for name in names:
+        (tmp_path / name).write_text("x")
+    module.prune(tmp_path, 1)
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "notes.txt",
+        "paper-20261016T201916901773Z.age",
+        "paper-20261016T201916901773Z.zip",
+        "paper-20261016T201916901773Z.zip.partial",
+    ]
+    module.prune(tmp_path, 0)  # never deletes the newest one
+    assert (tmp_path / "paper-20261016T201916901773Z.zip").exists()

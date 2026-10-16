@@ -107,6 +107,7 @@
 
 | 变量 | 说明 |
 | --- | --- |
+| `PAPER_BACKUP_KEEP` | 本机保留最新的几份备份，默认 `1`。新备份完整写好后才删除旧的 |
 | `PAPER_BACKUP_RECIPIENT_FILE` | 备份脚本可选读取的 [age](https://github.com/FiloSottile/age) 公钥文件，设置后额外生成加密的恢复包；私钥放在另一台可信设备上 |
 
 ## Docker Compose 专用
