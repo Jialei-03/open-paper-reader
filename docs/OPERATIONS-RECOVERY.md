@@ -16,7 +16,7 @@ python -m backend.ops_backup create /private/path/recovery.age \
 
 命令拒绝覆盖已存在的输出。明文的中间文件放在权限 0700 的临时目录里，成功或失败都会清理；输出文件权限 0600；校验和在加密信封里面；不会打印任何密钥。进程被强行杀掉时可能留下私有的临时目录，删除前请先检查。
 
-`deploy/backup_production.py`（systemd 定时备份，见 [部署](DEPLOYMENT.md#定时备份)）设置了 `PAPER_BACKUP_RECIPIENT_FILE` 之后，会在写入者停止期间同时生成业务 ZIP 和加密恢复包，然后在 `finally` 里启动原来在运行的服务。两种备份都在本机保留 14 天。
+`deploy/backup_production.py`（systemd 定时备份，见 [部署](DEPLOYMENT.md#定时备份)）设置了 `PAPER_BACKUP_RECIPIENT_FILE` 之后，会在写入者停止期间同时生成业务 ZIP 和加密恢复包，然后在 `finally` 里启动原来在运行的服务。本机只保留最新的一份（`PAPER_BACKUP_KEEP` 可调）：新备份完整写好之后才删除旧的，所以任何时候至少有一份。
 
 - 开始停服务之前，一份仅 root 可读的日志会记下原来在运行的服务；`ExecStopPost` 在超时或 SIGKILL 之后也会调用恢复路径，同一把排他锁防止备份和恢复同时进行。启动失败时日志保留，所有记录的服务都会再尝试启动。它不覆盖系统管理器本身故障或整机掉电；那种情况下仍然依赖已启用服务的开机策略。
 - 备份先写成 `.partial` 再原子地发布，不会覆盖已完成的备份；中断留下的 `.partial` 保留给运维检查，不参与保留期清理，也不会被当作已完成的备份。

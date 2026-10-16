@@ -155,7 +155,7 @@ cp deploy/systemd/paper-platform-backup.service deploy/systemd/paper-platform-ba
 systemctl daemon-reload && systemctl enable --now paper-platform-backup.timer
 ```
 
-备份写到 `/var/backups/paper-platform/`（`paper-时间.zip`），在本机保留 14 天；设置 `PAPER_BACKUP_RECIPIENT_FILE` 还会生成用 age 加密的恢复包。**本机备份抵御不了整机丢失**，请定期把它们复制到别处，并演练恢复，见 [运维恢复](OPERATIONS-RECOVERY.md)。
+备份写到 `/var/backups/paper-platform/`（`paper-时间.zip`），在本机只保留最新的一份（`PAPER_BACKUP_KEEP` 可以改成保留更多份；新备份写好后才删旧的）；设置 `PAPER_BACKUP_RECIPIENT_FILE` 还会生成用 age 加密的恢复包。**本机备份抵御不了整机丢失**，请定期把它们复制到别处，并演练恢复，见 [运维恢复](OPERATIONS-RECOVERY.md)。
 
 ## 可选组件
 

@@ -1,6 +1,6 @@
 # Example timer for paper-platform-backup.service: daily, with a little jitter.
 [Unit]
-Description=Daily Zhijian backup
+Description=Daily Zhijian backup (keeps the newest one)
 
 [Timer]
 OnCalendar=*-*-* 04:15:00
