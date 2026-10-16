@@ -585,7 +585,7 @@ export function ProductSite({ path }: { path: string }) {
   useEffect(() => {
     document.title = isDocs
       ? `${current.title} · 纸间文档`
-      : "纸间 · 开源的论文阅读工作台";
+      : "纸间 · 论文阅读工作台";
     container.current?.scrollTo({
       top:
         path === "features"
@@ -694,12 +694,12 @@ export function ProductSite({ path }: { path: string }) {
             <div className="product-section-heading">
               <p className="lp-kicker">纸间 · 让论文成为你的知识</p>
               <h1>
-                开源的论文阅读工作台，
+                论文阅读工作台，
                 <br />
                 <span>助手全程参与。</span>
               </h1>
               <p>
-                在同一个窗口里读论文、读译文、做批注与笔记。研究助手实际读取原文来解释、比较和整理，结论带着页码，做过什么都有记录。代码开源。
+                在同一个窗口里读论文、读译文、做批注与笔记。研究助手实际读取原文来解释、比较和整理，结论带着页码，做过什么都有记录。
               </p>
               <div className="product-cta lp-cta">
                 <Button size="lg" asChild>
@@ -836,8 +836,10 @@ export function ProductSite({ path }: { path: string }) {
       <footer className="product-footer">
         <Brand />
         <span>让论文成为你的知识。</span>
-        <a href="#docs/start">使用文档</a>
-        <a href="#home">产品首页</a>
+        <nav className="product-footer-links" aria-label="页脚">
+          <a href="#docs/start">使用文档</a>
+          <a href="#home">产品首页</a>
+        </nav>
         {!isDocs && (
           <p className="lp-footnote">
             截图均取自纸间的演示空间：公开 arXiv 论文（如 A-MEM，

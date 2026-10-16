@@ -129,7 +129,7 @@ export function Login({
         </CardContent>
         <CardFooter className="flex-col gap-1">
           <Button
-            variant="ghost"
+            variant="link"
             type="button"
             onClick={() => {
               setRegister(!register);

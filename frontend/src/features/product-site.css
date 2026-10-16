@@ -273,6 +273,10 @@
   flex: 1;
   color: var(--muted-foreground);
 }
+.product-footer-links {
+  display: flex;
+  gap: 28px;
+}
 .product-docs {
   max-width: 1240px;
   margin: auto;
@@ -428,7 +432,12 @@
     gap: 18px;
   }
   .product-footer > span:nth-child(2) {
-    flex-basis: 50%;
+    flex: 1 1 auto;
+  }
+  /* On a phone the brand line and the links each get their own row. */
+  .product-footer-links {
+    flex-basis: 100%;
+    gap: 24px;
   }
   .product-docs {
     grid-template-columns: 1fr;

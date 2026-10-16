@@ -16,7 +16,7 @@ test("public product site, interactive preview and searchable docs", async ({
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: /开源的论文阅读工作台，\s*助手全程参与。/,
+      name: /^论文阅读工作台，\s*助手全程参与。$/,
     }),
   ).toBeVisible();
   await expect(
@@ -95,7 +95,7 @@ test("public product site, interactive preview and searchable docs", async ({
     .click();
   // The tools are the top of the page: the link brings the heading back into view.
   await expect(
-    page.getByRole("heading", { level: 1, name: /开源的论文阅读工作台/ }),
+    page.getByRole("heading", { level: 1, name: /^论文阅读工作台/ }),
   ).toBeInViewport();
   await page.screenshot({ path: "../test-results/product-features.png" });
   await page
@@ -124,7 +124,7 @@ test("public product site, interactive preview and searchable docs", async ({
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: /开源的论文阅读工作台，\s*助手全程参与。/,
+        name: /^论文阅读工作台，\s*助手全程参与。$/,
       }),
     ).toBeVisible();
     expect(
