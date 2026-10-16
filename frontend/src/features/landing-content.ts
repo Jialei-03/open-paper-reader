@@ -112,7 +112,7 @@ export const stories: Story[] = [
     tone: "pink",
     link: ["#docs/models", "查看使用指南"],
     file: "story-trace.webp",
-    alt: "展开的 15 项操作：读取论文资料与笔记，读取三份论文附件的文本，每一项都标明已完成",
+    alt: "研究助手的回答展开为 15 项操作：先读取工作台操作说明，再逐篇读取三篇论文的资料与附件文本，每一项都标明已完成",
   },
   {
     id: "translate",
@@ -578,7 +578,7 @@ export const details: { icon: LucideIcon; title: string; text: string }[] = [
     text: "只读分享链接带有效期，可以随时撤销；是否附带笔记由你决定。",
   },
   {
-    icon: KeyRound,
+    icon: Bot,
     title: "Agent 凭据",
     text: "为你自己的 Agent 创建只读或可写的 API 凭据，随时撤销。",
   },

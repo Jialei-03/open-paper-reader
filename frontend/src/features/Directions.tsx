@@ -13,6 +13,7 @@ import { Input } from "../components/ui/input";
 import { Checkbox } from "../components/ui/checkbox";
 import { Field, FieldLabel, FieldGroup } from "../components/ui/field";
 import { Badge } from "../components/ui/badge";
+import { Tags } from "lucide-react";
 export function Directions({ tick, run, onError }: any) {
   const [data, setData] = useState<{
     revision: string;
@@ -83,8 +84,10 @@ export function Directions({ tick, run, onError }: any) {
                 />
               </Field>
               <div className="flex flex-wrap gap-2">
+                {/* Grey until there is a name: a faded blue button reads as broken. */}
                 <Button
                   type="submit"
+                  variant={target.trim() ? "default" : "secondary"}
                   disabled={busy || !target.trim() || !data}
                 >
                   {selected.length > 1
@@ -130,7 +133,10 @@ export function Directions({ tick, run, onError }: any) {
                 ))}
               </div>
               {data && !data.items.length && (
-                <Empty text="添加一个研究方向，或为论文设置标签。" />
+                <Empty
+                  icon={Tags}
+                  text="还没有研究方向。在上面输入名称新建，或者给论文加标签，标签会出现在这里。"
+                />
               )}
             </FieldGroup>
           </form>

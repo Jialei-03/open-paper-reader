@@ -134,12 +134,18 @@ export function Markdown({
     </div>
   );
 }
-export function Empty({ text = EMPTY }: { text?: string }) {
+export function Empty({
+  text = EMPTY,
+  icon: Icon = BookOpen,
+}: {
+  text?: string;
+  icon?: React.ComponentType;
+}) {
   return (
     <EmptyRoot>
       <EmptyHeader>
         <EmptyMedia variant="icon">
-          <BookOpen />
+          <Icon />
         </EmptyMedia>
         <EmptyDescription>{text}</EmptyDescription>
       </EmptyHeader>

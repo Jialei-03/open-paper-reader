@@ -29,7 +29,7 @@ PANEL = (732, 56, 482, 744)  # the side panel of the reader, whole
 CROPS = {
     # The assistant, one idea each.
     "story-compare": ("agent-results", (386, 14, 890, 770), 88),
-    "story-trace": ("agent-ops", (386, 14, 890, 560), 88),
+    "story-trace": ("agent-ops", (386, 14, 890, 330), 88),  # the distinct steps, not a dozen identical rows
     "organize": ("agent-organize", PANEL, 90),
     "chat": ("agent-chat", PANEL, 90),
     "notes-sources": ("agent-notes", PANEL, 90),

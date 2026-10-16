@@ -40,6 +40,9 @@
   border-radius: 6px;
   transition: background 0.12s;
 }
+.is-landing .product-header a {
+  white-space: nowrap;
+}
 .is-landing .product-header nav {
   gap: 8px;
 }
@@ -346,7 +349,8 @@
 
 /* Closing block */
 .is-landing .product-ending {
-  max-width: 1200px;
+  /* Same edges as the sections above: 1200px minus their 28px padding. */
+  width: min(1144px, calc(100% - 56px));
   margin: 0 auto 72px;
   padding: 88px 24px;
   border-radius: 24px;
@@ -399,6 +403,10 @@
     height: 58px;
     padding: 0 18px;
   }
+  /* Not enough room on a phone; the footer carries the GitHub link. */
+  .is-landing .product-header-github {
+    display: none;
+  }
   .is-landing .product-features,
   .is-landing .product-workflow,
   .is-landing .product-faq {
@@ -409,7 +417,8 @@
     justify-content: flex-start;
   }
   .is-landing .product-ending {
-    margin: 0 16px 40px;
+    width: calc(100% - 36px);
+    margin: 0 auto 40px;
     padding: 60px 20px;
     border-radius: 18px;
   }
