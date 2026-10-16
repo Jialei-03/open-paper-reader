@@ -1,7 +1,11 @@
 import { closeFileDownload } from "./lib/file-download";
 import "./styles";
 import { FileDownloadDialog } from "./components/FileDownloadDialog";
-import { offlineOwner, setOfflineOwner } from "./lib/offline";
+import {
+  downloadUnsyncedNotes,
+  forgetOfflineCopy,
+  retireOfflineReading,
+} from "./lib/offline-retirement";
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ProductSite } from "./features/ProductSite";
@@ -16,11 +20,6 @@ import { api, errorStatus } from "./api";
  * graph…) is most of the code, so it loads once there is a session, and the
  * shared-paper viewer loads only for a share link.
  */
-const OfflineWorkspace = lazy(() =>
-  import("./features/OfflineWorkspace").then((module) => ({
-    default: module.OfflineWorkspace,
-  })),
-);
 const Workspace = lazy(() =>
   import("./Workspace").then((module) => ({ default: module.Workspace })),
 );
@@ -103,7 +102,6 @@ function AuthGate() {
     [error, setError] = useState("");
   const setUser = (value: any) => {
     remember(!!value);
-    setOfflineOwner(value?.id || "");
     setSignedUser(value);
   };
   const [route, setRoute] = useState(location.hash.slice(1) || "dashboard");
@@ -113,11 +111,7 @@ function AuthGate() {
     api("/auth/me")
       .then((x) => setUser(x.user))
       .catch((e) => {
-        if (errorStatus(e) === 401) {
-          remember(false);
-          setOfflineOwner("");
-        } else if (errorStatus(e) === 0 && offlineOwner())
-          location.hash = "offline";
+        if (errorStatus(e) === 401) remember(false);
         else setError(e.message);
       })
       .finally(() => setBoot(false));
@@ -125,6 +119,37 @@ function AuthGate() {
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
   }, []);
+  const signedIn = !!user;
+  useEffect(() => {
+    if (!signedIn) return;
+    void retireOfflineReading().then(async (unsynced) => {
+      if (!unsynced.length) return;
+      // The toaster lives in the workspace; show this once it is on screen.
+      const [{ toast }] = await Promise.all([
+        import("sonner"),
+        loadWorkspace(),
+      ]);
+      setTimeout(
+        () =>
+          toast(
+            `这台设备上有 ${unsynced.length} 篇离线时写下、尚未同步的笔记`,
+            {
+              description:
+                "离线阅读已下线。请下载这些笔记的备份，再粘贴回对应论文。",
+              duration: Infinity,
+              action: {
+                label: "下载备份",
+                onClick: () => {
+                  downloadUnsyncedNotes(unsynced);
+                  forgetOfflineCopy();
+                },
+              },
+            },
+          ),
+        1500,
+      );
+    });
+  }, [signedIn]);
   const signedOut = !boot && !user;
   useEffect(() => {
     if (!signedOut) return;
@@ -178,14 +203,6 @@ function Root() {
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
-  if (hash === "#offline" || (!navigator.onLine && offlineOwner()))
-    return (
-      <StaleRelease>
-        <Suspense fallback={<Boot />}>
-          <OfflineWorkspace />
-        </Suspense>
-      </StaleRelease>
-    );
   return !hash ||
     hash === "#home" ||
     hash === "#features" ||

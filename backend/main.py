@@ -1353,6 +1353,8 @@ def create_app(settings=None):
     if dist.is_dir():
         app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
 
+        # Offline reading was removed; this worker only uninstalls itself from
+        # browsers that registered the old one. Keep serving it uncached.
         @app.get("/offline-worker.js", include_in_schema=False)
         def offline_worker():
             return FileResponse(dist / "offline-worker.js", media_type="application/javascript", headers={"Cache-Control": "no-cache"})

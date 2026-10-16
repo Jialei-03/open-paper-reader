@@ -110,5 +110,3 @@ make help      # 全部命令：test、check、e2e、web（前端热更新）…
 [MIT](LICENSE)。第三方组件各自的许可证见 [NOTICE](NOTICE.md)，其中版面翻译用到的 BabelDOC 是 AGPL-3.0，它只存在于可选的、单独构建的镜像里。
 
 纸间站在这些项目的肩膀上：[PDF.js](https://github.com/mozilla/pdf.js)、[Pi](https://github.com/earendil-works/pi)、[BabelDOC](https://github.com/funstory-ai/BabelDOC)、[LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans)、[shadcn/ui](https://ui.shadcn.com)、[Radix](https://www.radix-ui.com)、[TipTap](https://tiptap.dev)、[KaTeX](https://katex.org)、[FastAPI](https://fastapi.tiangolo.com)、[SQLAlchemy](https://www.sqlalchemy.org)。
-
-离线阅读第一版的使用方式、同步规则与支持范围见 [离线使用说明](docs/offline.md)。

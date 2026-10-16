@@ -1,5 +1,4 @@
 import { PaperPreparation } from "./PaperPreparation";
-import { OfflineDownload } from "./OfflineDownload";
 import { createPortal } from "react-dom";
 import {
   Popover,
@@ -745,9 +744,6 @@ export function Reader({
             <Info />
           </ReaderButton>
           <h1 className="sr-only">{paper.title}</h1>
-          {f?.mime === "application/pdf" && (
-            <OfflineDownload paper={paper} file={f} />
-          )}
           <PaperPreparation paperId={id} versionId={paper.current_version} />
           <div ref={setToolbarHost} className="reader-header-tools" />
           {f?.mime === "application/pdf" && (

@@ -64,12 +64,9 @@ jobs:
       - run: npm --prefix frontend ci --ignore-scripts
       - run: npm --prefix agent-runtime ci --ignore-scripts
       - run: npm --prefix frontend run build
-      - run: npx playwright install --with-deps chromium webkit
+      - run: npx playwright install --with-deps chromium --only-shell
         working-directory: frontend
       - run: npx playwright test --shard=${{ matrix.shard }}/2
-        working-directory: frontend
-      - if: matrix.shard == 1
-        run: npx playwright test e2e/offline.spec.ts --browser=webkit
         working-directory: frontend
       - uses: actions/upload-artifact@v4
         if: always()
