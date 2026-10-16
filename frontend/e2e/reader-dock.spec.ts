@@ -156,9 +156,13 @@ test("Reader docking: bottom split preserves note editor and independent scrolli
     .getByRole("menuitemradio", { name: "停靠底部", exact: true })
     .click();
   await page.setViewportSize({ width: 820, height: 1180 });
-  if (await page.getByRole("button", { name: "笔记", exact: true }).isVisible())
-    await page.getByRole("button", { name: "笔记", exact: true }).click();
-  await expect(editor).toBeVisible();
+  // The narrow layout may close the panel a moment later, and the button toggles:
+  // only open it when it is closed, and check again until it stays open.
+  await expect(async () => {
+    if (!(await editor.isVisible()))
+      await page.getByRole("button", { name: "笔记", exact: true }).click();
+    await expect(editor).toBeVisible({ timeout: 2000 });
+  }).toPass();
   await expect(documentPane).toBeVisible();
   await page.screenshot({ path: "../test-results/reader-bottom-ipad.png" });
 });

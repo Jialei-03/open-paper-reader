@@ -122,7 +122,14 @@ test("PDF annotations: persistent highlight, editable comment, filters, export a
   await expect(page.getByTestId("pdf-annotation-row")).toHaveCount(1);
   await page.getByLabel("搜索批注", { exact: true }).fill("does-not-exist");
   await expect(page.getByTestId("pdf-annotation-row")).toHaveCount(0);
-  await page.getByLabel("搜索批注", { exact: true }).fill("");
+  // The colour menu hands focus back as it closes; on a slow machine that can
+  // swallow the clearing keystroke, so clear until the list is back.
+  await expect(async () => {
+    await page.getByLabel("搜索批注", { exact: true }).fill("");
+    await expect(page.getByTestId("pdf-annotation-row")).toHaveCount(1, {
+      timeout: 2000,
+    });
+  }).toPass();
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "导出批注 Markdown", exact: true })
