@@ -614,6 +614,7 @@ export function ProductSite({ path }: { path: string }) {
             文档
           </a>
           <a
+            className="product-header-github"
             href="https://github.com/Jialei-03/zhijian"
             target="_blank"
             rel="noopener noreferrer"
@@ -694,10 +695,7 @@ export function ProductSite({ path }: { path: string }) {
         </main>
       ) : (
         <main>
-          <section
-            className="product-features lp-features lp-first"
-            data-reveal
-          >
+          <section className="product-features lp-features lp-first">
             <div className="product-section-heading">
               <p className="lp-kicker">纸间 · 让论文成为你的知识</p>
               <h1>

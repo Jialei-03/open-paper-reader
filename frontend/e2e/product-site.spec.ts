@@ -132,6 +132,11 @@ test("public product site, interactive preview and searchable docs", async ({
         .locator(".product-site")
         .evaluate((e) => e.scrollWidth <= e.clientWidth),
     ).toBeTruthy();
+    // Every header link stays on one line (they once broke into one character per line).
+    for (const link of await page.locator(".product-header a:visible").all()) {
+      const box = await link.boundingBox();
+      expect(box!.height).toBeLessThan(48);
+    }
   }
   await page.screenshot({
     path: "../test-results/product-home-mobile.png",

@@ -447,12 +447,14 @@
   .product-docs aside {
     position: static;
   }
+  /* Every guide stays visible: wrap onto a few rows instead of a row that
+     scrolls sideways with no sign that more is hidden. */
   .product-docs aside nav {
     display: flex;
     flex-direction: row;
-    overflow: auto;
+    flex-wrap: wrap;
     margin: 14px 0;
-    gap: 4px;
+    gap: 6px;
   }
   .product-docs aside nav a {
     white-space: nowrap;
