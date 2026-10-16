@@ -2,6 +2,7 @@ import { recentPapers } from "../lib/recent-papers";
 import { owningPaper } from "../lib/organization";
 import type { Item } from "../api";
 import { LibraryCollections } from "./LibraryCollections";
+import { PreparationOverviewLink } from "./PreparationOverview";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PaperBatchActions } from "../components/PaperBatchActions";
 import {
@@ -473,6 +474,9 @@ export function LibraryView({
             </Popover>
           </div>
         </div>
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <PreparationOverviewLink go={go} />
       </div>
       {filtered && (
         <div className="active-filters">

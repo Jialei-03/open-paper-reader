@@ -57,6 +57,7 @@ import { Dashboard } from "./features/Dashboard";
 import { Recommendations } from "./features/Recommendations";
 import { SettingsView } from "./features/SettingsView";
 import { LibraryView } from "./features/LibraryView";
+import { PreparationOverview } from "./features/PreparationOverview";
 import {
   Clock,
   Star,
@@ -66,10 +67,12 @@ import {
   Compass,
   Settings,
   Search,
+  ListChecks,
 } from "lucide-react";
 const navs = [
   ["dashboard", "最近", Clock],
   ["library", "我的文库", Library],
+  ["preparations", "准备任务", ListChecks],
   ["recommendations", "发现论文", Compass],
   ["graph", "知识图谱", Network],
   ["settings", "空间设置", Settings],
@@ -486,6 +489,7 @@ export function Workspace({
                   onError={setError}
                 />
               )}
+              {section === "preparations" && <PreparationOverview go={go} />}
               {section === "library" && (
                 <LibraryView
                   notes={allItems}
@@ -763,6 +767,7 @@ export function Workspace({
               {![
                 "dashboard",
                 "library",
+                "preparations",
                 "paper",
                 "notebook",
                 "topics",

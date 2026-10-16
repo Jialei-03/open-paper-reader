@@ -3,9 +3,10 @@
 
 from typing import Literal
 
-from fastapi import Depends
+from fastapi import Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.orm import load_only
 
 from .models import (
     File,
@@ -75,9 +76,43 @@ def ensure(d, paper, priority=0):
     return row
 
 
+def layout_job(d, row):
+    return d.scalar(
+        select(TranslationJob).where(
+            TranslationJob.owner == row.owner,
+            TranslationJob.paper_id == row.paper_id,
+            TranslationJob.version_id == row.version_id,
+            TranslationJob.source_file == row.file_id,
+        ).order_by((TranslationJob.status == "completed").desc(),
+                   TranslationJob.created_at.desc(), TranslationJob.id.desc())
+    )
+
+
+def preparation_view(row, job, is_enabled):
+    result = {**public(row), "enabled": is_enabled, "layout_progress": None}
+    if job:
+        # Never expose provider credentials/configuration through the overview.
+        result["layout_progress"] = {
+            "status": job.status, "stage": job.stage, "error": job.error,
+            "completed": job.completed, "total": job.total,
+        }
+        result["layout_status"] = job.status
+        # The layout worker reports live progress; the parent reconciles later.
+        # A paused parent remains paused, even if its child finished just before it.
+        if row.status == "waiting" and row.translation_status == "completed":
+            if job.status == "completed" and row.guide_status == "completed":
+                result.update(status="completed", stage="全部就绪", error="")
+            elif job.status in {"failed", "cancelled"}:
+                result.update(status="failed", stage="布局生成未完成", error=job.error or "请重试布局生成")
+            elif job.status in {"queued", "running"}:
+                result["stage"] = job.stage
+                result["status"] = job.status
+    return result
+
+
 def output(d, owner, row):
     if row:
-        return {**public(row), "enabled": enabled(d, owner)}
+        return preparation_view(row, layout_job(d, row), enabled(d, owner))
     return {
         "enabled": enabled(d, owner),
         "status": "waiting",
@@ -92,6 +127,66 @@ def output(d, owner, row):
 
 
 def install_preparation_routes(app, settings, db, auth, human, owned):
+    @app.get("/api/v1/preparations")
+    def overview(
+        status: Literal["all", "active", "failed", "completed", "paused"] = "all",
+        offset: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=100),
+        a=Depends(auth), d=Depends(db),
+    ):
+        owner = a["id"]
+        is_enabled = enabled(d, owner)
+        # Version changes and archived papers must not resurrect old tasks.
+        candidates = list(d.execute(
+            select(PaperPreparation, Paper.title, File.created_at)
+            .join(Paper, Paper.id == PaperPreparation.paper_id)
+            .join(File, File.id == PaperPreparation.file_id)
+            .where(
+                PaperPreparation.owner == owner, Paper.owner == owner,
+                File.owner == owner, File.paper_id == Paper.id,
+                File.mime == "application/pdf", File.pages > 0,
+                File.version_id == Paper.current_version,
+                PaperPreparation.version_id == Paper.current_version,
+                Paper.archived == False,
+            ).order_by(File.created_at, File.id)
+        ))
+        # ensure() prepares the earliest original PDF of the current version.
+        translated = set(d.scalars(select(TranslationJob.translated_file).where(
+            TranslationJob.owner == owner, TranslationJob.translated_file != ""
+        )))
+        chosen = {}
+        for row, title, _ in candidates:
+            if row.file_id not in translated:
+                chosen.setdefault(row.paper_id, (row, title))
+        jobs = {}
+        if chosen:
+            for job in d.scalars(select(TranslationJob).options(load_only(
+                TranslationJob.paper_id, TranslationJob.version_id,
+                TranslationJob.source_file, TranslationJob.status, TranslationJob.stage,
+                TranslationJob.error, TranslationJob.completed, TranslationJob.total,
+            )).where(
+                TranslationJob.owner == owner,
+                TranslationJob.paper_id.in_(chosen),
+            ).order_by((TranslationJob.status == "completed").desc(),
+                       TranslationJob.created_at.desc(), TranslationJob.id.desc())):
+                row = chosen[job.paper_id][0]
+                if job.version_id == row.version_id and job.source_file == row.file_id:
+                    jobs.setdefault(job.paper_id, job)
+        rows = [{**preparation_view(row, jobs.get(row.paper_id), is_enabled),
+                 "title": title} for row, title in chosen.values()]
+        order = {"failed": 0, "running": 1, "queued": 2, "waiting": 3,
+                 "paused": 4, "completed": 5}
+        rows.sort(key=lambda r: r["updated_at"], reverse=True)
+        rows.sort(key=lambda r: order.get(r["status"], 3))
+        summary = {key: sum(r["status"] == key for r in rows)
+                   for key in ["failed", "running", "queued", "waiting", "paused", "completed"]}
+        summary["active"] = sum(summary[key] for key in ["running", "queued", "waiting"])
+        summary["total"] = len(rows)
+        filtered = [r for r in rows if status == "all" or
+                    (r["status"] in {"running", "queued", "waiting"} if status == "active" else r["status"] == status)]
+        return {"enabled": is_enabled, "summary": summary, "total": len(filtered),
+                "items": filtered[offset:offset + limit]}
+
     @app.get("/api/v1/preparation-settings")
     def get_settings(a=Depends(auth), d=Depends(db)):
         return {"enabled": enabled(d, a["id"])}

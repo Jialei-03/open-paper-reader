@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, send } from "../api";
+import {
+  type Preparation,
+  preparationNames as statusNames,
+} from "../lib/preparation";
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/switch";
 import { Field, FieldDescription, FieldLabel } from "../components/ui/field";
@@ -9,28 +13,6 @@ import {
   PopoverTrigger,
 } from "../components/ui/popover";
 import { LoaderCircle, Check, Pause, Play, RefreshCw } from "lucide-react";
-
-type Preparation = {
-  enabled: boolean;
-  status: "waiting" | "queued" | "running" | "completed" | "failed" | "paused";
-  stage: string;
-  error: string;
-  completed: number;
-  total: number;
-  guide_status: string;
-  translation_status: string;
-  layout_status: string;
-};
-const statusNames: Record<string, string> = {
-  waiting: "等待准备",
-  queued: "排队中",
-  running: "准备中",
-  completed: "已就绪",
-  failed: "需要重试",
-  paused: "已暂停",
-  pending: "等待准备",
-  unavailable: "暂不可用",
-};
 
 export function PaperPreparation({
   paperId,
@@ -147,6 +129,20 @@ export function PaperPreparation({
               value={state.completed}
               max={state.total}
             />
+          )}
+          {state.layout_progress && state.layout_progress.total > 0 && (
+            <div className="space-y-1 text-sm">
+              <p>布局 PDF · {state.layout_progress.stage}</p>
+              <progress
+                aria-label="布局 PDF 进度"
+                className="w-full"
+                value={state.layout_progress.completed}
+                max={state.layout_progress.total}
+              />
+              <p className="text-muted-foreground">
+                {state.layout_progress.completed}/{state.layout_progress.total}
+              </p>
+            </div>
           )}
           {(error || state.error) && (
             <p role="alert" className="text-sm text-destructive">
