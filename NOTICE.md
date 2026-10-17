@@ -8,8 +8,9 @@
 | --- | --- | --- | --- |
 | [LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans) 的解析与重建代码 | `backend/vendor/latextrans/` | MIT（Copyright (c) 2025 NiuTrans Open Source） | 改编自上游 `0b49799`；改动见 [`NOTICE.md`](backend/vendor/latextrans/NOTICE.md)，许可证文本在同目录的 `LICENSE`。只用了解析和重建，没有用它的网络客户端、Agent 编排和编译器 |
 | [shadcn/ui](https://ui.shadcn.com) 组件 | `frontend/src/components/ui/` | MIT | 由 shadcn CLI 复制进仓库后按需修改 |
-| [Inter](https://rsms.me/inter/)、[Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC)、[Pretendard](https://github.com/orioncactus/pretendard) 字体 | 经 npm 包引入，构建后随前端发布 | SIL Open Font License 1.1 | 许可证文本在 [`docs/licenses/`](docs/licenses/)、[`frontend/public/assets/fonts/`](frontend/public/assets/fonts/)，构建时还会复制到前端产物的 `licenses/` |
+| [Inter](https://rsms.me/inter/)、[Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC)、[Pretendard](https://github.com/orioncactus/pretendard)、[JetBrains Mono](https://www.jetbrains.com/lp/mono/) 字体 | 经 npm 包引入，构建后随前端发布 | SIL Open Font License 1.1 | 许可证文本在 [`docs/licenses/`](docs/licenses/)、[`frontend/public/assets/fonts/`](frontend/public/assets/fonts/)，构建时还会复制到前端产物的 `licenses/` |
 | [Lucide](https://lucide.dev) 图标 | 经 npm 包（`lucide-react`）引入 | ISC | 许可证文本在 [`frontend/public/assets/icons/LICENSE-lucide.txt`](frontend/public/assets/icons/LICENSE-lucide.txt) |
+| [claude-web](https://github.com/ypyik0669/claude-web) 的设计令牌 | `frontend/src/ui/tokens.css` | MIT（Copyright (c) 2026 ypyik0669） | 设计令牌的结构和取值改编自它的 `tokens.css`；许可证文本在 [`docs/licenses/claude-web-MIT.txt`](docs/licenses/claude-web-MIT.txt) |
 
 ## 通过包管理器安装的依赖
 
@@ -19,10 +20,10 @@
 
 | 许可证 | 依赖 |
 | --- | --- |
-| MIT | React、React DOM、Radix UI、`@shadcn/react`、Tailwind CSS（含 `@tailwindcss/vite`、`tw-animate-css`）、TipTap（含各扩展）、`motion`、KaTeX、`cmdk`、`clsx`、`tailwind-merge`、`sonner`、`react-markdown`、`react-resizable-panels`、`remark-*` / `rehype-katex` / `unified`、Vite、`@vitejs/plugin-react`、Prettier、`shadcn` |
+| MIT | React、React DOM、Radix UI、`@shadcn/react`、Tailwind CSS（含 `@tailwindcss/vite`、`tw-animate-css`）、TipTap（含各扩展）、`motion`、KaTeX、`cmdk`、`clsx`、`tailwind-merge`、`sonner`、`react-markdown`、`react-resizable-panels`、`remark-*` / `rehype-katex` / `unified`、Vite、`@vitejs/plugin-react`、Vitest、Prettier、`shadcn` |
 | Apache-2.0 | [PDF.js](https://github.com/mozilla/pdf.js)（`pdfjs-dist`）、`swagger-ui-dist`、`class-variance-authority`、Playwright、TypeScript |
 | ISC | `d3-force`、`lucide-react` |
-| OFL-1.1 | `@fontsource-variable/inter`、`@fontsource-variable/noto-sans-sc`、`pretendard` |
+| OFL-1.1 | `@fontsource-variable/inter`、`@fontsource-variable/jetbrains-mono`、`@fontsource-variable/noto-sans-sc`、`pretendard` |
 
 **研究助手运行时**（`agent-runtime/package.json`）：[Pi](https://github.com/earendil-works/pi) 的 `pi-agent-core`、`pi-ai`、`pi-coding-agent`（MIT），`ipaddr.js`（MIT），`undici`（MIT）。
 

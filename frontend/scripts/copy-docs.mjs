@@ -13,6 +13,7 @@ await mkdir("dist/licenses", { recursive: true });
 for (const [source, name] of [
   ["@fontsource-variable/noto-sans-sc/LICENSE", "Noto-Sans-SC-OFL.txt"],
   ["@fontsource-variable/inter/LICENSE", "Inter-OFL.txt"],
+  ["@fontsource-variable/jetbrains-mono/LICENSE", "JetBrains-Mono-OFL.txt"],
   ["pdfjs-dist/LICENSE", "PDFjs-Apache-2.txt"],
   ["react/LICENSE", "React-MIT.txt"],
   ["swagger-ui-dist/LICENSE", "Swagger-UI-Apache-2.txt"],

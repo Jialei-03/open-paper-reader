@@ -30,6 +30,7 @@ jobs:
       - run: npm --prefix agent-runtime test
       - run: .venv/bin/python -m pytest -q --junitxml=test-results/backend.xml
       - run: npm --prefix frontend run check
+      - run: npm --prefix frontend run test:unit
       - run: .venv/bin/python scripts/verify_lifecycle.py
       - uses: actions/upload-artifact@v4
         if: always()
@@ -65,6 +66,9 @@ jobs:
       - run: npm --prefix agent-runtime ci --ignore-scripts
       - run: npm --prefix frontend run build
       - run: npx playwright install --with-deps chromium --only-shell
+        working-directory: frontend
+      - if: matrix.shard == 1
+        run: npx playwright test -c playwright.ui.config.ts
         working-directory: frontend
       - run: npx playwright test --shard=${{ matrix.shard }}/2
         working-directory: frontend

@@ -1,0 +1,34 @@
+/*
+ * Base rules for the new interface. Only the new entries import this: the old
+ * interface already gets its reset from Tailwind's preflight.
+ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+}
+html,
+body {
+  height: 100%;
+}
+body {
+  background: var(--ui-bg-1);
+  color: var(--ui-fg);
+  font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+::selection {
+  background: var(--ui-selection);
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
