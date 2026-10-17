@@ -11,6 +11,7 @@ import {
 import { useI18n } from "../i18n/I18nProvider";
 import styles from "./Dialog.module.css";
 import { IconButton } from "./IconButton";
+import { enterModal } from "./modal-stack";
 
 export interface DialogProps {
   open: boolean;
@@ -159,20 +160,25 @@ export function Dialog({
       (footerElement.current && tabbables(footerElement.current)[0])
     )?.focus();
     const unlock = lockPageScroll();
+    const leaveModals = enterModal(dialog);
 
     // On the document and ahead of any layer that opens inside the dialog, so it sees the press
     // before a menu closes on it: that press is for the menu, not for the backdrop. A tooltip is not
     // such a layer: it only names a control, and a press that dismisses it still means the backdrop.
+    // Nor are the toasts, which are in the dialog to stay usable above it and close on no press.
     const onPointerDown = (event: PointerEvent) => {
       pressedBackdrop.current =
         onBackdrop(dialog, event) &&
-        !dialog.querySelector(':popover-open:not([role="tooltip"])');
+        !dialog.querySelector(
+          ':popover-open:not([role="tooltip"], [data-toaster])',
+        );
     };
     document.addEventListener("pointerdown", onPointerDown, true);
 
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
       unlock();
+      leaveModals();
       if (dialog.open) dialog.close();
       if (
         opener instanceof HTMLElement &&

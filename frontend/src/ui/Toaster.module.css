@@ -1,0 +1,108 @@
+/*
+ * The stack of toasts: a manual popover, so it sits in the top layer (above an open
+ * dialog) with no portal and no z-index. A popover brings its own look (a bordered
+ * Canvas box with padding and auto margins); all of that is reset here, and it is
+ * hidden by the browser while it is not shown.
+ */
+.toaster {
+  --toaster-max-width: 420px;
+  --toast-icon-size: 16px;
+  position: fixed;
+  /* Centered by auto margins, not a transform, so it never blurs the text. */
+  inset: auto 0 var(--ui-space-24) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  /* As wide as its widest toast, so that pointing anywhere in the stack, gaps included, counts. */
+  width: max-content;
+  max-width: min(
+    var(--toaster-max-width),
+    calc(100vw - 2 * var(--ui-space-16))
+  );
+  margin: 0 auto;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+}
+
+/* A class that sets display would otherwise make a hidden stack show. */
+.toaster:not(:popover-open) {
+  display: none;
+}
+
+.toast {
+  /* One line of its text: what the icon and the buttons are centered on. */
+  --toast-line: calc(var(--ui-text-13) * var(--ui-leading));
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border-radius: var(--ui-r-16);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  transition:
+    opacity var(--ui-dur-2) var(--ui-ease-out),
+    transform var(--ui-dur-2) var(--ui-ease-out);
+}
+
+/* In: it fades and settles up 8px. Out: nothing, it is gone at once. */
+@starting-style {
+  .toast {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Centered on the first line of text, whatever follows it. */
+.icon {
+  flex-shrink: 0;
+  width: var(--toast-icon-size);
+  height: var(--toast-icon-size);
+  margin-top: calc((var(--toast-line) - var(--toast-icon-size)) / 2);
+}
+
+.error {
+  color: var(--ui-danger-text);
+}
+
+.success {
+  color: var(--ui-success-text);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+}
+
+.message {
+  overflow-wrap: anywhere;
+}
+
+.detailed .message {
+  font-weight: var(--ui-weight-strong);
+}
+
+.description {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  overflow-wrap: anywhere;
+}
+
+/*
+ * The buttons are taller than the line they sit level with, so they are centered
+ * on a box one line tall and spill evenly above and below it into the padding.
+ * The glyph of the dismiss button, not its box, lines up with the toast's padding.
+ */
+.buttons {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--ui-space-4);
+  height: var(--toast-line);
+  margin-right: calc(-1 * var(--ui-space-6));
+}

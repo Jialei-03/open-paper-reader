@@ -15,7 +15,7 @@ import {
   Trash2,
   type LucideIcon,
 } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { I18nProvider, useI18n } from "../i18n/I18nProvider";
 import { isLocale } from "../i18n/i18n";
 import {
@@ -28,7 +28,9 @@ import {
   SegmentedControl,
   TextArea,
   TextField,
+  Toaster,
   parseAppearance,
+  toast,
   useAppearance,
   type ButtonVariant,
   type MenuEntry,
@@ -603,6 +605,50 @@ function SegmentedDemo() {
   );
 }
 
+function ToastDemo() {
+  const [retry, setRetry] = useState("idle");
+  const [behind, setBehind] = useState(false);
+  // The toast comes once the dialog is open, so that it is the newer of the two in the top layer.
+  useEffect(() => {
+    if (behind) toast.show({ message: "Over the dialog", tone: "success" });
+  }, [behind]);
+  return (
+    <Section id="toast" title="Toast">
+      <div className={styles.row}>
+        <Button onClick={() => toast.show({ message: "Copied" })}>
+          Show info
+        </Button>
+        <Button
+          onClick={() =>
+            toast.show({
+              message: "Import failed",
+              tone: "error",
+              description: "The file is not a PDF.",
+              action: { label: "Retry", onClick: () => setRetry("Retried") },
+            })
+          }
+        >
+          Show error
+        </Button>
+        <Button onClick={() => setBehind(true)}>Show over dialog</Button>
+      </div>
+      <p className={styles.groupTitle}>
+        Retry: <output>{retry}</output>
+      </p>
+      <Dialog
+        open={behind}
+        onClose={() => setBehind(false)}
+        title="Under the toast"
+        description="A notification raised while this is open shows above it."
+        size="sm"
+        footer={<Button onClick={() => setBehind(false)}>Done</Button>}
+      >
+        <p>The toast can be reached while the page behind is shut.</p>
+      </Dialog>
+    </Section>
+  );
+}
+
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
@@ -641,7 +687,9 @@ function Kit() {
         <MenuDemo />
         <DialogDemo />
         <SegmentedDemo />
+        <ToastDemo />
       </main>
+      <Toaster />
     </div>
   );
 }

@@ -31,6 +31,8 @@ export {
   type SegmentedControlProps,
   type SegmentedOption,
 } from "./SegmentedControl";
+export { Toaster, toast } from "./Toaster";
+export type { ToastOptions, ToastTone } from "./toast-store";
 export {
   placeFloating,
   type Align,
