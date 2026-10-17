@@ -15,6 +15,15 @@ export {
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Spinner } from "./Spinner";
 export { Kbd } from "./Kbd";
+export { Floating, type DismissReason, type FloatingProps } from "./Floating";
+export { Tooltip, type TooltipProps } from "./Tooltip";
+export {
+  placeFloating,
+  type Align,
+  type Placement,
+  type Rect,
+  type Side,
+} from "./position";
 export {
   TextArea,
   TextField,

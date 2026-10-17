@@ -4,6 +4,7 @@
   --kit-swatch-height: 56px;
   --kit-narrow-width: 160px;
   --kit-field-width: 360px;
+  --kit-corner-gap: 4px;
 }
 
 .toolbar {
@@ -118,4 +119,11 @@
   display: grid;
   gap: var(--ui-space-16);
   max-width: var(--kit-field-width);
+}
+
+/* Pinned to the window's bottom-right corner, to test a floating layer near an edge. */
+.corner {
+  position: fixed;
+  right: var(--kit-corner-gap);
+  bottom: var(--kit-corner-gap);
 }

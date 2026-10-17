@@ -1,6 +1,7 @@
 import {
   Bookmark,
   Download,
+  Info,
   Plus,
   Search,
   SlidersHorizontal,
@@ -279,6 +280,19 @@ function FieldDemo() {
   );
 }
 
+function TooltipDemo() {
+  return (
+    <Section id="tooltip" title="Tooltip">
+      <div role="group" aria-label="Tooltips" className={styles.row}>
+        <IconButton icon={Bookmark} label="Add bookmark" shortcut="mod+d" />
+        <IconButton icon={Search} label="Find" />
+      </div>
+      {/* Hard against the corner: the tooltip has to flip up and slide in. */}
+      <IconButton className={styles.corner} icon={Info} label="Corner" />
+    </Section>
+  );
+}
+
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
@@ -313,6 +327,7 @@ function Kit() {
         <I18nDemo />
         <ButtonDemo />
         <FieldDemo />
+        <TooltipDemo />
       </main>
     </div>
   );

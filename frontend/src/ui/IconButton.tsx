@@ -2,6 +2,7 @@ import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import { Button, type ButtonProps } from "./Button";
 import styles from "./Button.module.css";
+import { Tooltip } from "./Tooltip";
 
 export type IconButtonProps = Omit<
   ButtonProps,
@@ -18,20 +19,20 @@ export type IconButtonProps = Omit<
 export function IconButton({
   icon,
   label,
-  // Shown with the label by the tooltip, which is added with the Tooltip
-  // component; until then only the accessible name is set.
-  shortcut: _shortcut,
+  shortcut,
   variant = "ghost",
   className,
   ...rest
 }: IconButtonProps) {
   return (
-    <Button
-      {...rest}
-      icon={icon}
-      variant={variant}
-      className={clsx(styles.iconButton, className)}
-      aria-label={label}
-    />
+    <Tooltip content={label} shortcut={shortcut}>
+      <Button
+        {...rest}
+        icon={icon}
+        variant={variant}
+        className={clsx(styles.iconButton, className)}
+        aria-label={label}
+      />
+    </Tooltip>
   );
 }
