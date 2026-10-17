@@ -1,0 +1,72 @@
+<style>
+  .opr { --bg:#fefdfc; --shell:#f7f6f2; --inset:#f0eeea; --ink:#1c1917; --ink2:#47433f; --ink3:#7f7b77; --line:rgba(28,25,23,.08); --accent:#d97757; --accent-t:#a94900;
+    font-family: Inter, -apple-system, "PingFang SC", sans-serif; color: var(--ink); }
+  .opr .app { display:flex; gap:8px; background:var(--shell); padding:8px; border-radius:14px; height:560px; font-size:12.5px; overflow:hidden; position:relative; }
+  .opr .rail { width:40px; display:flex; flex-direction:column; align-items:center; gap:10px; padding-top:6px; color:var(--ink3); font-size:15px; }
+  .opr .rail .logo { width:13px; height:17px; background:var(--ink); border-radius:2px; margin-bottom:8px; }
+  .opr .rail .on { color:var(--ink); background:rgba(28,25,23,.07); border-radius:8px; width:30px; height:30px; display:flex; align-items:center; justify-content:center; }
+  .opr .card { background:var(--bg); border-radius:14px; box-shadow:0 0 0 1px var(--line), 0 1px 2px rgba(40,30,20,.05); overflow:hidden; display:flex; flex-direction:column; position:relative; }
+  .opr .head { height:42px; display:flex; align-items:center; gap:8px; padding:0 14px; border-bottom:1px solid var(--line); color:var(--ink2); flex-shrink:0; }
+  .opr .head b { color:var(--ink); font-weight:600; }
+  .opr .pill { padding:3px 9px; border-radius:99px; background:var(--inset); color:var(--ink2); font-size:11px; }
+  .opr .tabs { display:flex; gap:2px; background:var(--inset); padding:3px; border-radius:99px; }
+  .opr .tabs span { padding:3px 11px; border-radius:99px; color:var(--ink3); font-size:11.5px; }
+  .opr .tabs .on { background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(40,30,20,.12); font-weight:600; }
+  .opr .pdfwrap { flex:1; background:#efede8; display:flex; justify-content:center; padding:14px; overflow:hidden; position:relative; }
+  .opr .page { background:#fff; width:430px; box-shadow:0 1px 4px rgba(40,30,20,.14); padding:26px 32px; font-family:Georgia,serif; font-size:9.8px; line-height:1.6; color:#2a2a2a; }
+  .opr .page h4 { font-size:15px; text-align:center; margin:0 0 4px; }
+  .opr .page .au { text-align:center; font-size:8.5px; color:#555; margin-bottom:12px; }
+  .opr .page h5 { font-size:11px; margin:10px 0 4px; }
+  .opr mark { background:#f6dcc9; padding:1px 0; }
+  .opr .sel { position:absolute; left:190px; top:252px; background:#fff; border-radius:12px; box-shadow:0 0 0 1px rgba(28,25,23,.1), 0 10px 26px -8px rgba(40,30,20,.3); display:flex; gap:2px; padding:4px; font-size:11.5px; }
+  .opr .sel span { padding:5px 9px; border-radius:8px; color:var(--ink2); }
+  .opr .sel span:first-child { background:var(--inset); color:var(--ink); font-weight:600; }
+  .opr .composer { position:absolute; left:50%; transform:translateX(-50%); bottom:16px; width:62%; border-radius:18px; box-shadow:0 0 0 1px rgba(28,25,23,.1), 0 10px 26px -10px rgba(40,30,20,.3); padding:10px 12px 10px 16px; color:var(--ink3); display:flex; align-items:center; justify-content:space-between; background:#fff; }
+  .opr .send { width:24px; height:24px; border-radius:99px; background:var(--ink); }
+  .opr .chip { font-size:10.5px; color:var(--ink2); background:var(--inset); padding:2px 8px; border-radius:99px; margin-right:6px; }
+  .opr .panel { padding:14px 16px; display:flex; flex-direction:column; gap:10px; overflow:hidden; line-height:1.65; }
+  .opr .q { align-self:flex-end; background:var(--inset); padding:7px 11px; border-radius:14px 14px 4px 14px; max-width:85%; }
+  .opr .trace { color:var(--ink3); font-size:11.5px; display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .opr .trace::before { content:"›"; font-size:14px; }
+  .opr .steps { font-family: ui-monospace, "JetBrains Mono", monospace; font-size:10.5px; color:var(--ink3); display:flex; flex-direction:column; gap:4px; padding:6px 10px; background:var(--inset); border-radius:10px; }
+  .opr .steps span::before { content:"✓  "; color:#12773d; }
+  .opr .src { color:var(--accent-t); font-weight:600; }
+  .opr .note { font-size:11px; color:var(--ink3); }
+</style>
+
+<h2>B · 沉浸阅读：问完之后的样子</h2>
+<p class="subtitle">论文为主；划选弹出操作；底部输入框提问；回答出现在右边「助手」标签里，过程默认折叠成一行，点开能看到读了哪几页、搜了什么。</p>
+
+<div class="mockup">
+  <div class="mockup-header">open-paper-reader · 阅读器</div>
+  <div class="mockup-body opr">
+    <div class="app">
+      <div class="rail"><i class="logo"></i><span class="on">▤</span><span>⌕</span><span>✦</span><span style="margin-top:auto;margin-bottom:8px">⚙</span></div>
+      <div class="card" style="flex:1.7">
+        <div class="head"><b>A-Mem: Agentic Memory for LLM Agents</b><span style="margin-left:auto" class="pill">‹ 3 / 28 ›</span><span class="pill">100%</span><span class="pill">原文 ⇄ 译文</span></div>
+        <div class="pdfwrap">
+          <div class="page">
+            <h4>A-Mem: Agentic Memory for LLM Agents</h4>
+            <div class="au">Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, Yongfeng Zhang</div>
+            <h5>1 Introduction</h5>
+            Large Language Model (LLM) agents have demonstrated remarkable capabilities in various tasks … Existing memory systems require agent developers to predefine memory storage structures … In this paper, we introduce a novel agentic memory system, named as A-MEM. <mark>Our approach draws inspiration from the Zettelkasten method, a sophisticated knowledge management system that creates interconnected information networks through atomic notes and flexible linking mechanisms.</mark> Our system introduces an agentic memory architecture that enables autonomous and flexible memory management for LLM agents …
+          </div>
+          <div class="sel"><span>解释</span><span>翻译</span><span>高亮</span><span>记到笔记</span><span>问助手</span></div>
+        </div>
+        <div class="composer"><span><span class="chip">第 3 页</span>问这一页、这段，或整篇论文…</span><i class="send"></i></div>
+      </div>
+      <div class="card" style="flex:1">
+        <div class="head"><div class="tabs"><span>导读</span><span class="on">助手</span><span>翻译</span><span>笔记</span></div><span class="pill" style="margin-left:auto">Pi · GPT-5</span></div>
+        <div class="panel">
+          <div class="q">A-MEM 和 Zettelkasten 到底像在哪？</div>
+          <div class="trace">读了 3 页 · 搜索 1 次 · 9 秒</div>
+          <div class="steps"><span>读取第 3 页</span><span>搜索 “Zettelkasten” · 4 处</span><span>读取第 4–5 页</span></div>
+          <div>像在两点：每条记忆都是一张带关键词和标签的「原子卡片」<span class="src"> p.3</span>；新卡片写入时，由模型决定和哪些旧卡片相连，而不是事先规定结构<span class="src"> p.4</span>。</div>
+          <div>不同在于它还会反过来更新旧卡片的描述（记忆演化）<span class="src"> p.5</span>，传统卡片盒不会。</div>
+          <div class="note">点页码跳到原文 · 复制 · 记到笔记</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="subtitle" style="margin-top:14px">示意图里「› 读了 3 页…」那一行是折叠状态，下面灰色块是展开后的样子。</p>
