@@ -64,7 +64,8 @@ test("keyboard focus shows it immediately and Escape hides it", async ({
 }) => {
   await openKit(page);
   // Arrive from the field above, by Tab, as a keyboard user does.
-  await page.getByLabel("Notes").focus();
+  // By role: a tab panel of the Segmented section is labelled "Notes" too.
+  await page.getByRole("textbox", { name: "Notes" }).focus();
   await page.keyboard.press("Tab");
   const first = section(page).getByRole("button", { name: "Add bookmark" });
   await expect(first).toBeFocused();

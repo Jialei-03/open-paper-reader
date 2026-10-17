@@ -1,0 +1,106 @@
+/*
+ * A pill with a raised thumb under the chosen item. The thumb is placed by script
+ * (it follows the item's measured box), so its motion is written here: it slides
+ * when the choice moves and jumps on the first place and on a resize.
+ */
+.control {
+  --segmented-item-md: 28px;
+  --segmented-item-sm: 24px;
+  --segmented-inset: calc(var(--ui-space-2) + 1px);
+  --segmented-item: var(--segmented-item-md);
+  --segmented-text: var(--ui-text-13);
+  position: relative;
+  /* Keeps the items above the thumb inside the control, whatever is around it. */
+  isolation: isolate;
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  padding: var(--segmented-inset);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-fill);
+}
+
+.sm {
+  --segmented-item: var(--segmented-item-sm);
+  --segmented-text: var(--ui-text-12);
+}
+
+/* The keyboard is always on the chosen item, so the ring goes round the whole pill. */
+.control:has(.item:focus-visible) {
+  box-shadow: var(--ui-focus-ring);
+}
+
+.thumb {
+  position: absolute;
+  top: var(--segmented-inset);
+  left: 0;
+  height: var(--segmented-item);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-1);
+  /* Under the labels, and out of the way of the pointer. */
+  pointer-events: none;
+  /* Until it has been placed. */
+  display: none;
+}
+
+.thumb[data-state] {
+  display: block;
+}
+
+.thumb[data-state="sliding"] {
+  transition:
+    transform var(--ui-dur-2) var(--ui-ease-out),
+    width var(--ui-dur-2) var(--ui-ease-out);
+}
+
+/* Shrinks with the control, so that a long label is cut instead of pushing the control out. */
+.item {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-6);
+  min-width: 0;
+  height: var(--segmented-item);
+  padding: 0 var(--ui-space-12);
+  border: 0;
+  border-radius: var(--ui-r-pill);
+  background: transparent;
+  color: var(--ui-fg-2);
+  font-size: var(--segmented-text);
+  font-weight: var(--ui-weight-regular);
+  cursor: pointer;
+  user-select: none;
+  /* The text changes color as the thumb arrives. */
+  transition: color var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.item svg {
+  flex-shrink: 0;
+}
+
+.item:hover {
+  color: var(--ui-fg);
+}
+
+.selected {
+  color: var(--ui-fg);
+}
+
+/* The ring is on the control (above): an item's own would run over the edge of the pill. */
+.item:focus-visible {
+  box-shadow: none;
+}
+
+/* One line, cut with an ellipsis when the item is narrower than its text. */
+.text {
+  min-width: 0;
+  overflow: hidden;
+  line-height: var(--ui-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

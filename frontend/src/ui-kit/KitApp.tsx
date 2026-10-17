@@ -1,16 +1,19 @@
 import {
   Archive,
   Bookmark,
+  BookOpen,
   Copy,
   Download,
   Info,
   Languages,
+  NotebookPen,
   Pencil,
   Plus,
   Search,
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  type LucideIcon,
 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { I18nProvider, useI18n } from "../i18n/I18nProvider";
@@ -22,6 +25,7 @@ import {
   Kbd,
   Menu,
   MenuList,
+  SegmentedControl,
   TextArea,
   TextField,
   parseAppearance,
@@ -481,6 +485,124 @@ function DialogDemo() {
   );
 }
 
+type Panel = "guide" | "assistant" | "translation" | "notes";
+
+const panels: {
+  value: Panel;
+  label: string;
+  icon: LucideIcon;
+  text: string;
+}[] = [
+  {
+    value: "guide",
+    label: "Guide",
+    icon: BookOpen,
+    text: "A short guide to the paper.",
+  },
+  {
+    value: "assistant",
+    label: "Assistant",
+    icon: Sparkles,
+    text: "Ask a question about the paper.",
+  },
+  {
+    value: "translation",
+    label: "Translation",
+    icon: Languages,
+    text: "The paper in your language.",
+  },
+  {
+    value: "notes",
+    label: "Notes",
+    icon: NotebookPen,
+    text: "Your notes on the paper.",
+  },
+];
+
+function SegmentedDemo() {
+  const [panel, setPanel] = useState<Panel>("guide");
+  const [theme, setTheme] = useState<"dark" | "light" | "system">("dark");
+  const [fit, setFit] = useState<"width" | "page" | "actual">("width");
+  const [narrow, setNarrow] = useState<"first" | "second" | "third">("first");
+  return (
+    <Section id="segmented" title="Segmented">
+      <h3 className={styles.groupTitle}>Tabs</h3>
+      <div className={styles.row}>
+        <SegmentedControl
+          kind="tabs"
+          label="Reading panels"
+          options={panels.map(({ value, label, icon }) => ({
+            value,
+            label,
+            icon,
+            panelId: `kit-panel-${value}`,
+          }))}
+          value={panel}
+          onChange={setPanel}
+        />
+        <Button onClick={() => setPanel("guide")}>Show Guide</Button>
+      </div>
+      {panels.map(({ value, label, text }) => (
+        <div
+          key={value}
+          role="tabpanel"
+          id={`kit-panel-${value}`}
+          aria-labelledby={`kit-panel-${value}-tab`}
+          hidden={panel !== value}
+        >
+          <p>
+            {label}: {text}
+          </p>
+        </div>
+      ))}
+      <h3 className={styles.groupTitle}>Radio</h3>
+      <div className={styles.row}>
+        <SegmentedControl
+          kind="radio"
+          label="Theme"
+          options={[
+            { value: "dark", label: "Dark" },
+            { value: "light", label: "Light" },
+            { value: "system", label: "System" },
+          ]}
+          value={theme}
+          onChange={setTheme}
+        />
+        <p>
+          Chosen: <output>{theme}</output>
+        </p>
+      </div>
+      <h3 className={styles.groupTitle}>Small</h3>
+      <SegmentedControl
+        kind="radio"
+        size="sm"
+        label="Page fit"
+        options={[
+          { value: "width", label: "Fit width" },
+          { value: "page", label: "Fit page" },
+          { value: "actual", label: "Actual size" },
+        ]}
+        value={fit}
+        onChange={setFit}
+      />
+      <h3 className={styles.groupTitle}>Long labels</h3>
+      <div className={styles.narrow}>
+        <SegmentedControl
+          kind="radio"
+          label="Narrow"
+          options={[
+            { value: "first", label: "A remarkably long label" },
+            { value: "second", label: "Another one that is long" },
+            { value: "third", label: "And a third" },
+          ]}
+          value={narrow}
+          onChange={setNarrow}
+        />
+      </div>
+    </Section>
+  );
+}
+
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
@@ -518,6 +640,7 @@ function Kit() {
         <TooltipDemo />
         <MenuDemo />
         <DialogDemo />
+        <SegmentedDemo />
       </main>
     </div>
   );

@@ -27,6 +27,11 @@ export {
   type MenuTriggerProps,
 } from "./Menu";
 export {
+  SegmentedControl,
+  type SegmentedControlProps,
+  type SegmentedOption,
+} from "./SegmentedControl";
+export {
   placeFloating,
   type Align,
   type Placement,
