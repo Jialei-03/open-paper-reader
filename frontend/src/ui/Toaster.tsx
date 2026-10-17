@@ -6,12 +6,13 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type MouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "../i18n/I18nProvider";
 import { Button } from "./Button";
 import { IconButton } from "./IconButton";
-import { subscribeModals, topModal } from "./modal-stack";
+import { focusStart, subscribeModals, topModal } from "./modal-stack";
 import styles from "./Toaster.module.css";
 import {
   createToastStore,
@@ -90,10 +91,22 @@ function useCountdowns(items: ToastItem[], paused: boolean) {
   }, []);
 }
 
-function Toast({ item }: { item: ToastItem }) {
+function Toast({
+  item,
+  onKeyboardDone,
+}: {
+  item: ToastItem;
+  /** The toast was dismissed, or its action chosen, by the keyboard: its button had the focus. */
+  onKeyboardDone: (id: string) => void;
+}) {
   const { t } = useI18n();
   const Icon = icons[item.tone];
   const { action } = item;
+  // A press of Enter or Space on a button is a click with no detail; a pointer's has at least one.
+  const done = (event: MouseEvent) => {
+    if (event.detail === 0) onKeyboardDone(item.id);
+    store.dismiss(item.id);
+  };
   return (
     <div
       className={clsx(styles.toast, item.description && styles.detailed)}
@@ -117,9 +130,9 @@ function Toast({ item }: { item: ToastItem }) {
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => {
+            onClick={(event) => {
               action.onClick();
-              store.dismiss(item.id);
+              done(event);
             }}
           >
             {action.label}
@@ -129,7 +142,7 @@ function Toast({ item }: { item: ToastItem }) {
           icon={X}
           label={t("common.dismiss")}
           size="sm"
-          onClick={() => store.dismiss(item.id)}
+          onClick={done}
         />
       </div>
     </div>
@@ -151,7 +164,9 @@ export function Toaster() {
   const items = useSyncExternalStore(store.subscribe, store.list, store.list);
   const host = useSyncExternalStore(subscribeModals, topModal, () => null);
   const container = useRef<HTMLDivElement>(null);
-  const shown = useRef(new Set<string>());
+  // The ids on show at the last commit, in order; and the toast that was just dismissed from the keyboard.
+  const shown = useRef<string[]>([]);
+  const keyboardDone = useRef<string | null>(null);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
 
@@ -166,26 +181,47 @@ export function Toaster() {
   useLayoutEffect(() => {
     const element = container.current;
     if (!element) return;
+    const ids = items.map((item) => item.id);
+    const before = shown.current;
+    shown.current = ids;
     const open = element.matches(":popover-open");
-    if (items.length === 0) {
+    if (ids.length === 0) {
       if (open) element.hidePopover();
-      shown.current.clear();
       setHovered(false);
-    } else {
-      const fresh = items.some((item) => !shown.current.has(item.id));
-      shown.current = new Set(items.map((item) => item.id));
-      if (!open) {
-        element.showPopover();
-      } else if (fresh) {
-        // Hiding and showing again puts it last in the top layer: above anything shown since.
-        const active = document.activeElement;
-        element.hidePopover();
-        element.showPopover();
-        if (active instanceof HTMLElement && element.contains(active))
-          active.focus({ preventScroll: true });
-      }
+    } else if (!open) {
+      element.showPopover();
+    } else if (ids.some((id) => !before.includes(id))) {
+      // Hiding and showing again puts it last in the top layer: above anything shown since.
+      const active = document.activeElement;
+      element.hidePopover();
+      element.showPopover();
+      if (active instanceof HTMLElement && element.contains(active))
+        active.focus({ preventScroll: true });
     }
-    // A button that was dismissed while it had the focus takes it away without a blur.
+
+    // The button that was pressed went with its toast, and the focus with it: it goes on to the
+    // toast after that one (the one before it, if it was the last), else back into the dialog the
+    // stack is in. Anywhere else the focus is left alone: that is where the browser puts it, or
+    // where the action sent it.
+    const done = keyboardDone.current;
+    keyboardDone.current = null;
+    const active = document.activeElement;
+    if (done && !ids.includes(done) && (!active || active === document.body)) {
+      const at = before.indexOf(done);
+      const next =
+        before.slice(at + 1).find((id) => ids.includes(id)) ??
+        before
+          .slice(0, at)
+          .reverse()
+          .find((id) => ids.includes(id));
+      const button =
+        next !== undefined
+          ? element.children[ids.indexOf(next)]?.querySelector("button")
+          : null;
+      if (button) button.focus();
+      else if (host) focusStart(host);
+    }
+    // A button that is gone takes the focus away, and not every browser says so with a blur.
     setFocused(element.contains(document.activeElement));
   }, [items, host]);
 
@@ -206,7 +242,11 @@ export function Toaster() {
       }}
     >
       {items.map((item) => (
-        <Toast key={item.id} item={item} />
+        <Toast
+          key={item.id}
+          item={item}
+          onKeyboardDone={(id) => (keyboardDone.current = id)}
+        />
       ))}
     </div>
   );

@@ -95,9 +95,8 @@ function tabbables(root: HTMLElement): HTMLElement[] {
  * element Tab goes on to its own interface (or to nothing): here it comes round
  * to the first, and Shift+Tab from the first goes to the last.
  */
-function keepTabInside(event: KeyboardEvent<HTMLDialogElement>) {
+function keepTabInside(event: globalThis.KeyboardEvent, dialog: HTMLElement) {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
-  const dialog = event.currentTarget;
   const items = tabbables(dialog);
   const first = items.at(0);
   const last = items.at(-1);
@@ -153,14 +152,25 @@ export function Dialog({
     // The browser's own choice is the first thing that can be focused, the close button: it is only
     // the last resort here, and a keyboard focus on it would also show its tooltip, which takes the first Escape.
     if (!dialog.open) dialog.showModal();
-    (
+    const startingPoint = () =>
       latest.current.initialFocus?.current ??
       dialog.querySelector<HTMLElement>("[data-autofocus]") ??
       (body.current && tabbables(body.current)[0]) ??
-      (footerElement.current && tabbables(footerElement.current)[0])
-    )?.focus();
+      (footerElement.current && tabbables(footerElement.current)[0]);
+    startingPoint()?.focus();
     const unlock = lockPageScroll();
-    const leaveModals = enterModal(dialog);
+    // A layer inside it (the toasts) that gives the focus up sends it back to where the dialog starts.
+    const leaveModals = enterModal(dialog, () =>
+      (startingPoint() ?? tabbables(dialog)[0])?.focus(),
+    );
+
+    // On the dialog itself, not through React: the toasts are in it but not in its React tree, and
+    // a keydown on their buttons has to come round too.
+    const onTab = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Tab" && !event.isComposing)
+        keepTabInside(event, dialog);
+    };
+    dialog.addEventListener("keydown", onTab);
 
     // On the document and ahead of any layer that opens inside the dialog, so it sees the press
     // before a menu closes on it: that press is for the menu, not for the backdrop. A tooltip is not
@@ -177,6 +187,7 @@ export function Dialog({
 
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true);
+      dialog.removeEventListener("keydown", onTab);
       unlock();
       leaveModals();
       if (dialog.open) dialog.close();
@@ -195,10 +206,6 @@ export function Dialog({
 
   const onKeyDown = (event: KeyboardEvent<HTMLDialogElement>) => {
     if (event.nativeEvent.isComposing) return;
-    if (event.key === "Tab") {
-      keepTabInside(event);
-      return;
-    }
     if (event.key !== "Escape" || event.defaultPrevented) return;
     // Taken here rather than left to the browser, which may close a dialog that
     // refused a cancel on the next Escape; and a dialog around this one does not get it.

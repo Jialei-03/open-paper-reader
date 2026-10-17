@@ -64,9 +64,11 @@ export function createToastStore(): ToastStore {
 
       let next = [...items, item];
       if (next.length > MAX_TOASTS) {
-        // Room is made from what came before: the one just added is what the user is waiting to see.
-        const older = next.slice(0, -1);
-        const dropped = older.find((i) => i.tone !== "error") ?? older[0];
+        // Errors are kept: the oldest toast that is not one goes, and that can be the newcomer
+        // itself. Only a list of nothing but errors loses its oldest.
+        const dropped = next.find((i) => i.tone !== "error") ?? next[0];
+        // The newcomer was the one to go: nothing changes, and there is nothing to tell.
+        if (dropped === item) return item.id;
         next = next.filter((i) => i !== dropped);
       }
       set(next);

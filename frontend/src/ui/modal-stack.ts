@@ -4,7 +4,13 @@
 // the top layer above it included. A layer that has to stay usable over a dialog
 // (the toasts) has to live inside it, and this is where it finds which one.
 
-const open: HTMLElement[] = [];
+interface Modal {
+  dialog: HTMLElement;
+  /** Puts the focus where the dialog would have it on opening. */
+  focusStart(): void;
+}
+
+const open: Modal[] = [];
 const listeners = new Set<() => void>();
 
 function notify() {
@@ -12,11 +18,15 @@ function notify() {
 }
 
 /** Records a dialog that has just been shown modally; the returned function takes it off again. */
-export function enterModal(dialog: HTMLElement): () => void {
-  open.push(dialog);
+export function enterModal(
+  dialog: HTMLElement,
+  focusStart: () => void,
+): () => void {
+  const modal = { dialog, focusStart };
+  open.push(modal);
   notify();
   return () => {
-    const index = open.indexOf(dialog);
+    const index = open.indexOf(modal);
     if (index < 0) return;
     open.splice(index, 1);
     notify();
@@ -25,7 +35,12 @@ export function enterModal(dialog: HTMLElement): () => void {
 
 /** The dialog that is on top, or null when none is open. */
 export function topModal(): HTMLElement | null {
-  return open.at(-1) ?? null;
+  return open.at(-1)?.dialog ?? null;
+}
+
+/** Brings the focus back into an open dialog, to where it starts: for a layer in it that took the focus with it. */
+export function focusStart(dialog: HTMLElement): void {
+  open.find((modal) => modal.dialog === dialog)?.focusStart();
 }
 
 export function subscribeModals(listener: () => void): () => void {

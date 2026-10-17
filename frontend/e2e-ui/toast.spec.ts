@@ -143,18 +143,54 @@ test("the focus inside holds the countdown, and leaving it lets it go on", async
   await expect(copied(page)).toHaveCount(0);
 });
 
-test("a toast dismissed from the keyboard does not leave the others held", async ({
+test("a toast dismissed with the pointer does not leave the others held", async ({
   page,
 }) => {
   await opener(page, "Show info").click();
   await opener(page, "Show error").click();
   await expect(failed(page)).toBeVisible();
+  await dismiss(failed(page)).click();
+  await expect(failed(page)).toHaveCount(0);
+  await page.mouse.move(0, 0);
+  // The button that was pressed is gone and the focus did not go anywhere in the stack: nothing holds the countdown.
+  expect(
+    await page.evaluate(
+      () => !!document.activeElement?.closest("[data-toaster]"),
+    ),
+  ).toBe(false);
+  await page.clock.runFor(5100);
+  await expect(copied(page)).toHaveCount(0);
+});
+
+test("a toast dismissed from the keyboard hands the focus to the next one", async ({
+  page,
+}) => {
+  await opener(page, "Show error").click();
+  await opener(page, "Show info").click();
+  await expect(copied(page)).toBeVisible();
   await focusWithKeyboard(page, dismiss(failed(page)));
   await page.keyboard.press("Enter");
   await expect(failed(page)).toHaveCount(0);
-  // The button that had the focus is gone with it: nothing holds the countdown now.
-  await page.clock.runFor(5100);
+  await expect(dismiss(status(page))).toBeFocused();
+
+  // It has the focus, so it is held; and the last one gives it to what is left before it.
+  await page.clock.runFor(10000);
+  await expect(copied(page)).toBeVisible();
+  await page.keyboard.press("Enter");
   await expect(copied(page)).toHaveCount(0);
+});
+
+test("the last toast dismissed from the keyboard leaves the focus where the browser puts it", async ({
+  page,
+}) => {
+  await opener(page, "Show info").click();
+  await expect(copied(page)).toBeVisible();
+  await focusWithKeyboard(page, dismiss(status(page)));
+  await page.keyboard.press("Enter");
+  await expect(copied(page)).toHaveCount(0);
+  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe(
+    "BODY",
+  );
 });
 
 test("the same toast is not stacked twice", async ({ page }) => {
@@ -399,4 +435,64 @@ test("with dialogs on top of each other the toast is in the one on top", async (
   await locked.getByRole("button", { name: "Keep editing" }).click();
   await expect(locked).toBeHidden();
   await expect(wide.locator("[data-toaster]")).toBeVisible();
+});
+
+test("Tab and Shift+Tab wrap round a dialog that has a toast in it", async ({
+  page,
+}) => {
+  await opener(page, "Show error").click();
+  await dialogOpener(page, "Open dialog").click();
+  await expect(rename(page).locator("[data-toaster]")).toBeVisible();
+
+  // The toast's buttons come last in the dialog: Tab goes on to the first, and Shift+Tab back to the last.
+  const close = rename(page).getByRole("button", { name: "Close" });
+  const last = dismiss(failed(page));
+  await last.focus();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(last).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+});
+
+test("a toast dismissed from the keyboard in a dialog leaves the focus in the dialog", async ({
+  page,
+}) => {
+  await opener(page, "Show error").click();
+  await opener(page, "Show info").click();
+  await expect(copied(page)).toBeVisible();
+  await dialogOpener(page, "Open dialog").click();
+  await expect(rename(page)).toBeVisible();
+  const field = rename(page).getByRole("textbox", { name: "Name" });
+
+  await focusWithKeyboard(page, dismiss(failed(page)));
+  await page.keyboard.press("Enter");
+  await expect(failed(page)).toHaveCount(0);
+  // The next toast first...
+  await expect(dismiss(status(page))).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(copied(page)).toHaveCount(0);
+  // ...then, with none left, back into the dialog where it starts, not out on the page.
+  await expect(field).toBeFocused();
+  await expect(rename(page)).toBeVisible();
+});
+
+test("an action chosen from the keyboard in a dialog leaves the focus in the dialog too", async ({
+  page,
+}) => {
+  await opener(page, "Show error").click();
+  await dialogOpener(page, "Open dialog").click();
+  await expect(rename(page)).toBeVisible();
+  const retry = failed(page).getByRole("button", {
+    name: "Retry",
+    exact: true,
+  });
+  await focusWithKeyboard(page, retry);
+  await page.keyboard.press("Enter");
+  await expect(retried(page)).toHaveText("Retried");
+  await expect(failed(page)).toHaveCount(0);
+  await expect(
+    rename(page).getByRole("textbox", { name: "Name" }),
+  ).toBeFocused();
 });

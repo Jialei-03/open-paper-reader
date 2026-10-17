@@ -46,12 +46,31 @@ describe("createToastStore", () => {
     expect(s.list().map((t) => t.message)).toEqual(["e2", "e3", "e4"]);
   });
 
-  it("makes room for a newcomer from what came before, even when that is only errors", () => {
+  it("keeps errors over a newcomer that is not one, and drops the oldest error for one that is", () => {
     const s = createToastStore();
     for (const message of ["e1", "e2", "e3"]) s.add({ message, tone: "error" });
-    const id = s.add({ message: "Copied" });
-    expect(s.list().map((t) => t.message)).toEqual(["e2", "e3", "Copied"]);
-    expect(s.list().at(-1)?.id).toBe(id);
+    const before = s.list();
+    const listener = vi.fn();
+    s.subscribe(listener);
+    // Every toast showing is an error: the info toast is the one that does not fit.
+    const id = s.add({ message: "i1" });
+    expect(typeof id).toBe("string");
+    expect(s.list().map((t) => t.message)).toEqual(["e1", "e2", "e3"]);
+    expect(s.list()).toBe(before);
+    expect(listener).not.toHaveBeenCalled();
+    // An error as the newcomer: all of them are errors, so the oldest goes.
+    s.add({ message: "e4", tone: "error" });
+    expect(s.list().map((t) => t.message)).toEqual(["e2", "e3", "e4"]);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops the oldest non-error before any error, newcomer or not", () => {
+    const s = createToastStore();
+    s.add({ message: "e1", tone: "error" });
+    s.add({ message: "i1" });
+    s.add({ message: "i2" });
+    s.add({ message: "e2", tone: "error" });
+    expect(s.list().map((t) => t.message)).toEqual(["e1", "i2", "e2"]);
   });
 
   it("does not stack duplicates", () => {
