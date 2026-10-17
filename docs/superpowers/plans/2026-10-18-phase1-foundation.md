@@ -21,6 +21,7 @@
 - 字体随包发布（`@fontsource-variable/*`），不连外网字体服务；宋体不随包，只用系统字体。
 - 旧界面在本阶段外观和行为不变：现有 `frontend/e2e/` 整套必须照常通过。
 - 提交作者用仓库配置的 Jialei 身份，提交说明里不加 Co-Authored-By；改动走分支和 PR，CI 全绿后 squash 合并。
+- 提交时只 `git add` 本任务列出的文件，不用 `git add -A` / `git add .`。
 - 借用 claude-web（MIT，Copyright (c) 2026 ypyik0669）的令牌结构和取值，要在 `NOTICE.md` 注明并附许可证原文。
 
 ## Review Focus
@@ -273,7 +274,7 @@ Run: `npm --prefix frontend run test:unit` → PASS；`npm --prefix frontend run
 - [ ] **Step 10: Commit**
 
 ```bash
-git add frontend .github/workflows/verify.yml NOTICE.md docs/licenses
+git add frontend/package.json frontend/package-lock.json frontend/vite.config.ts frontend/ui-kit.html frontend/playwright.ui.config.ts frontend/e2e-ui frontend/src/ui frontend/src/ui-kit frontend/src/components/Appearance.tsx frontend/scripts/copy-docs.mjs .github/workflows/verify.yml NOTICE.md docs/licenses
 git commit -m "新界面的设计令牌、主题和组件演示页"
 ```
 
