@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
+import { I18nProvider, useI18n } from "../i18n/I18nProvider";
+import { isLocale } from "../i18n/i18n";
 import { parseAppearance, useAppearance } from "../ui";
 import styles from "./KitApp.module.css";
 
-// The kit's own text is not localized: it is a developer page, not the product.
-type KitLocale = "zh" | "en";
+// The kit's own chrome (headings, labels) is not localized: it is a developer
+// page, not the product. Only the demos of localized components are.
 
 /** One component's demo. Each task adds its own <Section> to KitApp. */
 function Section({
@@ -124,12 +126,19 @@ function Tokens() {
   );
 }
 
-export function KitApp() {
+function I18nDemo() {
+  const { tn } = useI18n();
+  return (
+    <Section id="i18n" title="I18n">
+      <p>{tn("kit.sample.pages", 1)}</p>
+      <p>{tn("kit.sample.pages", 3)}</p>
+    </Section>
+  );
+}
+
+function Kit() {
   const { mode, setMode } = useAppearance();
-  const [locale, setLocale] = useState<KitLocale>("zh");
-  useEffect(() => {
-    document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
-  }, [locale]);
+  const { locale, setLocale } = useI18n();
   return (
     <div className={styles.kit}>
       <header className={styles.toolbar}>
@@ -148,7 +157,9 @@ export function KitApp() {
           className={styles.select}
           aria-label="Kit locale"
           value={locale}
-          onChange={(event) => setLocale(event.target.value as KitLocale)}
+          onChange={(event) => {
+            if (isLocale(event.target.value)) setLocale(event.target.value);
+          }}
         >
           <option value="zh">中文</option>
           <option value="en">English</option>
@@ -156,7 +167,16 @@ export function KitApp() {
       </header>
       <main className={styles.main}>
         <Tokens />
+        <I18nDemo />
       </main>
     </div>
+  );
+}
+
+export function KitApp() {
+  return (
+    <I18nProvider>
+      <Kit />
+    </I18nProvider>
   );
 }
