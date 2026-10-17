@@ -17,6 +17,7 @@ export { Spinner } from "./Spinner";
 export { Kbd } from "./Kbd";
 export { Floating, type DismissReason, type FloatingProps } from "./Floating";
 export { Tooltip, type TooltipProps } from "./Tooltip";
+export { Dialog, type DialogProps } from "./Dialog";
 export {
   Menu,
   MenuList,

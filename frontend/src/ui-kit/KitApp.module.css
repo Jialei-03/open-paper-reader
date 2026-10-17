@@ -133,3 +133,9 @@
   right: var(--kit-corner-gap);
   bottom: var(--kit-corner-gap);
 }
+
+/* The content of a dialog: its parts one under another. */
+.stack {
+  display: grid;
+  gap: var(--ui-space-12);
+}

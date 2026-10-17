@@ -425,3 +425,29 @@ test("a horizontal list moves with the left and right arrows", async ({
   expect(b.left).toBeGreaterThanOrEqual(a.right);
   expect(Math.abs(a.top - b.top)).toBeLessThanOrEqual(1);
 });
+
+test("menu inside dialog: Escape closes the menu first", async ({ page }) => {
+  await openKit(page);
+  await page
+    .getByRole("region", { name: "Dialog", exact: true })
+    .getByRole("button", { name: "Open dialog", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Rename paper" });
+  await expect(dialog).toBeVisible();
+  const trigger = dialog.getByRole("button", { name: "More" });
+  await trigger.click();
+  await expect(menu(page)).toBeVisible();
+  await expect(item(page, "Rename")).toBeFocused();
+
+  // The first Escape is the menu's: the dialog stays, and the focus goes back to the button in it.
+  await page.keyboard.press("Escape");
+  await expect(menu(page)).toHaveCount(0);
+  // Not yet on its way out either: a dialog that is closing still looks visible, so wait out its exit.
+  await page.waitForTimeout(300);
+  await expect(dialog).toHaveJSProperty("open", true);
+  await expect(trigger).toBeFocused();
+
+  // The second one is the dialog's.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});

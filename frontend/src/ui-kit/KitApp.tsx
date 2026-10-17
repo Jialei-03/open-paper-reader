@@ -12,11 +12,12 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { I18nProvider, useI18n } from "../i18n/I18nProvider";
 import { isLocale } from "../i18n/i18n";
 import {
   Button,
+  Dialog,
   IconButton,
   Kbd,
   Menu,
@@ -301,10 +302,9 @@ function TooltipDemo() {
   );
 }
 
-function MenuDemo() {
-  const [selected, setSelected] = useState<string | null>(null);
-  const pick = (label: string) => () => setSelected(label);
-  const actions: MenuEntry[] = [
+/** The menu of one item's actions; the Menu section and the Dialog section both show it. */
+function itemActions(pick: (label: string) => () => void): MenuEntry[] {
+  return [
     {
       id: "rename",
       label: "Rename",
@@ -334,6 +334,12 @@ function MenuDemo() {
       onSelect: pick("Delete"),
     },
   ];
+}
+
+function MenuDemo() {
+  const [selected, setSelected] = useState<string | null>(null);
+  const pick = (label: string) => () => setSelected(label);
+  const actions = itemActions(pick);
   // The row of actions a later phase puts over a selection of text; here it just sits on the page.
   const onSelection: MenuEntry[] = [
     {
@@ -376,6 +382,105 @@ function MenuDemo() {
   );
 }
 
+function DialogDemo() {
+  const [renaming, setRenaming] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const actions = itemActions((label) => () => setSelected(label));
+  return (
+    <Section id="dialog" title="Dialog">
+      <div className={styles.row}>
+        <Button onClick={() => setRenaming(true)}>Open dialog</Button>
+        <Button onClick={() => setDiscarding(true)}>Open locked dialog</Button>
+        <Button onClick={() => setEditing(true)}>Open wide dialog</Button>
+      </div>
+
+      <Dialog
+        open={renaming}
+        onClose={() => setRenaming(false)}
+        title="Rename paper"
+        description="The new name appears in your library."
+        footer={
+          <>
+            <Button onClick={() => setRenaming(false)}>Cancel</Button>
+            <Button variant="primary" onClick={() => setRenaming(false)}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <div className={styles.stack}>
+          <TextField
+            label="Name"
+            data-autofocus
+            defaultValue="Attention is all you need"
+          />
+          <div className={styles.row}>
+            <Menu
+              label="Item actions"
+              items={actions}
+              trigger={(props) => <Button {...props}>More</Button>}
+            />
+            <p>Selected: {selected ?? "none"}</p>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Not dismissible, and the focus starts on the safe choice. */}
+      <Dialog
+        open={discarding}
+        onClose={() => setDiscarding(false)}
+        title="Discard changes?"
+        description="Your edits to this paper will be lost."
+        size="sm"
+        dismissible={false}
+        initialFocus={keep}
+        footer={
+          <>
+            <Button ref={keep} onClick={() => setDiscarding(false)}>
+              Keep editing
+            </Button>
+            <Button variant="danger" onClick={() => setDiscarding(false)}>
+              Discard
+            </Button>
+          </>
+        }
+      >
+        <p>
+          Closing this dialog is a choice: Escape and the backdrop do nothing.
+        </p>
+      </Dialog>
+
+      {/* No description and nothing marked for the focus; and a dialog opens another on top. */}
+      <Dialog
+        open={editing}
+        onClose={() => setEditing(false)}
+        title="Paper details"
+        size="lg"
+        footer={
+          <>
+            <Button onClick={() => setEditing(false)}>Cancel</Button>
+            <Button variant="primary" onClick={() => setEditing(false)}>
+              Save
+            </Button>
+          </>
+        }
+      >
+        <div className={styles.stack}>
+          <TextArea label="Summary" autoGrow placeholder="What is it about" />
+          <div className={styles.row}>
+            <Button variant="danger" onClick={() => setDiscarding(true)}>
+              Discard changes
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    </Section>
+  );
+}
+
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
@@ -412,6 +517,7 @@ function Kit() {
         <FieldDemo />
         <TooltipDemo />
         <MenuDemo />
+        <DialogDemo />
       </main>
     </div>
   );
