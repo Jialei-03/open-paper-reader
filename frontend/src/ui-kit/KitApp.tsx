@@ -1,10 +1,15 @@
 import {
+  Archive,
   Bookmark,
+  Copy,
   Download,
   Info,
+  Languages,
+  Pencil,
   Plus,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -14,11 +19,14 @@ import {
   Button,
   IconButton,
   Kbd,
+  Menu,
+  MenuList,
   TextArea,
   TextField,
   parseAppearance,
   useAppearance,
   type ButtonVariant,
+  type MenuEntry,
 } from "../ui";
 import styles from "./KitApp.module.css";
 
@@ -293,6 +301,81 @@ function TooltipDemo() {
   );
 }
 
+function MenuDemo() {
+  const [selected, setSelected] = useState<string | null>(null);
+  const pick = (label: string) => () => setSelected(label);
+  const actions: MenuEntry[] = [
+    {
+      id: "rename",
+      label: "Rename",
+      icon: Pencil,
+      shortcut: "r",
+      onSelect: pick("Rename"),
+    },
+    {
+      id: "duplicate",
+      label: "Duplicate",
+      icon: Copy,
+      onSelect: pick("Duplicate"),
+    },
+    {
+      id: "archive",
+      label: "Archive",
+      icon: Archive,
+      disabled: true,
+      onSelect: pick("Archive"),
+    },
+    { kind: "separator", id: "separator" },
+    {
+      id: "delete",
+      label: "Delete",
+      icon: Trash2,
+      danger: true,
+      onSelect: pick("Delete"),
+    },
+  ];
+  // The row of actions a later phase puts over a selection of text; here it just sits on the page.
+  const onSelection: MenuEntry[] = [
+    {
+      id: "explain",
+      label: "Explain",
+      icon: Sparkles,
+      onSelect: pick("Explain"),
+    },
+    {
+      id: "translate",
+      label: "Translate",
+      icon: Languages,
+      disabled: true,
+      onSelect: pick("Translate"),
+    },
+    { id: "copy", label: "Copy", icon: Copy, onSelect: pick("Copy") },
+  ];
+  return (
+    <Section id="menu" title="Menu">
+      <div className={styles.row}>
+        <Menu
+          label="Item actions"
+          items={actions}
+          trigger={(props) => <Button {...props}>More</Button>}
+        />
+        <Button onClick={() => setSelected(null)}>Clear</Button>
+        <p>Selected: {selected ?? "none"}</p>
+      </div>
+      <h3 className={styles.groupTitle}>Horizontal list</h3>
+      <div className={styles.fit}>
+        <MenuList
+          label="Selection actions"
+          items={onSelection}
+          orientation="horizontal"
+          autoFocus="none"
+          onClose={() => undefined}
+        />
+      </div>
+    </Section>
+  );
+}
+
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
@@ -328,6 +411,7 @@ function Kit() {
         <ButtonDemo />
         <FieldDemo />
         <TooltipDemo />
+        <MenuDemo />
       </main>
     </div>
   );

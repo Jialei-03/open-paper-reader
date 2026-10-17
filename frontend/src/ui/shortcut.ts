@@ -61,6 +61,31 @@ export function formatShortcut(spec: string, mac: boolean): string {
     .join("+");
 }
 
+/**
+ * The shortcut as `aria-keyshortcuts` writes it (`Control+K`, `Meta+Shift+Enter`):
+ * the modifiers by their key names, `Enter` and `Escape` spelled out, and the
+ * plus sign as `Plus`, since "+" joins the keys.
+ */
+export function ariaKeyShortcuts(spec: string, mac: boolean): string {
+  const parsed = parse(spec);
+  const key =
+    parsed.key === "enter"
+      ? "Enter"
+      : parsed.key === "escape"
+        ? "Escape"
+        : parsed.key === "+"
+          ? "Plus"
+          : parsed.key;
+  return [
+    parsed.mod && (mac ? "Meta" : "Control"),
+    parsed.alt && "Alt",
+    parsed.shift && "Shift",
+    key,
+  ]
+    .filter(Boolean)
+    .join("+");
+}
+
 /** Whether a key event is this shortcut. The modifiers must match exactly: an extra one does not count. */
 export function matchesShortcut(
   event: Pick<

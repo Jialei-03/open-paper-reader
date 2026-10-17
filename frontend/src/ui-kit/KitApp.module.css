@@ -115,6 +115,12 @@
   box-shadow: var(--ui-elev-1);
 }
 
+/* A list that is as wide as its items, with room for its shadow. */
+.fit {
+  width: fit-content;
+  padding: var(--ui-space-4);
+}
+
 .fields {
   display: grid;
   gap: var(--ui-space-16);

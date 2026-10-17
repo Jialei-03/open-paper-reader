@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatShortcut, isMacPlatform, matchesShortcut } from "./shortcut";
+import {
+  ariaKeyShortcuts,
+  formatShortcut,
+  isMacPlatform,
+  matchesShortcut,
+} from "./shortcut";
 
 type Mods = Partial<
   Record<"metaKey" | "ctrlKey" | "shiftKey" | "altKey", boolean>
@@ -60,6 +65,24 @@ describe("formatShortcut", () => {
   });
   it("accepts an upper-case spec", () => {
     expect(formatShortcut("Mod+K", false)).toBe("Ctrl+K");
+  });
+});
+
+describe("ariaKeyShortcuts", () => {
+  it("writes the keys the way aria-keyshortcuts does", () => {
+    expect(ariaKeyShortcuts("r", false)).toBe("r");
+    expect(ariaKeyShortcuts("mod+k", true)).toBe("Meta+k");
+    expect(ariaKeyShortcuts("mod+k", false)).toBe("Control+k");
+    expect(ariaKeyShortcuts("shift+enter", false)).toBe("Shift+Enter");
+    expect(ariaKeyShortcuts("escape", true)).toBe("Escape");
+    expect(ariaKeyShortcuts("alt+mod+shift+k", true)).toBe("Meta+Alt+Shift+k");
+    expect(ariaKeyShortcuts("Mod+K", false)).toBe("Control+k");
+  });
+  it("keeps symbols and spells the plus sign out", () => {
+    expect(ariaKeyShortcuts("mod+\\", false)).toBe("Control+\\");
+    expect(ariaKeyShortcuts("/", true)).toBe("/");
+    expect(ariaKeyShortcuts("mod++", false)).toBe("Control+Plus");
+    expect(ariaKeyShortcuts("+", true)).toBe("Plus");
   });
 });
 

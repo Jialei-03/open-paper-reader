@@ -18,6 +18,14 @@ export { Kbd } from "./Kbd";
 export { Floating, type DismissReason, type FloatingProps } from "./Floating";
 export { Tooltip, type TooltipProps } from "./Tooltip";
 export {
+  Menu,
+  MenuList,
+  type MenuEntry,
+  type MenuListProps,
+  type MenuProps,
+  type MenuTriggerProps,
+} from "./Menu";
+export {
   placeFloating,
   type Align,
   type Placement,
