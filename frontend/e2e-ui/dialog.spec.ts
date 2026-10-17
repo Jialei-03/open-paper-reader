@@ -143,7 +143,27 @@ test("focus starts inside and returns to the opener", async ({ page }) => {
   await expect(opener(page, "Open dialog")).toBeFocused();
 });
 
-test("initial focus: initialFocus, else data-autofocus, else the first focusable", async ({
+const summary = (page: Page) =>
+  wide(page).getByRole("textbox", { name: "Summary" });
+
+/** Take the named controls of the wide dialog out of reach (it is closed, and React leaves the attribute alone). */
+const disableInWide = (page: Page, texts: string[]) =>
+  page.evaluate((names) => {
+    const dialog = [...document.querySelectorAll("dialog")].find((element) =>
+      element.textContent?.includes("Paper details"),
+    )!;
+    for (const control of dialog.querySelectorAll<
+      HTMLButtonElement | HTMLTextAreaElement
+    >("textarea, button")) {
+      const name =
+        control instanceof HTMLTextAreaElement
+          ? "textarea"
+          : control.textContent;
+      if (names.includes(name ?? "")) control.disabled = true;
+    }
+  }, texts);
+
+test("initial focus: initialFocus, else data-autofocus, else the first control of the body", async ({
   page,
 }) => {
   await openKit(page, { locale: "en" });
@@ -155,7 +175,42 @@ test("initial focus: initialFocus, else data-autofocus, else the first focusable
   await locked(page).getByRole("button", { name: "Keep editing" }).click();
   await expect(locked(page)).toBeHidden();
 
-  // Neither given: the first thing the browser can focus, which is the close button.
+  // Neither given: the first control in the body, not the close button that comes before it.
+  await opener(page, "Open wide dialog").click();
+  await expect(summary(page)).toBeFocused();
+});
+
+test("with nothing marked, a dialog opened by keyboard starts on its first control and one Escape closes it", async ({
+  page,
+}) => {
+  await openKit(page, { locale: "en" });
+  await opener(page, "Open wide dialog").focus();
+  await page.keyboard.press("Enter");
+  await expect(wide(page)).toBeVisible();
+  await expect(summary(page)).toBeFocused();
+  // Nothing was focused on the way that shows a tooltip, and none is left behind.
+  await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
+
+  await page.keyboard.press("Escape");
+  await expect(wide(page)).toBeHidden();
+  await expect(opener(page, "Open wide dialog")).toBeFocused();
+});
+
+test("the focus falls through to the footer, and last of all to the close button", async ({
+  page,
+}) => {
+  await openKit(page, { locale: "en" });
+  // Nothing in the body to focus: the footer's first button.
+  await disableInWide(page, ["textarea", "Discard changes"]);
+  await opener(page, "Open wide dialog").click();
+  await expect(
+    wide(page).getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(wide(page)).toBeHidden();
+
+  // Nothing in the footer either: the close button, as there is nothing else.
+  await disableInWide(page, ["Cancel", "Save"]);
   await opener(page, "Open wide dialog").click();
   await expect(wide(page).getByRole("button", { name: "Close" })).toBeFocused();
 });
@@ -220,6 +275,24 @@ test("a drag that starts in the dialog and ends on the backdrop does not close i
   });
   await page.mouse.up();
   await expectOpen(page, rename(page));
+});
+
+test("an open tooltip does not swallow the first press on the backdrop", async ({
+  page,
+}) => {
+  await openKit(page, { locale: "en" });
+  await opener(page, "Open wide dialog").click();
+  // Onto the close button by keyboard, however the focus started: its tooltip shows at once.
+  const close = wide(page).getByRole("button", { name: "Close" });
+  await close.focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(close).toBeFocused();
+  await expect(page.locator('[role="tooltip"]')).toBeVisible();
+
+  await pressBackdrop(page);
+  await expect(wide(page)).toBeHidden();
+  await expect(opener(page, "Open wide dialog")).toBeFocused();
 });
 
 test("the close button closes it", async ({ page }) => {

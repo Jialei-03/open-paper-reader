@@ -29,7 +29,11 @@ export interface DialogProps {
    * is not dismissible has no close button: only its own buttons close it.
    */
   dismissible?: boolean;
-  /** The element that gets the focus when it opens. Otherwise the first one marked `data-autofocus`, else the first that can be focused. */
+  /**
+   * The element that gets the focus when it opens. Otherwise the first one marked
+   * `data-autofocus`, else the first that can be focused in the body, then in the
+   * footer; the close button only when there is nothing else.
+   */
   initialFocus?: RefObject<HTMLElement | null>;
 }
 
@@ -129,6 +133,8 @@ export function Dialog({
   const element = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const body = useRef<HTMLDivElement>(null);
+  const footerElement = useRef<HTMLDivElement>(null);
 
   // What the listeners read, kept current on every commit. It comes before the effect that opens.
   const latest = useRef({ open, onClose, dismissible, initialFocus });
@@ -143,18 +149,24 @@ export function Dialog({
     const dialog = element.current;
     if (!open || !dialog) return;
     const opener = document.activeElement;
+    // The browser's own choice is the first thing that can be focused, the close button: it is only
+    // the last resort here, and a keyboard focus on it would also show its tooltip, which takes the first Escape.
     if (!dialog.open) dialog.showModal();
     (
       latest.current.initialFocus?.current ??
-      dialog.querySelector<HTMLElement>("[data-autofocus]")
+      dialog.querySelector<HTMLElement>("[data-autofocus]") ??
+      (body.current && tabbables(body.current)[0]) ??
+      (footerElement.current && tabbables(footerElement.current)[0])
     )?.focus();
     const unlock = lockPageScroll();
 
     // On the document and ahead of any layer that opens inside the dialog, so it sees the press
-    // before a menu closes on it: that press is for the menu, not for the backdrop.
+    // before a menu closes on it: that press is for the menu, not for the backdrop. A tooltip is not
+    // such a layer: it only names a control, and a press that dismisses it still means the backdrop.
     const onPointerDown = (event: PointerEvent) => {
       pressedBackdrop.current =
-        onBackdrop(dialog, event) && !dialog.querySelector(":popover-open");
+        onBackdrop(dialog, event) &&
+        !dialog.querySelector(':popover-open:not([role="tooltip"])');
     };
     document.addEventListener("pointerdown", onPointerDown, true);
 
@@ -236,8 +248,16 @@ export function Dialog({
           />
         )}
       </div>
-      {children != null && <div className={styles.body}>{children}</div>}
-      {footer != null && <div className={styles.footer}>{footer}</div>}
+      {children != null && (
+        <div ref={body} className={styles.body}>
+          {children}
+        </div>
+      )}
+      {footer != null && (
+        <div ref={footerElement} className={styles.footer}>
+          {footer}
+        </div>
+      )}
     </dialog>
   );
 }
