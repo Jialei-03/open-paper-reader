@@ -137,4 +137,44 @@ describe("placeFloating", () => {
       ).x,
     ).toBe(1000 - 200 - 20);
   });
+
+  it("moves away with an anchor that has scrolled out of view", () => {
+    const above = { x: 100, y: -200, width: 80, height: 30 };
+    expect(
+      placeFloating(above, size, vp, { side: "bottom", align: "start" }),
+    ).toMatchObject({ y: -200 + 30 + 6, placement: { side: "bottom" } });
+    expect(
+      placeFloating(above, size, vp, { side: "top", align: "start" }),
+    ).toMatchObject({ y: -200 + 30 + 6, placement: { side: "bottom" } });
+
+    const below = { x: 100, y: 1000, width: 80, height: 30 };
+    expect(
+      placeFloating(below, size, vp, { side: "top", align: "start" }),
+    ).toMatchObject({ y: 1000 - 6 - 100, placement: { side: "top" } });
+    expect(
+      placeFloating(below, size, vp, { side: "bottom", align: "start" }),
+    ).toMatchObject({ y: 1000 - 6 - 100, placement: { side: "top" } });
+
+    const left = { x: -300, y: 100, width: 40, height: 30 };
+    expect(
+      placeFloating(left, size, vp, { side: "right", align: "start" }),
+    ).toMatchObject({ x: -300 + 40 + 6, placement: { side: "right" } });
+  });
+
+  it("holds the main axis inside the window only when neither side fits", () => {
+    const tall = { width: 200, height: 790 };
+    expect(
+      placeFloating({ x: 100, y: 10, width: 80, height: 30 }, tall, vp, {
+        side: "bottom",
+        align: "start",
+      }),
+    ).toMatchObject({ y: 8, placement: { side: "bottom" } });
+    // It does fit on the far side, once flipped: no clamping there.
+    expect(
+      placeFloating({ x: 100, y: 780, width: 80, height: 30 }, size, vp, {
+        side: "bottom",
+        align: "start",
+      }),
+    ).toMatchObject({ y: 780 - 6 - 100, placement: { side: "top" } });
+  });
 });

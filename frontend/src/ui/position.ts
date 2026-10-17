@@ -37,8 +37,10 @@ function clamp(start: number, length: number, room: number, padding: number) {
  * The top-left corner for a layer of `size` placed against `anchor`.
  *
  * It goes on the wanted side. If it does not fit there and the opposite side has
- * more room, it flips. The cross axis is then slid back inside the window, and
- * the main axis is too as a last resort (a layer that fits on neither side).
+ * more room, it flips. The cross axis is then slid back inside the window. The
+ * main axis is held inside it only as a last resort, for a layer that fits on
+ * neither side: otherwise an anchor scrolled out of view takes the layer along
+ * with it instead of leaving it pinned to the window's edge.
  */
 export function placeFloating(
   anchor: Rect,
@@ -69,6 +71,7 @@ export function placeFloating(
   if (room(side) < size[mainLength] && room(opposite[side]) > room(side))
     side = opposite[side];
 
+  const fits = room(side) >= size[mainLength];
   const before = side === "top" || side === "left";
   const mainStart = before
     ? anchor[main] - offset - size[mainLength]
@@ -83,7 +86,9 @@ export function placeFloating(
   const crossStart = anchor[cross] + crossOffset;
 
   const placed = {
-    [main]: clamp(mainStart, size[mainLength], mainRoom, padding),
+    [main]: fits
+      ? mainStart
+      : clamp(mainStart, size[mainLength], mainRoom, padding),
     [cross]: clamp(crossStart, size[crossLength], crossRoom, padding),
   } as Record<"x" | "y", number>;
   return { x: placed.x, y: placed.y, placement: { side, align: want.align } };

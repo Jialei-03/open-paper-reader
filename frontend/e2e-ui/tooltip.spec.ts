@@ -139,6 +139,27 @@ test("pressing the button hides the tooltip", async ({ page }) => {
   await expect(tooltip(page)).toBeHidden();
 });
 
+test("pressing before the delay is over cancels the tooltip", async ({
+  page,
+}) => {
+  await openKit(page);
+  const button = section(page).getByRole("button", { name: "Find" });
+  await button.hover();
+  await page.waitForTimeout(100);
+  await page.mouse.down();
+  // Well past the delay, and with the pointer still on the button.
+  await page.waitForTimeout(600);
+  await expect(tooltip(page)).toBeHidden();
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  await expect(tooltip(page)).toBeHidden();
+
+  // Hovering is not suppressed for good: leave and return, and it shows again.
+  await page.mouse.move(0, 0);
+  await button.hover();
+  await expect(tooltip(page)).toBeVisible({ timeout: 700 });
+});
+
 test("the tooltip is decoration for pointers: hidden from assistive technology and inert", async ({
   page,
 }) => {

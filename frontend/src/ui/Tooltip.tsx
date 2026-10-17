@@ -33,6 +33,9 @@ export function Tooltip({
 }: TooltipProps) {
   const wrapper = useRef<HTMLSpanElement>(null);
   const timer = useRef(0);
+  // Set by a press: the pointer is still over the control, but it has been used,
+  // and hovering it must not bring the tooltip back until it leaves and returns.
+  const pressed = useRef(false);
   // The control the tooltip is against while it is shown; null while it is not.
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
@@ -62,12 +65,22 @@ export function Tooltip({
       className={styles.root}
       onPointerOver={(event) => {
         // A finger has no hover; and moving between parts of the control is not arriving.
-        if (event.pointerType === "touch" || timer.current) return;
+        if (event.pointerType === "touch" || timer.current || pressed.current)
+          return;
         if (!inside(event.target) || inside(event.relatedTarget)) return;
         timer.current = window.setTimeout(show, HOVER_DELAY_MS);
       }}
+      onPointerDown={(event) => {
+        // Pressed before the delay is over, or after: either way the tooltip is done,
+        // or it would open late over whatever the press opened (a menu, say).
+        if (!inside(event.target)) return;
+        pressed.current = true;
+        hide();
+      }}
       onPointerOut={(event) => {
-        if (inside(event.target) && !inside(event.relatedTarget)) hide();
+        if (!inside(event.target) || inside(event.relatedTarget)) return;
+        pressed.current = false;
+        hide();
       }}
       onFocus={(event) => {
         // Only focus that came by keyboard: a click focuses too, and must not pop one up.
