@@ -1,7 +1,22 @@
-import type { ReactNode } from "react";
+import {
+  Bookmark,
+  Download,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { I18nProvider, useI18n } from "../i18n/I18nProvider";
 import { isLocale } from "../i18n/i18n";
-import { parseAppearance, useAppearance } from "../ui";
+import {
+  Button,
+  IconButton,
+  Kbd,
+  parseAppearance,
+  useAppearance,
+  type ButtonVariant,
+} from "../ui";
 import styles from "./KitApp.module.css";
 
 // The kit's own chrome (headings, labels) is not localized: it is a developer
@@ -136,6 +151,97 @@ function I18nDemo() {
   );
 }
 
+const buttonVariants: [ButtonVariant, string][] = [
+  ["primary", "Primary"],
+  ["secondary", "Secondary"],
+  ["ghost", "Ghost"],
+  ["danger", "Danger"],
+];
+
+function ButtonDemo() {
+  const [clicks, setClicks] = useState(0);
+  const count = () => setClicks((n) => n + 1);
+  return (
+    <Section id="button" title="Button">
+      <h3 className={styles.groupTitle}>Variants and sizes</h3>
+      {(["md", "sm"] as const).map((size) => (
+        <div key={size} role="group" aria-label={size} className={styles.row}>
+          {buttonVariants.map(([variant, label]) => (
+            <Button key={variant} variant={variant} size={size} onClick={count}>
+              {label}
+            </Button>
+          ))}
+        </div>
+      ))}
+      <h3 className={styles.groupTitle}>With an icon</h3>
+      <div role="group" aria-label="With an icon" className={styles.row}>
+        <Button variant="primary" icon={Plus} onClick={count}>
+          New note
+        </Button>
+        <Button icon={Download} onClick={count}>
+          Export
+        </Button>
+        <Button variant="danger" icon={Trash2} onClick={count}>
+          Remove
+        </Button>
+        <Button size="sm" icon={Plus} onClick={count}>
+          Add
+        </Button>
+      </div>
+      <h3 className={styles.groupTitle}>Loading and disabled</h3>
+      <div role="group" aria-label="States" className={styles.row}>
+        <Button variant="primary" loading onClick={count}>
+          Saving
+        </Button>
+        <Button loading icon={Download} onClick={count}>
+          Loading
+        </Button>
+        <Button size="sm" loading onClick={count}>
+          Small
+        </Button>
+        <Button disabled onClick={count}>
+          Disabled
+        </Button>
+        <Button variant="primary" disabled onClick={count}>
+          Primary disabled
+        </Button>
+      </div>
+      <h3 className={styles.groupTitle}>Long label</h3>
+      <div className={styles.narrow}>
+        <Button icon={Download} onClick={count}>
+          A remarkably long label that will not fit in this box
+        </Button>
+      </div>
+      <h3 className={styles.groupTitle}>Icon button</h3>
+      <div role="group" aria-label="Icon buttons" className={styles.row}>
+        <IconButton icon={Search} label="Search" onClick={count} />
+        <IconButton
+          icon={SlidersHorizontal}
+          label="Adjust"
+          size="sm"
+          onClick={count}
+        />
+        <IconButton
+          icon={Bookmark}
+          label="Bookmark"
+          variant="secondary"
+          onClick={count}
+        />
+        <IconButton icon={Download} label="Fetching" loading />
+      </div>
+      <h3 className={styles.groupTitle}>Shortcut labels</h3>
+      <div className={styles.row}>
+        <Kbd shortcut="mod+k" />
+        <Kbd shortcut="shift+enter" />
+        <Kbd shortcut={"mod+\\"} />
+      </div>
+      <p className={styles.groupTitle}>
+        Clicks: <output>{clicks}</output>
+      </p>
+    </Section>
+  );
+}
+
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
@@ -168,6 +274,7 @@ function Kit() {
       <main className={styles.main}>
         <Tokens />
         <I18nDemo />
+        <ButtonDemo />
       </main>
     </div>
   );

@@ -2,6 +2,7 @@
   --kit-content-width: 960px;
   --kit-swatch-width: 132px;
   --kit-swatch-height: 56px;
+  --kit-narrow-width: 160px;
 }
 
 .toolbar {
@@ -94,4 +95,20 @@
   margin-left: var(--ui-space-8);
   font-family: var(--ui-font-mono);
   font-size: var(--ui-text-11);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin-bottom: var(--ui-space-8);
+}
+
+.narrow {
+  width: var(--kit-narrow-width);
+  padding: var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-elev-1);
 }

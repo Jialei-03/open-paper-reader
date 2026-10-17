@@ -1,0 +1,129 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-6);
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--ui-fg);
+  font-weight: var(--ui-weight-strong);
+  cursor: pointer;
+  user-select: none;
+  /* Colors and the press move only; the focus ring and hairline appear at once. */
+  transition:
+    background-color var(--ui-dur-1) var(--ui-ease-out),
+    color var(--ui-dur-1) var(--ui-ease-out),
+    transform var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.button svg {
+  flex-shrink: 0;
+}
+
+/* One line, cut with an ellipsis when the button is narrower than its text. */
+.label {
+  min-width: 0;
+  overflow: hidden;
+  line-height: var(--ui-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.md {
+  height: var(--ui-control-md);
+  padding: 0 var(--ui-space-12);
+  border-radius: var(--ui-r-10);
+  font-size: var(--ui-text-13);
+}
+
+.sm {
+  height: var(--ui-control-sm);
+  padding: 0 var(--ui-space-10);
+  border-radius: var(--ui-r-8);
+  font-size: var(--ui-text-12);
+}
+
+.primary {
+  background: var(--ui-primary);
+  color: var(--ui-primary-fg);
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--ui-primary) 88%, var(--ui-bg));
+}
+
+.secondary {
+  background: var(--ui-fill);
+  color: var(--ui-fg);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--ui-selected);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--ui-fg-1);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--ui-hover);
+  color: var(--ui-fg);
+}
+
+.danger {
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger-text);
+}
+
+.danger:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--ui-danger) 22%, transparent);
+  /* The stronger tint alone would leave the text under 4.5:1 on the inset surface. */
+  color: color-mix(in oklab, var(--ui-danger-text) 80%, var(--ui-fg));
+}
+
+.button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.button:focus-visible {
+  box-shadow: var(--ui-focus-ring);
+}
+
+/* Keeps its hairline under the ring. */
+.secondary:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--ui-edge-subtle),
+    var(--ui-focus-ring);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Busy is not unavailable: it stays at full strength. */
+.button[aria-busy="true"]:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+/* The square button with only an icon. */
+.iconButton {
+  --icon-button-size: 30px;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  padding: 0;
+  border-radius: var(--ui-r-10);
+  color: var(--ui-fg-2);
+}
+
+.iconButton.sm {
+  --icon-button-size: 26px;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--ui-fg);
+}

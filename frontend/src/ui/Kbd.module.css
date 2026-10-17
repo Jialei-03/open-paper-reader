@@ -1,0 +1,8 @@
+.kbd {
+  flex-shrink: 0;
+  color: var(--ui-fg-3);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-regular);
+  white-space: nowrap;
+}
