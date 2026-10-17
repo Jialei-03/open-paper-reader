@@ -3,6 +3,7 @@
   --kit-swatch-width: 132px;
   --kit-swatch-height: 56px;
   --kit-narrow-width: 160px;
+  --kit-field-width: 360px;
 }
 
 .toolbar {
@@ -111,4 +112,10 @@
   border-radius: var(--ui-r-8);
   background: var(--ui-bg);
   box-shadow: var(--ui-elev-1);
+}
+
+.fields {
+  display: grid;
+  gap: var(--ui-space-16);
+  max-width: var(--kit-field-width);
 }

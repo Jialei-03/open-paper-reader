@@ -15,4 +15,10 @@ export {
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Spinner } from "./Spinner";
 export { Kbd } from "./Kbd";
+export {
+  TextArea,
+  TextField,
+  type TextAreaProps,
+  type TextFieldProps,
+} from "./Field";
 export * from "./shortcut";

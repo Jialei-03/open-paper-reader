@@ -1,0 +1,100 @@
+.field {
+  /* The hidden label is positioned; this keeps it from reaching a far-off scroll area. */
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+}
+
+.label {
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+/* Out of sight, still read: the standard clip, not display: none. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.control {
+  /* The hairline; hover, error and focus each change only this color. */
+  --field-edge: var(--ui-edge-subtle);
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: var(--ui-control-lg);
+  padding: 0 var(--ui-space-12);
+  border: 0;
+  border-radius: var(--ui-r-10);
+  appearance: none;
+  background: var(--ui-fill);
+  box-shadow: inset 0 0 0 1px var(--field-edge);
+  box-sizing: border-box;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+}
+
+.control::placeholder {
+  color: var(--ui-fg-3);
+  /* Firefox dims placeholders on its own. */
+  opacity: 1;
+}
+
+.control:hover:not(:disabled) {
+  --field-edge: var(--ui-edge);
+}
+
+/* Keeps its hairline under the ring. The ring appears at once, with no transition. */
+.control:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--field-edge),
+    var(--ui-focus-ring);
+}
+
+.control[aria-invalid="true"],
+.control[aria-invalid="true"]:hover:not(:disabled) {
+  --field-edge: var(--ui-danger);
+}
+
+.control:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.textarea {
+  height: auto;
+  min-height: var(--ui-control-lg);
+  padding: var(--ui-space-8) var(--ui-space-12);
+  line-height: var(--ui-leading);
+  resize: vertical;
+}
+
+/* Its height follows the content (set in script), so there is nothing to drag. */
+.autoGrow {
+  resize: none;
+  overflow-y: hidden;
+}
+
+.description,
+.error {
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+}
+
+.description {
+  color: var(--ui-fg-2);
+}
+
+.error {
+  color: var(--ui-danger-text);
+}

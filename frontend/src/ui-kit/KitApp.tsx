@@ -13,6 +13,8 @@ import {
   Button,
   IconButton,
   Kbd,
+  TextArea,
+  TextField,
   parseAppearance,
   useAppearance,
   type ButtonVariant,
@@ -242,6 +244,41 @@ function ButtonDemo() {
   );
 }
 
+function FieldDemo() {
+  return (
+    <Section id="field" title="Field">
+      <div className={styles.fields}>
+        <TextField
+          label="Base URL"
+          description="The address of an OpenAI-compatible API"
+          placeholder="https://api.example.com/v1"
+        />
+        <TextField
+          label="API key"
+          error="This address is not reachable"
+          placeholder="Paste a key"
+        />
+        <TextField
+          label="Search papers"
+          hideLabel
+          placeholder="Search papers"
+        />
+        <TextField label="Disabled" disabled defaultValue="Not editable" />
+        <TextArea
+          label="Question"
+          autoGrow
+          placeholder="Ask about this paper"
+        />
+        <TextArea
+          label="Notes"
+          autoGrow
+          defaultValue={"First line\nSecond line\nThird line"}
+        />
+      </div>
+    </Section>
+  );
+}
+
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
@@ -275,6 +312,7 @@ function Kit() {
         <Tokens />
         <I18nDemo />
         <ButtonDemo />
+        <FieldDemo />
       </main>
     </div>
   );
