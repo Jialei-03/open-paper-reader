@@ -108,13 +108,17 @@ for (const theme of ["light", "dark"] as const) {
     const colorOf = (target: Locator) =>
       target.evaluate((element) => getComputedStyle(element).color);
     const input = fields.getByLabel("Base URL");
-    const [fill, label, description, error, typed] = await Promise.all([
-      input.evaluate((element) => getComputedStyle(element).backgroundColor),
-      colorOf(fields.locator("label", { hasText: "Base URL" })),
-      colorOf(fields.getByText("The address of an OpenAI-compatible API")),
-      colorOf(fields.getByText("This address is not reachable")),
-      colorOf(input),
-    ]);
+    const [fill, label, description, error, typed, placeholder] =
+      await Promise.all([
+        input.evaluate((element) => getComputedStyle(element).backgroundColor),
+        colorOf(fields.locator("label", { hasText: "Base URL" })),
+        colorOf(fields.getByText("The address of an OpenAI-compatible API")),
+        colorOf(fields.getByText("This address is not reachable")),
+        colorOf(input),
+        input.evaluate(
+          (element) => getComputedStyle(element, "::placeholder").color,
+        ),
+      ]);
     // Fields sit on cards, on the shell, on inset blocks and on dialogs.
     const surfaces = await page.evaluate(() =>
       ["--ui-bg", "--ui-bg-1", "--ui-bg-2", "--ui-elev"].map((token) =>
@@ -133,27 +137,31 @@ for (const theme of ["light", "dark"] as const) {
           await contrast(page, text, behind),
           `${name} on ${surface}`,
         ).toBeGreaterThanOrEqual(4.5);
-      // What is typed is on the field's translucent fill, over the surface.
-      expect(
-        await contrast(page, typed, fill, surface),
-        `typed text on ${surface}`,
-      ).toBeGreaterThanOrEqual(4.5);
+      // What is typed, and the placeholder, are on the field's translucent fill, over the surface.
+      for (const [name, text] of [
+        ["typed text", typed],
+        ["placeholder", placeholder],
+      ] as const)
+        expect(
+          await contrast(page, text, fill, surface),
+          `${name} on ${surface}`,
+        ).toBeGreaterThanOrEqual(4.5);
     }
   });
 }
 
-test("placeholder is the quiet text color", async ({ page }) => {
+test("placeholder is the caption text color", async ({ page }) => {
   await openKit(page);
   const input = section(page).getByLabel("Base URL");
-  const [placeholder, quiet] = await input.evaluate((element) => {
+  const [placeholder, caption] = await input.evaluate((element) => {
     const probe = document.createElement("span");
-    probe.style.color = "var(--ui-fg-3)";
+    probe.style.color = "var(--ui-fg-2)";
     document.body.append(probe);
-    const quiet = getComputedStyle(probe).color;
+    const caption = getComputedStyle(probe).color;
     probe.remove();
-    return [getComputedStyle(element, "::placeholder").color, quiet];
+    return [getComputedStyle(element, "::placeholder").color, caption];
   });
-  expect(placeholder).toBe(quiet);
+  expect(placeholder).toBe(caption);
   expect(placeholder).not.toBe(
     await input.evaluate((element) => getComputedStyle(element).color),
   );

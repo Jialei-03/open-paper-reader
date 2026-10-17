@@ -44,8 +44,9 @@
   font-size: var(--ui-text-13);
 }
 
+/* The caption color, not the fainter --ui-fg-3: on the fill that falls under 4.5:1. */
 .control::placeholder {
-  color: var(--ui-fg-3);
+  color: var(--ui-fg-2);
   /* Firefox dims placeholders on its own. */
   opacity: 1;
 }
