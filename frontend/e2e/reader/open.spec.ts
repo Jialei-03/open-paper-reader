@@ -232,13 +232,22 @@ test("the sidebar collapses to its icons", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("the old reader is untouched", async ({ page }) => {
+test("the old reader's address opens the new reader, where it pointed", async ({
+  page,
+}) => {
   await signIn(page);
-  const { paperId } = await createPaperWithPdf(page);
+  const { paperId, fileId, title } = await createPaperWithPdf(page, {
+    pages: 3,
+  });
 
-  await page.goto(`/#paper/${paperId}`);
-  await expect(page.locator(".reader-page")).toBeVisible();
-  await expect(page.locator("#main-content")).toBeVisible();
+  await page.goto(`/#paper/${paperId}?file=${fileId}&page=2&note=old`);
+  await expect(page).toHaveURL(
+    new RegExp(`#read/${paperId}\\?file=${fileId}&page=2$`),
+  );
+  await expect(
+    page.getByRole("main").getByRole("heading", { level: 1, name: title }),
+  ).toBeVisible();
+  await expect(page.locator(".reader-page")).toHaveCount(0);
 });
 
 test("the right panel folds away on a narrow window", async ({ page }) => {

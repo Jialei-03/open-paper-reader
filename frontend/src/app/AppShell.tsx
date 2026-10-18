@@ -1,0 +1,295 @@
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { api, send, type Paper } from "../api";
+import { clearPaperCovers } from "../features/PaperCover";
+import { I18nProvider, useI18n } from "../i18n/I18nProvider";
+import { closeFileDownload } from "../lib/file-download";
+import {
+  downloadUnsyncedNotes,
+  forgetOfflineCopy,
+  retireOfflineReading,
+} from "../lib/offline-retirement";
+import { recentPapers } from "../lib/recent-papers";
+import { useMediaQuery } from "../reader/useMediaQuery";
+import { useModel } from "../reader/useModel";
+import { HomeScreen } from "../screens/HomeScreen";
+import { LibraryScreen } from "../screens/LibraryScreen";
+import { SettingsScreen } from "../screens/SettingsScreen";
+import { SetupScreen } from "../screens/SetupScreen";
+import {
+  Shell,
+  Spinner,
+  Toaster,
+  currentPlatformIsMac,
+  matchesShortcut,
+  toast,
+} from "../ui";
+import { AppActions, AppSidebar, QUICK_OPEN_SHORTCUT } from "./AppSidebar";
+import styles from "./AppShell.module.css";
+import { QuickOpen } from "./QuickOpen";
+import { parseAppRoute, type AppRoute } from "./routes";
+
+// The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
+const ReaderScreen = lazy(() =>
+  import("../reader/ReaderScreen").then((module) => ({
+    default: module.ReaderScreen,
+  })),
+);
+
+/** Below this the sidebar is a rail of icons that floats open over the cards (as in the reader). */
+const SIDEBAR_FLOATS = "(max-width: 899.98px)";
+
+type User = { id: string; username?: string };
+
+/** The current address, read; one that is not the app's own is replaced where it stands. */
+function readRoute(): AppRoute {
+  const route = parseAppRoute(location.hash.slice(1));
+  if (route.redirect)
+    history.replaceState(history.state, "", "#" + route.redirect);
+  return route;
+}
+
+/**
+ * The signed-in app: home, the library, the settings and the reader, on the
+ * new interface. It holds the library's papers for every screen, sends the
+ * addresses of what has been taken out home, and opens the first-run setup
+ * when there is no model to read with.
+ */
+export function AppShell(props: { user: User; setUser: (user: null) => void }) {
+  return (
+    <I18nProvider>
+      <App {...props} />
+    </I18nProvider>
+  );
+}
+
+function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
+  const { t, tn } = useI18n();
+  const [route, setRoute] = useState(readRoute);
+  const [papers, setPapers] = useState<Paper[]>([]);
+  const [tick, setTick] = useState(0);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [setupDone, setSetupDone] = useState(false);
+  const floating = useMediaQuery(SIDEBAR_FLOATS);
+  const reload = useCallback(() => setTick((n) => n + 1), []);
+  const go = useCallback((hash: string) => {
+    location.hash = hash;
+  }, []);
+
+  useEffect(() => {
+    // The app loaded, so a stale-release reload (see main.tsx) worked.
+    try {
+      sessionStorage.removeItem("paper-stale-reload");
+    } catch {
+      /* Storage may be unavailable. */
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    const changed = () => setRoute(readRoute());
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
+
+  // The library, read again with each screen, on reload(), and when the window comes back.
+  const screenKey =
+    route.screen === "reader" ? `read/${route.reader.paperId}` : route.screen;
+  useEffect(() => {
+    const controller = new AbortController();
+    api<Paper[]>("/papers", { signal: controller.signal }).then(
+      setPapers,
+      () => {
+        /* The screens say for themselves what they could not load. */
+      },
+    );
+    return () => controller.abort();
+  }, [tick, screenKey]);
+  useEffect(() => {
+    const focus = () => reload();
+    window.addEventListener("focus", focus);
+    return () => window.removeEventListener("focus", focus);
+  }, [reload]);
+
+  // Notes written offline before offline reading went away: offered once, as a backup to download.
+  useEffect(() => {
+    void retireOfflineReading().then((unsynced) => {
+      if (!unsynced.length) return;
+      toast.show({
+        message: tn("app.offline.unsynced", unsynced.length),
+        description: t("app.offline.description"),
+        duration: Infinity,
+        action: {
+          label: t("app.offline.download"),
+          onClick: () => {
+            downloadUnsyncedNotes(unsynced);
+            forgetOfflineCopy();
+          },
+        },
+      });
+    });
+  }, [t, tn]);
+
+  useEffect(() => {
+    const mac = currentPlatformIsMac();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.repeat || event.isComposing || event.defaultPrevented) return;
+      if (!matchesShortcut(event, QUICK_OPEN_SHORTCUT, mac)) return;
+      event.preventDefault();
+      setQuickOpen((open) => !open);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    try {
+      await send("/auth/logout", {});
+    } catch (error) {
+      toast.show({
+        message:
+          error instanceof Error ? error.message : t("app.signOutFailed"),
+        tone: "error",
+      });
+      return;
+    }
+    closeFileDownload();
+    void clearPaperCovers();
+    setUser(null);
+  }, [setUser, t]);
+
+  const actions = useMemo(
+    () => ({
+      quickOpen: () => setQuickOpen(true),
+      signOut: () => void signOut(),
+    }),
+    [signOut],
+  );
+  const visits = useMemo(
+    () => recentPapers(user.id),
+    // Read again whenever the screen changes: the reader writes them.
+    [user.id, screenKey, quickOpen],
+  );
+
+  const quick = (
+    <QuickOpen
+      open={quickOpen}
+      onClose={() => setQuickOpen(false)}
+      papers={papers}
+      visits={visits}
+      go={go}
+    />
+  );
+
+  if (route.screen === "reader")
+    return (
+      <AppActions.Provider value={actions}>
+        <div className={styles.reader} data-app-screen="reader">
+          <Suspense fallback={<Loading />}>
+            <ReaderScreen
+              paperId={route.reader.paperId}
+              route={route.reader}
+              go={go}
+              owner={user.id}
+              papers={papers}
+            />
+          </Suspense>
+        </div>
+        {quick}
+      </AppActions.Provider>
+    );
+
+  const screen = (
+    <AppActions.Provider value={actions}>
+      <div className={styles.root} data-app-screen={route.screen}>
+        <Shell
+          sidebar={
+            <AppSidebar
+              floating={floating}
+              screen={route.screen}
+              papers={papers}
+              visits={visits}
+              go={go}
+            />
+          }
+        >
+          {route.screen === "home" && (
+            <HomeScreen
+              owner={user.id}
+              papers={papers}
+              go={go}
+              reload={reload}
+            />
+          )}
+          {route.screen === "library" && (
+            <LibraryScreen
+              owner={user.id}
+              papers={papers}
+              go={go}
+              reload={reload}
+            />
+          )}
+          {route.screen === "settings" && <SettingsScreen go={go} />}
+        </Shell>
+        <Toaster />
+      </div>
+      {quick}
+    </AppActions.Provider>
+  );
+  return route.screen === "home" && !setupDone ? (
+    <SetupGate onDone={() => setSetupDone(true)}>{screen}</SetupGate>
+  ) : (
+    screen
+  );
+}
+
+/**
+ * Home, unless there is no model to read with: then the first thing is to set
+ * one up. Only home asks (the library, the settings and the reader stay
+ * reachable), and only while it shows, so the reader reads the settings anew.
+ */
+function SetupGate({
+  onDone,
+  children,
+}: {
+  onDone: () => void;
+  children: ReactNode;
+}) {
+  const model = useModel();
+  if (!model.known) return <Loading />;
+  if (model.id) return children;
+  return (
+    <div className={styles.root} data-app-screen="setup">
+      <div className={styles.setup}>
+        <SetupScreen
+          onDone={() => {
+            onDone();
+            window.dispatchEvent(new Event("model-settings-updated"));
+          }}
+        />
+      </div>
+      <Toaster />
+    </div>
+  );
+}
+
+/** What shows while the reader's chunk loads. */
+function Loading() {
+  const { t } = useI18n();
+  return (
+    <div
+      role="status"
+      aria-label={t("common.loading")}
+      className={styles.loading}
+    >
+      <Spinner />
+    </div>
+  );
+}

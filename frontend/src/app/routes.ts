@@ -1,0 +1,53 @@
+import {
+  parseReaderRoute,
+  readerHash,
+  type ReaderRoute,
+} from "../reader/route";
+
+/**
+ * Where the signed-in app is: one of its screens, or a paper in the reader.
+ * `redirect` is set when the address was not this one's own (an old address,
+ * or one that names nothing): the app replaces it with `redirect` so the back
+ * button does not lead to it again.
+ */
+export type AppRoute =
+  | { screen: "home"; redirect?: string }
+  | { screen: "library"; redirect?: string }
+  | { screen: "settings"; redirect?: string }
+  | { screen: "reader"; reader: ReaderRoute; redirect?: string };
+
+/** The screens the shell draws itself; the reader draws its own. */
+export type AppScreen = AppRoute["screen"];
+
+const HOME: AppRoute = { screen: "home" };
+
+/**
+ * Reads the hash, without its `#`. `#paper/<id>` is the old reader's address:
+ * it opens the new reader, with the same `file`, `page`, `quote`, `prefix` and
+ * `rect`, and is rewritten to `#read/<id>…`. Anything else that is not one of
+ * the screens (the addresses of what has been taken out: knowledge, discover,
+ * directions, collections, tokens…) goes home.
+ */
+export function parseAppRoute(hash: string): AppRoute {
+  const path = hash.split("?")[0];
+  if (path === "" || path === "home") return HOME;
+  if (path === "library") return { screen: "library" };
+  if (path === "settings") return { screen: "settings" };
+  if (path.startsWith("read/")) {
+    const reader = parseReaderRoute(hash);
+    return reader
+      ? { screen: "reader", reader }
+      : { ...HOME, redirect: "home" };
+  }
+  if (path.startsWith("paper/")) {
+    const reader = parseReaderRoute("read/" + hash.slice("paper/".length));
+    if (!reader) return { ...HOME, redirect: "home" };
+    // Only what the reader reads is carried over (an old `note=` or `line=` is not).
+    return {
+      screen: "reader",
+      reader,
+      redirect: readerHash(reader).slice(1),
+    };
+  }
+  return { ...HOME, redirect: "home" };
+}

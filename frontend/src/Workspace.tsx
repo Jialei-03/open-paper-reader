@@ -52,7 +52,6 @@ import { PaperForm, ItemForm } from "./features/forms";
 import { DropOverlay, useGlobalFileDrop } from "./features/PdfDropImport";
 import { clearPaperCovers } from "./features/PaperCover";
 import { importPdf, isPdf } from "./lib/pdf-import";
-import { Reader } from "./features/Reader";
 import { Dashboard } from "./features/Dashboard";
 import { Recommendations } from "./features/Recommendations";
 import { SettingsView } from "./features/SettingsView";
@@ -555,25 +554,6 @@ export function Workspace({
                   tick={tick}
                   go={go}
                   add={() => paperForm()}
-                  onError={setError}
-                />
-              )}
-              {section === "paper" && (
-                <Reader
-                  key={paperId}
-                  id={paperId}
-                  route={route}
-                  tick={tick}
-                  run={run}
-                  go={go}
-                  setModal={setModal}
-                  close={close}
-                  editPaper={paperForm}
-                  editItem={editItem}
-                  history={history}
-                  deleteItem={deleteItem}
-                  allItems={allItems}
-                  nodes={graph.nodes}
                   onError={setError}
                 />
               )}
