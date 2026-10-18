@@ -1,0 +1,191 @@
+/*
+ * The guide in the right panel: keywords as small chips, a summary in three
+ * lines, and four sections, each with the pages it rests on as pills. It sits
+ * on the panel's own surface and scrolls with it.
+ */
+.guide {
+  --guide-page-height: 24px;
+  --guide-arrive-distance: var(--ui-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-20);
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading);
+}
+
+/* A line of progress, calm: what is being waited for, and nothing more. */
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+/* What the tab says when there is no guide to show: a sentence, and what can be done about it. */
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-12);
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading);
+}
+
+.note {
+  margin: 0;
+  color: var(--ui-fg-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--ui-danger-text);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  border-radius: var(--ui-r-4);
+  color: var(--ui-accent-text);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.keywords {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.keyword {
+  padding: var(--ui-space-2) var(--ui-space-8);
+  border-radius: var(--ui-r-6);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+}
+
+.label {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  margin: 0;
+  padding: 0 0 0 var(--ui-space-20);
+  color: var(--ui-fg);
+  list-style: decimal;
+}
+
+.summary li::marker {
+  color: var(--ui-fg-2);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+}
+
+.title {
+  margin: 0;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-1);
+}
+
+.paragraph {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.paragraph code {
+  padding: 0 var(--ui-space-4);
+  border-radius: var(--ui-r-4);
+  background: var(--ui-bg-2);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-13);
+}
+
+.pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A page of the paper the section rests on; pressed, the paper goes there. */
+.page {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--guide-page-height);
+  margin: 0;
+  padding: 0 var(--ui-space-10);
+  border: 0;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
+  font: inherit;
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.page:hover {
+  text-decoration: underline;
+}
+
+.page:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+/* What arrives while the guide is being written comes in with a short rise; what was there does not move. */
+.arrive {
+  animation: arrive var(--ui-dur-3) var(--ui-ease-out) both;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(var(--guide-arrive-distance));
+  }
+}

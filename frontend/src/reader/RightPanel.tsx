@@ -1,7 +1,9 @@
 import clsx from "clsx";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import type { Paper, SourceFile } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
+import { GuideTab } from "./panel/GuideTab";
 import { RegionBoundary } from "./RegionBoundary";
 import styles from "./RightPanel.module.css";
 
@@ -31,9 +33,17 @@ export interface PanelOverlay {
  */
 export function RightPanel({
   overlay,
+  paper,
+  file,
+  onJumpToPage,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
+  /** The paper and its PDF, once they are loaded. */
+  paper?: Paper | null;
+  file?: SourceFile | null;
+  /** A page named in the panel (the guide's page chips) was pressed. */
+  onJumpToPage?: (page: number) => void;
   overlay?: PanelOverlay;
 }) {
   const { t } = useI18n();
@@ -106,9 +116,18 @@ export function RightPanel({
               aria-labelledby={`${ids}-${value}-tab`}
               hidden={view !== value}
             >
-              <p className={styles.placeholder}>
-                {t(`reader.tab.${value}.empty`)}
-              </p>
+              {value === "guide" && paper && file && onJumpToPage ? (
+                <GuideTab
+                  key={file.id}
+                  paper={paper}
+                  file={file}
+                  onJumpToPage={onJumpToPage}
+                />
+              ) : (
+                <p className={styles.placeholder}>
+                  {t(`reader.tab.${value}.empty`)}
+                </p>
+              )}
             </div>
           ))}
         </div>
