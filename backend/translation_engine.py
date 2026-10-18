@@ -40,7 +40,40 @@ def preserve_layout(source, target):
     if len(originals) != len(translated):
         raise ValueError("排版命令数量发生变化，无法恢复原始参数")
     iterator = iter(originals)
-    return re.sub(LAYOUT, lambda _: next(iterator), target)
+    return ascii_math_punctuation(re.sub(LAYOUT, lambda _: next(iterator), target))
+
+
+MATH_ENVIRONMENTS = "equation|align|gather|multline|eqnarray|math|displaymath|flalign|alignat|split"
+MATH_REGION = regex.compile(
+    r"\\begin\{(?P<env>(?:" + MATH_ENVIRONMENTS + r")\*?)\}.*?\\end\{(?P=env)\}"
+    r"|\\\[.*?\\\]|\\\(.*?\\\)|(?<!\\)\$\$.*?(?<!\\)\$\$|(?<!\\)\$(?:\\.|[^$\\])+?(?<!\\)\$",
+    regex.DOTALL,
+)
+# Words inside a formula keep their own (text) font, so their punctuation stays.
+MATH_TEXT = regex.compile(r"\\(?:text|mbox|textrm|textnormal|textit|textbf|intertext)\s*(\{(?:[^{}]|(?1))*\})")
+FULLWIDTH_IN_MATH = str.maketrans({"。": ".", "，": ",", "：": ":", "；": ";", "（": "(", "）": ")", "！": "!", "？": "?"})
+
+
+def ascii_math_punctuation(tex):
+    """Chinese punctuation a translation put inside a formula, back to ASCII.
+
+    Math fonts have no CJK glyphs, so a 。 after an equation is a missing
+    character (and an unpublishable PDF). Text set inside the formula with
+    \\text{...} keeps its punctuation.
+    """
+
+    def region(match):
+        part = match.group(0)
+        kept = []
+
+        def hold(m):
+            kept.append(m.group(0))
+            return f"\x00{len(kept) - 1}\x00"
+
+        part = MATH_TEXT.sub(hold, part).translate(FULLWIDTH_IN_MATH)
+        return regex.sub(r"\x00(\d+)\x00", lambda m: kept[int(m[1])], part)
+
+    return MATH_REGION.sub(region, tex)
 
 
 def protect(text):
@@ -883,7 +916,9 @@ def compiled(directory, main, result, forced=False):
             ]
         raise ValueError("中文 PDF 编译失败：" + message)
     if "Missing character:" in log:
-        raise ValueError("译文存在缺失字形，未发布不完整 PDF")
+        missing = sorted(set(re.findall(r"Missing character: There is no (.) \(", log)))
+        detail = "：" + " ".join(missing[:8]) if missing else ""
+        raise ValueError("译文存在缺失字形" + detail + "，未发布不完整 PDF")
     return target
 
 

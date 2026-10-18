@@ -232,3 +232,27 @@ def test_when_the_retry_makes_no_pdf_the_first_error_is_reported(tmp_path, monke
     monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=1, stdout=log, stderr=b''))
     with pytest.raises(ValueError, match='subcaption Error'):
         engine.compile_project(tmp_path)
+
+
+def test_chinese_punctuation_put_inside_a_formula_goes_back_to_ascii():
+    fix = engine.ascii_math_punctuation
+    displayed = (
+        '乐观价值：\\begin{equation}\\frac{\\alpha}{|\\mathcal{N}(s)|}。\\label{eq:x}'
+        '\\end{equation}结束。'
+    )
+    assert fix(displayed) == displayed.replace('|}。', '|}.')
+    assert fix('$a，b$ 和 \\[x：y\\]') == '$a,b$ 和 \\[x:y\\]'
+    # Text outside formulas, words set with \text inside them, and escaped dollars stay.
+    assert fix('即 $x = 0$），我们。') == '即 $x = 0$），我们。'
+    assert fix('$\\text{中文，好。} x。$') == '$\\text{中文，好。} x.$'
+    assert fix('价格 \\$5。后面 $x$。') == '价格 \\$5。后面 $x$。'
+
+
+def test_missing_glyphs_are_named(tmp_path, monkeypatch):
+    (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}中文\end{document}')
+    (tmp_path / 'build').mkdir()
+    (tmp_path / 'build/main.pdf').write_bytes(b'%PDF-1.7')
+    log = 'Missing character: There is no 。 ("3002) in font cmr10!'.encode()
+    monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=0, stdout=log, stderr=b''))
+    with pytest.raises(ValueError, match='缺失字形：。'):
+        engine.compile_project(tmp_path)
