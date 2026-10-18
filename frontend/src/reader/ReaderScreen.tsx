@@ -16,6 +16,7 @@ import type { Paper, SourceFile } from "../api";
 import { usePdfAnnotations, type PdfRect } from "../features/PdfAnnotations";
 import { usePdfInk } from "../features/PdfInk";
 import type { PdfDestination } from "../features/PdfLinks";
+import { usePreference } from "../screens/library/usePreference";
 import { useI18n } from "../i18n/I18nProvider";
 import { pdfRegion } from "../lib/pdf-region";
 import { useReferenceHighlight } from "../lib/reference";
@@ -1027,6 +1028,13 @@ export function ReaderScreen({
   const narrow = useMediaQuery(PANEL_FOLDS);
   const compact = useMediaQuery(SIDEBAR_FLOATS);
   const [panelOpen, setPanelOpen] = useState(false);
+  // Wide, the docked panel can be put away (remembered on this device); the paper takes its room.
+  const [panelKept, setPanelKept] = usePreference<"shown" | "collapsed">(
+    `paper-panel:${owner}`,
+    "shown",
+    ["shown", "collapsed"],
+  );
+  const collapsed = !narrow && panelKept === "collapsed";
   const toggle = useRef<HTMLButtonElement>(null);
   const [loaded, setLoaded] = useState<Paper | null>(null);
   const [file, setFile] = useState<SourceFile | null>(null);
@@ -1064,10 +1072,14 @@ export function ReaderScreen({
   useEffect(() => setPending(null), [paperId]);
 
   /** Shows a view of the side panel: folded away, the panel opens over the paper with it. */
-  const show = useCallback((view: PanelView) => {
-    setTab(view);
-    if (narrowNow.current) setPanelOpen(true);
-  }, []);
+  const show = useCallback(
+    (view: PanelView) => {
+      setTab(view);
+      if (narrowNow.current) setPanelOpen(true);
+      else setPanelKept("shown");
+    },
+    [setPanelKept],
+  );
 
   // A place in the paper chosen from the panel (a citation, a page of the guide, a highlight): folded away,
   // the panel gets out of the way of where it leads (it would cover it, and the question box).
@@ -1137,16 +1149,23 @@ export function ReaderScreen({
     setVisits(recentPapers(owner));
   }, [owner, paperId, loaded]);
 
-  const panelToggle = narrow ? (
+  const panelShown = narrow ? panelOpen : !collapsed;
+  const panelToggle = (
     <IconButton
       ref={toggle}
       icon={PanelRight}
-      label={t(panelOpen ? "reader.panel.hide" : "reader.panel.show")}
-      aria-expanded={panelOpen}
-      onClick={() => setPanelOpen((open) => !open)}
+      label={t(panelShown ? "reader.panel.hide" : "reader.panel.show")}
+      aria-expanded={panelShown}
+      onClick={() =>
+        narrow
+          ? setPanelOpen((open) => !open)
+          : setPanelKept(collapsed ? "shown" : "collapsed")
+      }
     />
-  ) : null;
+  );
 
+  // Docked in a panel that is put away, the question box floats over the paper until the panel is back.
+  const composerDocked = composerDock.mode === "docked" && !collapsed;
   const composer = (
     <Composer
       assistant={assistant}
@@ -1154,12 +1173,16 @@ export function ReaderScreen({
       onClearPending={() => setPending(null)}
       onCover={setCover}
       draft={draft}
-      placement={composerDock.mode}
+      placement={composerDocked ? "docked" : "floating"}
       place={composerDock.place}
       lifted={composerDock.dragging}
       boxRef={composerDock.attach}
-      onGrip={composerDock.canDetach ? composerDock.grip : undefined}
-      onToggleDock={composerDock.canDetach ? composerDock.toggle : undefined}
+      onGrip={
+        composerDock.canDetach && !collapsed ? composerDock.grip : undefined
+      }
+      onToggleDock={
+        composerDock.canDetach && !collapsed ? composerDock.toggle : undefined
+      }
       onAsk={() => show("assistant")}
     />
   );
@@ -1212,7 +1235,7 @@ export function ReaderScreen({
             keypoints={keypoints.visible}
             actions={actions}
           />
-          {composerDock.mode === "floating" && composer}
+          {!composerDocked && composer}
         </Card>
         <RightPanel
           paperId={paperId}
@@ -1233,7 +1256,7 @@ export function ReaderScreen({
           onTabChange={setTab}
           dock={{
             footRef: footEl,
-            children: composerDock.mode === "docked" ? composer : null,
+            children: composerDocked ? composer : null,
             drop:
               composerDock.mode === "floating" && composerDock.dragging
                 ? composerDock.over
@@ -1241,6 +1264,7 @@ export function ReaderScreen({
                   : "away"
                 : undefined,
           }}
+          collapsed={collapsed}
           overlay={
             narrow
               ? {

@@ -55,6 +55,7 @@ export interface PanelDock {
  */
 export function RightPanel({
   overlay,
+  collapsed = false,
   paper,
   file,
   onJumpToPage,
@@ -74,6 +75,8 @@ export function RightPanel({
   /** A page named in the panel (the guide's page chips) was pressed. */
   onJumpToPage?: (page: number) => void;
   overlay?: PanelOverlay;
+  /** Docked and put away by the reader (the paper takes the room); kept mounted, out of reach. */
+  collapsed?: boolean;
   assistant?: Assistant;
   /** The key sentences, listed in the guide. */
   keypoints?: Keypoints;
@@ -134,7 +137,10 @@ export function RightPanel({
         styles.panel,
         floating && styles.floating,
         floating && !shown && styles.folded,
+        !floating && collapsed && styles.collapsed,
       )}
+      inert={!floating && collapsed ? true : undefined}
+      aria-hidden={!floating && collapsed ? true : undefined}
     >
       <RegionBoundary region="panel">
         <CardHeader>

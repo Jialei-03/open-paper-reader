@@ -30,6 +30,9 @@ export interface CardProps {
   children: ReactNode;
   "aria-label"?: string;
   "aria-labelledby"?: string;
+  "aria-hidden"?: boolean;
+  /** Out of reach of the keyboard and pointer while it is put away. */
+  inert?: boolean;
 }
 
 /**

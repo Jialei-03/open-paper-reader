@@ -46,6 +46,26 @@
   display: none;
 }
 
+/*
+ * Docked and put away: it narrows to nothing beside the paper (taking the 8px
+ * gap with it), so the paper's card grows into the room. Kept mounted, so its
+ * views keep their place and the assistant its thread.
+ */
+.panel:not(.floating) {
+  transition:
+    width var(--ui-dur-3) var(--ui-ease-out),
+    margin var(--ui-dur-3) var(--ui-ease-out),
+    opacity var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.panel.collapsed {
+  width: 0;
+  margin-left: calc(-1 * var(--ui-space-8));
+  opacity: 0;
+  overflow: hidden;
+  box-shadow: none;
+}
+
 /* What is under the tabs: this is what scrolls. */
 .body {
   flex: 1;
