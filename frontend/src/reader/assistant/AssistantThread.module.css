@@ -374,3 +374,10 @@
     color: inherit;
   }
 }
+
+/* Under a finished answer: what can be done with it, quietly. */
+.answerActions {
+  display: flex;
+  margin-top: var(--ui-space-4);
+  margin-left: calc(-1 * var(--ui-space-8));
+}

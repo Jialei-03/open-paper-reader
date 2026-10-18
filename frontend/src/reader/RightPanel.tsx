@@ -64,6 +64,7 @@ export function RightPanel({
   assistant,
   keypoints,
   onCite,
+  onKeep,
   notes,
   tab,
   onTabChange,
@@ -83,6 +84,8 @@ export function RightPanel({
   /** The key sentences, listed in the guide. */
   keypoints?: Keypoints;
   onCite?: (route: ReaderRoute) => void;
+  /** A guide section or an answer was kept in the note (its Markdown, citations included). */
+  onKeep?: (markdown: string) => void;
   /** What the notes tab is made from; until the paper is there, the tab says what it will hold. */
   notes?: NotesTabProps;
   /** The view shown, when the screen chooses it (to show the answer it asked for); else the panel keeps its own. */
@@ -176,6 +179,8 @@ export function RightPanel({
                   paper={paper}
                   file={file}
                   onJumpToPage={onJumpToPage}
+                  onCite={onCite}
+                  onKeep={onKeep}
                   keypoints={keypoints}
                   onJumpKeypoint={
                     onCite
@@ -190,7 +195,12 @@ export function RightPanel({
                   }
                 />
               ) : value === "assistant" && assistant && onCite ? (
-                <AssistantThread assistant={assistant} onCite={onCite} />
+                <AssistantThread
+                  assistant={assistant}
+                  onCite={onCite}
+                  fileId={file?.id}
+                  onKeep={onKeep}
+                />
               ) : value === "notes" && notes ? (
                 <NotesTab {...notes} />
               ) : value === "related" && paper ? (

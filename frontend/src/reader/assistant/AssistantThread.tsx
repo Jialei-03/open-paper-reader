@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import {
   ChevronRight,
+  FilePlus2,
   FileText,
   Image as ImageIcon,
   RotateCcw,
@@ -14,6 +15,7 @@ import {
   useCallback,
   useId,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -28,6 +30,19 @@ import { Button, Spinner } from "../../ui";
 import { followLink, readerHash, type ReaderRoute } from "../route";
 import { AssistantEmpty } from "./AssistantEmpty";
 import { serviceWords } from "../service-error";
+import {
+  CiteChip,
+  CiteProvider,
+  citedMarkdown,
+  copyWithCitations,
+  markKey,
+  marksIn,
+  numbering,
+  useVerified,
+  verifiedText,
+  verifyMarks,
+  type CiteMark,
+} from "../cite";
 import { fadeTail, useSmoothText } from "../stream";
 import {
   citedRoute,
@@ -55,6 +70,10 @@ export interface AssistantThreadProps {
   assistant: Assistant;
   /** A citation in an answer was followed: the reader goes there. */
   onCite(route: ReaderRoute): void;
+  /** The file of the paper being read: where an answer's citations are looked up when the question had no context of its own. */
+  fileId?: string;
+  /** An answer is kept in the note (its text, with its verified citations). */
+  onKeep?(markdown: string): void;
 }
 
 /**
@@ -63,7 +82,12 @@ export interface AssistantThreadProps {
  * folded into one line, and the answer as it is written, its citations as
  * small page labels that lead to the sentence in the paper.
  */
-export function AssistantThread({ assistant, onCite }: AssistantThreadProps) {
+export function AssistantThread({
+  assistant,
+  onCite,
+  fileId,
+  onKeep,
+}: AssistantThreadProps) {
   const { t } = useI18n();
   const runs = conversation(assistant.runs);
   const thread = useRef<HTMLDivElement>(null);
@@ -73,6 +97,12 @@ export function AssistantThread({ assistant, onCite }: AssistantThreadProps) {
   citeNow.current = onCite;
   const cite = useCallback((route: ReaderRoute) => citeNow.current(route), []);
   const retry = assistant.retry;
+  const keepNow = useRef(onKeep);
+  keepNow.current = onKeep;
+  const keep = useCallback(
+    (markdown: string) => keepNow.current?.(markdown),
+    [],
+  );
 
   if (!runs.length && assistant.loading)
     return (
@@ -93,7 +123,15 @@ export function AssistantThread({ assistant, onCite }: AssistantThreadProps) {
       aria-label={t("reader.assistant.thread")}
     >
       {runs.map((run) => (
-        <Turn key={run.id} run={run} onCite={cite} onRetry={retry} />
+        <Turn
+          key={run.id}
+          run={run}
+          paperId={assistant.paperId}
+          fileId={fileId}
+          onCite={cite}
+          onRetry={retry}
+          onKeep={onKeep ? keep : undefined}
+        />
       ))}
     </div>
   );
@@ -151,18 +189,30 @@ function useFollow(content: RefObject<HTMLElement | null>, count: number) {
 /** One question and its answer. */
 const Turn = memo(function Turn({
   run,
+  paperId,
+  fileId: paperFile,
   onCite,
   onRetry,
+  onKeep,
 }: {
   run: AgentRun;
+  paperId: string;
+  fileId?: string;
   onCite(route: ReaderRoute): void;
   onRetry(runId: string): void;
+  onKeep?(markdown: string): void;
 }) {
   const i18n = useI18n();
   const { t } = i18n;
   const context = run.runtime?.reader_context;
   const quote = context?.source === "selection" ? (context.quote ?? "") : "";
   const active = isActive(run);
+  // Where the citations of this answer are looked up: the file the question was about.
+  const fileId = context?.file_id ?? paperFile;
+  const target = useMemo(
+    () => (fileId && paperId ? { paperId, fileId, onCite } : null),
+    [paperId, fileId, onCite],
+  );
   return (
     <div className={styles.turn} aria-busy={active || undefined}>
       <div className={styles.ask}>
@@ -185,7 +235,15 @@ const Turn = memo(function Turn({
       </div>
       <Process run={run} />
       {run.response ? (
-        <Answer body={run.response} done={!active} onCite={onCite} />
+        <CiteProvider target={target}>
+          <Answer
+            body={run.response}
+            done={!active}
+            onCite={onCite}
+            fileId={fileId}
+            onKeep={onKeep}
+          />
+        </CiteProvider>
       ) : (
         active && (
           <p className={styles.thinking}>
@@ -404,16 +462,42 @@ const Answer = memo(function Answer({
   body,
   done,
   onCite,
+  fileId,
+  onKeep,
 }: {
   body: string;
   /** The answer is complete: whatever is still to be shown is shown at once. */
   done: boolean;
   onCite(route: ReaderRoute): void;
+  fileId?: string;
+  onKeep?(markdown: string): void;
 }) {
+  const { t } = useI18n();
   // It arrives in bursts, a poll at a time; it is shown at an even pace.
   const { text, flowing } = useSmoothText(body, { done });
+  // A citation is drawn only once the service has found its words on the page, which
+  // is asked when the answer is complete: while it is written (and for whatever is not
+  // found) the sentence stands without one.
+  const verified = useVerified(fileId, [body], done);
+  const numbers = numbering([body], verified);
+  const byNumber = new Map<number, CiteMark>();
+  for (const mark of marksIn(body)) {
+    const found = verified(mark);
+    const n = found && numbers.get(markKey(found));
+    if (found && n) byNumber.set(n, found);
+  }
+  const shown = citedMarkdown(text, numbers, verified);
+  const keep = async () => {
+    if (fileId) await verifyMarks(fileId, marksIn(body));
+    onKeep?.(verifiedText(body, verified));
+  };
   const components: Components = {
     a: ({ href, children }) => {
+      const cited = /^#cite-(\d+)$/.exec(href ?? "");
+      if (cited) {
+        const mark = byNumber.get(Number(cited[1]));
+        return mark ? <CiteChip n={Number(cited[1])} mark={mark} /> : null;
+      }
       const route = citedRoute(href);
       if (route)
         return (
@@ -439,17 +523,31 @@ const Answer = memo(function Answer({
     img: ({ alt }) => (alt ? <span>{alt}</span> : null),
   };
   return (
-    <div className={styles.answer}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={
-          flowing ? [[rehypeKatex, MATH], fadeTail] : [[rehypeKatex, MATH]]
-        }
-        skipHtml
-        components={components}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
+    <>
+      <div className={styles.answer} onCopy={copyWithCitations}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={
+            flowing ? [[rehypeKatex, MATH], fadeTail] : [[rehypeKatex, MATH]]
+          }
+          skipHtml
+          components={components}
+        >
+          {shown}
+        </ReactMarkdown>
+      </div>
+      {done && onKeep && (
+        <div className={styles.answerActions}>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={FilePlus2}
+            onClick={() => void keep()}
+          >
+            {t("reader.cite.keep")}
+          </Button>
+        </div>
+      )}
+    </>
   );
 });

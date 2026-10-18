@@ -8,6 +8,11 @@ export type GuideContent = {
   keywords: string[];
   summary: string[];
   sections: GuideSection[];
+  /**
+   * The service checked every sentence's citation marker against the pages
+   * (`[[p3: "…"]]`); guides made before that have page chips only.
+   */
+  cited: boolean;
 };
 
 /** A reading artifact as the service sends it, as far as the guide reads it. */
@@ -40,6 +45,7 @@ export const EMPTY_GUIDE: GuideContent = {
   keywords: [],
   summary: [],
   sections: [],
+  cited: false,
 };
 
 const running = (artifact: GuideArtifact) =>
@@ -91,6 +97,7 @@ export function readGuide(value: unknown): GuideContent {
     keywords: strings(record.keywords),
     summary: strings(record.summary),
     sections,
+    cited: record.cited === true,
   };
 }
 

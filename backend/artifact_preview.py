@@ -121,7 +121,7 @@ def preview(kind, raw, *, texts, pages, units=None):
         for item in arrays.get(field, [])[:limit]:
             try:
                 if schema is None:
-                    maximum = 120 if field == "keywords" else 2000
+                    maximum = 120 if field == "keywords" else 4000
                     if (
                         not isinstance(item, str)
                         or not item.strip()

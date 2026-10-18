@@ -3,6 +3,7 @@ import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
+import type { AnyExtension } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
 import { NoteBlockMath, NoteInlineMath, safeMathOptions } from "./note-math";
@@ -60,6 +61,8 @@ export interface FormulaClick {
 export function noteExtensions(
   onFormula: (formula: FormulaClick) => void,
   imageLabels: NoteImageLabels,
+  /** More that only some editors have (the new reader's sentence citations). */
+  extra: AnyExtension[] = [],
 ) {
   const clicked = (block: boolean) => (node: ProseMirrorNode, pos: number) =>
     onFormula({ pos, latex: node.attrs.latex, block });
@@ -87,5 +90,6 @@ export function noteExtensions(
       HTMLAttributes: { "data-type": "taskItem" },
     }),
     SafeImage.configure({ labels: imageLabels }),
+    ...extra,
   ];
 }

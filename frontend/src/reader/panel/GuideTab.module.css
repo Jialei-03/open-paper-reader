@@ -189,3 +189,80 @@
     transform: translateY(var(--guide-arrive-distance));
   }
 }
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-8);
+}
+
+/* Keeping a section in the notes: there when the section is hovered or focused, quiet otherwise. */
+.keep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-6);
+  background: none;
+  color: var(--ui-fg-2);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.section:hover .keep,
+.keep:focus-visible {
+  opacity: 1;
+}
+
+.keep:hover {
+  background: var(--ui-hover);
+  color: var(--ui-fg);
+}
+
+.keep:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+@media (hover: none) {
+  .keep {
+    opacity: 1;
+  }
+}
+
+/* An older guide: it names pages only. The way to a better one is there, not pressed on anyone. */
+.legacy {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}
+
+.regenerate {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-4);
+  background: none;
+  color: var(--ui-accent-text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.regenerate:disabled {
+  color: var(--ui-fg-3);
+  cursor: default;
+}
+
+.regenerate:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}

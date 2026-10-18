@@ -187,6 +187,11 @@ export function NotesTab({
             onFlush={notes.flush}
             onJump={onJump}
             onImage={notes.attach}
+            cite={
+              file
+                ? { paperId: paper.id, fileId: file.id, onCite: onJump }
+                : undefined
+            }
           />
         </>
       )}

@@ -415,6 +415,13 @@ export const en = {
   "reader.assistant.failed": "This answer could not be finished.",
   "reader.assistant.cite.page": "p. {page}",
   "reader.assistant.cite.goto": "Go to p. {page} in the paper",
+  "reader.cite.chip": "Source {n}, page {page}",
+  "reader.cite.page": "Paper · p. {page}",
+  "reader.cite.goto": "Click to jump to the paper and mark this sentence",
+  "reader.cite.keep": "Add to notes",
+  "reader.cite.regenerate": "Regenerate to get sentence-level sources",
+  "reader.cite.regenerateHint":
+    "This guide only names pages, not the sentence behind each claim.",
   "import.drop.title": "Drop a PDF here, or paste a paper link",
   "import.drop.hint": "PDFs up to 50 MB, several at once if you like.",
   "import.drop.choose": "Choose PDF files",

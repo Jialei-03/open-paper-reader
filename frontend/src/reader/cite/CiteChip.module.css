@@ -1,0 +1,87 @@
+/*
+ * A citation: a small raised number after the sentence it supports. Quiet ink,
+ * no brand color; the card it opens shows the paper's own words.
+ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 var(--ui-space-4);
+  margin: 0 1px 0 2px;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
+  font-size: 10px;
+  font-weight: var(--ui-weight-strong);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-decoration: none;
+  vertical-align: super;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 120ms ease;
+}
+
+.chip:hover,
+.chip[data-open="true"] {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip {
+    transition: none;
+  }
+}
+
+.card {
+  --card-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+  box-sizing: border-box;
+  width: min(var(--card-width), calc(100vw - 2 * var(--ui-space-12)));
+  padding: var(--ui-space-10) var(--ui-space-12);
+  border-radius: var(--ui-r-10);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+.where {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+}
+
+.quote {
+  margin: 0;
+  padding-left: var(--ui-space-8);
+  border-left: 2px solid var(--ui-edge);
+  color: var(--ui-fg-1);
+  overflow-wrap: anywhere;
+  /* A long sentence is cut short here; the page itself has all of it. */
+  display: -webkit-box;
+  -webkit-line-clamp: 7;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hint {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+/* A note keeps the chip in its text; the editor does not select it as text. */
+.inNote {
+  cursor: pointer;
+}
