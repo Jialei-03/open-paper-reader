@@ -18,15 +18,15 @@ test("The public site and the sign-in page load without the workspace", async ({
 
   await page.goto("/#home");
   await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
-  expect(loaded().some((path) => /Workspace/.test(path))).toBe(false);
+  expect(loaded().some((path) => /AppShell/.test(path))).toBe(false);
 
   await page.goto("/#dashboard");
   await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
   // Nothing of the reader, editor or graph is needed to sign in, so the whole
   // script budget of the front door stays small (it was 2.3 MB in one file).
-  expect(
-    loaded().some((path) => /Workspace|pdf-|PaperSharing/.test(path)),
-  ).toBe(false);
+  expect(loaded().some((path) => /AppShell|pdf-|PaperSharing/.test(path))).toBe(
+    false,
+  );
   expect(bytes()).toBeLessThan(500_000);
 
   // Signing in is what brings the workspace.
@@ -35,15 +35,15 @@ test("The public site and the sign-in page load without the workspace", async ({
     .getByLabel("密码", { exact: true })
     .fill(process.env.E2E_TEST_PASSWORD!);
   await page.getByRole("button", { name: "登录空间", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "最近" })).toBeVisible();
-  expect(loaded().some((path) => /Workspace/.test(path))).toBe(true);
+  await expect(page.locator("[data-app-screen]")).toBeVisible();
+  expect(loaded().some((path) => /AppShell/.test(path))).toBe(true);
 });
 
 test("A tab from before an update reloads once, then says so instead of going blank", async ({
   page,
 }) => {
   let attempts = 0;
-  await page.route(/\/assets\/Workspace-[^/]+\.js$/, (route) => {
+  await page.route(/\/assets\/AppShell-[^/]+\.js$/, (route) => {
     attempts++;
     return route.abort();
   });
