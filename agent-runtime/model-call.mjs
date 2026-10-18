@@ -36,37 +36,50 @@ export function explain({status, silent, error = ''}) {
 export const plain = error => /[㐀-鿿]/.test(error || '') ? error : FAILED;
 
 // `fetch` goes to the provider and remembers the status of the current call;
-// `watch` runs one call, aborting it once no event has arrived for `seconds`.
+// `watch` runs one call, aborting it once `seconds` pass with neither a byte of
+// the response nor a stream event: the backend's read timeout also counts bytes.
 export function modelCalls(send, seconds) {
   let current = null;
   const fetch = async (input, options) => {
     const call = current;
     const response = await send(input, options);
-    if (call) call.status = response.status;
-    return response;
+    if (!call) return response;
+    call.status = response.status;
+    call.arm();
+    if (!response.body) return response;
+    // Pi emits no event for some of what a model streams (MiniMax sends its
+    // reasoning as reasoning_details), so the bytes themselves are the sign of life.
+    const body = response.body.pipeThrough(new TransformStream({
+      transform(chunk, stream) { call.arm(); stream.enqueue(chunk); },
+    }));
+    const live = new Response(body, {status:response.status, statusText:response.statusText, headers:response.headers});
+    Object.defineProperty(live, 'url', {value:response.url});
+    return live;
   };
   function watch(start, signal) {
     const call = current = {};
     const controller = new AbortController();
     let timer;
-    const arm = () => {
+    call.arm = () => {
       clearTimeout(timer);
+      if (call.settled) return;
       timer = setTimeout(() => { call.silent = seconds; controller.abort(); }, seconds * 1000);
     };
-    arm();
+    const settle = () => { call.settled = true; clearTimeout(timer); };
+    call.arm();
     let source;
     try { source = start(signal ? AbortSignal.any([signal, controller.signal]) : controller.signal); }
-    catch (error) { clearTimeout(timer); throw error; }
+    catch (error) { settle(); throw error; }
     return {
       result: () => source.result(),
       async *[Symbol.asyncIterator]() {
         try {
           for await (const event of source) {
-            arm();
+            call.arm();
             if (event.type === 'error') call.failure = explain({...call, error: event.error?.errorMessage});
             yield event;
           }
-        } finally { clearTimeout(timer); }
+        } finally { settle(); }
       },
     };
   }

@@ -95,3 +95,58 @@ test('a silent model is aborted after the limit; a talking one is not', async ()
   assert.equal(seen.aborted, true);
   for await (const e of stopped) void e;
 });
+
+// The real Pi provider stream against a local server, as the runner uses it.
+import http from 'node:http';
+import {streamSimple} from '@earendil-works/pi-ai/api/openai-completions';
+import {silenceMessage} from './model-call.mjs';
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const frame = (delta, finish = null) => `data: ${JSON.stringify({id:'x', object:'chat.completion.chunk', created:1, model:'m', choices:[{index:0, delta, finish_reason:finish}]})}\n\n`;
+async function answer(handler, seconds) {
+  const server = http.createServer(handler);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${server.address().port}/v1`;
+  const models = modelCalls(providerFetch(base, true), seconds);
+  const model = {id:'m', name:'m', api:'openai-completions', provider:'workspace', baseUrl:base, reasoning:false, input:['text'],
+    contextWindow:128000, maxTokens:1000, cost:{input:0, output:0, cacheRead:0, cacheWrite:0},
+    compat:{supportsDeveloperRole:false, maxTokensField:'max_tokens', supportsStore:false}};
+  try {
+    const call = models.watch(signal => streamSimple(model, {systemPrompt:'s', messages:[{role:'user', content:'hi', timestamp:0}]},
+      {apiKey:'k', maxRetries:0, signal, fetch:models.fetch}));
+    for await (const e of call) void e;
+    return {message: await call.result(), failure: models.failure()};
+  } finally { server.closeAllConnections(); server.close(); }
+}
+test('a model that only streams reasoning_details is not taken for silent', async () => {
+  // MiniMax with reasoning_split sends its thinking this way, and Pi emits no
+  // event for it: 1.2 s of reasoning bytes, 100 ms apart, under a 0.5 s limit.
+  const {message, failure} = await answer(async (request, response) => {
+    request.resume();
+    response.writeHead(200, {'content-type':'text/event-stream'});
+    for (let i = 0; i < 12; i++) {
+      response.write(frame({reasoning_details:[{type:'reasoning.text', text:`第 ${i} 步。`}]}));
+      await sleep(100);
+    }
+    response.write(frame({content:'答案'}));
+    response.write(frame({}, 'stop'));
+    response.end('data: [DONE]\n\n');
+  }, 0.5);
+  assert.equal(failure, undefined);
+  assert.equal(message.stopReason, 'stop');
+  assert.equal(message.content.find(c => c.type === 'text').text, '答案');
+});
+test('a model that falls silent, before or during its answer, still times out', async () => {
+  for (const started of [false, true]) {
+    const begun = Date.now();
+    const {message, failure} = await answer((request, response) => {
+      request.resume();
+      if (!started) return;  // not even the headers
+      response.writeHead(200, {'content-type':'text/event-stream'});
+      response.write(frame({content:'一半'}));
+    }, 0.3);
+    assert.equal(message.stopReason, 'aborted', String(started));
+    assert.equal(failure, silenceMessage(0.3));
+    assert.ok(Date.now() - begun < 2000);
+    if (started) assert.equal(message.content.find(c => c.type === 'text').text, '一半');
+  }
+});
