@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { contrast, openKit } from "./helpers";
+import { contrast, openKit, scrollAncestorBy } from "./helpers";
 
 const section = (page: Page) =>
   page.getByRole("region", { name: "Menu", exact: true });
@@ -124,15 +124,11 @@ test("it opens below the button, level with its start edge, in the top layer", a
   page,
 }) => {
   await openKit(page);
-  // The section ends the page: give it room to scroll up, so that there is room below the button.
-  await page.evaluate(() => {
-    const spacer = document.createElement("div");
-    spacer.style.height = "1500px";
-    document.querySelector("main")!.after(spacer);
-  });
-  await more(page).evaluate((element) => {
-    window.scrollBy(0, element.getBoundingClientRect().top - 200);
-  });
+  // Scrolled up the card, so that there is room below the button.
+  await scrollAncestorBy(
+    more(page),
+    (await more(page).evaluate((el) => el.getBoundingClientRect().top)) - 200,
+  );
   await more(page).focus();
   await page.keyboard.press("ArrowDown");
   await expect(item(page, "Rename")).toBeFocused();

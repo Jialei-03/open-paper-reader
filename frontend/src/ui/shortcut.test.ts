@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ariaKeyShortcuts,
+  currentPlatformIsMac,
   formatShortcut,
   isMacPlatform,
   matchesShortcut,
@@ -26,6 +27,22 @@ describe("isMacPlatform", () => {
     expect(isMacPlatform("Win32")).toBe(false);
     expect(isMacPlatform("Linux x86_64")).toBe(false);
     expect(isMacPlatform("")).toBe(false);
+  });
+});
+
+describe("currentPlatformIsMac", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reads the platform of the browser", () => {
+    vi.stubGlobal("navigator", { platform: "MacIntel" });
+    expect(currentPlatformIsMac()).toBe(true);
+    vi.stubGlobal("navigator", { platform: "Linux x86_64" });
+    expect(currentPlatformIsMac()).toBe(false);
+  });
+
+  it("is false where there is no navigator", () => {
+    vi.stubGlobal("navigator", undefined);
+    expect(currentPlatformIsMac()).toBe(false);
   });
 });
 

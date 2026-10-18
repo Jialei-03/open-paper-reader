@@ -32,6 +32,14 @@ export {
   type SegmentedOption,
 } from "./SegmentedControl";
 export { Toaster, toast } from "./Toaster";
+export { Card, CardHeader, Shell, type CardProps } from "./Shell";
+export {
+  Sidebar,
+  SidebarItem,
+  SidebarSection,
+  type SidebarItemProps,
+  type SidebarProps,
+} from "./Sidebar";
 export type { ToastOptions, ToastTone } from "./toast-store";
 export {
   placeFloating,

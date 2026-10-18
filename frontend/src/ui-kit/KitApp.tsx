@@ -4,15 +4,20 @@ import {
   BookOpen,
   Copy,
   Download,
+  FileText,
   Info,
   Languages,
+  Library,
   NotebookPen,
   Pencil,
   Plus,
   Search,
+  Settings,
+  Share2,
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -20,12 +25,18 @@ import { I18nProvider, useI18n } from "../i18n/I18nProvider";
 import { isLocale } from "../i18n/i18n";
 import {
   Button,
+  Card,
+  CardHeader,
   Dialog,
   IconButton,
   Kbd,
   Menu,
   MenuList,
   SegmentedControl,
+  Shell,
+  Sidebar,
+  SidebarItem,
+  SidebarSection,
   TextArea,
   TextField,
   Toaster,
@@ -649,46 +660,141 @@ function ToastDemo() {
   );
 }
 
+const paperTitle = "Attention Is All You Need";
+const longTitle =
+  "A Remarkably Long Paper Title That Will Not Fit In The Sidebar";
+
+/** What each of the side card's tabs shows. */
+const sideTexts: Record<Panel, string> = {
+  guide: "The idea in a few lines, and where to start reading.",
+  assistant: "Ask about a passage and the answer points back to the page.",
+  translation: "The paragraph under the pointer, in your language.",
+  notes: "What you wrote down while reading, in order.",
+};
+
+type Place = "reading" | "library" | "long";
+
+/** A sample window: the pieces of the new interface, laid out as the product will. */
 function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
+  const [collapsed, setCollapsed] = useState(false);
+  const [place, setPlace] = useState<Place>("reading");
+  const [side, setSide] = useState<Panel>("guide");
+  const idle = () => undefined;
   return (
     <div className={styles.kit}>
-      <header className={styles.toolbar}>
-        <h1 className={styles.heading}>UI kit</h1>
-        <select
-          className={styles.select}
-          aria-label="Kit theme"
-          value={mode}
-          onChange={(event) => setMode(parseAppearance(event.target.value))}
-        >
-          <option value="system">System</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>
-        <select
-          className={styles.select}
-          aria-label="Kit locale"
-          value={locale}
-          onChange={(event) => {
-            if (isLocale(event.target.value)) setLocale(event.target.value);
-          }}
-        >
-          <option value="zh">中文</option>
-          <option value="en">English</option>
-        </select>
-      </header>
-      <main className={styles.main}>
-        <Tokens />
-        <I18nDemo />
-        <ButtonDemo />
-        <FieldDemo />
-        <TooltipDemo />
-        <MenuDemo />
-        <DialogDemo />
-        <SegmentedDemo />
-        <ToastDemo />
-      </main>
+      <Shell
+        sidebar={
+          <Sidebar
+            label="Workspace"
+            collapsed={collapsed}
+            onCollapsedChange={setCollapsed}
+            header="UI kit"
+            footer={
+              <SidebarItem icon={Settings} label="Settings" onClick={idle} />
+            }
+          >
+            <SidebarSection>
+              <SidebarItem icon={Upload} label="Import" onClick={idle} />
+              <SidebarItem icon={Search} label="Search" onClick={idle} />
+            </SidebarSection>
+            <SidebarSection title="Papers">
+              <SidebarItem
+                icon={BookOpen}
+                label="Reading"
+                dot
+                active={place === "reading"}
+                onClick={() => setPlace("reading")}
+              />
+              <SidebarItem
+                icon={Library}
+                label="Library"
+                meta="128"
+                active={place === "library"}
+                onClick={() => setPlace("library")}
+              />
+              <SidebarItem
+                icon={FileText}
+                label={longTitle}
+                active={place === "long"}
+                onClick={() => setPlace("long")}
+              />
+            </SidebarSection>
+          </Sidebar>
+        }
+      >
+        <Card as="main" className={styles.paper} aria-labelledby="kit-paper">
+          <CardHeader>
+            <h1 id="kit-paper" className={styles.title}>
+              {paperTitle}
+            </h1>
+            <select
+              className={styles.select}
+              aria-label="Kit theme"
+              value={mode}
+              onChange={(event) => setMode(parseAppearance(event.target.value))}
+            >
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+            </select>
+            <select
+              className={styles.select}
+              aria-label="Kit locale"
+              value={locale}
+              onChange={(event) => {
+                if (isLocale(event.target.value)) setLocale(event.target.value);
+              }}
+            >
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+            </select>
+            <IconButton icon={Share2} label="Share paper" />
+          </CardHeader>
+          <div className={styles.scroll}>
+            <Tokens />
+            <I18nDemo />
+            <ButtonDemo />
+            <FieldDemo />
+            <TooltipDemo />
+            <MenuDemo />
+            <DialogDemo />
+            <SegmentedDemo />
+            <ToastDemo />
+          </div>
+        </Card>
+        <Card as="aside" className={styles.side} aria-label="Assistant">
+          <CardHeader>
+            <SegmentedControl
+              kind="tabs"
+              size="sm"
+              label="Side panel"
+              options={panels.map(({ value, label, icon }) => ({
+                value,
+                label,
+                icon,
+                panelId: `kit-side-${value}`,
+              }))}
+              value={side}
+              onChange={setSide}
+            />
+          </CardHeader>
+          <div className={styles.scroll}>
+            {panels.map(({ value }) => (
+              <div
+                key={value}
+                role="tabpanel"
+                id={`kit-side-${value}`}
+                aria-labelledby={`kit-side-${value}-tab`}
+                hidden={side !== value}
+              >
+                <p className={styles.sideText}>{sideTexts[value]}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </Shell>
       <Toaster />
     </div>
   );

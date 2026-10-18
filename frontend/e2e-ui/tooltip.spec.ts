@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { contrast, openKit } from "./helpers";
+import { contrast, openKit, scrollAncestorBy } from "./helpers";
 
 const section = (page: Page) =>
   page.getByRole("region", { name: "Tooltip", exact: true });
@@ -224,16 +224,8 @@ test("the tooltip follows its button on scroll and resize", async ({
 }) => {
   await openKit(page);
   const find = section(page).getByRole("button", { name: "Find" });
-  // The kit page ends at the buttons; room below them lets the page scroll further.
-  await page.evaluate(() => {
-    const spacer = document.createElement("div");
-    spacer.style.height = "1500px";
-    document.querySelector("main")!.after(spacer);
-  });
-  await find.evaluate((element) => {
-    const { top } = element.getBoundingClientRect();
-    window.scrollBy(0, top - 400);
-  });
+  // The sample window's cards scroll, not the page: bring the button to 400px from the top.
+  await scrollAncestorBy(find, (await boxOf(find)).top - 400);
   await focusWithKeyboard(page, find);
   await expect(tooltip(page)).toBeVisible();
   await settled(page);
@@ -242,7 +234,7 @@ test("the tooltip follows its button on scroll and resize", async ({
   const startTop = (await boxOf(find)).top;
   const startGap = await gap();
 
-  await page.evaluate(() => window.scrollBy(0, 150));
+  await scrollAncestorBy(find, 150);
   await expect.poll(async () => (await boxOf(find)).top).toBe(startTop - 150);
   await expect.poll(gap).toBe(startGap);
 

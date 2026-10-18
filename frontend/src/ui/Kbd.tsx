@@ -1,4 +1,4 @@
-import { formatShortcut, isMacPlatform } from "./shortcut";
+import { currentPlatformIsMac, formatShortcut } from "./shortcut";
 import styles from "./Kbd.module.css";
 
 /**
@@ -7,11 +7,9 @@ import styles from "./Kbd.module.css";
  * shortcut with `aria-keyshortcuts`.
  */
 export function Kbd({ shortcut }: { shortcut: string }) {
-  const mac =
-    typeof navigator !== "undefined" && isMacPlatform(navigator.platform);
   return (
     <kbd className={styles.kbd} aria-hidden="true">
-      {formatShortcut(shortcut, mac)}
+      {formatShortcut(shortcut, currentPlatformIsMac())}
     </kbd>
   );
 }

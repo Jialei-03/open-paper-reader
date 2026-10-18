@@ -338,9 +338,16 @@ test("page scroll is locked while open and comes back after", async ({
   page,
 }) => {
   await openKit(page);
+  // The sample window is as high as the window, so the page does not scroll by itself: give it room to.
+  await page.evaluate(() => {
+    const spacer = document.createElement("div");
+    spacer.style.height = "1500px";
+    document.body.append(spacer);
+  });
   await opener(page, "Open dialog").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollTo(0, 150));
   const scrolled = await page.evaluate(() => window.scrollY);
-  expect(scrolled).toBeGreaterThan(0);
+  expect(scrolled).toBe(150);
   expect(await overflowOfPage(page)).toBe("");
 
   await opener(page, "Open dialog").click();

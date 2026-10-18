@@ -1,28 +1,12 @@
 .kit {
-  --kit-content-width: 960px;
+  /* No box of its own: the shell is the window. The sizes below are inherited by everything in it. */
+  display: contents;
+  --kit-side-width: 400px;
   --kit-swatch-width: 132px;
   --kit-swatch-height: 56px;
   --kit-narrow-width: 160px;
   --kit-field-width: 360px;
   --kit-corner-gap: 4px;
-}
-
-.toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-8);
-  padding: var(--ui-space-12) var(--ui-space-24);
-  background: var(--ui-bg);
-  box-shadow: var(--ui-elev-1);
-}
-
-.heading {
-  margin-right: auto;
-  font-size: var(--ui-text-15);
-  font-weight: var(--ui-weight-strong);
 }
 
 .select {
@@ -33,10 +17,45 @@
   background: var(--ui-elev);
 }
 
-.main {
-  max-width: var(--kit-content-width);
-  margin: 0 auto;
+/* The paper being read: the card in the middle takes the room the others leave. */
+.paper {
+  flex: 1;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The assistant's card is as wide as it is meant to be, and gives way when the window is narrow. */
+.side {
+  flex: none;
+  width: var(--kit-side-width);
+}
+
+@media (max-width: 960px) {
+  .side {
+    display: none;
+  }
+}
+
+/* What is inside a card, under its header: this is what scrolls. */
+.scroll {
+  flex: 1;
+  min-height: 0;
   padding: var(--ui-space-24);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sideText {
+  color: var(--ui-fg-1);
 }
 
 .section {

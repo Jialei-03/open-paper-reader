@@ -1,0 +1,36 @@
+.shell {
+  display: flex;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-8);
+  /* The window's height, not the page's: the cards scroll, the page does not. */
+  height: 100dvh;
+  background: var(--ui-bg-1);
+}
+
+/* Every card in here is as high as the window; each one lays out its own width. */
+.cards {
+  display: flex;
+  flex: 1;
+  gap: var(--ui-space-8);
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: var(--ui-r-16);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-elev-1);
+  overflow: hidden;
+}
+
+.header {
+  --card-header-height: 52px;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-10);
+  height: var(--card-header-height);
+  padding: 0 var(--ui-space-16);
+}

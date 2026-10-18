@@ -13,7 +13,7 @@ import { Floating } from "./Floating";
 import { Kbd } from "./Kbd";
 import styles from "./Menu.module.css";
 import type { Placement } from "./position";
-import { ariaKeyShortcuts, isMacPlatform } from "./shortcut";
+import { ariaKeyShortcuts, currentPlatformIsMac } from "./shortcut";
 
 /** A pause this long ends what has been typed, and the next letter starts a new search. */
 const TYPEAHEAD_RESET_MS = 500;
@@ -72,8 +72,7 @@ export function MenuList({
   const list = useRef<HTMLDivElement>(null);
   const elements = useRef<(HTMLDivElement | null)[]>([]);
   const typing = useRef({ text: "", timer: 0 });
-  const mac =
-    typeof navigator !== "undefined" && isMacPlatform(navigator.platform);
+  const mac = currentPlatformIsMac();
 
   // The items that can be current, as positions in `items`.
   const enabled = items.flatMap((entry, index) =>

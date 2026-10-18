@@ -11,6 +11,11 @@ export function isMacPlatform(platform: string): boolean {
   return /Mac|iPhone|iPad/.test(platform);
 }
 
+/** Whether this browser runs on an Apple platform; false where there is no `navigator` (a test, a server). */
+export function currentPlatformIsMac(): boolean {
+  return typeof navigator !== "undefined" && isMacPlatform(navigator.platform);
+}
+
 interface Parsed {
   mod: boolean;
   shift: boolean;

@@ -15,6 +15,8 @@ export interface TooltipProps {
   /** The shortcut that does the same, written as for `formatShortcut`. */
   shortcut?: string;
   placement?: Placement;
+  /** Off: nothing is shown. For a name that is worth a tooltip only some of the time (a label that is cut short). */
+  disabled?: boolean;
   /** One element, which the tooltip is placed against. It must name itself (an `aria-label`, say). */
   children: ReactElement;
 }
@@ -29,6 +31,7 @@ export function Tooltip({
   content,
   shortcut,
   placement = defaultPlacement,
+  disabled = false,
   children,
 }: TooltipProps) {
   const wrapper = useRef<HTMLSpanElement>(null);
@@ -51,13 +54,17 @@ export function Tooltip({
   };
   const show = () => {
     cancel();
-    setAnchor(anchorOf());
+    if (!disabled) setAnchor(anchorOf());
   };
   const hide = () => {
     cancel();
     setAnchor(null);
   };
   useEffect(() => cancel, []);
+  // Turned off while it is up (or about to be): it goes.
+  useEffect(() => {
+    if (disabled) hide();
+  }, [disabled]);
 
   return (
     <span

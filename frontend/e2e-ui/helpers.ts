@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /** Open the kit page; a theme or locale that is not given is left as the page has it. */
 export async function openKit(
@@ -10,6 +10,26 @@ export async function openKit(
     await page.getByLabel("Kit theme").selectOption(options.theme);
   if (options.locale)
     await page.getByLabel("Kit locale").selectOption(options.locale);
+}
+
+/**
+ * Scrolls the nearest scrolling ancestor of an element by `dy`: in the sample
+ * window that is the card the element is in (the page itself does not scroll).
+ */
+export function scrollAncestorBy(locator: Locator, dy: number): Promise<void> {
+  return locator.evaluate((element, delta) => {
+    let node = element.parentElement;
+    while (
+      node &&
+      !(
+        /auto|scroll/.test(getComputedStyle(node).overflowY) &&
+        node.scrollHeight > node.clientHeight
+      )
+    )
+      node = node.parentElement;
+    if (node) node.scrollBy(0, delta);
+    else window.scrollBy(0, delta);
+  }, dy);
 }
 
 type Pixel = [number, number, number, number];
