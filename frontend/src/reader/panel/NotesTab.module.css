@@ -1,0 +1,144 @@
+.tab {
+  --notes-status-height: 28px;
+  --notes-dot-size: 8px;
+  --notes-waiting-height: 168px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/*
+ * Where the note is kept. It stays at the top of the panel while the note
+ * scrolls under it; the shadow, which is only the surface's own color, covers
+ * the panel's top padding above it, so that nothing shows through there.
+ */
+.status {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: var(--notes-status-height);
+  background: var(--ui-bg);
+  box-shadow: 0 calc(var(--ui-space-8) * -1) 0 var(--ui-bg);
+}
+
+.saved {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+.problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-4) var(--ui-space-8);
+  margin: 0;
+  color: var(--ui-danger-text);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--notes-waiting-height);
+  color: var(--ui-fg-2);
+}
+
+.highlights {
+  margin-top: var(--ui-space-24);
+  padding-top: var(--ui-space-16);
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+
+.heading {
+  margin: 0 0 var(--ui-space-8);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading);
+}
+
+.hint {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  margin: 0 calc(var(--ui-space-8) * -1);
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-10);
+  width: 100%;
+  padding: var(--ui-space-8);
+  border: 0;
+  border-radius: var(--ui-r-8);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.item:hover {
+  background: var(--ui-hover);
+}
+
+.dot {
+  flex: none;
+  width: var(--notes-dot-size);
+  height: var(--notes-dot-size);
+  /* Level with the middle of the first line of the quote. */
+  margin-top: calc(
+    (var(--ui-text-13) * var(--ui-leading) - var(--notes-dot-size)) / 2
+  );
+  border-radius: var(--ui-r-pill);
+}
+
+.entry {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.quote,
+.comment {
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  overflow-wrap: anywhere;
+}
+
+.quote {
+  display: -webkit-box;
+  color: var(--ui-fg-1);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.comment {
+  color: var(--ui-fg);
+}
+
+.page {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}

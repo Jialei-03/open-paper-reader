@@ -48,8 +48,9 @@ import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
+import { useNotes } from "./notes/useNotes";
 import { linkTarget } from "./outline";
-import { followLink, type ReaderRoute } from "./route";
+import { followLink, readerHash, type ReaderRoute } from "./route";
 import { usePaper } from "./usePaper";
 import styles from "./ReaderScreen.module.css";
 
@@ -357,6 +358,7 @@ function PaperCard({
   owner,
   panelToggle,
   onPaper,
+  onFile,
   actions,
 }: {
   route: ReaderRoute;
@@ -364,6 +366,8 @@ function PaperCard({
   owner: string;
   panelToggle: ReactNode;
   onPaper: (paper: Paper) => void;
+  /** The paper's PDF, for the side panel; `null` while there is none. */
+  onFile: (file: SourceFile | null) => void;
   actions: RefObject<PaperActions | null>;
 }) {
   const [paper, setPaper] = useState<Paper | null>(null);
@@ -383,6 +387,8 @@ function PaperCard({
   const [outlineOpen, setOutlineOpen] = useState(false);
   const doc = source?.doc ?? null;
   const pages = doc?.numPages ?? 0;
+  const sourceFile = source?.file ?? null;
+  useEffect(() => onFile(sourceFile), [sourceFile, onFile]);
   const find = useFind(doc, controller);
   const preview = useLinkPreview(route.paperId, doc);
   const controllerNow = useRef(controller);
@@ -660,8 +666,13 @@ export function ReaderScreen({
   const [panelOpen, setPanelOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const [loaded, setLoaded] = useState<Paper | null>(null);
+  const [file, setFile] = useState<SourceFile | null>(null);
   const [visits, setVisits] = useState(() => recentPapers(owner));
   const actions = useRef<PaperActions>(null);
+  // The paper and PDF the side panel is about: not the previous paper's, while the next is still loading.
+  const here = loaded?.id === paperId ? loaded : null;
+  const hereFile = file?.paper_id === paperId ? file : null;
+  const notes = useNotes(here);
 
   // The panel only opens over the paper; a window that has grown wide shows it docked, and shut when narrowed again.
   useEffect(() => {
@@ -724,11 +735,22 @@ export function ReaderScreen({
             owner={owner}
             panelToggle={panelToggle}
             onPaper={setLoaded}
+            onFile={setFile}
             actions={actions}
           />
         </Card>
         <RightPanel
           paperId={paperId}
+          notes={
+            here
+              ? {
+                  paper: here,
+                  file: hereFile,
+                  notes,
+                  onJump: (route) => go(readerHash(route)),
+                }
+              : undefined
+          }
           overlay={
             narrow
               ? {

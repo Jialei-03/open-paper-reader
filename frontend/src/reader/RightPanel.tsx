@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
+import { NotesTab, type NotesTabProps } from "./panel/NotesTab";
 import { RegionBoundary } from "./RegionBoundary";
 import styles from "./RightPanel.module.css";
 
@@ -31,10 +32,13 @@ export interface PanelOverlay {
  */
 export function RightPanel({
   overlay,
+  notes,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
   overlay?: PanelOverlay;
+  /** What the notes tab is made from; until the paper is there, the tab says what it will hold. */
+  notes?: NotesTabProps;
 }) {
   const { t } = useI18n();
   const ids = useId();
@@ -106,9 +110,13 @@ export function RightPanel({
               aria-labelledby={`${ids}-${value}-tab`}
               hidden={view !== value}
             >
-              <p className={styles.placeholder}>
-                {t(`reader.tab.${value}.empty`)}
-              </p>
+              {value === "notes" && notes ? (
+                <NotesTab {...notes} />
+              ) : (
+                <p className={styles.placeholder}>
+                  {t(`reader.tab.${value}.empty`)}
+                </p>
+              )}
             </div>
           ))}
         </div>
