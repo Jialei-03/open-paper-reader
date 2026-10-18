@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
   type Ref,
@@ -27,6 +28,7 @@ import {
   Shell,
   currentPlatformIsMac,
   matchesShortcut,
+  toast,
 } from "../ui";
 import { recentPapers, rememberPaper } from "../lib/recent-papers";
 import { AnnotationLayer, pageBox } from "./engine/layers/AnnotationLayer";
@@ -46,9 +48,10 @@ import { FindBar, useFind, type Find } from "./FindBar";
 import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
-import { RightPanel } from "./RightPanel";
-import { SelectionMenu } from "./selection/SelectionMenu";
+import { RightPanel, type PanelView } from "./RightPanel";
+import { SelectionMenu, type SelectionNote } from "./selection/SelectionMenu";
 import { Composer, useAssistant } from "./assistant";
+import { excerptMarkdown } from "./notes/excerpt";
 import { useNotes } from "./notes/useNotes";
 import type { AskRequest } from "./types";
 import { linkTarget } from "./outline";
@@ -85,6 +88,9 @@ interface Overlays {
   /** For the menu over selected text: the paper, and the pages' scroller. */
   paper: Paper | null;
   scroller: HTMLElement | null;
+  /** The menu's explain and ask, and its keeping in the note. */
+  onAsk(request: AskRequest): void;
+  onNote(request: SelectionNote): void;
 }
 
 /**
@@ -93,7 +99,7 @@ interface Overlays {
  * address points at.
  */
 function PaperPages({
-  overlays: { onLink, preview, region, paper, scroller },
+  overlays: { onLink, preview, region, paper, scroller, onAsk, onNote },
   ...props
 }: Omit<PdfPagesProps, "pageOverlays"> & { overlays: Overlays }) {
   const { doc, file } = props;
@@ -146,8 +152,8 @@ function PaperPages({
           paper={paper}
           file={file}
           annotations={store}
-          onAsk={(request) => console.info("reader ask", request)}
-          onNote={(request) => console.info("reader note", request)}
+          onAsk={onAsk}
+          onNote={onNote}
         />
       )}
     </>
@@ -375,6 +381,8 @@ function PaperCard({
   panelToggle,
   onPaper,
   onFile,
+  onAsk,
+  onNote,
   actions,
 }: {
   route: ReaderRoute;
@@ -384,6 +392,9 @@ function PaperCard({
   onPaper: (paper: Paper) => void;
   /** The paper's PDF, for the panel beside it (`null` while there is none). */
   onFile: (file: SourceFile | null) => void;
+  /** Selected text to explain or ask about, and to keep in the note. */
+  onAsk: Overlays["onAsk"];
+  onNote: Overlays["onNote"];
   actions: RefObject<PaperActions | null>;
 }) {
   const [paper, setPaper] = useState<Paper | null>(null);
@@ -578,6 +589,8 @@ function PaperCard({
     region,
     paper,
     scroller: controller?.root ?? null,
+    onAsk,
+    onNote,
   };
 
   // The screen's mod+f reaches the find bar through this.
@@ -699,11 +712,64 @@ export function ReaderScreen({
   const assistant = useAssistant({ paper: here, file: hereFile });
   const [pending, setPending] = useState<AskRequest | null>(null);
   const notes = useNotes(here);
+  const [tab, setTab] = useState<PanelView>("guide");
+  // How far up the question box reaches over the foot of the paper's card: the pages leave that room under the last.
+  const [cover, setCover] = useState(0);
+  const narrowNow = useRef(narrow);
+  narrowNow.current = narrow;
 
   // The panel only opens over the paper; a window that has grown wide shows it docked, and shut when narrowed again.
   useEffect(() => {
     if (!narrow) setPanelOpen(false);
   }, [narrow]);
+
+  // A question about the previous paper's words is not carried over to the next.
+  useEffect(() => setPending(null), [paperId]);
+
+  /** Shows a view of the side panel: folded away, the panel opens over the paper with it. */
+  const show = useCallback((view: PanelView) => {
+    setTab(view);
+    if (narrowNow.current) setPanelOpen(true);
+  }, []);
+
+  // Selected text explained is asked at once, and the answer shown; asked about, it waits in the
+  // question box for the question (the box takes the keyboard when it is handed a context).
+  const ask = (request: AskRequest) => {
+    if (request.action === "explain") {
+      show("assistant");
+      void assistant.send({
+        prompt: t("reader.assistant.explainPrompt"),
+        request,
+      });
+    } else setPending(request);
+  };
+
+  // Kept in the note: the words, their translation if they come with one, and the way back to them.
+  const keep = (request: SelectionNote) => {
+    const markdown = excerptMarkdown(
+      request,
+      t("reader.notes.source", { page: request.page }),
+    );
+    notes.append(markdown).then(
+      () =>
+        toast.show({
+          message: t("reader.notes.saved"),
+          tone: "success",
+          action: {
+            label: t("reader.notes.show"),
+            onClick: () => show("notes"),
+          },
+        }),
+      (reason: unknown) =>
+        toast.show({
+          message:
+            reason instanceof Error && reason.message
+              ? reason.message
+              : t("reader.notes.appendFailed"),
+          tone: "error",
+        }),
+    );
+  };
 
   // A paper that is there has been read: remember it, as the old reader does.
   useEffect(() => {
@@ -753,6 +819,7 @@ export function ReaderScreen({
           as="main"
           aria-label={t("reader.region.paper")}
           className={styles.paper}
+          style={{ "--composer-clearance": `${cover}px` } as CSSProperties}
         >
           {/* A new paper starts afresh, its boundary too: a failure is not carried over to it. */}
           <PaperCard
@@ -763,12 +830,15 @@ export function ReaderScreen({
             panelToggle={panelToggle}
             onPaper={setLoaded}
             onFile={setFile}
+            onAsk={ask}
+            onNote={keep}
             actions={actions}
           />
           <Composer
             assistant={assistant}
             pending={pending}
             onClearPending={() => setPending(null)}
+            onCover={setCover}
           />
         </Card>
         <RightPanel
@@ -788,6 +858,8 @@ export function ReaderScreen({
                 }
               : undefined
           }
+          tab={tab}
+          onTabChange={setTab}
           overlay={
             narrow
               ? {

@@ -115,6 +115,8 @@ export const en = {
   "reader.notes.loadFailed": "Couldn't open the notes for this paper.",
   "reader.notes.createFailed": "Couldn't create the notes. Try typing again.",
   "reader.notes.appendFailed": "Couldn't add this to the notes. Try again.",
+  "reader.notes.source": "Source · p. {page}",
+  "reader.notes.show": "Open notes",
   "reader.notes.highlights": "Highlights and comments · {count}",
   "reader.notes.highlights.none":
     "Select text in the paper to highlight or comment on it.",
@@ -160,6 +162,8 @@ export const en = {
   "reader.assistant.placeholder":
     "Ask about this page, a passage, or the whole paper…",
   "reader.assistant.send": "Send",
+  "reader.assistant.explainPrompt":
+    "Explain this passage: what it says, why it matters, and how it fits the surrounding argument.",
   "reader.assistant.stop": "Stop answering",
   "reader.assistant.noModel":
     "Add a model in Settings first, so the assistant can answer.",

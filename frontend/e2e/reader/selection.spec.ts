@@ -62,15 +62,20 @@ async function selectLine(page: Page, line: Locator, to?: Locator) {
 const line = (page: Page, number: number, text: string) =>
   pdfPage(page, number).locator(".textLayer span", { hasText: text });
 
-/** What the page passes to console.info: the reader's stand-in for the assistant and the note. */
-function watchInfo(page: Page) {
-  const logs: unknown[][] = [];
-  page.on("console", async (message) => {
-    if (message.type() !== "info") return;
-    logs.push(await Promise.all(message.args().map((arg) => arg.jsonValue())));
-  });
-  return logs;
+/** The paper's note on the service, as Markdown ("" while it has none). */
+async function noteBody(page: Page, paperId: string) {
+  const notes = await (
+    await page.request.get(`/api/v1/items?kind=note&paper_id=${paperId}`)
+  ).json();
+  return (notes[0]?.body as string | undefined) ?? "";
 }
+
+/** The toast that says the selection was kept in the note. */
+const keptToast = (page: Page) =>
+  page
+    .getByRole("region", { name: "通知" })
+    .getByRole("status")
+    .filter({ hasText: "已保存" });
 
 async function openPaper(
   page: Page,
@@ -180,38 +185,48 @@ test("selecting text shows the actions beside it and keeps the selection", async
 test("E explains, ↵ asks and N keeps the selection; Esc closes the menu", async ({
   page,
 }) => {
-  const logs = watchInfo(page);
   const paper = await openPaper(page);
+  await page.route("**/api/v1/translation-settings", (route) =>
+    route.fulfill({ json: fixtureModels }),
+  );
+  const created: Record<string, any>[] = [];
+  await page.route("**/api/v1/agent/sessions/*/runs", (route: Route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: [] });
+    created.push(route.request().postDataJSON());
+    return route.fulfill({
+      json: { id: `run-${created.length}`, status: "queued", response: "" },
+    });
+  });
+  await page.reload();
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
   const words = line(page, 1, WORDS);
 
   await selectLine(page, words);
   await expect(menu(page)).toBeVisible();
   await page.keyboard.press("e");
   await expect(menu(page)).toBeHidden();
-  await expect.poll(() => logs.length).toBe(1);
-  expect(logs[0][0]).toBe("reader ask");
-  expect(logs[0][1]).toMatchObject({
-    paperId: paper.paperId,
-    fileId: paper.fileId,
+  await expect.poll(() => created.length).toBe(1);
+  expect(created[0].reader_context).toMatchObject({
+    paper_id: paper.paperId,
+    file_id: paper.fileId,
     page: 1,
     source: "selection",
     action: "explain",
     quote: WORDS,
   });
-  expect((logs[0][1] as { rects: unknown[] }).rects.length).toBe(1);
+  expect(created[0].reader_context.rects.length).toBe(1);
 
   await selectLine(page, words);
   await page.keyboard.press("Enter");
-  await expect.poll(() => logs.length).toBe(2);
-  expect(logs[1][0]).toBe("reader ask");
-  expect(logs[1][1]).toMatchObject({ action: "ask", quote: WORDS });
+  await expect(menu(page)).toBeHidden();
+  await expect(main(page).getByText(/^选中的一句：“Evidence/)).toBeVisible();
+  expect(created).toHaveLength(1);
 
   await selectLine(page, words);
   await menu(page).getByRole("menuitem", { name: "记到笔记" }).click();
   await expect(menu(page)).toBeHidden();
-  await expect.poll(() => logs.length).toBe(3);
-  expect(logs[2][0]).toBe("reader note");
-  expect(logs[2][1]).toMatchObject({ page: 1, quote: WORDS });
+  await expect(keptToast(page)).toBeVisible();
+  expect(await noteBody(page, paper.paperId)).toContain(`> ${WORDS}`);
 
   // Escape closes it and nothing else: the selection stays, the keys are the page's again.
   await selectLine(page, words);
@@ -221,7 +236,7 @@ test("E explains, ↵ asks and N keeps the selection; Esc closes the menu", asyn
   expect((await selected(page)).trim()).toBe(WORDS);
   await page.keyboard.press("e");
   await page.waitForTimeout(200);
-  expect(logs.length).toBe(3);
+  expect(created).toHaveLength(1);
   await page.keyboard.press("]");
   await expect(pageInput(page)).toHaveValue("2");
 
@@ -310,7 +325,6 @@ test("a selection across two pages is highlighted on both", async ({
 test("T translates beside the selection as the translation is written", async ({
   page,
 }) => {
-  const logs = watchInfo(page);
   const paper = await openPaper(page);
   await page.route("**/api/v1/translation-settings", (route) =>
     route.fulfill({ json: fixtureModels }),
@@ -401,13 +415,13 @@ test("T translates beside the selection as the translation is written", async ({
 
   await popover(page).getByRole("button", { name: "记到笔记" }).click();
   await expect(popover(page)).toBeHidden();
-  await expect.poll(() => logs.length).toBe(1);
-  expect(logs[0][0]).toBe("reader note");
-  expect(logs[0][1]).toMatchObject({
-    quote: WORDS,
-    action: "translate",
-    translation: "证据在页面之间保持相连。",
-  });
+  // The words and their translation, one after the other.
+  await expect(keptToast(page)).toBeVisible();
+  expect(await noteBody(page, paper.paperId)).toMatch(
+    new RegExp(
+      `> ${WORDS}\\n\\n证据在页面之间保持相连。\\n\\n\\[原文 · 第 1 页\\]`,
+    ),
+  );
   expect(cancelled).toEqual([]);
 
   // A translation closed before it is done is stopped.

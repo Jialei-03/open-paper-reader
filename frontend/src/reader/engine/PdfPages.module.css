@@ -44,6 +44,15 @@
   width: max-content;
   min-width: 100%;
   padding: var(--ui-space-20);
+  /*
+   * Under the last page, room for what floats over the foot of the card (the
+   * question box): the screen measures how far up it reaches and sets
+   * --composer-clearance on the card; the end of the paper scrolls clear of it.
+   */
+  padding-bottom: max(
+    var(--ui-space-20),
+    calc(var(--composer-clearance, 0px) + var(--ui-space-12))
+  );
 }
 
 /* A sheet of the paper: white before it is drawn, as pdf.js draws it; dimmed in the dark. */

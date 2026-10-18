@@ -10,13 +10,14 @@ import type { ReaderRoute } from "./route";
 import { RegionBoundary } from "./RegionBoundary";
 import styles from "./RightPanel.module.css";
 
-type View = "guide" | "assistant" | "notes";
+/** The panel's views, one shown at a time. */
+export type PanelView = "guide" | "assistant" | "notes";
 
 const VIEWS = [
   "guide",
   "assistant",
   "notes",
-] as const satisfies readonly View[];
+] as const satisfies readonly PanelView[];
 
 /** In a window too narrow for it beside the paper, the panel floats over the paper instead. */
 export interface PanelOverlay {
@@ -29,8 +30,8 @@ export interface PanelOverlay {
 
 /**
  * The card beside the paper: a guide to it, the assistant, and the notes, one at
- * a time. The three are placeholders for now. Docked it is always there, 400px
- * wide. With `overlay` it is folded away until `overlay.open`, and then floats
+ * a time (until the paper is there, each says what it will hold). Docked it is
+ * always there, 400px wide. With `overlay` it is folded away until `overlay.open`, and then floats
  * over the paper from the right edge, below the paper's header (so the button
  * that opens it stays in reach); Esc closes it.
  */
@@ -42,6 +43,8 @@ export function RightPanel({
   assistant,
   onCite,
   notes,
+  tab,
+  onTabChange,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
@@ -55,10 +58,19 @@ export function RightPanel({
   onCite?: (route: ReaderRoute) => void;
   /** What the notes tab is made from; until the paper is there, the tab says what it will hold. */
   notes?: NotesTabProps;
+  /** The view shown, when the screen chooses it (to show the answer it asked for); else the panel keeps its own. */
+  tab?: PanelView;
+  /** A tab was chosen. */
+  onTabChange?: (tab: PanelView) => void;
 }) {
   const { t } = useI18n();
   const ids = useId();
-  const [view, setView] = useState<View>("guide");
+  const [own, setOwn] = useState<PanelView>("guide");
+  const view = tab ?? own;
+  const choose = (next: PanelView) => {
+    setOwn(next);
+    onTabChange?.(next);
+  };
   const tabs = useRef<HTMLDivElement>(null);
 
   const floating = overlay !== undefined;
@@ -113,7 +125,7 @@ export function RightPanel({
                 panelId: `${ids}-${value}`,
               }))}
               value={view}
-              onChange={setView}
+              onChange={choose}
             />
           </div>
         </CardHeader>

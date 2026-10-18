@@ -110,6 +110,8 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.notes.loadFailed": "没能打开这篇论文的笔记。",
   "reader.notes.createFailed": "没能新建笔记，请再写一次。",
   "reader.notes.appendFailed": "没能记到笔记里，请重试。",
+  "reader.notes.source": "原文 · 第 {page} 页",
+  "reader.notes.show": "查看笔记",
   "reader.notes.highlights": "高亮与批注 · {count}",
   "reader.notes.highlights.none": "在论文里选中文字，可以高亮或批注。",
   "reader.notes.highlights.failed": "没能读取高亮。",
@@ -149,6 +151,8 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.assistant.input": "向助手提问",
   "reader.assistant.placeholder": "问这一页、这段，或整篇论文…",
   "reader.assistant.send": "发送",
+  "reader.assistant.explainPrompt":
+    "请解释这段内容：说明它在说什么、为什么重要，必要时结合上下文。",
   "reader.assistant.stop": "停止回答",
   "reader.assistant.noModel": "先在设置里添加模型，助手才能回答。",
   "reader.assistant.toSettings": "去设置",

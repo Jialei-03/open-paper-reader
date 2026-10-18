@@ -15,6 +15,12 @@ export interface ComposerProps {
   /** What the question is about (a selection, a page), shown as a label that can be taken off. */
   pending: AskRequest | null;
   onClearPending(): void;
+  /**
+   * How far up from the foot of the card the composer reaches, in px, each time
+   * that changes (it grows with the question); 0 once it is gone. The pages
+   * leave that much room under the last one, so it never covers the paper's end.
+   */
+  onCover?(height: number): void;
 }
 
 /**
@@ -27,10 +33,15 @@ export function Composer({
   assistant,
   pending,
   onClearPending,
+  onCover,
 }: ComposerProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const onCoverNow = useRef(onCover);
+  onCoverNow.current = onCover;
+  const shown = assistant.paperId !== "";
   const latest = conversation(assistant.runs).at(-1);
   const answering = latest !== undefined && isActive(latest);
   const unavailable = !assistant.ready;
@@ -40,7 +51,24 @@ export function Composer({
     if (pending) field.current?.focus();
   }, [pending]);
 
-  if (!assistant.paperId) return null;
+  // Its height and the gap under it, measured whenever it changes size.
+  useEffect(() => {
+    const element = box.current;
+    if (!shown || !element) return;
+    const measure = () => {
+      const below = parseFloat(getComputedStyle(element).bottom) || 0;
+      onCoverNow.current?.(Math.ceil(element.offsetHeight + below));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      onCoverNow.current?.(0);
+    };
+  }, [shown]);
+
+  if (!shown) return null;
 
   const submit = async () => {
     const prompt = draft.trim();
@@ -77,7 +105,7 @@ export function Composer({
 
   return (
     <div className={styles.anchor}>
-      <div className={styles.composer}>
+      <div ref={box} className={styles.composer}>
         <TextArea
           ref={field}
           label={t("reader.assistant.input")}
