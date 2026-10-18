@@ -5,6 +5,7 @@ import {
   Download,
   Ellipsis,
   FileDown,
+  Info,
   List,
   Search,
   Star,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -27,7 +29,9 @@ import {
   type Paper,
   type SourceFile,
 } from "../api";
+import { AppActions } from "../app/AppSidebar";
 import { useI18n } from "../i18n/I18nProvider";
+import { PaperDetails } from "../screens/library/PaperDetails";
 import { downloadFile } from "../lib/file-download";
 import { paperFileName } from "../lib/paper-file-name";
 import {
@@ -280,6 +284,8 @@ export function PaperHeader({
   const [outlineButton, setOutlineButton] = useState<HTMLElement | null>(null);
   const [exporting, setExporting] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const { owner = "" } = useContext(AppActions);
   const announced = useSettled(page, ANNOUNCE_AFTER);
 
   const title = paper ? paper.title || t("reader.untitled") : "";
@@ -420,6 +426,13 @@ export function PaperHeader({
         ] satisfies MenuEntry[])
       : []),
     {
+      id: "details",
+      label: t("reader.more.details"),
+      icon: Info,
+      disabled: !paper,
+      onSelect: () => setDetailsOpen(true),
+    },
+    {
       id: "download",
       label: t("reader.more.download"),
       icon: Download,
@@ -549,6 +562,15 @@ export function PaperHeader({
               )}
             />
           )}
+          <PaperDetails
+            paper={detailsOpen ? paper : null}
+            owner={owner}
+            go={(hash) => {
+              location.hash = hash;
+            }}
+            onClose={() => setDetailsOpen(false)}
+            onChanged={onPaperChange}
+          />
         </div>
         {panelToggle}
       </div>

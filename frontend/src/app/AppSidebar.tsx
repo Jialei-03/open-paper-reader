@@ -11,13 +11,16 @@ import type { Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { followLink, readerHash } from "../reader/route";
 import {
+  ariaKeyShortcuts,
   currentPlatformIsMac,
   formatShortcut,
+  Kbd,
   Sidebar,
   SidebarItem,
   SidebarSection,
 } from "../ui";
 import type { AppScreen } from "./routes";
+import styles from "./AppSidebar.module.css";
 
 /** Opens quick open, from anywhere in the app. */
 export const QUICK_OPEN_SHORTCUT = "mod+k";
@@ -31,6 +34,8 @@ const READING_LIMIT = 5;
  * then leaves those items out.
  */
 export const AppActions = createContext<{
+  /** The person signed in. */
+  owner?: string;
   quickOpen?: () => void;
   signOut?: () => void;
 }>({});
@@ -92,6 +97,8 @@ export function AppSidebar({
   }, [papers, current, visits, paperId, t]);
 
   const reader = screen === "reader";
+  // Only the icons are left of a rail: the search is then an item like the others.
+  const rail = floating ? !opened : collapsed;
   return (
     <Sidebar
       label={t("reader.region.sidebar")}
@@ -120,14 +127,32 @@ export function AppSidebar({
       }
     >
       <SidebarSection>
-        {quickOpen && (
-          <SidebarItem
-            icon={Search}
-            label={t("app.quickOpen")}
-            meta={formatShortcut(QUICK_OPEN_SHORTCUT, currentPlatformIsMac())}
-            onClick={quickOpen}
-          />
-        )}
+        {quickOpen &&
+          (rail ? (
+            <SidebarItem
+              icon={Search}
+              label={t("app.quickOpen")}
+              meta={formatShortcut(QUICK_OPEN_SHORTCUT, currentPlatformIsMac())}
+              onClick={quickOpen}
+            />
+          ) : (
+            <button
+              type="button"
+              className={styles.search}
+              aria-keyshortcuts={ariaKeyShortcuts(
+                QUICK_OPEN_SHORTCUT,
+                currentPlatformIsMac(),
+              )}
+              onClick={() => {
+                quickOpen();
+                if (floating) setOpened(false);
+              }}
+            >
+              <Search size={15} aria-hidden="true" />
+              <span className={styles.placeholder}>{t("app.quickOpen")}</span>
+              <Kbd shortcut={QUICK_OPEN_SHORTCUT} />
+            </button>
+          ))}
         <SidebarItem
           icon={House}
           label={t("app.home")}

@@ -11,6 +11,7 @@ export type Paper = {
   favorite: boolean;
   archived: boolean;
   revision: number;
+  created_at?: string;
   updated_at: string;
 };
 export type SourceFile = {

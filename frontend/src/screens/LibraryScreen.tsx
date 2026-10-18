@@ -1,20 +1,26 @@
-import { Plus, Star, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { api, type Paper } from "../api";
+import { ArrowUpDown, LayoutGrid, List, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { api, send, type Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
-import type { MessageKey } from "../i18n/i18n";
 import { useImports } from "../import/useImports";
-import { followLink, readerHash } from "../reader/route";
+import { recentPapers } from "../lib/recent-papers";
+import { readerHash } from "../reader/route";
 import {
   Button,
   Card,
   CardHeader,
   Dialog,
-  IconButton,
+  Menu,
   SegmentedControl,
   TextField,
+  toast,
+  type MenuEntry,
 } from "../ui";
 import { ImportDrop, ImportJobs, useFileDrop } from "./home/ImportDrop";
+import { PaperDetails } from "./library/PaperDetails";
+import { PaperCard, PaperRow } from "./library/PaperItem";
+import { sortPapers, type SortKey } from "./library/paper-meta";
+import { usePreference } from "./library/usePreference";
 import styles from "./library/LibraryScreen.module.css";
 
 export interface LibraryScreenProps {
@@ -25,12 +31,10 @@ export interface LibraryScreenProps {
 }
 
 type Filter = "all" | "unread" | "reading" | "read";
+type View = "grid" | "list";
 
-const STATUS: Record<string, MessageKey> = {
-  unread: "library.status.unread",
-  reading: "library.status.reading",
-  read: "library.status.read",
-};
+const VIEWS: readonly View[] = ["grid", "list"];
+const SORTS: readonly SortKey[] = ["opened", "added", "title"];
 
 /** Whether `paper` has every word of `query` in its title, authors, id or tags. */
 function matches(paper: Paper, query: string) {
@@ -42,15 +46,39 @@ function matches(paper: Paper, query: string) {
   return words.every((word) => text.includes(word));
 }
 
+/** The search a quick-open jump leaves in the address: `#library?q=…`. */
+function queryFromAddress() {
+  const [path, search = ""] = location.hash.slice(1).split("?");
+  return path === "library" ? (new URLSearchParams(search).get("q") ?? "") : "";
+}
+
 /**
- * Every paper: searched and filtered by reading status, opened in the reader,
- * deleted after a confirmation. Importing is a dialog; a drop on the list imports too.
+ * Every paper, as cards with the first page or as a compact list: searched,
+ * filtered by reading status and sorted, opened in the reader, looked into in a
+ * sheet at the side, deleted after a confirmation. Importing is a dialog; a
+ * drop on the list imports too.
  */
-export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
+export function LibraryScreen({
+  owner,
+  papers,
+  go,
+  reload,
+}: LibraryScreenProps) {
   const { t, tn, locale } = useI18n();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(queryFromAddress);
   const [filter, setFilter] = useState<Filter>("all");
+  const [view, setView] = usePreference<View>(
+    "paper-library-view",
+    "grid",
+    VIEWS,
+  );
+  const [sort, setSort] = usePreference<SortKey>(
+    "paper-library-sort",
+    "opened",
+    SORTS,
+  );
   const [importing, setImporting] = useState(false);
+  const [looking, setLooking] = useState<string | null>(null);
   const [doomed, setDoomed] = useState<Paper | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -63,14 +91,30 @@ export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
   });
   const { over, handlers } = useFileDrop(imports.importFiles);
 
+  // Quick open sends a search here, also while this screen is already showing.
+  useEffect(() => {
+    const changed = () => {
+      const asked = queryFromAddress();
+      if (asked) setQuery(asked);
+    };
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
+
+  const visits = useMemo(() => recentPapers(owner), [owner]);
   const shown = useMemo(
     () =>
-      papers.filter(
-        (paper) =>
-          (filter === "all" || paper.reading_status === filter) &&
-          matches(paper, query),
+      sortPapers(
+        papers.filter(
+          (paper) =>
+            (filter === "all" || paper.reading_status === filter) &&
+            matches(paper, query),
+        ),
+        sort,
+        visits,
+        locale,
       ),
-    [papers, filter, query],
+    [papers, filter, query, sort, visits, locale],
   );
   const formatDate = useMemo(
     () =>
@@ -103,7 +147,44 @@ export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
     }
   };
 
+  const star = async (paper: Paper) => {
+    try {
+      await send(
+        "/papers/" + paper.id,
+        { favorite: !paper.favorite },
+        "PATCH",
+        paper.revision,
+      );
+      reload();
+    } catch (error) {
+      toast.show({ message: (error as Error).message, tone: "error" });
+    }
+  };
+
   const title = (paper: Paper) => paper.title || t("reader.untitled");
+  const asked = (paper: Paper) => {
+    setDeleteError("");
+    setDoomed(paper);
+  };
+  const sortLabel = {
+    opened: t("library.sort.opened"),
+    added: t("library.sort.added"),
+    title: t("library.sort.title"),
+  } satisfies Record<SortKey, string>;
+  const sortItems: MenuEntry[] = SORTS.map((key) => ({
+    id: key,
+    label: sortLabel[key],
+    icon: key === sort ? ArrowUpDown : undefined,
+    onSelect: () => setSort(key),
+  }));
+  const itemProps = {
+    owner,
+    go,
+    formatDate,
+    onDetails: (paper: Paper) => setLooking(paper.id),
+    onStar: star,
+    onDelete: asked,
+  };
 
   return (
     <Card as="main" className={styles.root} aria-labelledby="library-title">
@@ -115,17 +196,6 @@ export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
           <span className={styles.count}>
             {tn("library.count", papers.length)}
           </span>
-          <span className={styles.spacer} />
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Plus}
-            onClick={() => setImporting(true)}
-          >
-            {t("library.import")}
-          </Button>
-        </CardHeader>
-        <div className={styles.tools}>
           <div className={styles.search}>
             <TextField
               type="search"
@@ -136,6 +206,16 @@ export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Plus}
+            onClick={() => setImporting(true)}
+          >
+            {t("library.import")}
+          </Button>
+        </CardHeader>
+        <div className={styles.tools}>
           <SegmentedControl
             kind="radio"
             size="sm"
@@ -149,6 +229,32 @@ export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
               { value: "read", label: t("library.status.read") },
             ]}
           />
+          <span className={styles.spacer} />
+          <Menu
+            label={t("library.sort")}
+            placement={{ side: "bottom", align: "end" }}
+            items={sortItems}
+            trigger={(props) => (
+              <Button {...props} variant="ghost" size="sm" icon={ArrowUpDown}>
+                {t("library.sort.current", { sort: sortLabel[sort] })}
+              </Button>
+            )}
+          />
+          <SegmentedControl
+            kind="radio"
+            size="sm"
+            label={t("library.view")}
+            value={view}
+            onChange={setView}
+            options={[
+              {
+                value: "grid",
+                label: t("library.view.grid"),
+                icon: LayoutGrid,
+              },
+              { value: "list", label: t("library.view.list"), icon: List },
+            ]}
+          />
         </div>
         {!importing && (
           <div className={styles.jobs}>
@@ -160,11 +266,20 @@ export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
             <p className={styles.message}>{t("library.empty")}</p>
           ) : shown.length === 0 ? (
             <p className={styles.message}>{t("library.noMatch")}</p>
+          ) : view === "grid" ? (
+            <div className={styles.grid} data-view="grid">
+              {shown.map((paper) => (
+                <PaperCard key={paper.id} paper={paper} {...itemProps} />
+              ))}
+            </div>
           ) : (
-            <table className={styles.table}>
+            <table className={styles.table} data-view="list">
               <thead>
                 <tr>
                   <th scope="col">{t("library.column.title")}</th>
+                  <th scope="col" className={styles.progress}>
+                    {t("library.column.progress")}
+                  </th>
                   <th scope="col" className={styles.status}>
                     {t("library.column.status")}
                   </th>
@@ -173,67 +288,28 @@ export function LibraryScreen({ papers, go, reload }: LibraryScreenProps) {
                   </th>
                   <th scope="col" className={styles.actions}>
                     <span className={styles.visuallyHidden}>
-                      {t("library.delete.confirm")}
+                      {t("library.column.actions")}
                     </span>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {shown.map((paper) => {
-                  const hash = readerHash({ paperId: paper.id });
-                  return (
-                    <tr key={paper.id}>
-                      <td>
-                        <a
-                          className={styles.paper}
-                          href={hash}
-                          onClick={followLink(go, hash.slice(1))}
-                        >
-                          <span className={styles.titleLine}>
-                            {paper.favorite && (
-                              <Star
-                                className={styles.star}
-                                size={13}
-                                aria-label={t("library.favorite")}
-                                role="img"
-                              />
-                            )}
-                            <span className={styles.title}>{title(paper)}</span>
-                          </span>
-                          {paper.authors && (
-                            <span className={styles.byline}>
-                              {paper.authors}
-                            </span>
-                          )}
-                        </a>
-                      </td>
-                      <td className={styles.status}>
-                        {STATUS[paper.reading_status]
-                          ? t(STATUS[paper.reading_status])
-                          : paper.reading_status}
-                      </td>
-                      <td className={styles.updated}>
-                        {formatDate.format(new Date(paper.updated_at))}
-                      </td>
-                      <td className={styles.actions}>
-                        <IconButton
-                          size="sm"
-                          icon={Trash2}
-                          label={t("library.delete", { title: title(paper) })}
-                          onClick={() => {
-                            setDeleteError("");
-                            setDoomed(paper);
-                          }}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
+                {shown.map((paper) => (
+                  <PaperRow key={paper.id} paper={paper} {...itemProps} />
+                ))}
               </tbody>
             </table>
           )}
         </div>
       </div>
+      <PaperDetails
+        paper={papers.find((paper) => paper.id === looking) ?? null}
+        owner={owner}
+        go={go}
+        onClose={() => setLooking(null)}
+        onChanged={reload}
+        onDelete={asked}
+      />
       <Dialog
         open={importing}
         onClose={() => setImporting(false)}

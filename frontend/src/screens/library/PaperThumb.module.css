@@ -1,0 +1,65 @@
+.thumb {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--ui-r-8);
+  /* The page is white whatever the theme: it is a picture of paper. */
+  background: var(--ui-paper);
+  box-shadow: 0 0 0 1px var(--ui-edge-subtle);
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  /* A dark theme dims the page as the reader does, not as a photograph. */
+  filter: var(--ui-page-filter);
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  height: 100%;
+  padding: var(--ui-space-12);
+  background: var(--ui-bg-2);
+}
+
+.placeholderTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  color: var(--ui-fg-1);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading-tight);
+  text-align: center;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  margin-top: auto;
+}
+
+.lines i {
+  display: block;
+  height: 3px;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-edge-subtle);
+}
+
+.lines i:nth-child(2) {
+  width: 90%;
+}
+
+.lines i:nth-child(3) {
+  width: 96%;
+}
+
+.lines i:nth-child(4) {
+  width: 60%;
+}

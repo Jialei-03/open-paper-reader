@@ -6,12 +6,13 @@ import { recentPapers } from "../lib/recent-papers";
 import { lastPage } from "../reader/engine/page-memory";
 import { followLink, readerHash } from "../reader/route";
 import { Card, CardHeader } from "../ui";
+import { HomePaper } from "./home/HomePaper";
 import { ImportDrop, useFileDrop } from "./home/ImportDrop";
 import styles from "./home/HomeScreen.module.css";
 
 /** How many papers each list shows. */
-const CONTINUE_COUNT = 4;
-const RECENT_COUNT = 6;
+const CONTINUE_COUNT = 3;
+const RECENT_COUNT = 8;
 
 export interface HomeScreenProps {
   owner: string;
@@ -87,38 +88,27 @@ export function HomeScreen({ owner, papers, go, reload }: HomeScreenProps) {
           </div>
         ) : (
           <div className={styles.body}>
-            <ImportDrop imports={imports} over={over} />
             {reading.length > 0 && (
               <section aria-labelledby="home-continue">
                 <h2 id="home-continue" className={styles.sectionTitle}>
                   {t("home.continue")}
                 </h2>
                 <ul className={styles.cards}>
-                  {reading.map(({ paper, page }) => {
-                    const hash = readerHash({ paperId: paper.id, page });
-                    return (
-                      <li key={paper.id}>
-                        <a
-                          className={styles.continue}
-                          href={hash}
-                          onClick={followLink(go, hash.slice(1))}
-                        >
-                          <span className={styles.title}>
-                            {paper.title || t("reader.untitled")}
-                          </span>
-                          <span className={styles.byline}>
-                            {paper.authors || t("home.byline.none")}
-                          </span>
-                          <span className={styles.page}>
-                            {t("home.continue.page", { page })}
-                          </span>
-                        </a>
-                      </li>
-                    );
-                  })}
+                  {reading.map(({ paper, page }) => (
+                    <li key={paper.id}>
+                      <HomePaper
+                        paper={paper}
+                        owner={owner}
+                        kind="continue"
+                        page={page}
+                        go={go}
+                      />
+                    </li>
+                  ))}
                 </ul>
               </section>
             )}
+            <ImportDrop imports={imports} over={over} compact />
             <section aria-labelledby="home-recent">
               <div className={styles.sectionHead}>
                 <h2 id="home-recent" className={styles.sectionTitle}>
@@ -132,24 +122,17 @@ export function HomeScreen({ owner, papers, go, reload }: HomeScreenProps) {
                   {t("home.allPapers")}
                 </a>
               </div>
-              <ul className={styles.rows}>
-                {recent.map((paper) => {
-                  const hash = readerHash({ paperId: paper.id });
-                  return (
-                    <li key={paper.id}>
-                      <a
-                        className={styles.row}
-                        href={hash}
-                        onClick={followLink(go, hash.slice(1))}
-                      >
-                        <span className={styles.title}>
-                          {paper.title || t("reader.untitled")}
-                        </span>
-                        <span className={styles.byline}>{paper.authors}</span>
-                      </a>
-                    </li>
-                  );
-                })}
+              <ul className={styles.recent}>
+                {recent.map((paper) => (
+                  <li key={paper.id}>
+                    <HomePaper
+                      paper={paper}
+                      owner={owner}
+                      kind="small"
+                      go={go}
+                    />
+                  </li>
+                ))}
               </ul>
             </section>
           </div>

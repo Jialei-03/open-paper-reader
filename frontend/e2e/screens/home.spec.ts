@@ -187,7 +187,7 @@ test("continue reading opens a paper at the page it was left at", async ({
   const home = page.getByRole("main");
   const continuing = home.getByRole("region", { name: "继续阅读" });
   const card = continuing.getByRole("link", { name: new RegExp(title) });
-  await expect(card).toContainText("第 4 页");
+  await expect(card).toContainText("第 4 / 6 页");
   // It is also among the papers imported last.
   await expect(
     home.getByRole("region", { name: "最近导入" }).getByRole("link", {

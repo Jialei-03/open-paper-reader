@@ -1,0 +1,132 @@
+.sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-16);
+  padding-bottom: var(--ui-space-8);
+  font-size: var(--ui-text-13);
+}
+
+.name {
+  margin: 0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-20);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.authors {
+  margin: calc(-1 * var(--ui-space-8)) 0 0;
+  color: var(--ui-fg-1);
+  line-height: var(--ui-leading);
+}
+
+.ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-12);
+  margin: 0;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-12);
+}
+
+.ids a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  color: var(--ui-fg-2);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.ids a:hover {
+  color: var(--ui-fg);
+  text-decoration: underline;
+}
+
+.block h4 {
+  margin: 0 0 var(--ui-space-6);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+}
+
+.abstract,
+.summary {
+  margin: 0;
+  color: var(--ui-fg-1);
+  line-height: var(--ui-leading-loose);
+}
+
+.summary {
+  padding-left: var(--ui-space-16);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--ui-space-4) var(--ui-space-12);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-2);
+}
+
+.fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-16);
+  padding: var(--ui-space-8) 0;
+}
+
+.fact + .fact {
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+
+.fact dt {
+  color: var(--ui-fg-2);
+}
+
+.fact dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.progressLine {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-10);
+}
+
+.bar {
+  display: block;
+  width: 72px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-edge);
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--ui-fg-2);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+}
+
+.error {
+  margin: 0;
+  color: var(--ui-danger-text);
+}
+
+/* The one action that cannot be undone sits apart, at the start of the row. */
+.delete {
+  margin-right: auto;
+  color: var(--ui-danger-text);
+}

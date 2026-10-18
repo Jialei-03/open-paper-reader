@@ -50,12 +50,15 @@ export function useFileDrop(onFiles: (files: File[]) => void) {
 export function ImportDrop({
   imports,
   large = false,
+  compact = false,
   over = false,
 }: {
   imports: Imports;
   large?: boolean;
   /** Files are being dragged over the screen around it. */
   over?: boolean;
+  /** One row, for a screen that has papers to show first. */
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const input = useRef<HTMLInputElement>(null);
@@ -67,14 +70,24 @@ export function ImportDrop({
     setUrl("");
   };
   return (
-    <div className={clsx(styles.drop, large && styles.large)}>
+    <div
+      className={clsx(
+        styles.drop,
+        large && styles.large,
+        compact && styles.compact,
+      )}
+    >
       <button
         type="button"
         className={styles.zone}
         data-over={over || undefined}
         onClick={() => input.current?.click()}
       >
-        <FileUp className={styles.icon} size={large ? 24 : 18} aria-hidden />
+        <FileUp
+          className={styles.icon}
+          size={large ? 24 : compact ? 16 : 18}
+          aria-hidden
+        />
         <span className={styles.title}>
           {over ? t("import.drop.release") : t("import.drop.title")}
         </span>

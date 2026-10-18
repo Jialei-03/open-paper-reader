@@ -108,7 +108,7 @@ test("quick open finds a paper by its title and opens it", async ({ page }) => {
   await expect(screen(page)).toHaveAttribute("data-app-screen", "library");
 
   await page.keyboard.press("ControlOrMeta+k");
-  const dialog = page.getByRole("dialog", { name: "打开论文" });
+  const dialog = page.getByRole("dialog", { name: "搜索论文" });
   await expect(dialog).toBeVisible();
   const field = dialog.getByRole("combobox", { name: "搜索论文" });
   await expect(field).toBeFocused();
@@ -129,7 +129,7 @@ test("quick open finds a paper by its title and opens it", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await sidebar(page)
-    .getByRole("button", { name: /打开论文/ })
+    .getByRole("button", { name: /搜索论文/ })
     .click();
   await expect(dialog).toBeVisible();
 });
@@ -154,4 +154,55 @@ test("in English", async ({ browser }) => {
   for (const name of ["Home", "Library", "Settings", "Sign out"])
     await expect(sidebar(page).getByText(name, { exact: true })).toBeVisible();
   await context.close();
+});
+
+test("the sidebar's search entry opens quick open and can search the library", async ({
+  page,
+}) => {
+  await withModel(page);
+  await signIn(page);
+  const { title } = await createPaperWithPdf(page, {
+    title: `Sidebar Search ${Date.now().toString(36)}`,
+  });
+  await page.goto("/#home");
+  const entry = sidebar(page).getByRole("button", { name: /搜索论文/ });
+  // It looks like a field: the prompt and the shortcut are in it.
+  await expect(entry).toContainText("搜索论文");
+  await expect(entry.locator("kbd")).toBeVisible();
+  await entry.click();
+  const dialog = page.getByRole("dialog", { name: "搜索论文" });
+  const field = dialog.getByRole("combobox", { name: "搜索论文" });
+  await expect(field).toBeFocused();
+
+  // Titles and authors are searched; the last choice carries the words to the library.
+  await field.fill("Author");
+  await expect(dialog.getByRole("option").first()).toBeVisible();
+  const word = title.split(" ").slice(-1)[0];
+  await field.fill(word);
+  const toLibrary = dialog.getByRole("option", {
+    name: `在文库中搜索“${word}”`,
+  });
+  await expect(toLibrary).toBeVisible();
+  await toLibrary.click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/#library\?q=/);
+  await expect(screen(page)).toHaveAttribute("data-app-screen", "library");
+  await expect(
+    page.getByRole("main").getByRole("searchbox", { name: "搜索文库" }),
+  ).toHaveValue(word);
+  await expect(
+    page.getByRole("main").getByRole("link", { name: title }),
+  ).toBeVisible();
+});
+
+test("on this machine's own server there is no sign out", async ({ page }) => {
+  await withModel(page);
+  await page.route("**/api/v1/health", (route) =>
+    route.fulfill({ json: { status: "ok", version: "test", mode: "local" } }),
+  );
+  await signIn(page);
+  await expect(sidebar(page).getByRole("link", { name: "设置" })).toBeVisible();
+  await expect(
+    sidebar(page).getByRole("button", { name: "退出登录" }),
+  ).toHaveCount(0);
 });
