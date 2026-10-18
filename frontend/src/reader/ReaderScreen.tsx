@@ -47,6 +47,7 @@ import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
+import { SelectionMenu } from "./selection/SelectionMenu";
 import { linkTarget } from "./outline";
 import { followLink, type ReaderRoute } from "./route";
 import { useMediaQuery } from "./useMediaQuery";
@@ -78,6 +79,9 @@ interface Overlays {
   preview: LinkPreview;
   /** The region of a page the address points at. */
   region: { page: number; rect: PdfRect } | null;
+  /** For the menu over selected text: the paper, and the pages' scroller. */
+  paper: Paper | null;
+  scroller: HTMLElement | null;
 }
 
 /**
@@ -86,11 +90,12 @@ interface Overlays {
  * address points at.
  */
 function PaperPages({
-  overlays: { onLink, preview, region },
+  overlays: { onLink, preview, region, paper, scroller },
   ...props
 }: Omit<PdfPagesProps, "pageOverlays"> & { overlays: Overlays }) {
   const { doc, file } = props;
-  const annotations = usePdfAnnotations(file.id).rows;
+  const store = usePdfAnnotations(file.id);
+  const annotations = store.rows;
   const strokes = usePdfInk(file.id).strokes;
   const { hover, close, describedBy } = preview;
   const pageOverlays = useCallback(
@@ -129,7 +134,21 @@ function PaperPages({
     ),
     [annotations, strokes, doc, onLink, hover, close, describedBy, region],
   );
-  return <PdfPages {...props} pageOverlays={pageOverlays} />;
+  return (
+    <>
+      <PdfPages {...props} pageOverlays={pageOverlays} />
+      {paper && (
+        <SelectionMenu
+          scroller={scroller}
+          paper={paper}
+          file={file}
+          annotations={store}
+          onAsk={(request) => console.info("reader ask", request)}
+          onNote={(request) => console.info("reader note", request)}
+        />
+      )}
+    </>
+  );
 }
 
 /**
@@ -550,7 +569,13 @@ function PaperCard({
       controllerNow.current?.root?.focus({ preventScroll: true });
   }, [reference, referenceLayer, referenceKey, visits]);
 
-  const overlays: Overlays = { onLink: followLinkInPaper, preview, region };
+  const overlays: Overlays = {
+    onLink: followLinkInPaper,
+    preview,
+    region,
+    paper,
+    scroller: controller?.root ?? null,
+  };
 
   // The screen's mod+f reaches the find bar through this.
   useEffect(() => {

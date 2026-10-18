@@ -1,0 +1,72 @@
+/* The translation of a selection, in a small layer beside it: a few sentences, not a panel. */
+.popover {
+  --translate-width: 360px;
+  --translate-max-height: 280px;
+  width: var(--translate-width);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+}
+
+.translation {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-12);
+}
+
+.text {
+  max-height: var(--translate-max-height);
+  margin: 0;
+  overflow-y: auto;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+/* The no-model sentence wraps; its link stays in the line. */
+.status:has(.link) {
+  display: block;
+}
+
+.failure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-8);
+}
+
+.error {
+  margin: 0;
+  color: var(--ui-danger-text);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+.actions {
+  display: flex;
+  gap: var(--ui-space-4);
+  margin: 0 calc(-1 * var(--ui-space-4)) calc(-1 * var(--ui-space-4));
+}
+
+.link {
+  border-radius: var(--ui-r-4);
+  color: var(--ui-accent-text);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
