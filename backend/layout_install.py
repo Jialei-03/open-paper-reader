@@ -20,6 +20,9 @@ from pathlib import Path
 from fastapi import Depends, HTTPException
 
 BABELDOC = "BabelDOC==0.6.4"
+# BabelDOC 0.6.4 imports `bitstring.BitStream`, which bitstring 5 removed; the
+# same pins are in backend/requirements-layout.txt for the hosted image.
+PINS = ("bitstring<5",)
 # BabelDOC supports these Python versions (backend/requirements-layout.txt).
 SUPPORTED_PYTHON = ((3, 10), (3, 14))
 UV_PYTHON = "3.12"
@@ -78,10 +81,10 @@ def steps(target):
     uv = shutil.which("uv")
     if uv:
         create = [uv, "venv", "--python", UV_PYTHON, str(target)]
-        install = [uv, "pip", "install", "--python", python, BABELDOC]
+        install = [uv, "pip", "install", "--python", python, BABELDOC, *PINS]
     elif SUPPORTED_PYTHON[0] <= sys.version_info[:2] < SUPPORTED_PYTHON[1]:
         create = [sys.executable, "-m", "venv", str(target)]
-        install = [python, "-m", "pip", "install", "--disable-pip-version-check", BABELDOC]
+        install = [python, "-m", "pip", "install", "--disable-pip-version-check", BABELDOC, *PINS]
     else:
         raise ValueError(
             "安装版面翻译需要 uv，或 Python 3.10–3.13；请先安装 uv（https://docs.astral.sh/uv/）"

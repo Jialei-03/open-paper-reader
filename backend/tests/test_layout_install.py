@@ -152,4 +152,5 @@ def test_install_steps_prefer_uv_and_pin_babeldoc(tmp_path, monkeypatch):
     planned = layout_install.steps(tmp_path / "venv")
     assert planned[0][2][:2] == ["/usr/bin/uv", "venv"]
     assert layout_install.BABELDOC in planned[1][2]
+    assert "bitstring<5" in planned[1][2]
     assert planned[-1][0] == "assets"

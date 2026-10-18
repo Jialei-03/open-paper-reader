@@ -1,3 +1,5 @@
 # Isolated optional runtime (Python >=3.10,<3.14); do not merge into the web venv.
 # BabelDOC: https://github.com/funstory-ai/BabelDOC (AGPL-3.0)
 BabelDOC==0.6.4
+# BabelDOC 0.6.4 imports bitstring.BitStream, removed in bitstring 5.
+bitstring<5
