@@ -17,11 +17,14 @@ const clamp = (scale: number) => Math.max(0.1, Math.min(8, scale));
 
 // Scale the existing canvases during the gesture, then render once at the final
 // resolution. Keep the same point of the paper underneath the pointer.
+// `pageSelector` finds the pages inside the sheet; each carries `data-scale` and
+// `data-native-width`.
 export function usePdfZoom(
   sheet: RefObject<HTMLDivElement | null>,
   width: number,
   onZoom?: (value: number | "fit" | "auto") => void,
   onGeometry?: () => void,
+  pageSelector = ".pdf-page",
 ) {
   const geometry = useRef(onGeometry);
   geometry.current = onGeometry;
@@ -42,7 +45,7 @@ export function usePdfZoom(
     if (!["fit", "auto"].includes(currentZoom.current))
       return Number(currentZoom.current);
     const node = sheet.current?.querySelector<HTMLElement>(
-      ".pdf-page[data-scale]",
+      `${pageSelector}[data-scale]`,
     );
     return Number(node?.dataset.scale || 1);
   }
@@ -52,7 +55,7 @@ export function usePdfZoom(
     const bounds = root.getBoundingClientRect();
     const x = clientX ?? bounds.left + root.clientWidth / 2;
     const y = clientY ?? bounds.top + Math.min(root.clientHeight / 2, 250);
-    const pages = [...root.querySelectorAll<HTMLElement>(".pdf-page")];
+    const pages = [...root.querySelectorAll<HTMLElement>(pageSelector)];
     const page =
       pages.find((p) => {
         const r = p.getBoundingClientRect();
@@ -125,7 +128,7 @@ export function usePdfZoom(
     });
     const watch = () =>
       root
-        .querySelectorAll(".pdf-page")
+        .querySelectorAll(pageSelector)
         .forEach((page) => observer.observe(page));
     watch();
     const mutation = new MutationObserver(watch);
@@ -195,7 +198,7 @@ export function usePdfZoom(
       root.removeEventListener("gesturestart", start);
       root.removeEventListener("gesturechange", change);
     };
-  }, [sheet]);
+  }, [sheet, pageSelector]);
   useEffect(() => {
     if (!["fit", "auto"].includes(zoom))
       setPercent(String(Math.round(Number(zoom) * 1000) / 10));
@@ -233,7 +236,7 @@ export function usePdfZoom(
     step,
     fitScale: () => {
       const node = sheet.current?.querySelector<HTMLElement>(
-        ".pdf-page[data-scale]",
+        `${pageSelector}[data-scale]`,
       );
       const nativeWidth = Number(node?.dataset.nativeWidth || 0);
       return nativeWidth ? clamp(width / nativeWidth) : 0;

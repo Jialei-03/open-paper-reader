@@ -22,7 +22,22 @@ export const en = {
   "reader.notFound": "This paper can't be found. It may have been deleted.",
   "reader.loadFailed": "The paper could not be opened.",
   "reader.backToLibrary": "Back to library",
-  "reader.paper.placeholder": "The paper will be shown here.",
+  "reader.page.status": "Page {page} of {pages}",
+  "reader.pdf.region": "Paper pages",
+  "reader.pdf.page": "Page {page}",
+  "reader.pdf.opening": "Opening the PDF",
+  "reader.pdf.received": "Downloaded {loaded} MB",
+  "reader.pdf.progress": "Downloaded {loaded} MB of {total} MB",
+  "reader.pdf.none": "This paper has no PDF yet.",
+  "reader.pdf.failed": "The PDF could not be opened.",
+  "reader.pdf.network":
+    "The PDF could not be downloaded. Try again in a moment.",
+  "reader.pdf.missing": "The PDF file can't be found.",
+  "reader.pdf.invalid":
+    "This file is not a PDF that can be read. It may be damaged.",
+  "reader.pdf.password":
+    "This PDF is protected by a password and can't be opened here.",
+  "reader.pdf.pageFailed": "Page {page} could not be shown.",
   "reader.panel.show": "Show side panel",
   "reader.panel.hide": "Hide side panel",
   "reader.panel.tabs": "Side panel views",

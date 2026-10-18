@@ -37,6 +37,7 @@
   --ui-highlight: rgba(235, 127, 59, 0.24);
   --ui-selection: rgba(28, 99, 191, 0.18);
   --ui-page-filter: none; /* dims the PDF paper in dark */
+  --ui-paper: #ffffff; /* a PDF page before it is drawn: white, as pdf.js paints it, in both themes */
 
   /* Knobs the derived values below are built from */
   --ui-shade: 40 30 20; /* shadow color, an rgb triplet */

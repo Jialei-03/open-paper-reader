@@ -120,11 +120,48 @@ test("a failing region shows a retry instead of a blank screen", async ({
   await expect(
     panelTabs(page).getByRole("tab", { name: "导读" }),
   ).toBeVisible();
+  // Only the paper's body broke: its header stays, so on a narrow window the
+  // side panel can still be opened.
+  await page.setViewportSize({ width: 1000, height: 800 });
+  const show = page.getByRole("button", { name: "展开右侧面板" });
+  await expect(show).toBeVisible();
+  await show.click();
+  await expect(panelTabs(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(panelTabs(page)).toBeHidden();
+  await page.setViewportSize({ width: 1440, height: 1000 });
 
   await page.unroute(`**/api/v1/papers/${paperId}/files`);
   await alert.getByRole("button", { name: "重试" }).click();
   await expect(
     paper.getByRole("heading", { level: 1, name: title, exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("a paper that broke does not keep the next one from opening", async ({
+  page,
+}) => {
+  await signIn(page);
+  const good = await createPaperWithPdf(page);
+  const broken = await createPaperWithPdf(page);
+  await openReader(page, { paperId: good.paperId });
+  const paper = page.getByRole("main");
+  await expect(
+    paper.getByRole("heading", { level: 1, name: good.title, exact: true }),
+  ).toBeVisible();
+
+  await page.route(`**/api/v1/papers/${broken.paperId}/files`, (route) =>
+    route.fulfill({ status: 200, body: "not json" }),
+  );
+  await openReader(page, { paperId: broken.paperId });
+  await expect(paper.getByRole("alert")).toContainText("论文出了问题");
+
+  // Another paper, from the sidebar: it opens, without the old failure in the way.
+  await sidebar(page).getByRole("link", { name: good.title }).click();
+  await expect(page).toHaveURL(new RegExp(`#read/${good.paperId}$`));
+  await expect(
+    paper.getByRole("heading", { level: 1, name: good.title, exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
 });

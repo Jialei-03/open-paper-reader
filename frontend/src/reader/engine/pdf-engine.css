@@ -1,0 +1,71 @@
+/*
+ * What pdf.js makes with class names of its own (the text layer), and what the
+ * engine's later layers find by a fixed name. Everything is under the engine's
+ * root, `.opr-pdf`, so it meets neither the old reader (whose app.css styles
+ * `.pdf-page .textLayer`) nor anything else. The rules are those of the old
+ * reader (app.css, pdf-rotation.css), with the new interface's selection color.
+ */
+
+/* Over the canvas, exactly as big as the page (the engine sets its size in pixels). */
+.opr-pdf .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+}
+
+/* The text is there to be selected and searched, not seen: the canvas shows it. */
+.opr-pdf .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.opr-pdf .textLayer > :not(.markedContent),
+.opr-pdf .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+}
+
+.opr-pdf .textLayer span.markedContent {
+  top: 0;
+  height: 0;
+}
+
+.opr-pdf .textLayer ::selection {
+  background: var(--ui-selection);
+}
+
+.opr-pdf .textLayer br::selection {
+  background: transparent;
+}
+
+/* A page the PDF turns itself (`/Rotate`): the text layer is laid out upright and turned with it. */
+.opr-pdf .textLayer[data-main-rotation="90"] {
+  transform: rotate(90deg) translateY(-100%);
+}
+
+.opr-pdf .textLayer[data-main-rotation="180"] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+
+.opr-pdf .textLayer[data-main-rotation="270"] {
+  transform: rotate(270deg) translateX(-100%);
+}
+
+/*
+ * pdf.js measures text with a canvas it adds to the end of <body>. Left showing
+ * it would add a line under the reader, and the window would scroll. Only while
+ * the engine is on screen, so the old pages stay exactly as they were.
+ */
+:root:has(.opr-pdf) .hiddenCanvasElement {
+  display: none;
+}

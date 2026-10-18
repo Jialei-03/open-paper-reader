@@ -1,0 +1,72 @@
+/*
+ * The PDF: a desk under the card's header, and on it the pages, one under the
+ * other. The pages are as wide as the zoom makes them; wider than the desk, the
+ * desk scrolls sideways too.
+ */
+.scroller {
+  flex: 1;
+  min-height: 0;
+  margin: 0 var(--ui-space-8) var(--ui-space-8);
+  /* The card's corner less the margin around the desk. */
+  border-radius: var(--ui-r-8);
+  overflow: auto;
+  /* The engine keeps the reading position itself (zoom, resizing); the browser's anchoring would fight it. */
+  overflow-anchor: none;
+  /* A scrollbar that comes and goes must not change the width the pages fit. */
+  scrollbar-gutter: stable;
+  background: var(--ui-desk);
+  /* The browser scrolls (and pinches); a sideways drag on a touch screen is lib/use-pdf-touch-pan's. */
+  touch-action: pan-y pinch-zoom;
+  /* Whatever the pages stack (their text, the layers over them) stays in here, under the screen's own layers. */
+  isolation: isolate;
+}
+
+.pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-16);
+  box-sizing: border-box;
+  /* As wide as the widest page, and never narrower than the desk (then the pages are centered on it). */
+  width: max-content;
+  min-width: 100%;
+  padding: var(--ui-space-20);
+}
+
+/* A sheet of the paper: white before it is drawn, as pdf.js draws it; dimmed in the dark. */
+.page {
+  position: relative;
+  flex: none;
+  background: var(--ui-paper);
+  box-shadow: var(--ui-elev-1);
+  filter: var(--ui-page-filter);
+}
+
+.raster {
+  position: absolute;
+  inset: 0;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A page that could not be drawn says so, on a surface of its own (the paper stays white in both themes). */
+.failure {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  padding: var(--ui-space-8) var(--ui-space-12);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-1);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  text-align: center;
+  width: max-content;
+  max-width: calc(100% - 2 * var(--ui-space-16));
+  transform: translate(-50%, -50%);
+}

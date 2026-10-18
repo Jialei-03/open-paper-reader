@@ -23,9 +23,22 @@
   width: var(--reader-sidebar-width);
 }
 
-/* The paper's card takes the room the others leave. */
+/*
+ * The paper's card takes the room the others leave. Its layers (the PDF's text
+ * and what is laid over the pages) stack inside it, under the side panel that
+ * floats over it on a narrow window.
+ */
 .paper {
   flex: 1;
+  isolation: isolate;
+}
+
+/* The card's inside for one paper: the header, then the body, which takes the rest. */
+.frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .title {
@@ -42,18 +55,13 @@
   white-space: nowrap;
 }
 
-/* Under the header: what scrolls. */
-.body {
-  flex: 1;
-  min-height: 0;
-  /* In line with the title in the header above it. */
-  padding: var(--ui-space-8) var(--ui-space-16) var(--ui-space-24);
-  overflow-y: auto;
-}
-
-.placeholder {
-  margin: 0;
+/* Which page is being read, beside the title. */
+.pageStatus {
+  flex: none;
   color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Loading, or the reason the paper is not here, in the middle of the card. */
@@ -74,6 +82,14 @@
   margin: 0;
   max-width: 36ch;
   line-height: var(--ui-leading);
+}
+
+/* How much of the PDF has come, under the spinner. */
+.progress {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
 }
 
 .link {

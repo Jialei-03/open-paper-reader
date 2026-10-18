@@ -9,7 +9,12 @@
   --panel-gap: var(--ui-space-8);
   /* The header strip of the paper's card (52px) and the gap under it. */
   --panel-header-offset: 52px;
-  --panel-layer: 5;
+  /*
+   * Floating, it is over the paper's card. Everything the paper stacks stays
+   * inside that card (it isolates its layers, and the PDF's scroller its own,
+   * whose layers go no higher than 1), so this only has to clear the shell.
+   */
+  --panel-layer: 10;
   flex: none;
   width: var(--panel-width);
 }

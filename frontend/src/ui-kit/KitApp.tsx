@@ -80,6 +80,7 @@ const surfaces = [
   "--ui-bg-3",
   "--ui-elev",
   "--ui-desk",
+  "--ui-paper",
 ];
 const fills = [
   "--ui-accent",
