@@ -18,6 +18,8 @@ with tempfile.TemporaryDirectory(prefix="paper-platform-e2e-") as directory:
     port = int(os.environ.get("E2E_PORT", "8766"))
     os.environ["APP_ORIGIN"] = f"http://127.0.0.1:{port}"
     os.environ["APP_ENV"] = "development"
+    # Public bibliographic look-ups never leave the test machine.
+    os.environ["SCHOLAR_OFFLINE"] = "1"
     subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"], cwd=root, check=True
     )

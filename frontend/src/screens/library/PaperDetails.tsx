@@ -6,6 +6,7 @@ import { lastPage } from "../../reader/engine/page-memory";
 import { followLink, readerHash } from "../../reader/route";
 import { Button, Dialog, TextArea, TextField } from "../../ui";
 import { STATUS, useProgressText } from "./PaperItem";
+import { PaperRecord } from "./PaperRecord";
 import {
   arxivUrl,
   authorList,
@@ -320,6 +321,7 @@ export function PaperDetails({
               )}
             </>
           )}
+          {!editing && <PaperRecord paper={paper} />}
           {error && (
             <p className={styles.error} role="alert">
               {error}

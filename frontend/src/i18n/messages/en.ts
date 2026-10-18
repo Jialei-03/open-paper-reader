@@ -439,6 +439,40 @@ export const en = {
   "details.conflict":
     "This paper was changed elsewhere. Close this sheet and open it again.",
   "details.saveFailed": "Could not save the changes.",
+  "details.record": "Publication",
+  "details.record.venue": "Published in",
+  "details.record.year": "Year",
+  "details.record.citations": "Cited by",
+  "details.record.references": "References",
+  "details.record.source": "From {source}, {date}",
+  "details.record.refresh": "Refresh",
+  "details.record.refreshLabel": "Look this paper up again",
+  "details.record.loading": "Looking it up in public sources…",
+  "details.record.missing":
+    "The public sources do not list this paper. Check the title, or add a DOI or arXiv number.",
+  "details.record.failed":
+    "Could not reach the public sources. What is shown has not changed; try again in a moment.",
+  "details.record.slow": "Too many look-ups just now. Try again in a minute.",
+  "details.record.noId":
+    "There is nothing to look up: the paper needs a longer title, or a DOI or arXiv number.",
+  "details.cite": "Cite this paper",
+  "details.cite.format": "Citation format",
+  "details.cite.copy": "Copy",
+  "details.cite.copied": "Citation copied",
+  "details.cite.copyFailed":
+    "Could not copy. Select the text and copy it by hand.",
+  "details.cite.note":
+    "Venue and pages are filled in once the paper has been looked up.",
+  "library.sort.citations": "Most cited",
+  "library.cited": "{count} citations",
+  "library.select": "Select",
+  "library.select.done": "Done",
+  "library.select.count": "{count} selected",
+  "library.select.all": "Select all shown",
+  "library.select.none": "Clear selection",
+  "library.select.paper": "Select {title}",
+  "library.export.bib": "Export .bib",
+  "library.export.done": "Exported {count} references",
   "app.quickOpen.library": "Search the library for “{query}”",
   "setup.title": "Connect a model",
   "setup.lead":

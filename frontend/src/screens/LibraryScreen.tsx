@@ -1,8 +1,14 @@
-import { ArrowUpDown, LayoutGrid, List, Plus } from "lucide-react";
+import { ArrowUpDown, Download, LayoutGrid, List, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, send, type Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { useImports } from "../import/useImports";
+import {
+  citeRecord,
+  formatBibtexFile,
+  useMetadataFill,
+  useMetadataMap,
+} from "../lib/cite";
 import { recentPapers } from "../lib/recent-papers";
 import { readerHash } from "../reader/route";
 import {
@@ -34,7 +40,7 @@ type Filter = "all" | "unread" | "reading" | "read";
 type View = "grid" | "list";
 
 const VIEWS: readonly View[] = ["grid", "list"];
-const SORTS: readonly SortKey[] = ["opened", "added", "title"];
+const SORTS: readonly SortKey[] = ["opened", "added", "title", "citations"];
 
 /** Whether `paper` has every word of `query` in its title, authors, id or tags. */
 function matches(paper: Paper, query: string) {
@@ -90,6 +96,10 @@ export function LibraryScreen({
     }
   });
   const { over, handlers } = useFileDrop(imports.importFiles);
+  const { map: records, ready: recordsReady } = useMetadataMap();
+  useMetadataFill(papers, records, recordsReady);
+  const [selecting, setSelecting] = useState(false);
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
 
   // Quick open sends a search here, also while this screen is already showing.
   useEffect(() => {
@@ -113,8 +123,14 @@ export function LibraryScreen({
         sort,
         visits,
         locale,
+        Object.fromEntries(
+          Object.values(records).map((meta) => [
+            meta.paper_id,
+            meta.status === "ok" ? meta.citation_count : null,
+          ]),
+        ),
       ),
-    [papers, filter, query, sort, visits, locale],
+    [papers, filter, query, sort, visits, locale, records],
   );
   const formatDate = useMemo(
     () =>
@@ -170,6 +186,7 @@ export function LibraryScreen({
     opened: t("library.sort.opened"),
     added: t("library.sort.added"),
     title: t("library.sort.title"),
+    citations: t("library.sort.citations"),
   } satisfies Record<SortKey, string>;
   const sortItems: MenuEntry[] = SORTS.map((key) => ({
     id: key,
@@ -184,6 +201,37 @@ export function LibraryScreen({
     onDetails: (paper: Paper) => setLooking(paper.id),
     onStar: star,
     onDelete: asked,
+    selecting,
+    onSelect: (paper: Paper) =>
+      setChosen((current) => {
+        const next = new Set(current);
+        if (!next.delete(paper.id)) next.add(paper.id);
+        return next;
+      }),
+  };
+  const stopSelecting = () => {
+    setSelecting(false);
+    setChosen(new Set());
+  };
+  const exportBib = () => {
+    const picked = papers.filter((paper) => chosen.has(paper.id));
+    const text = formatBibtexFile(
+      picked.map((paper) => citeRecord(paper, records[paper.id])),
+    );
+    const url = URL.createObjectURL(
+      new Blob([text], { type: "application/x-bibtex;charset=utf-8" }),
+    );
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "references.bib";
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.show({
+      message: t("library.export.done", { count: picked.length }),
+      tone: "success",
+    });
   };
 
   return (
@@ -230,6 +278,49 @@ export function LibraryScreen({
             ]}
           />
           <span className={styles.spacer} />
+          {selecting ? (
+            <>
+              <span className={styles.chosen} aria-live="polite">
+                {t("library.select.count", { count: chosen.size })}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  setChosen(
+                    chosen.size === shown.length
+                      ? new Set()
+                      : new Set(shown.map((paper) => paper.id)),
+                  )
+                }
+              >
+                {t(
+                  chosen.size === shown.length && shown.length > 0
+                    ? "library.select.none"
+                    : "library.select.all",
+                )}
+              </Button>
+              <Button
+                size="sm"
+                icon={Download}
+                disabled={chosen.size === 0}
+                onClick={exportBib}
+              >
+                {t("library.export.bib")}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={stopSelecting}>
+                {t("library.select.done")}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelecting(true)}
+            >
+              {t("library.select")}
+            </Button>
+          )}
           <Menu
             label={t("library.sort")}
             placement={{ side: "bottom", align: "end" }}
@@ -269,7 +360,13 @@ export function LibraryScreen({
           ) : view === "grid" ? (
             <div className={styles.grid} data-view="grid">
               {shown.map((paper) => (
-                <PaperCard key={paper.id} paper={paper} {...itemProps} />
+                <PaperCard
+                  key={paper.id}
+                  paper={paper}
+                  meta={records[paper.id]}
+                  selected={chosen.has(paper.id)}
+                  {...itemProps}
+                />
               ))}
             </div>
           ) : (
@@ -295,7 +392,13 @@ export function LibraryScreen({
               </thead>
               <tbody>
                 {shown.map((paper) => (
-                  <PaperRow key={paper.id} paper={paper} {...itemProps} />
+                  <PaperRow
+                    key={paper.id}
+                    paper={paper}
+                    meta={records[paper.id]}
+                    selected={chosen.has(paper.id)}
+                    {...itemProps}
+                  />
                 ))}
               </tbody>
             </table>
