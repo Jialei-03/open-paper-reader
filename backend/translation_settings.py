@@ -14,8 +14,20 @@ from urllib.parse import urlparse
 import httpx
 
 from .agent_limits import OUTPUT_TOKENS, output_tokens
+from .model_errors import (
+    EMPTY,
+    TRUNCATED,
+    ModelError,
+    from_status,
+    from_transport,
+)
 from .model_options import controls, options, request_options, validate_options
 from .platform_model import apply_limit, model_slot, shared_config, shared_configs
+
+# How long one model call may wait for the provider to say something, and to
+# answer the connection. Tests shrink them.
+MODEL_TIMEOUT_SECONDS = 300
+MODEL_CONNECT_SECONDS = 15
 
 KNOWN_HOSTS = {
     "api.openai.com",
@@ -343,7 +355,7 @@ async def _post_cancellable(url, headers, body, cancelled, on_delta=None):
     # Cancel the transport itself, then release its connection and model slot.
     # This cannot guarantee the provider stops work it has already accepted.
     async with httpx.AsyncClient(
-        timeout=httpx.Timeout(300, connect=15),
+        timeout=httpx.Timeout(MODEL_TIMEOUT_SECONDS, connect=MODEL_CONNECT_SECONDS),
         follow_redirects=False,
         trust_env=False,
     ) as client:
@@ -414,15 +426,15 @@ def _complete(config, system, content, usage_id=None, *, cancelled=None, on_delt
             )
         else:
             with httpx.Client(
-                timeout=httpx.Timeout(300, connect=15),
+                timeout=httpx.Timeout(
+                    MODEL_TIMEOUT_SECONDS, connect=MODEL_CONNECT_SECONDS
+                ),
                 follow_redirects=False,
                 trust_env=False,
             ) as client:
                 r = client.post(url, headers=headers, json=body)
         if r.status_code != 200:
-            raise ValueError(
-                f"模型服务返回 HTTP {r.status_code}，请检查配置、额度或稍后重试"
-            )
+            raise from_status(r.status_code)
         result_body = r.json()
         if usage_id:
             config["_usage_finish"](usage_id, result_body.get("usage"), "completed")
@@ -439,11 +451,11 @@ def _complete(config, system, content, usage_id=None, *, cancelled=None, on_delt
             truncated = result.get("finish_reason") == "length"
             text = result["message"]["content"]
         if truncated:
-            raise ValueError("模型输出被截断，请换用支持更长输出的模型")
+            raise ModelError("truncated", TRUNCATED)
         if isinstance(text, str):
             text = re.sub(r"^\s*<think>[\s\S]*?</think>\s*", "", text).strip()
         if not isinstance(text, str) or not text.strip():
-            raise ValueError("模型返回空内容")
+            raise ModelError("empty", EMPTY)
         return text
     except (
         httpx.HTTPError,
@@ -452,10 +464,9 @@ def _complete(config, system, content, usage_id=None, *, cancelled=None, on_delt
         TypeError,
         json.JSONDecodeError,
     ) as error:
-        # Exception class is diagnostic; do not expose headers, body or credentials.
-        raise ValueError(
-            f"模型服务连接或响应失败（{type(error).__name__}），请检查设置后重试"
-        ) from None
+        # Say what went wrong in words; never expose the exception, headers,
+        # body or credentials.
+        raise from_transport(error) from None
 
 
 def probe_vision(config):

@@ -336,6 +336,9 @@ def run(app, job_id, cfg):
         return checked[1]
 
     answer, failed = None, ""
+    # The answer so far (and when it was last saved): what streamed in before a
+    # failure is still the reader's to keep.
+    partial = ["", 0.0]
     try:
         cfg = {**cfg, **runtime.get("model_options", {})}
         validate_endpoint(cfg.get("base_url", ""))
@@ -343,7 +346,6 @@ def run(app, job_id, cfg):
             raise ValueError("模型配置已变更，请重新发送任务")
         bound = model_usage.bind(cfg, maker, settings, owner, "translation", job_id)
 
-        partial = ["", 0.0]
         preview_units = [None]
 
         def delta(text):
@@ -490,6 +492,9 @@ def run(app, job_id, cfg):
         if current:
             if not failed and current.status == "completed":
                 current.response = answer
+            elif partial[0] and failed and current.status == "failed" and not artifact:
+                # Saving while it streamed is throttled; keep the whole draft.
+                current.response = partial[0]
             finish_artifact(d, settings, current, answer=answer)
             current.runtime = {
                 k: v
