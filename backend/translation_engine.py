@@ -613,7 +613,9 @@ def prepare_compile_source(main):
     # the main TeX document. Guard them without defining a fake primitive.
     for path in [*main.parent.rglob("*.tex"), *main.parent.rglob("*.cls"), *main.parent.rglob("*.sty")]:
         content = path.read_text(errors="replace")
-        repaired = re.sub(r"(?m)^([ \t]*)\\pdfoutput[ \t]*=?[ \t]*([01])\b", r"\1\\ifdefined\\pdfoutput\\pdfoutput=\2\\fi", content)
+        # XeTeX (and Tectonic's) may define \pdfoutput too; setting it there makes
+        # hyperref pick its pdfTeX driver and stop on the first \pdf... primitive.
+        repaired = re.sub(r"(?m)^([ \t]*)\\pdfoutput[ \t]*=?[ \t]*([01])\b", r"\1\\ifdefined\\XeTeXversion\\else\\ifdefined\\pdfoutput\\pdfoutput=\2\\fi\\fi", content)
         disabled = regex.compile(
             r"(?m)^([ \t]*)(\\DisableLigatures(?:\[[^\]]*\])?\s*(\{(?:[^{}]|(?3))*\}))"
         )
@@ -935,6 +937,13 @@ def compiled(directory, main, result, forced=False):
             r"(?:LaTeX Error:|Class \w+ Error:|(?:Package )?fontspec Error:|Package \w+ Error:|Missing character:|Undefined control sequence\.|Emergency stop\.|I can\'t find file)[^\n]*",
             log,
         )
+        if not errors:
+            # Tectonic reports "error: file.tex:12: what went wrong", then why it stopped.
+            errors = [
+                line.removeprefix("error: ")
+                for line in log.splitlines()
+                if line.startswith("error: ") and "halted on" not in line
+            ]
         message = errors[0][:180] if errors else "宏包或排版编译失败"
         undefined = re.search(
             r"([^\n]+\.(?:tex|sty):\d+): Undefined control sequence\.\s*\n\s*l\.\d+\s+(\\[A-Za-z@]+)",

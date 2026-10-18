@@ -98,9 +98,9 @@ def test_bundled_class_pdfoutput_is_guarded_idempotently(tmp_path):
     cls = tmp_path / 'memtensor.cls'
     cls.write_text('\\pdfoutput=1\n')
     engine.prepare_compile_source(main)
-    assert cls.read_text() == '\\ifdefined\\pdfoutput\\pdfoutput=1\\fi\n'
+    assert cls.read_text() == '\\ifdefined\\XeTeXversion\\else\\ifdefined\\pdfoutput\\pdfoutput=1\\fi\\fi\n'
     engine.prepare_compile_source(main)
-    assert cls.read_text() == '\\ifdefined\\pdfoutput\\pdfoutput=1\\fi\n'
+    assert cls.read_text() == '\\ifdefined\\XeTeXversion\\else\\ifdefined\\pdfoutput\\pdfoutput=1\\fi\\fi\n'
 
 
 def test_curly_quotes_are_rendered_and_xcolor_options_precede_class(tmp_path):
@@ -281,3 +281,15 @@ def test_an_8bit_encoding_chosen_by_a_bundled_style_counts_too(tmp_path):
     (tmp_path / 'journal.sty').write_text('\\usepackage[T1]{fontenc}\n')
     engine.prepare_compile_source(main)
     assert "agent's" in main.read_text()
+
+
+def test_tectonic_errors_are_reported_by_what_went_wrong(tmp_path, monkeypatch):
+    (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}x\end{document}')
+    log = (
+        b'warning: main.tex:3: Underfull \\vbox\n'
+        b'error: hpdftex.def:207: Undefined control sequence\n'
+        b'error: halted on potentially-recoverable error as specified\n'
+    )
+    monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=1, stdout=log, stderr=b''))
+    with pytest.raises(ValueError, match='hpdftex.def:207: Undefined control sequence'):
+        engine.compile_project(tmp_path, tectonic='tectonic', tex_env={})
