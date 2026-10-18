@@ -61,7 +61,7 @@ def backup(settings, output):
                 json.dumps(
                     {
                         "format": "paper-platform-backup",
-                        "schema_version": 16,
+                        "schema_version": 17,
                         "created_at": now(),
                         "data": data,
                     },
@@ -116,7 +116,7 @@ def restore(settings, source):
             payload = json.loads(z.read("backup.json"))
             if payload.get("format") != "paper-platform-backup" or payload.get(
                 "schema_version"
-            ) not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}:
+            ) not in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}:
                 raise ValueError("Unsupported backup schema")
             data = payload["data"]
             if payload["schema_version"] == 1:
@@ -189,6 +189,8 @@ def restore(settings, source):
                     data.setdefault(table, [])
                 for job in data["translation_jobs"]:
                     job.setdefault("preparation_id", "")
+            if payload["schema_version"] < 17:
+                data.setdefault("paper_metadata", [])
             for preparation in data["paper_preparations"]:
                 if preparation["status"] in {"queued", "running", "waiting"}:
                     preparation["status"] = "paused"

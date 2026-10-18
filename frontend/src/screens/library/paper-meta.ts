@@ -49,7 +49,7 @@ export function progressOf(page: number | null, pages: number | null) {
   return Math.max(0, Math.min(1, page / pages));
 }
 
-export type SortKey = "opened" | "added" | "title";
+export type SortKey = "opened" | "added" | "title" | "citations";
 
 /** `papers` in the order `key` asks for; `visits` says when each was last opened on this device. */
 export function sortPapers(
@@ -57,8 +57,17 @@ export function sortPapers(
   key: SortKey,
   visits: Record<string, number>,
   locale: string,
+  /** How often each paper is cited, where that is known. */
+  citations: Record<string, number | null | undefined> = {},
 ): Paper[] {
   const list = [...papers];
+  if (key === "citations") {
+    // Papers with no known count go last, in the order they were opened.
+    const known = (paper: Paper) => citations[paper.id] ?? -1;
+    return sortPapers(list, "opened", visits, locale).sort(
+      (a, b) => known(b) - known(a),
+    );
+  }
   if (key === "title")
     return list.sort((a, b) =>
       (a.title || "").localeCompare(b.title || "", locale, {

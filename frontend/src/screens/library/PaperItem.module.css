@@ -200,7 +200,47 @@
 }
 
 .cellMain {
+  position: relative;
   width: auto;
+}
+
+/* Choosing papers: a checkbox in the corner of the card, or at the start of the row. */
+.pickCard,
+.pickRow {
+  margin: 0;
+  accent-color: var(--ui-accent);
+  cursor: pointer;
+}
+
+.pickCard {
+  position: absolute;
+  z-index: 2;
+  top: var(--ui-space-16);
+  left: var(--ui-space-16);
+  width: 16px;
+  height: 16px;
+}
+
+.card[data-selected] {
+  background: var(--ui-bg-2);
+  box-shadow: inset 0 0 0 1.5px var(--ui-fg-3);
+}
+
+.pickRow {
+  position: absolute;
+  top: 50%;
+  left: var(--ui-space-8);
+  width: 15px;
+  height: 15px;
+  transform: translateY(-50%);
+}
+
+.row[data-selecting] .rowLink {
+  padding-left: var(--ui-space-32);
+}
+
+.row[data-selected] {
+  background: var(--ui-bg-2);
 }
 
 .cellProgress {

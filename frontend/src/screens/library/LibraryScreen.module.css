@@ -134,3 +134,10 @@
     display: none;
   }
 }
+
+.chosen {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
