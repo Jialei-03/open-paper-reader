@@ -15,16 +15,18 @@ import type { Keypoint, Keypoints } from "./keypoints";
 import { NotesTab, type NotesTabProps } from "./panel/NotesTab";
 import { AssistantThread, type Assistant } from "./assistant";
 import type { ReaderRoute } from "./route";
+import { RelatedTab } from "./related/RelatedTab";
 import { RegionBoundary } from "./RegionBoundary";
 import styles from "./RightPanel.module.css";
 
 /** The panel's views, one shown at a time. */
-export type PanelView = "guide" | "assistant" | "notes";
+export type PanelView = "guide" | "assistant" | "notes" | "related";
 
 const VIEWS = [
   "guide",
   "assistant",
   "notes",
+  "related",
 ] as const satisfies readonly PanelView[];
 
 /** In a window too narrow for it beside the paper, the panel floats over the paper instead. */
@@ -185,6 +187,8 @@ export function RightPanel({
                 <AssistantThread assistant={assistant} onCite={onCite} />
               ) : value === "notes" && notes ? (
                 <NotesTab {...notes} />
+              ) : value === "related" && paper ? (
+                <RelatedTab paper={paper} active={view === "related"} />
               ) : (
                 <p className={styles.placeholder}>
                   {t(`reader.tab.${value}.empty`)}

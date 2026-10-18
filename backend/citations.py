@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+import os
 import re
 import threading
 import time
@@ -40,6 +41,8 @@ class CitationInput(Strict):
     doi: str = Field(default="", max_length=250)
     arxiv: str = Field(default="", max_length=100)
     s2_id: str = Field(default="", max_length=80)
+    venue: str = Field(default="", max_length=300)
+    citation_count: int | None = Field(default=None, ge=0)
 
     @field_validator("authors")
     @classmethod
@@ -56,7 +59,7 @@ class CitationInput(Strict):
         return value.strip()
 
 
-def citation_identifier(paper):
+def citation_identifier(paper, d=None):
     from .arxiv_import import identifier
 
     raw = paper.external_id.strip()
@@ -69,6 +72,16 @@ def citation_identifier(paper):
         arxiv = identifier(raw)
         return "ARXIV:" + re.sub(r"v\d+$", "", arxiv)
     except ValueError:
+        # The public record found for the paper (by its title) may know an id the field does not.
+        if d is not None:
+            from .paper_metadata import PaperMetadata
+
+            row = d.get(PaperMetadata, paper.id)
+            data = row.data if row and row.status == "ok" else {}
+            if data.get("doi"):
+                return "DOI:" + data["doi"]
+            if data.get("arxiv"):
+                return "ARXIV:" + data["arxiv"]
         raise HTTPException(422, "请先在论文信息中填写 DOI 或 arXiv 标识") from None
 
 
@@ -79,6 +92,8 @@ _slots = threading.BoundedSemaphore(2)
 
 def fetch_relations(identifier, relation, offset):
     key = (identifier, relation, offset)
+    if os.environ.get("SCHOLAR_OFFLINE"):
+        raise HTTPException(503, "当前为离线模式，不查询引用")
     with _lock:
         hit = _cache.get(key)
         if hit and time.monotonic() - hit[0] < 900:
@@ -99,7 +114,7 @@ def fetch_relations(identifier, relation, offset):
                 params={
                     "offset": offset,
                     "limit": 50,
-                    "fields": "title,authors,year,externalIds,abstract",
+                    "fields": "title,authors,year,externalIds,abstract,venue,citationCount",
                 },
             ) as response:
                 if response.status_code == 404:
@@ -142,6 +157,11 @@ def fetch_relations(identifier, relation, offset):
                     doi=ids.get("DOI") or "",
                     arxiv=ids.get("ArXiv") or "",
                     s2_id=paper.get("paperId") or "",
+                    venue=(paper.get("venue") or "")[:300],
+                    citation_count=paper.get("citationCount")
+                    if isinstance(paper.get("citationCount"), int)
+                    and paper["citationCount"] >= 0
+                    else None,
                 ).model_dump()
             )
         value = {
@@ -271,7 +291,7 @@ def install_citation_routes(app, settings, db, auth, owned):
                 "next": None,
                 "source": "已保存",
             }
-        identifier = citation_identifier(paper)
+        identifier = citation_identifier(paper, d)
         return getattr(app.state, "citation_fetcher", fetch_relations)(
             identifier, relation, offset
         )

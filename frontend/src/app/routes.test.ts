@@ -32,11 +32,14 @@ describe("parseAppRoute", () => {
     });
   });
 
+  it("reads the discover screen", () => {
+    expect(parseAppRoute("discover")).toEqual({ screen: "discover" });
+  });
+
   it("sends what was taken out home", () => {
     for (const hash of [
       "dashboard",
       "knowledge",
-      "discover",
       "directions",
       "collections/x",
       "tokens",

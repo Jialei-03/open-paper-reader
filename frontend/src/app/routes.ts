@@ -13,6 +13,7 @@ import {
 export type AppRoute =
   | { screen: "home"; redirect?: string }
   | { screen: "library"; redirect?: string }
+  | { screen: "discover"; redirect?: string }
   | { screen: "settings"; redirect?: string }
   | { screen: "reader"; reader: ReaderRoute; redirect?: string };
 
@@ -25,13 +26,14 @@ const HOME: AppRoute = { screen: "home" };
  * Reads the hash, without its `#`. `#paper/<id>` is the old reader's address:
  * it opens the new reader, with the same `file`, `page`, `quote`, `prefix` and
  * `rect`, and is rewritten to `#read/<id>…`. Anything else that is not one of
- * the screens (the addresses of what has been taken out: knowledge, discover,
+ * the screens (the addresses of what has been taken out: knowledge,
  * directions, collections, tokens…) goes home.
  */
 export function parseAppRoute(hash: string): AppRoute {
   const path = hash.split("?")[0];
   if (path === "" || path === "home") return HOME;
   if (path === "library") return { screen: "library" };
+  if (path === "discover") return { screen: "discover" };
   if (path === "settings") return { screen: "settings" };
   if (path.startsWith("read/")) {
     const reader = parseReaderRoute(hash);

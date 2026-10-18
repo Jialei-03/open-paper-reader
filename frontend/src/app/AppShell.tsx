@@ -20,6 +20,7 @@ import {
 import { recentPapers } from "../lib/recent-papers";
 import { useMediaQuery } from "../reader/useMediaQuery";
 import { useModel } from "../reader/useModel";
+import { DiscoverScreen } from "../screens/discover/DiscoverScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { LibraryScreen } from "../screens/LibraryScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
@@ -248,6 +249,9 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
               go={go}
               reload={reload}
             />
+          )}
+          {route.screen === "discover" && (
+            <DiscoverScreen papers={papers} go={go} reload={reload} />
           )}
           {route.screen === "settings" && <SettingsScreen go={go} />}
         </Shell>

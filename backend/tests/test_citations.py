@@ -138,7 +138,7 @@ def test_citation_http_protocol_and_errors_are_not_empty_results(monkeypatch):
     assert result["items"][0]["title"] == "Test" and result["next"] == 50
     assert requests[0].url.host == "api.semanticscholar.org"
     assert requests[0].url.params["limit"] == "50"
-    assert requests[0].url.params["fields"] == "title,authors,year,externalIds,abstract"
+    assert requests[0].url.params["fields"] == "title,authors,year,externalIds,abstract,venue,citationCount"
     assert citations.fetch_relations("DOI:10.1000/example", "references", 0) == result
     assert len(requests) == 1
     citations._cache.clear()

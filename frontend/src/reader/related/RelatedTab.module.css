@@ -1,0 +1,119 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+}
+
+/* The segmented control and the filter stay where they are while the list scrolls under them. */
+.controls {
+  position: sticky;
+  top: calc(-1 * var(--ui-space-8));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  margin: calc(-1 * var(--ui-space-8)) calc(-1 * var(--ui-space-16)) 0;
+  padding: var(--ui-space-8) var(--ui-space-16);
+  background: var(--ui-bg);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-10) 0;
+  border-bottom: 1px solid var(--ui-edge-subtle);
+}
+
+.row:last-child {
+  border-bottom: 0;
+}
+
+.row p {
+  margin: 0;
+}
+
+.title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4);
+  margin-left: calc(-1 * var(--ui-space-8));
+}
+
+.inLibrary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  padding: 0 var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-decoration: none;
+}
+
+.inLibrary:hover {
+  color: var(--ui-fg);
+  text-decoration: underline;
+}
+
+.noAdd {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+
+.reason {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.problem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.problem p {
+  margin: 0;
+}
+
+.end {
+  display: flex;
+  justify-content: center;
+  min-height: 1px;
+}
