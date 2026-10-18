@@ -732,6 +732,15 @@ export function ReaderScreen({
     if (narrowNow.current) setPanelOpen(true);
   }, []);
 
+  // A place in the paper chosen from the panel (a citation, a page of the guide, a highlight): folded away,
+  // the panel gets out of the way of where it leads (it would cover it, and the question box).
+  const goFromPanel = (move: () => void) => {
+    if (narrowNow.current) setPanelOpen(false);
+    move();
+  };
+  const jumpFromPanel = (target: ReaderRoute) =>
+    goFromPanel(() => go(readerHash(target).slice(1)));
+
   // Selected text explained is asked at once, and the answer shown; asked about, it waits in the
   // question box for the question (the box takes the keyboard when it is handed a context).
   const ask = (request: AskRequest) => {
@@ -750,15 +759,21 @@ export function ReaderScreen({
       request,
       t("reader.notes.source", { page: request.page }),
     );
+    const toNotes = {
+      label: t("reader.notes.show"),
+      onClick: () => show("notes"),
+    };
     notes.append(markdown).then(
-      () =>
+      // In the note's text but not kept yet is said so: adding it again would write it twice.
+      (added) =>
         toast.show({
-          message: t("reader.notes.saved"),
-          tone: "success",
-          action: {
-            label: t("reader.notes.show"),
-            onClick: () => show("notes"),
-          },
+          message: t(
+            added === "saved"
+              ? "reader.notes.saved"
+              : "reader.notes.appendUnsaved",
+          ),
+          tone: added === "saved" ? "success" : "error",
+          action: toNotes,
         }),
       (reason: unknown) =>
         toast.show({
@@ -767,6 +782,7 @@ export function ReaderScreen({
               ? reason.message
               : t("reader.notes.appendFailed"),
           tone: "error",
+          action: toNotes,
         }),
     );
   };
@@ -845,17 +861,14 @@ export function ReaderScreen({
           paperId={paperId}
           paper={here}
           file={hereFile}
-          onJumpToPage={(page) => actions.current?.jump(page)}
+          onJumpToPage={(page) =>
+            goFromPanel(() => actions.current?.jump(page))
+          }
           assistant={assistant}
-          onCite={(target) => go(readerHash(target).slice(1))}
+          onCite={jumpFromPanel}
           notes={
             here
-              ? {
-                  paper: here,
-                  file: hereFile,
-                  notes,
-                  onJump: (target) => go(readerHash(target).slice(1)),
-                }
+              ? { paper: here, file: hereFile, notes, onJump: jumpFromPanel }
               : undefined
           }
           tab={tab}

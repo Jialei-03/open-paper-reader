@@ -14,15 +14,30 @@ import { safeNoteImage } from "./note-images";
  * images. It sets up no interface.
  */
 
+/** What an image of the note is called where it is drawn, in the interface's language. */
+export interface NoteImageLabels {
+  /** The name of an image that has none of its own. */
+  alt: string;
+  /** What stands in place of an image that is not drawn, from its name (empty when it has none). */
+  missing(alt: string): string;
+}
+
 /** An image whose address is not one of the note's own is not drawn. */
-export const SafeImage = Image.extend({
+export const SafeImage = Image.extend<{ labels: NoteImageLabels }>({
+  addOptions() {
+    return {
+      ...this.parent?.(),
+      labels: { alt: "", missing: (alt: string) => alt },
+    };
+  },
   renderHTML({ node }) {
+    const { labels } = this.options;
     if (safeNoteImage(node.attrs.src))
       return [
         "img",
         {
           src: node.attrs.src,
-          alt: node.attrs.alt || "笔记图片",
+          alt: node.attrs.alt || labels.alt,
           title: node.attrs.title,
           loading: "lazy",
         },
@@ -30,7 +45,7 @@ export const SafeImage = Image.extend({
     return [
       "span",
       { "data-image-placeholder": "" },
-      `[图片：${node.attrs.alt || "请通过附件查看"}]`,
+      labels.missing(node.attrs.alt || ""),
     ];
   },
 });
@@ -42,7 +57,10 @@ export interface FormulaClick {
   block: boolean;
 }
 
-export function noteExtensions(onFormula: (formula: FormulaClick) => void) {
+export function noteExtensions(
+  onFormula: (formula: FormulaClick) => void,
+  imageLabels: NoteImageLabels,
+) {
   const clicked = (block: boolean) => (node: ProseMirrorNode, pos: number) =>
     onFormula({ pos, latex: node.attrs.latex, block });
   return [
@@ -68,6 +86,6 @@ export function noteExtensions(onFormula: (formula: FormulaClick) => void) {
       nested: true,
       HTMLAttributes: { "data-type": "taskItem" },
     }),
-    SafeImage,
+    SafeImage.configure({ labels: imageLabels }),
   ];
 }

@@ -60,6 +60,36 @@ export interface AgentRun {
   };
 }
 
+/** What the reader shows of a run, as one string: two runs alike in it look the same. */
+const shownOf = (run: AgentRun) =>
+  JSON.stringify([
+    run.id,
+    run.status,
+    run.prompt,
+    run.response,
+    run.error,
+    run.runtime?.phase ?? "",
+    Math.round(run.runtime?.execution_seconds ?? -1),
+    (run.steps ?? []).map((step) => step.status),
+  ]);
+
+/**
+ * Whether two lists of runs look the same to the reader: the same runs, in the
+ * same order, at the same status, with the same text and steps. A list read
+ * again that shows nothing new is not news (the screen is not drawn again).
+ */
+export function sameRuns(a: readonly AgentRun[], b: readonly AgentRun[]) {
+  return (
+    a.length === b.length &&
+    a.every(
+      (run, index) =>
+        run.id === b[index].id &&
+        run.status === b[index].status &&
+        shownOf(run) === shownOf(b[index]),
+    )
+  );
+}
+
 /** Still being worked on: waiting its turn, or running. */
 export const isActive = (run: AgentRun) =>
   run.status === "queued" || run.status === "running";
@@ -167,18 +197,17 @@ export type StepDescription =
   | { kind: "search"; query: string; found: number | null }
   | { kind: "tool"; name: string };
 
-/** The summary of a result is JSON cut at 2000 characters: read what is whole of it. */
-function resultOf(step: AgentStep): Record<string, unknown> | null {
-  const summary = step.result?.summary;
-  if (!summary) return null;
-  try {
-    const value: unknown = JSON.parse(summary);
-    return value && typeof value === "object"
-      ? (value as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
+/**
+ * How many matches a search found (backend agent_reading.py `total_matches`).
+ * The summary of a result is JSON cut at 2000 characters, so the count is read
+ * from the text rather than from the parsed whole: it comes early, and a long
+ * list of matches after it would leave the JSON unfinished.
+ */
+function matchesFound(step: AgentStep): number | null {
+  const found = /"total_matches"\s*:\s*(\d+)/.exec(step.result?.summary ?? "");
+  if (!found) return null;
+  const count = Number(found[1]);
+  return Number.isSafeInteger(count) ? count : null;
 }
 
 export function describeStep(step: AgentStep): StepDescription {
@@ -196,14 +225,12 @@ export function describeStep(step: AgentStep): StepDescription {
       return { kind: "region", page: whole(given.page) };
     case "view_image":
       return { kind: "image", page: whole(given.page) };
-    case "search_file": {
-      const total = resultOf(step)?.total;
+    case "search_file":
       return {
         kind: "search",
         query: typeof given.query === "string" ? given.query : "",
-        found: typeof total === "number" && total >= 0 ? total : null,
+        found: matchesFound(step),
       };
-    }
     default:
       return { kind: "tool", name: step.name };
   }

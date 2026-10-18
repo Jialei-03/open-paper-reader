@@ -16,6 +16,7 @@ import {
   type MenuEntry,
   type Rect,
 } from "../../ui";
+import { serviceWords } from "../service-error";
 import type { AskRequest, ReaderAction } from "../types";
 import { outOfView, selectionSpot, spotRect, type PageSpot } from "./anchor";
 import { TranslatePopover } from "./TranslatePopover";
@@ -78,7 +79,8 @@ export function SelectionMenu({
   onAsk,
   onNote,
 }: SelectionMenuProps) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const [selection, setSelection] = useState<PdfSelection | null>(null);
   /** Where the row is pinned, and that place in the window as the page is now. */
   const [spot, setSpot] = useState<PageSpot | null>(null);
@@ -89,6 +91,10 @@ export function SelectionMenu({
     anchor: Rect;
   } | null>(null);
   const [highlightFailed, setHighlightFailed] = useState(false);
+  // Highlights asked for while one is still being saved wait their turn (the store takes one at a time).
+  const highlights = useRef<PdfSelection[]>([]);
+  const highlighting = useRef(false);
+  const [turn, setTurn] = useState(0);
   const layer = useRef<HTMLDivElement>(null);
   const open = selection !== null && anchor !== null;
 
@@ -213,10 +219,35 @@ export function SelectionMenu({
     if (!highlightFailed) return;
     setHighlightFailed(false);
     toast.show({
-      message: annotations.error || t("reader.selection.highlightFailed"),
+      message:
+        serviceWords(annotations.error, i18n) ||
+        t("reader.selection.highlightFailed"),
       tone: "error",
     });
-  }, [highlightFailed, annotations.error, t]);
+  }, [highlightFailed, annotations.error, i18n, t]);
+
+  // The next highlight waiting, once the store has let go of the last (and is drawn with that).
+  useEffect(() => {
+    if (highlighting.current || annotations.busy) return;
+    const value = highlights.current.shift();
+    if (!value) return;
+    highlighting.current = true;
+    void annotations
+      .add(value, annotationColors[0].value, "")
+      .then((saved) => {
+        if (saved)
+          toast.show({
+            message: t("reader.selection.highlighted"),
+            tone: "success",
+            duration: 2000,
+          });
+        else setHighlightFailed(true);
+      })
+      .finally(() => {
+        highlighting.current = false;
+        setTurn((count) => count + 1);
+      });
+  }, [turn, annotations, t]);
 
   const request = (action: ReaderAction): AskRequest | null =>
     selection && {
@@ -238,19 +269,20 @@ export function SelectionMenu({
     if (!value || !where || !rect) return;
     close();
     if (action === "highlight") {
+      // The service keeps the lines of at most 64 per page: said before asking, and the selection stays to be cut.
+      if (
+        (value.parts ?? [value]).some((part) => part.rects.length > MAX_RECTS)
+      ) {
+        toast.show({
+          message: t("reader.selection.tooManyLines"),
+          tone: "error",
+        });
+        return;
+      }
       // The selection gives way to the highlight drawn in its place.
       window.getSelection()?.removeAllRanges();
-      void annotations
-        .add(value, annotationColors[0].value, "")
-        .then((saved) => {
-          if (saved)
-            toast.show({
-              message: t("reader.selection.highlighted"),
-              tone: "success",
-              duration: 2000,
-            });
-          else setHighlightFailed(true);
-        });
+      highlights.current.push(value);
+      setTurn((count) => count + 1);
       return;
     }
     const asked = request(action === "explain" ? "explain" : "ask");
@@ -267,12 +299,24 @@ export function SelectionMenu({
   const runNow = useRef(run);
   runNow.current = run;
 
-  // The keys work while the row is there, wherever the keyboard is on the page (not while typing).
+  // The keys work while the row is there and the keyboard is with the paper: on the pages, on the row,
+  // or nowhere in particular. A button or field elsewhere keeps its own keys (Enter on a button presses it).
   useEffect(() => {
     if (!open) return;
     const mac = currentPlatformIsMac();
+    const withPaper = (target: EventTarget | null) =>
+      !(target instanceof Node) ||
+      target === document.body ||
+      target === document.documentElement ||
+      scroller?.contains(target) ||
+      layer.current?.contains(target);
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || event.defaultPrevented || typing(event.target))
+      if (
+        event.isComposing ||
+        event.defaultPrevented ||
+        typing(event.target) ||
+        !withPaper(event.target)
+      )
         return;
       const hit = shortcuts.find(([, spec]) =>
         matchesShortcut(event, spec, mac),
@@ -285,7 +329,7 @@ export function SelectionMenu({
     // Before the row's own keys (its letters would jump between its items).
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open]);
+  }, [open, scroller]);
 
   const labels: Record<Action, string> = {
     explain: t("reader.selection.explain"),

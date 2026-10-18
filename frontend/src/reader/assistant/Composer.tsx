@@ -1,4 +1,4 @@
-import { ArrowUp, Square, X } from "lucide-react";
+import { ArrowUp, RotateCcw, Square, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, TextArea, Tooltip } from "../../ui";
@@ -37,6 +37,8 @@ export function Composer({
 }: ComposerProps) {
   const { t } = useI18n();
   const [draft, setDraft] = useState("");
+  // The question in the box is one that was not sent: trying again sends it from here.
+  const [unsent, setUnsent] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const onCoverNow = useRef(onCover);
@@ -76,11 +78,18 @@ export function Composer({
     const request = pending ? { ...pending, question: prompt } : undefined;
     setDraft("");
     if (await assistant.send({ prompt, request })) {
+      setUnsent(false);
       if (request) onClearPending();
     }
     // Not sent: the question comes back, unless something new has been typed meanwhile.
-    else setDraft((typed) => typed || draft);
+    else {
+      setUnsent(true);
+      setDraft((typed) => typed || draft);
+    }
   };
+  // What the error is about, again: the question in the box if it was this box's, else the hook's.
+  const recover = assistant.recover;
+  const again = recover && (() => (unsent ? void submit() : recover()));
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (
@@ -145,9 +154,22 @@ export function Composer({
             </p>
           ) : (
             assistant.error && (
-              <p className={styles.error} role="alert">
-                {assistant.error}
-              </p>
+              <>
+                <p className={styles.error} role="alert">
+                  {assistant.error}
+                </p>
+                {again && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    icon={RotateCcw}
+                    className={styles.retry}
+                    onClick={again}
+                  >
+                    {t("common.retry")}
+                  </Button>
+                )}
+              </>
             )
           )}
           {answering ? (

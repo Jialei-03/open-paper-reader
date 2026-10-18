@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api";
+import { useI18n } from "../../i18n/I18nProvider";
 import type { Preparation } from "../../lib/preparation";
+import { serviceReason } from "../service-error";
+import { useModel } from "../useModel";
 import {
   guideView,
   isRunning,
@@ -16,19 +19,14 @@ const PREPARATION_INTERVAL = 2000;
 /** After a read that failed (offline, a restart): try again, quietly. */
 const RETRY_INTERVAL = 5000;
 
-type Models = { models?: { id: string }[]; active_id?: string };
-
 const post = (path: string, body: unknown, signal?: AbortSignal) =>
   api(path, { method: "POST", body: JSON.stringify(body), signal });
-
-const message = (error: unknown) =>
-  error instanceof Error ? error.message : "";
 
 export interface Guide {
   view: GuideView;
   /** Starting a guide (or making it again) has been asked for and is not answered yet. */
   busy: boolean;
-  /** Why the last ask for a guide was refused. */
+  /** Why the last ask for a guide was refused, in a sentence; empty when it was not. */
   error: string;
   /** Makes the guide; `again` makes it anew even if one was made (a failed or stopped one). */
   generate(again: boolean): void;
@@ -42,15 +40,19 @@ export interface Guide {
  * and follows it while it is being made. Reads stop when the tab goes.
  */
 export function useGuide(paperId: string, fileId: string): Guide {
+  const i18n = useI18n();
+  const model = useModel();
+  const modelId = model.id;
   const [loaded, setLoaded] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  /** Why reading the guide failed (`null` while it did not); said in the interface's words when shown. */
+  const [loadFailure, setLoadFailure] = useState<{ reason: unknown } | null>(
+    null,
+  );
   const [reloads, setReloads] = useState(0);
-  const [models, setModels] = useState<Models["models"]>([]);
-  const [modelId, setModelId] = useState("");
   const [preparation, setPreparation] = useState<Preparation | null>(null);
   const [artifact, setArtifact] = useState<GuideArtifact | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [failure, setFailure] = useState<{ reason: unknown } | null>(null);
 
   // Nothing is set once the tab is gone, whatever is still on its way.
   const alive = useRef(true);
@@ -67,23 +69,20 @@ export function useGuide(paperId: string, fileId: string): Guide {
     const { signal } = controller;
     let live = true;
     setLoaded(false);
-    setLoadError(null);
+    setLoadFailure(null);
     setArtifact(null);
     setPreparation(null);
     (async () => {
-      const [config, ensured, rows] = await Promise.all([
-        api<Models>("/translation-settings", { signal }).catch(() => null),
+      const [ensured, rows] = await Promise.all([
         post(`/papers/${paperId}/preparation`, {}, signal).catch(() => null),
         api<GuideArtifact[]>(`/papers/${paperId}/reading-artifacts`, {
           signal,
-        }).catch((reason) => {
-          if (!signal.aborted) setLoadError(message(reason));
+        }).catch((reason: unknown) => {
+          if (!signal.aborted) setLoadFailure({ reason });
           return null;
         }),
       ]);
       if (!live) return;
-      setModels(config?.models ?? []);
-      setModelId(config?.active_id || config?.models?.[0]?.id || "");
       setPreparation(ensured as Preparation | null);
       if (rows) setArtifact(pickGuide(rows, fileId));
       setLoaded(true);
@@ -93,24 +92,6 @@ export function useGuide(paperId: string, fileId: string): Guide {
       controller.abort();
     };
   }, [paperId, fileId, reloads]);
-
-  // A model added or changed in settings (the old interface announces it).
-  useEffect(() => {
-    const controller = new AbortController();
-    const refresh = () =>
-      void api<Models>("/translation-settings", { signal: controller.signal })
-        .then((config) => {
-          if (!alive.current) return;
-          setModels(config.models ?? []);
-          setModelId(config.active_id || config.models?.[0]?.id || "");
-        })
-        .catch(() => {});
-    window.addEventListener("model-settings-updated", refresh);
-    return () => {
-      controller.abort();
-      window.removeEventListener("model-settings-updated", refresh);
-    };
-  }, []);
 
   // What is waited for: the draft of the guide that is being written, or else
   // the preparation to start one. Both stop at once when it is no longer so.
@@ -170,7 +151,7 @@ export function useGuide(paperId: string, fileId: string): Guide {
       if (!modelId || asking.current) return;
       asking.current = true;
       setBusy(true);
-      setError("");
+      setFailure(null);
       post(`/papers/${paperId}/reading-artifacts`, {
         file_id: fileId,
         model_config_id: modelId,
@@ -180,8 +161,8 @@ export function useGuide(paperId: string, fileId: string): Guide {
         .then((row) => {
           if (alive.current) setArtifact(row as GuideArtifact);
         })
-        .catch((reason) => {
-          if (alive.current) setError(message(reason));
+        .catch((reason: unknown) => {
+          if (alive.current) setFailure({ reason });
         })
         .finally(() => {
           asking.current = false;
@@ -192,20 +173,32 @@ export function useGuide(paperId: string, fileId: string): Guide {
   );
 
   const retry = useCallback(() => {
-    if (loadError !== null) setReloads((count) => count + 1);
+    if (loadFailure !== null) setReloads((count) => count + 1);
     else generate(true);
-  }, [loadError, generate]);
+  }, [loadFailure, generate]);
 
+  let view = guideView({
+    loaded: loaded && model.known,
+    loadError:
+      loadFailure &&
+      serviceReason(loadFailure.reason, i18n, {
+        fallback: "reader.guide.failed",
+      }),
+    models: modelId ? 1 : 0,
+    preparation,
+    artifact,
+  });
+  // Why a guide failed or stopped, in the service's words, is for the Chinese interface; else the tab says it in its own.
+  if (i18n.locale !== "zh" && loadFailure === null) {
+    if (view.kind === "failed") view = { ...view, message: "" };
+    else if (view.kind === "idle") view = { ...view, note: "" };
+  }
   return {
-    view: guideView({
-      loaded,
-      loadError,
-      models: models?.length ?? 0,
-      preparation,
-      artifact,
-    }),
+    view,
     busy,
-    error,
+    error: failure
+      ? serviceReason(failure.reason, i18n, { fallback: "reader.guide.failed" })
+      : "",
     generate,
     retry,
   };

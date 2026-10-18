@@ -228,6 +228,49 @@ export function appendToNote(note: Item, text: string) {
   doc.update({ body: doc.state.body + text });
   return doc.save();
 }
+
+/**
+ * How adding a block to a note went: kept on the service; in the draft but not
+ * saved (the save failed, or met a conflict that could not be put together);
+ * or not added at all, because the queue had already stopped.
+ */
+export type NoteAddition = "saved" | "unsaved" | "refused";
+
+/**
+ * Adds a block of Markdown at the end of the note, a blank line after what is
+ * there, and waits for it to be saved: its own save, not one that was already
+ * on its way. A queue that has stopped (a save that failed, a conflict that
+ * cannot be put together) is not added to, so the draft is left as it was: the
+ * block would sit in a draft that is not being saved, and adding it again once
+ * told it failed would write it twice.
+ */
+export async function addToNote(
+  doc: NoteDocument,
+  block: string,
+): Promise<NoteAddition> {
+  if (hasConflict(doc.state)) await recoverNote(doc);
+  if (doc.state.error) return "refused";
+  const body = doc.state.body;
+  const gap = !body.trim()
+    ? ""
+    : body.endsWith("\n\n")
+      ? ""
+      : body.endsWith("\n")
+        ? "\n"
+        : "\n\n";
+  doc.update({ body: `${body}${gap}${block}\n` });
+  for (let round = 0; round < 2; round++) {
+    try {
+      await doc.flush();
+      return "saved";
+    } catch {
+      // Another version on the service: put together once, then saved again; anything else stays unsaved.
+      if (round > 0 || !hasConflict(doc.state)) return "unsaved";
+      await recoverNote(doc);
+    }
+  }
+  return "unsaved";
+}
 export async function saveNote(note: Item): Promise<Item> {
   return documents.get(note.id)?.flush() || note;
 }

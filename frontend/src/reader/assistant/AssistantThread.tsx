@@ -26,6 +26,7 @@ import remarkMath from "remark-math";
 import { useI18n, type I18n } from "../../i18n/I18nProvider";
 import { Button, Spinner } from "../../ui";
 import { followLink, readerHash, type ReaderRoute } from "../route";
+import { serviceWords } from "../service-error";
 import {
   citedRoute,
   conversation,
@@ -160,7 +161,8 @@ const Turn = memo(function Turn({
   onCite(route: ReaderRoute): void;
   onRetry(runId: string): void;
 }) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const context = run.runtime?.reader_context;
   const quote = context?.source === "selection" ? (context.quote ?? "") : "";
   const active = isActive(run);
@@ -201,7 +203,7 @@ const Turn = memo(function Turn({
       {run.status === "failed" && (
         <div className={styles.failure}>
           <p className={styles.failureText}>
-            {run.error || t("reader.assistant.failed")}
+            {serviceWords(run.error, i18n) || t("reader.assistant.failed")}
           </p>
           <Button
             size="sm"
@@ -294,7 +296,8 @@ const STEP_ICONS: Record<ReturnType<typeof describeStep>["kind"], LucideIcon> =
 
 /** One step: what it did, on what, what came of it, and whether it is done. */
 function Step({ step }: { step: AgentStep }) {
-  const { t, tn } = useI18n();
+  const i18n = useI18n();
+  const { t, tn } = i18n;
   const described = describeStep(step);
   const Icon = STEP_ICONS[described.kind];
   let label: string;
@@ -332,7 +335,9 @@ function Step({ step }: { step: AgentStep }) {
       label = t("reader.assistant.step.tool");
       detail = described.name;
   }
-  if (step.status === "failed" && step.error) result = step.error;
+  // Why it failed, in the service's words (where they may be shown; the status says it failed).
+  if (step.status === "failed" && step.error)
+    result = serviceWords(step.error, i18n);
   const status =
     step.status === "completed"
       ? "completed"
@@ -394,6 +399,9 @@ function Citation({
   );
 }
 
+/** A web address that is one in full: the only kind of link out of an answer, and it opens in a new tab. */
+const WEB = /^https?:\/\/[^/\\]/i;
+
 /** An answer in Markdown, drawn again only when its text changes (it grows as it is written). */
 const Answer = memo(function Answer({
   body,
@@ -411,14 +419,15 @@ const Answer = memo(function Answer({
             {children}
           </Citation>
         );
-      const external = /^https?:/i.test(href ?? "");
+      // Anything else the model wrote as a link leads nowhere from here: an address relative to the
+      // app (`//host` and `/\host` are other sites), a script, a scheme. It stays as its words.
+      if (!href || !WEB.test(href)) return <span>{children}</span>;
       return (
         <a
           className={styles.link}
           href={href}
-          {...(external
-            ? { target: "_blank", rel: "noopener noreferrer" }
-            : {})}
+          target="_blank"
+          rel="noopener noreferrer"
         >
           {children}
         </a>

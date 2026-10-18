@@ -15,6 +15,17 @@ export const en = {
   "reader.region.paper": "Paper",
   "reader.region.sidebar": "Sidebar",
   "reader.region.panel": "Side panel",
+  "reader.error.offline":
+    "Couldn't reach the service. Check the connection and try again.",
+  "reader.error.signedOut": "You're signed out. Sign in again, then retry.",
+  "reader.error.forbidden": "You don't have access to this.",
+  "reader.error.missing": "It can't be found. It may have been deleted.",
+  "reader.error.tooLarge": "That's too large for the service to take.",
+  "reader.error.busy":
+    "Too many requests, or today's allowance is used up. Try again later.",
+  "reader.error.server":
+    "The service ran into a problem ({status}). Try again in a moment.",
+  "reader.error.service": "The service reported an error ({status}).",
   "reader.sidebar.library": "Library",
   "reader.sidebar.reading": "Reading",
   "reader.sidebar.settings": "Settings",
@@ -93,6 +104,8 @@ export const en = {
   "reader.selection.ask": "Ask the assistant",
   "reader.selection.highlighted": "Highlighted",
   "reader.selection.highlightFailed": "Couldn't save the highlight. Try again.",
+  "reader.selection.tooManyLines":
+    "That's more than 64 lines. Highlight it in parts.",
   "reader.translate.region": "Translation",
   "reader.translate.working": "Translating…",
   "reader.translate.copy": "Copy",
@@ -115,6 +128,9 @@ export const en = {
   "reader.notes.loadFailed": "Couldn't open the notes for this paper.",
   "reader.notes.createFailed": "Couldn't create the notes. Try typing again.",
   "reader.notes.appendFailed": "Couldn't add this to the notes. Try again.",
+  "reader.notes.appendUnsaved": "Added to the notes, not saved yet.",
+  "reader.notes.appendBlocked":
+    "The notes aren't saving right now. Sort that out in the notes, then try again.",
   "reader.notes.source": "Source · p. {page}",
   "reader.notes.show": "Open notes",
   "reader.notes.highlights": "Highlights and comments · {count}",
@@ -130,6 +146,9 @@ export const en = {
   "reader.notes.image.failed": "Couldn't insert the image.",
   "reader.notes.image.tooMany": "Insert at most 8 images at once.",
   "reader.notes.image.tooLarge": "An image can be at most 8 MB.",
+  "reader.notes.image.alt": "Note image",
+  "reader.notes.image.placeholder": "[Image: {alt}]",
+  "reader.notes.image.placeholderEmpty": "see the attachments",
   "reader.panel.show": "Show side panel",
   "reader.panel.hide": "Hide side panel",
   "reader.panel.tabs": "Side panel views",
@@ -171,6 +190,12 @@ export const en = {
   "reader.assistant.offline": "The connection dropped; trying again.",
   "reader.assistant.notReady":
     "The conversation is not ready yet; try again in a moment.",
+  "reader.assistant.unsent":
+    "The connection dropped; the question wasn't sent.",
+  "reader.assistant.sendFailed": "The question couldn't be sent.",
+  "reader.assistant.unstopped":
+    "The connection dropped; the answer wasn't stopped.",
+  "reader.assistant.stopFailed": "The answer couldn't be stopped.",
   "reader.assistant.context.selection": "Selected: “{quote}”",
   "reader.assistant.context.page": "Page {page}",
   "reader.assistant.context.region": "Region on page {page}",

@@ -9,7 +9,7 @@ import {
 import { api, type Item, type Paper } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
-  appendToNote,
+  addToNote,
   hasConflict,
   NOTE_STATUS,
   noteDocument,
@@ -32,10 +32,13 @@ export type Notes = {
   unavailable: boolean;
   /**
    * Adds a block of Markdown at the end of the note and saves it, making the
-   * note first if the paper has none. Rejects, with a sentence for the person,
-   * when it could not be kept.
+   * note first if the paper has none. `"saved"` once it is kept; `"unsaved"`
+   * when it is in the note's text but its save did not go through (the notes
+   * say so, and try again). Rejects, with a sentence for the person, when it was
+   * not added at all: the note could not be found or made, or it has stopped
+   * saving (adding to it then would only be lost, or written twice).
    */
-  append(markdown: string): Promise<void>;
+  append(markdown: string): Promise<"saved" | "unsaved">;
   /** The note's text as the editor shows it (what was written, whether or not it has been saved). */
   body: string;
   save: NoteSave;
@@ -254,29 +257,19 @@ export function useNotes(paper: Paper | null): Notes {
   );
 
   const append = useCallback(
-    async (markdown: string) => {
+    async (markdown: string): Promise<"saved" | "unsaved"> => {
       const block = markdown.trim();
-      if (!block) return;
-      const failure = () =>
-        new Error(tNow.current("reader.notes.appendFailed"));
+      if (!block) return "saved";
       let item: Item;
       try {
         item = await ensure();
       } catch {
-        throw failure();
+        throw new Error(tNow.current("reader.notes.appendFailed"));
       }
-      const queue = noteDocument(item);
-      const body = queue.state.body;
-      const gap = !body.trim()
-        ? ""
-        : body.endsWith("\n\n")
-          ? ""
-          : body.endsWith("\n")
-            ? "\n"
-            : "\n\n";
-      await appendToNote(item, `${gap}${block}\n`);
-      if (hasConflict(queue.state)) await recoverNote(queue);
-      if (queue.state.error) throw failure();
+      const added = await addToNote(noteDocument(item), block);
+      if (added === "refused")
+        throw new Error(tNow.current("reader.notes.appendBlocked"));
+      return added;
     },
     [ensure],
   );

@@ -44,6 +44,11 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { api, type Item } from "../api";
 
 export { appendToNote, getNoteDraft, saveNote };
+/** The old reader speaks Chinese only: its images are named as they always were. */
+const LIVE_NOTE_IMAGES = {
+  alt: "笔记图片",
+  missing: (alt: string) => `[图片：${alt || "请通过附件查看"}]`,
+};
 export function LiveNote({
   note,
   nodes = [],
@@ -69,7 +74,7 @@ export function LiveNote({
     block: boolean;
   } | null>(null);
   const editor = useEditor({
-    extensions: noteExtensions(setFormula),
+    extensions: noteExtensions(setFormula, LIVE_NOTE_IMAGES),
     content: state.body,
     contentType: "markdown",
     editorProps: {

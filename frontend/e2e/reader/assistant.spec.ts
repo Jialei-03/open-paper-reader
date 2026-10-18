@@ -122,14 +122,26 @@ const read = (page: number, pages: number, status = "completed"): Step => ({
     : {}),
 });
 
+// As the service writes a search's result (backend agent_reading.py search_file), cut at 2000 characters.
 const search = (query: string, total: number): Step => ({
   name: "search_file",
   label: "在论文 PDF 的全部页面里搜索文字",
   status: "completed",
   arguments: { id: "file", query },
   result: {
-    summary: JSON.stringify({ matches: [], total, matched_pages: 1 }),
-    truncated: false,
+    summary: JSON.stringify({
+      file_id: "file",
+      query,
+      total_matches: total,
+      pages_with_matches: [1],
+      matches: Array.from({ length: 40 }, (_, index) => ({
+        page: 1,
+        count: 1,
+        snippet: `…a long snippet around the match, number ${index}…`.repeat(2),
+      })),
+      truncated: false,
+    }).slice(0, 2000),
+    truncated: true,
   },
 });
 
@@ -324,6 +336,120 @@ test("a page an answer cites is a label that leads to the sentence in the paper,
   await expect(pageInput(page)).toHaveValue("2");
   await cite.click();
   await expect(pageInput(page)).toHaveValue("3");
+});
+
+test("a link in an answer leads into the paper, or to the web in a new tab, and nowhere else", async ({
+  page,
+}) => {
+  await signIn(page);
+  const paper = await createPaperWithPdf(page, { pages: 4 });
+  const server = new FakeAssistant();
+  await server.install(page);
+  server.add({
+    prompt: "有哪些链接？",
+    response: [
+      "[x](//evil.example/login)",
+      "[y](/\\evil.example)",
+      "[z](javascript:alert(1))",
+      "[w](https://example.org/paper)",
+      `[p.3](#paper/${paper.paperId}?file=${paper.fileId}&page=3)`,
+    ].join(" · "),
+    runtime: { phase: "completed", execution_seconds: 1 },
+  });
+  await openReader(page, { paperId: paper.paperId });
+  await expect(pageInput(page)).toHaveValue("1");
+  await assistantTab(page).click();
+  const log = thread(page);
+  await expect(log).toContainText("x · y · z · w");
+
+  // What leads off the app, or runs, is words and nothing more.
+  for (const name of ["x", "y", "z"]) {
+    await expect(log.getByText(name, { exact: true })).toBeVisible();
+    await expect(log.getByRole("link", { name, exact: true })).toHaveCount(0);
+  }
+  await expect(log.locator("a")).toHaveCount(2);
+  const web = log.getByRole("link", { name: "w", exact: true });
+  await expect(web).toHaveAttribute("href", "https://example.org/paper");
+  await expect(web).toHaveAttribute("target", "_blank");
+  await expect(web).toHaveAttribute("rel", "noopener noreferrer");
+
+  // A press on the words goes nowhere.
+  const before = page.url();
+  await log.getByText("y", { exact: true }).click();
+  await log.getByText("z", { exact: true }).click();
+  expect(page.url()).toBe(before);
+
+  // The citation still leads to its page.
+  await log.getByRole("link", { name: "跳到原文第 3 页", exact: true }).click();
+  await expect(pageInput(page)).toHaveValue("3");
+});
+
+test("a question that could not be sent says so, and 重试 sends it", async ({
+  page,
+}) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page);
+  const server = new FakeAssistant();
+  await server.install(page);
+  let offline = true;
+  await page.route(`**/api/v1/agent/sessions/${SESSION}/runs`, (route) => {
+    if (route.request().method() !== "POST" || !offline)
+      return route.fallback();
+    offline = false;
+    return route.abort("internetdisconnected");
+  });
+  await openReader(page, { paperId });
+  const box = questionBox(page);
+  await box.fill("第三页的图说明了什么？");
+  await box.press("Enter");
+  const main = page.getByRole("main");
+  await expect(main.getByRole("alert")).toHaveText("连接中断，问题没有发出。");
+  await expect(box).toHaveValue("第三页的图说明了什么？");
+  expect(server.created).toEqual([]);
+
+  await main.getByRole("button", { name: "重试", exact: true }).click();
+  await expect.poll(() => server.created.length).toBe(1);
+  expect(server.created[0].prompt).toBe("第三页的图说明了什么？");
+  await expect(box).toHaveValue("");
+  await expect(main.getByRole("alert")).toHaveCount(0);
+  await assistantTab(page).click();
+  await expect(thread(page)).toContainText("排队中…");
+});
+
+test("a hidden tab does not read the runs, and reads them as soon as it is seen", async ({
+  page,
+}) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page);
+  const server = new FakeAssistant();
+  await server.install(page);
+  const run = server.add({
+    prompt: "总结一下",
+    status: "running",
+    response: "正在写",
+    runtime: { phase: "model", execution_seconds: 1 },
+  });
+  await openReader(page, { paperId });
+  await assistantTab(page).click();
+  await expect(thread(page)).toContainText("正在写");
+  const visibility = (hidden: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => value,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }, hidden);
+
+  await visibility(true);
+  const before = server.polls;
+  await page.waitForTimeout(2500);
+  // At most the read already on its way when the tab was hidden.
+  expect(server.polls - before).toBeLessThanOrEqual(1);
+
+  run.response = "正在写，写完了。";
+  await visibility(false);
+  await expect(thread(page)).toContainText("写完了。");
 });
 
 test("stop cancels the answer being written", async ({ page }) => {

@@ -1,14 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  api,
-  ApiError,
-  send as post,
-  type Paper,
-  type SourceFile,
-} from "../../api";
+import { api, send as post, type Paper, type SourceFile } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
+import { serviceReason } from "../service-error";
 import { readerContext, type AskRequest } from "../types";
-import { isActive, resendable, type AgentRun } from "./runs";
+import { useModel } from "../useModel";
+import { isActive, resendable, sameRuns, type AgentRun } from "./runs";
 
 /** The paper's conversation with the assistant, as the reader's parts share it. */
 export interface Assistant {
@@ -16,8 +12,14 @@ export interface Assistant {
   runs: AgentRun[];
   /** Until the model and the first list of runs are known. */
   loading: boolean;
-  /** Why the last thing asked of the service did not happen, in its words; empty when it did. */
+  /** Why the last thing asked of the service did not happen, in a sentence; empty when it did. */
   error: string;
+  /**
+   * Tries again what `error` is about (the question that was not sent, the stop
+   * that did not reach the service); `null` when there is nothing to try again
+   * by hand (the runs are read again by themselves).
+   */
+  recover: (() => void) | null;
   /** Asks the assistant; whether the run was created (`error` says why not). */
   send(input: { prompt: string; request?: AskRequest }): Promise<boolean>;
   cancel(runId: string): void;
@@ -36,12 +38,6 @@ const ACTIVE_POLL = 700;
 const IDLE_POLL = 3000;
 const NO_RUNS: AgentRun[] = [];
 
-type Settings = {
-  active_id?: string;
-  configured?: boolean;
-  models?: { id: string }[];
-};
-
 interface Conversation {
   paperId: string;
   /** The paper's discussion session; empty until the service has given it. */
@@ -55,8 +51,9 @@ interface Conversation {
 /**
  * The paper's discussion with the assistant (`POST /papers/{id}/discussion`):
  * its runs, read again every 700ms while one is queued or running and every 3s
- * otherwise, and the asking, stopping and asking again. Questions are sent with
- * the model chosen in the settings, read-only (`writable: false`).
+ * otherwise (not while the tab is hidden; at once when it is seen again), and
+ * the asking, stopping and asking again. Questions are sent with the model
+ * chosen in the settings, read-only (`writable: false`).
  */
 export function useAssistant({
   paper,
@@ -65,16 +62,15 @@ export function useAssistant({
   /** The PDF being read. Questions carry their file in the request; it is here for what comes next. */
   file?: SourceFile | null;
 }): Assistant {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const paperId = paper?.id ?? "";
-  const [model, setModel] = useState<{ id: string; known: boolean }>({
-    id: "",
-    known: false,
-  });
+  const model = useModel();
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [failure, setFailure] = useState<{
     paperId: string;
     message: string;
+    retry: (() => void) | null;
   } | null>(null);
   const [sending, setSending] = useState(false);
 
@@ -97,43 +93,13 @@ export function useAssistant({
   /** Runs made here that the list has not shown yet, so a list read before they were made does not drop them. */
   const made = useRef(new Map<string, AgentRun>());
 
-  const describe = useCallback(
-    (reason: unknown) =>
-      reason instanceof ApiError && reason.message
-        ? reason.message
-        : t("reader.assistant.offline"),
-    [t],
-  );
-  const describeNow = useRef(describe);
-  describeNow.current = describe;
-
-  // The model the settings have chosen; again when the settings change.
-  useEffect(() => {
-    const controller = new AbortController();
-    const read = () =>
-      api<Settings>("/translation-settings", {
-        signal: controller.signal,
-      }).then(
-        (settings) => {
-          const chosen =
-            settings.models?.find((row) => row.id === settings.active_id)?.id ??
-            "";
-          setModel({
-            id: settings.configured === false ? "" : chosen,
-            known: true,
-          });
-        },
-        () => {
-          if (!controller.signal.aborted) setModel({ id: "", known: true });
-        },
-      );
-    void read();
-    window.addEventListener("model-settings-updated", read);
-    return () => {
-      controller.abort();
-      window.removeEventListener("model-settings-updated", read);
-    };
-  }, []);
+  // The runs that could not be read are read again by themselves: so the message says.
+  const i18nNow = useRef(i18n);
+  i18nNow.current = i18n;
+  const describeList = (reason: unknown) =>
+    serviceReason(reason, i18nNow.current, {
+      offline: "reader.assistant.offline",
+    });
 
   // The paper's session, then its runs, again and again until the paper changes.
   useEffect(() => {
@@ -155,9 +121,15 @@ export function useAssistant({
       error: "",
     });
 
+    // A hidden tab does not ask; it asks once it can be seen again.
     const schedule = (delay: number) => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(poll, delay);
+      timer = window.setTimeout(() => {
+        if (!document.hidden) void poll();
+      }, delay);
+    };
+    const seen = () => {
+      if (!document.hidden) void poll();
     };
     async function poll() {
       if (signal.aborted) return;
@@ -185,15 +157,21 @@ export function useAssistant({
         for (const id of made.current.keys())
           if (listed.has(id)) made.current.delete(id);
         const runs = [...rows, ...made.current.values()];
-        update((old) => ({ ...old, runs, listed: true, error: "" }));
+        // Read again with nothing new: the same state, so nothing is drawn again.
+        update((old) =>
+          old.listed && !old.error && sameRuns(old.runs, runs)
+            ? old
+            : { ...old, runs, listed: true, error: "" },
+        );
         if (runs.some(isActive)) delay = ACTIVE_POLL;
       } catch (reason) {
         if (signal.aborted) return;
-        update((old) => ({
-          ...old,
-          listed: true,
-          error: describeNow.current(reason),
-        }));
+        const error = describeList(reason);
+        update((old) =>
+          old.listed && old.error === error
+            ? old
+            : { ...old, listed: true, error },
+        );
       } finally {
         reading = false;
       }
@@ -205,9 +183,11 @@ export function useAssistant({
     }
     kick.current = () => void poll();
     void poll();
+    document.addEventListener("visibilitychange", seen);
     return () => {
       controller.abort();
       window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", seen);
       kick.current = () => {};
     };
   }, [paperId]);
@@ -230,12 +210,15 @@ export function useAssistant({
       const { paperId: forPaper, session, model: modelId } = now.current;
       const question = prompt.trim();
       if (!forPaper || !question) return false;
+      // Asked again by hand, the same question about the same words.
+      const again = () => void createNow.current(prompt, context);
       if (!modelId || !session) {
         setFailure({
           paperId: forPaper,
           message: t(
             modelId ? "reader.assistant.notReady" : "reader.assistant.noModel",
           ),
+          retry: modelId ? again : null,
         });
         return false;
       }
@@ -260,14 +243,23 @@ export function useAssistant({
         return true;
       } catch (reason) {
         if (now.current.paperId === forPaper)
-          setFailure({ paperId: forPaper, message: describe(reason) });
+          setFailure({
+            paperId: forPaper,
+            message: serviceReason(reason, i18nNow.current, {
+              offline: "reader.assistant.unsent",
+              fallback: "reader.assistant.sendFailed",
+            }),
+            retry: again,
+          });
         return false;
       } finally {
         setSending(false);
       }
     },
-    [describe, place, t],
+    [place, t],
   );
+  const createNow = useRef(create);
+  createNow.current = create;
 
   const send = useCallback(
     ({ prompt, request }: { prompt: string; request?: AskRequest }) =>
@@ -286,6 +278,7 @@ export function useAssistant({
   const cancel = useCallback(
     (runId: string) => {
       const forPaper = now.current.paperId;
+      setFailure(null);
       post(`/agent/runs/${encodeURIComponent(runId)}/cancel`, {}).then(
         (run: AgentRun) => {
           if (now.current.paperId !== forPaper) return;
@@ -294,23 +287,33 @@ export function useAssistant({
         },
         (reason: unknown) => {
           if (now.current.paperId === forPaper)
-            setFailure({ paperId: forPaper, message: describe(reason) });
+            setFailure({
+              paperId: forPaper,
+              message: serviceReason(reason, i18nNow.current, {
+                offline: "reader.assistant.unstopped",
+                fallback: "reader.assistant.stopFailed",
+              }),
+              retry: () => cancelNow.current(runId),
+            });
         },
       );
     },
-    [describe, place],
+    [place],
   );
+  const cancelNow = useRef(cancel);
+  cancelNow.current = cancel;
 
   const runs = current?.runs;
-  const error =
-    (failure?.paperId === paperId ? failure.message : "") ||
-    (current?.error ?? "");
+  const failed = failure?.paperId === paperId ? failure : null;
+  const error = failed?.message || (current?.error ?? "");
+  const recover = failed?.message ? failed.retry : null;
   const loading = !model.known || !current?.listed;
   return useMemo(
     () => ({
       runs: runs ?? NO_RUNS,
       loading,
       error,
+      recover,
       send,
       cancel,
       retry,
@@ -318,6 +321,17 @@ export function useAssistant({
       paperId,
       sending,
     }),
-    [runs, loading, error, send, cancel, retry, model.id, paperId, sending],
+    [
+      runs,
+      loading,
+      error,
+      recover,
+      send,
+      cancel,
+      retry,
+      model.id,
+      paperId,
+      sending,
+    ],
   );
 }

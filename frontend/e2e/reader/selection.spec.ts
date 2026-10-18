@@ -295,6 +295,73 @@ test("H highlights the selection, and the highlight is saved", async ({
   await expect(pdfPage(page, 1).locator("[data-annotation-id]")).toHaveCount(1);
 });
 
+test("H pressed again while a highlight is still being saved waits its turn", async ({
+  page,
+}) => {
+  const paper = await openPaper(page, {
+    pages: 2,
+    words: { 1: WORDS, 2: "A second line to highlight" },
+  });
+  // The first save is held until the second highlight has been asked for.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let puts = 0;
+  await page.route(
+    `**/api/v1/files/${paper.fileId}/annotations/*`,
+    async (route) => {
+      if (route.request().method() !== "PUT") return route.fallback();
+      if (++puts === 1) await held;
+      return route.fallback();
+    },
+  );
+  await selectLine(page, line(page, 1, WORDS));
+  await page.keyboard.press("h");
+  await expect.poll(() => puts).toBe(1);
+  await pdfPage(page, 2).scrollIntoViewIfNeeded();
+  await expect(pdfPage(page, 2)).toHaveAttribute("data-rendered", "true");
+  const second = line(page, 2, "A second line to highlight");
+  await second.scrollIntoViewIfNeeded();
+  await selectLine(page, second);
+  await page.keyboard.press("h");
+  await page.waitForTimeout(300);
+  // Not refused for being second: it has not even been sent yet.
+  expect(puts).toBe(1);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  release();
+  await expect.poll(() => puts).toBe(2);
+  await expect(pdfPage(page, 1).locator("[data-annotation-id]")).toHaveCount(1);
+  await expect(pdfPage(page, 2).locator("[data-annotation-id]")).toHaveCount(1);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+test("the keys of the menu are the paper's: a button elsewhere keeps its own", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/translation-settings", (route) =>
+    route.fulfill({ json: fixtureModels }),
+  );
+  const created: unknown[] = [];
+  await page.route("**/api/v1/agent/sessions/*/runs", (route: Route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: [] });
+    created.push(route.request().postDataJSON());
+    return route.fulfill({
+      json: { id: `run-${created.length}`, status: "queued", response: "" },
+    });
+  });
+  await openPaper(page);
+  await selectLine(page, line(page, 1, WORDS));
+  // The keyboard on a button of the header, the selection still there: Enter presses the button.
+  const next = main(page).getByRole("button", { name: "下一页", exact: true });
+  await next.focus();
+  await expect(menu(page)).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(pageInput(page)).toHaveValue("2");
+  await expect(main(page).getByText(/^选中的一句：/)).toHaveCount(0);
+  await page.keyboard.press("e");
+  await page.waitForTimeout(200);
+  expect(created).toEqual([]);
+});
+
 test("a selection across two pages is highlighted on both", async ({
   page,
 }) => {
@@ -325,10 +392,11 @@ test("a selection across two pages is highlighted on both", async ({
 test("T translates beside the selection as the translation is written", async ({
   page,
 }) => {
-  const paper = await openPaper(page);
+  // The reader reads the settings once, as it opens.
   await page.route("**/api/v1/translation-settings", (route) =>
     route.fulfill({ json: fixtureModels }),
   );
+  const paper = await openPaper(page);
   const created: Record<string, any>[] = [];
   const cancelled: string[] = [];
   let failNext = true;
@@ -435,13 +503,62 @@ test("T translates beside the selection as the translation is written", async ({
   expect(cancelled[0]).toContain(`/agent/runs/translate-run-3/cancel`);
 });
 
+test("a read of the translation that fails for a moment is tried again", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/translation-settings", (route) =>
+    route.fulfill({ json: fixtureModels }),
+  );
+  await openPaper(page);
+  // For a second after the translation is asked for, the service cannot be reached.
+  let asked = 0;
+  let failedReads = 0;
+  await page.route("**/api/v1/agent/sessions/*/runs", (route: Route) => {
+    if (route.request().method() === "POST") {
+      asked = Date.now();
+      return route.fulfill({
+        json: {
+          id: "translate-run",
+          status: "queued",
+          response: "",
+          error: "",
+        },
+      });
+    }
+    if (asked && Date.now() - asked < 1000) {
+      failedReads += 1;
+      return route.fulfill({ status: 502, json: { detail: "网关暂时不可用" } });
+    }
+    return route.fulfill({
+      json: asked
+        ? [
+            {
+              id: "translate-run",
+              status: "completed",
+              response: "证据在页面之间保持相连。",
+              error: "",
+            },
+          ]
+        : [],
+    });
+  });
+  await selectLine(page, line(page, 1, WORDS));
+  await page.keyboard.press("t");
+  await expect(popover(page)).toContainText("证据在页面之间保持相连。");
+  expect(failedReads).toBeGreaterThan(0);
+  await expect(popover(page).getByRole("alert")).toHaveCount(0);
+  await expect(
+    popover(page).getByRole("button", { name: "复制" }),
+  ).toBeVisible();
+});
+
 test("without a model, the translation says where to add one", async ({
   page,
 }) => {
-  await openPaper(page);
   await page.route("**/api/v1/translation-settings", (route) =>
     route.fulfill({ json: { models: [], active_id: "" } }),
   );
+  await openPaper(page);
   const created: unknown[] = [];
   page.on("request", (request) => {
     if (request.method() === "POST" && request.url().includes("/runs"))

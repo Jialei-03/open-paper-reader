@@ -1,5 +1,11 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { createPaperWithPdf, openReader, signIn } from "./fixtures";
+import { cancelActiveRuns } from "../helpers";
+import {
+  createPaperWithPdf,
+  openReader,
+  saveHighlight,
+  signIn,
+} from "./fixtures";
 
 // The interface follows the browser's language; these specs read it in Chinese.
 test.use({ locale: "zh-CN" });
@@ -28,9 +34,12 @@ const line = (page: Page, number: number, text: string) =>
  * model, and the paper's discussion keeps the runs the reader creates. Notes,
  * highlights and papers are the real service's.
  */
-async function fakeAssistant(page: Page) {
+async function fakeAssistant(
+  page: Page,
+  /** Runs already in the discussion. */
+  runs: Record<string, unknown>[] = [],
+) {
   const created: Record<string, any>[] = [];
-  const runs: Record<string, unknown>[] = [];
   await page.route("**/api/v1/translation-settings", (route) =>
     route.fulfill({
       json: { active_id: MODEL.id, configured: true, models: [MODEL] },
@@ -208,8 +217,10 @@ test("the end of the paper scrolls clear of the question box", async ({
   const clear = async () => {
     await toEnd();
     await expect(last).toHaveAttribute("data-rendered", "true");
+    // The room under the pages follows the box a frame later: to the end again, as a reader scrolling would.
     await expect
       .poll(async () => {
+        await toEnd();
         const box = (await last.boundingBox())!;
         return box.y + box.height < (await composerTop(page));
       })
@@ -241,4 +252,170 @@ test("in a narrow window, explaining opens the folded panel on the assistant", a
   await expect(
     page.getByRole("button", { name: "展开右侧面板", exact: true }),
   ).toBeFocused();
+});
+
+test("in a narrow window, a place chosen in the panel folds it out of the way", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await signIn(page);
+  const { paperId, fileId } = await createPaperWithPdf(page, { pages: 5 });
+  await saveHighlight(page, fileId, {
+    page: 3,
+    quote: "A highlight on the third page.",
+    rects: [{ x: 0.1, y: 0.3, w: 0.3, h: 0.02 }],
+    color: "#FACC15",
+  });
+  await fakeAssistant(page, [
+    {
+      id: "run-cited",
+      prompt: "证据在哪里？",
+      response: `见[p.4](#paper/${paperId}?file=${fileId}&page=4)。`,
+      status: "completed",
+      error: "",
+      writable: false,
+      steps: [],
+      runtime: { phase: "completed", execution_seconds: 2 },
+    },
+  ]);
+  await page.route(`**/api/v1/papers/${paperId}/reading-artifacts`, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: "guide-1",
+          file_id: fileId,
+          kind: "guide",
+          status: "completed",
+          error: "",
+          result: {
+            keywords: ["证据"],
+            summary: ["一句话。"],
+            sections: [{ title: "方法", body: "方法的内容。", pages: [2] }],
+          },
+        },
+      ],
+    }),
+  );
+  await openReader(page, { paperId, fileId, page: 1 });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  const pageInput = page
+    .getByRole("main")
+    .getByRole("textbox", { name: "页码", exact: true });
+  const toggle = page.getByRole("button", {
+    name: "展开右侧面板",
+    exact: true,
+  });
+  const reopen = async (name: string) => {
+    await toggle.click();
+    await expect(panel(page)).toBeVisible();
+    await tab(page, name).click();
+  };
+  const folded = async (number: number) => {
+    await expect(panel(page)).toBeHidden();
+    await expect(pageInput).toHaveValue(String(number));
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  };
+
+  // A page of the guide.
+  await reopen("导读");
+  await panel(page)
+    .getByRole("button", { name: "第 2 页", exact: true })
+    .click();
+  await folded(2);
+
+  // A citation in an answer.
+  await reopen("助手");
+  await panel(page)
+    .getByRole("link", { name: "跳到原文第 4 页", exact: true })
+    .click();
+  await folded(4);
+
+  // A highlight in the notes.
+  await reopen("笔记");
+  await panel(page)
+    .getByRole("button", { name: /A highlight on the third page\./ })
+    .click();
+  await folded(3);
+});
+
+test("E asks the real service, which takes the reader's question; stop cancels it", async ({
+  page,
+}) => {
+  // No model, discussion or run is played by the test here: the service checks what the reader sends.
+  await signIn(page);
+  await cancelActiveRuns(page);
+  const csrf = (await page.context().cookies()).find(
+    (cookie) => cookie.name === "paper_csrf",
+  )!.value;
+  const headers = () => ({
+    "X-CSRF-Token": csrf,
+    "Idempotency-Key": crypto.randomUUID(),
+  });
+  const name = `Reader real run ${Date.now().toString(36)}`;
+  const configured = await page.request.post(
+    "/api/v1/translation-settings/configs",
+    {
+      headers: headers(),
+      data: {
+        base_url: "https://api.minimax.cn/v1",
+        model: "MiniMax-M3",
+        name,
+        protocol: "openai",
+        api_key: "synthetic-e2e-key",
+      },
+    },
+  );
+  expect(configured.ok(), await configured.text()).toBeTruthy();
+  const model = (
+    (await configured.json()).models as { id: string; name: string }[]
+  ).find((row) => row.name === name)!;
+  try {
+    const paper = await createPaperWithPdf(page, {
+      pages: 2,
+      words: { 1: WORDS },
+    });
+    await openReader(page, { paperId: paper.paperId });
+    await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+    await expect(questionBox(page)).toBeEnabled();
+    await selectLine(page, line(page, 1, WORDS));
+    const answered = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/agent\/sessions\/[^/]+\/runs$/.test(response.url()),
+    );
+    await page.keyboard.press("e");
+    const response = await answered;
+    expect(response.status(), await response.text()).toBe(200);
+    const run = await response.json();
+    expect(run.status).toBe("queued");
+    expect(run.runtime.reader_context).toMatchObject({
+      paper_id: paper.paperId,
+      file_id: paper.fileId,
+      page: 1,
+      source: "selection",
+      action: "explain",
+      quote: WORDS,
+    });
+    expect(run.runtime.reader_context.rects.length).toBeGreaterThan(0);
+
+    const log = panel(page).getByRole("log", {
+      name: "与助手的对话",
+      exact: true,
+    });
+    await expect(log).toContainText("排队中…");
+    const cancelled = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/agent/runs/${run.id}/cancel`),
+    );
+    await page.getByRole("button", { name: "停止回答", exact: true }).click();
+    expect((await cancelled).ok()).toBeTruthy();
+    await expect(log).toContainText("已停止");
+  } finally {
+    await cancelActiveRuns(page);
+    await page.request.delete(
+      `/api/v1/translation-settings/configs/${model.id}`,
+      { headers: headers() },
+    );
+  }
 });

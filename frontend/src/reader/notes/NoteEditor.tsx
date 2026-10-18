@@ -1,11 +1,11 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Transaction } from "@tiptap/pm/state";
 import { useEffect, useRef, useState } from "react";
-import { ApiError } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import { noteExtensions, type FormulaClick } from "../../lib/note-editor";
 import { Button, Dialog, TextArea } from "../../ui";
 import type { ReaderRoute } from "../route";
+import { serviceReason } from "../service-error";
 import { readerRouteOf } from "./noteLink";
 import styles from "./NoteEditor.module.css";
 
@@ -40,7 +40,8 @@ export function NoteEditor({
   onJump,
   onImage,
 }: NoteEditorProps) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const [formula, setFormula] = useState<FormulaClick | null>(null);
   const [problem, setProblem] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -52,7 +53,13 @@ export function NoteEditor({
   const busy = useRef(false);
 
   const editor = useEditor({
-    extensions: noteExtensions(setFormula),
+    extensions: noteExtensions(setFormula, {
+      alt: t("reader.notes.image.alt"),
+      missing: (alt) =>
+        t("reader.notes.image.placeholder", {
+          alt: alt || t("reader.notes.image.placeholderEmpty"),
+        }),
+    }),
     content: body,
     contentType: "markdown",
     editorProps: {
@@ -132,10 +139,10 @@ export function NoteEditor({
     editor.on("transaction", follow);
     try {
       if (files.length > MAX_IMAGES)
-        throw new Error(t("reader.notes.image.tooMany"));
+        return setProblem(t("reader.notes.image.tooMany"));
       for (const file of files) {
         if (file.size > MAX_IMAGE_BYTES)
-          throw new Error(t("reader.notes.image.tooLarge"));
+          return setProblem(t("reader.notes.image.tooLarge"));
         const image = await latest.current.onImage(file);
         if (editor.isDestroyed) return;
         editor
@@ -152,9 +159,7 @@ export function NoteEditor({
       }
     } catch (reason) {
       setProblem(
-        reason instanceof ApiError || reason instanceof Error
-          ? reason.message
-          : t("reader.notes.image.failed"),
+        serviceReason(reason, i18n, { fallback: "reader.notes.image.failed" }),
       );
     } finally {
       editor.off("transaction", follow);
