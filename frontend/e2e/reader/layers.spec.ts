@@ -414,105 +414,6 @@ test("unsafe links are not followed", async ({ page }) => {
   await expect(pageInput(page)).toHaveValue("1");
 });
 
-test("hovering a citation shows a preview", async ({ page }) => {
-  await signIn(page);
-  const paper = await createPaperWithPdf(page, {
-    pages: 3,
-    citations: [
-      {
-        from: 1,
-        to: 3,
-        key: "vaswani2017",
-        entry: "A. Vaswani et al. Attention is all you need. NeurIPS 2017.",
-      },
-    ],
-  });
-  const asked: string[] = [];
-  await page.route("**/api/v1/papers/*/citation-preview?**", (route) => {
-    asked.push(
-      new URL(route.request().url()).searchParams.get("excerpt") ?? "",
-    );
-    return route.fulfill({
-      json: {
-        items: [
-          {
-            title: "Attention Is All You Need",
-            authors: ["Ashish Vaswani", "Noam Shazeer"],
-            year: 2017,
-          },
-        ],
-        source: "Semantic Scholar",
-        match: "title_in_reference",
-      },
-    });
-  });
-  await openReader(page, { paperId: paper.paperId });
-  const first = pdfPage(page, 1);
-  await expect(first).toHaveAttribute("data-rendered", "true");
-
-  const citation = first.getByRole("button", {
-    name: "跳到所引文献",
-    exact: true,
-  });
-  const preview = tooltip(page, "Attention Is All You Need");
-  const spot = await centre(citation);
-  await page.mouse.move(spot.x, spot.y);
-  // Not at once: the pointer may only be passing.
-  await page.waitForTimeout(150);
-  await expect(preview).toHaveCount(0);
-  await expect(preview).toBeVisible();
-  await expect(preview).toContainText("Ashish Vaswani");
-  await expect(preview).toContainText("2017");
-  // What was looked up is the entry the link leads to, read from the reference list.
-  expect(asked).toHaveLength(1);
-  expect(asked[0]).toContain("Attention is all you need");
-
-  await page.mouse.move(5, 5);
-  await expect(preview).toBeHidden();
-
-  // Again: the answer is remembered, and Esc puts the preview away.
-  await page.mouse.move(spot.x, spot.y);
-  await expect(preview).toBeVisible();
-  expect(asked).toHaveLength(1);
-  await page.keyboard.press("Escape");
-  await expect(preview).toBeHidden();
-
-  // Clicking it goes to the entry, with a way back.
-  await page.mouse.click(spot.x, spot.y);
-  await expect(pageInput(page)).toHaveValue("3");
-  await expect(backButton(page)).toBeVisible();
-});
-
-test("a citation the service cannot place shows the entry instead", async ({
-  page,
-}) => {
-  await signIn(page);
-  const paper = await createPaperWithPdf(page, {
-    pages: 2,
-    citations: [
-      {
-        from: 1,
-        to: 2,
-        key: "lecun1998",
-        entry: "Y. LeCun et al. Gradient-based learning. 1998.",
-      },
-    ],
-  });
-  await page.route("**/api/v1/papers/*/citation-preview?**", (route) =>
-    route.fulfill({ status: 503, json: { detail: "引用服务暂不可用" } }),
-  );
-  await openReader(page, { paperId: paper.paperId });
-  const first = pdfPage(page, 1);
-  await expect(first).toHaveAttribute("data-rendered", "true");
-  const spot = await centre(
-    first.getByRole("button", { name: "跳到所引文献", exact: true }),
-  );
-  await page.mouse.move(spot.x, spot.y);
-  await expect(tooltip(page, "Gradient-based learning")).toBeVisible();
-  // The failure itself is not news.
-  await expect(page.getByText("引用服务暂不可用")).toHaveCount(0);
-});
-
 test("hovering a web link shows its site and title", async ({ page }) => {
   await signIn(page);
   const paper = await createPaperWithPdf(page);
@@ -565,8 +466,8 @@ async function openLinkedLines(page: Page) {
     ],
   });
   // Whatever the previews ask stays here.
-  await page.route("**/api/v1/papers/*/citation-preview?**", (route) =>
-    route.fulfill({ json: { items: [] } }),
+  await page.route("**/api/v1/citations/lookup?**", (route) =>
+    route.fulfill({ json: { item: null } }),
   );
   await page.route("**/api/v1/papers/*/link-preview?**", (route) =>
     route.fulfill({ json: { title: "" } }),

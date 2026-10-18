@@ -1,0 +1,106 @@
+/*
+ * The card of a citation: a quiet surface in the top layer, which stays open
+ * while the pointer is on it so that its buttons can be pressed.
+ */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+  box-sizing: border-box;
+  width: min(380px, calc(100vw - 2 * var(--ui-space-8)));
+  max-height: min(70vh, 520px);
+  padding: var(--ui-space-10) var(--ui-space-12);
+  border-radius: var(--ui-r-10);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  color: var(--ui-fg);
+  font: var(--ui-text-13) / var(--ui-leading-tight) var(--ui-font-sans);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: break-word;
+}
+
+.card p {
+  margin: 0;
+}
+
+.title {
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.meta {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.abstract {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}
+
+.links {
+  display: flex;
+  gap: var(--ui-space-12);
+  font-size: var(--ui-text-12);
+}
+
+.links a {
+  color: var(--ui-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.status,
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4) var(--ui-space-8);
+  color: var(--ui-danger-text);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  padding-top: var(--ui-space-6);
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+
+.label {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+}
+
+.entryText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-6);
+  padding-top: var(--ui-space-4);
+}

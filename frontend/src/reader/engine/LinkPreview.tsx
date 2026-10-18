@@ -5,34 +5,39 @@ import {
   useId,
   useRef,
   useState,
+  type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from "react";
 import { api } from "../../api";
-import type { Link } from "../../features/PdfLinks";
+import type { Link, PdfDestination } from "../../features/PdfLinks";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Floating, Spinner } from "../../ui";
+import {
+  CitationCard,
+  type Citation,
+  type CitationState,
+} from "../citations/CitationCard";
+import { lookupCitation, type CitedWork } from "../citations/lookup";
+import { PreviewPanel } from "../citations/PreviewPanel";
+import { useLibraryAdd } from "../citations/useLibraryAdd";
 import { destinationPoint, resolveDestination } from "../outline";
+import { readerHash } from "../route";
 import { isCitation } from "./layers/LinkLayer";
 import styles from "./LinkPreview.module.css";
 
-/** How long the pointer rests on a link before its preview opens: as for a tooltip. */
-const HOVER_DELAY_MS = 400;
+/** How long the pointer rests on a link before its preview opens. */
+const HOVER_DELAY_MS = 300;
+/** How long a citation's card waits after the pointer left, so the pointer can cross to it. */
+const LEAVE_GRACE_MS = 250;
 /** How many answers (and entries read from the PDF) a paper's previews remember. */
 const REMEMBERED = 64;
 /** The most of a reference list's entry that is shown, and asked about. */
 const ENTRY_LENGTH = 1200;
-/** More authors than this are cut short: the first ones, then "et al.". */
-const AUTHORS = 3;
-
-/** A work the service found for an entry of the reference list. */
-type Reference = { title: string; authors?: string[]; year?: number };
 
 type Content =
-  /** The entry is being looked up. */
-  | { kind: "looking" }
-  | { kind: "reference"; reference: Reference }
-  /** No work could be found for the entry: the entry itself, as the paper prints it. */
-  | { kind: "entry"; text: string }
+  /** An entry of the reference list, and what the lookup came to. */
+  | { kind: "citation"; citation: Citation }
   /** `title` is `null` while it is being fetched, and empty when there is none. */
   | { kind: "web"; host: string; title: string | null };
 
@@ -117,29 +122,44 @@ export interface LinkPreview {
   close(): void;
   /** The preview's id while it describes `link`. */
   describedBy(link: Link): string | undefined;
+  /** A key went down on a link's box: Tab goes on into the card that describes it. */
+  key?(link: Link, event: KeyboardEvent<HTMLElement>): void;
   /** The preview, wherever it is put: it shows in the top layer, by its link. */
   element: ReactNode;
 }
 
 /**
  * What a link in the paper leads to, shown beside it when the pointer rests on
- * it: for a citation, the work cited (its title, authors and year, which the
- * service looks up from the entry of the reference list), or the entry itself
- * when no work is found; for a web link, the site and the page's title. One at
- * a time; Esc, leaving the link or scrolling puts it away. What was asked is
- * remembered for the paper; what fails shows nothing of the failure.
+ * it (or the keyboard comes to it): for a citation, a card with the work cited
+ * (title, authors, year, venue, abstract, citation count and links, which the
+ * service looks up from the entry of the reference list), the entry itself, and
+ * what to do with the work: preview it beside the paper, add it to the library,
+ * go to the entry. The card stays while the pointer is on it. For a web link,
+ * the site and the page's title. One at a time; Esc, leaving or scrolling puts
+ * it away. What was asked is remembered for the paper; what fails says so, and
+ * can be asked again.
+ *
+ * `follow` is how a link into the paper is followed (the card's "go to the entry").
  */
 export function useLinkPreview(
   paperId: string,
   doc: PDFDocumentProxy | null,
+  follow?: RefObject<((dest: PdfDestination) => void) | null>,
 ): LinkPreview {
   const id = useId();
+  const { t } = useI18n();
   const [shown, setShown] = useState<{
     link: Link;
     anchor: HTMLElement;
   } | null>(null);
   const [content, setContent] = useState<Content | null>(null);
+  /** The work whose preview is open beside the paper. */
+  const [panel, setPanel] = useState<CitedWork | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const library = useLibraryAdd();
   const timer = useRef(0);
+  const leaveTimer = useRef(0);
+  const card = useRef<HTMLDivElement>(null);
   /** The link the pointer is on: shown, or about to be. */
   const resting = useRef<Link | null>(null);
   const remembered = useRef(new Map<string, Promise<unknown>>());
@@ -149,6 +169,7 @@ export function useLinkPreview(
   useEffect(
     () => () => {
       window.clearTimeout(timer.current);
+      window.clearTimeout(leaveTimer.current);
       leaving.current?.abort();
     },
     [],
@@ -157,6 +178,8 @@ export function useLinkPreview(
   useEffect(() => {
     remembered.current.clear();
   }, [doc]);
+  // Another paper has its own cited works to preview.
+  useEffect(() => setPanel(null), [paperId]);
 
   /** One answer per question for the paper: asked once, kept unless it failed. */
   const remember = <T,>(key: string, ask: () => Promise<T>): Promise<T> => {
@@ -184,15 +207,29 @@ export function useLinkPreview(
   // The same functions from render to render, so the pages they are handed to need not be drawn again.
   const close = useCallback(() => {
     window.clearTimeout(timer.current);
+    window.clearTimeout(leaveTimer.current);
     resting.current = null;
     setShown(null);
   }, []);
 
   const hover = useCallback(
     (link: Link | null, element?: HTMLElement) => {
-      if (link && link === resting.current) return;
+      // Back on the link it was leaving (or on its card): it stays.
+      if (link && link === resting.current) {
+        window.clearTimeout(leaveTimer.current);
+        return;
+      }
+      if (!link) {
+        // A card that is open is left a moment, for the pointer to cross to it; a hint not yet open is dropped.
+        if (resting.current && card.current) {
+          window.clearTimeout(leaveTimer.current);
+          leaveTimer.current = window.setTimeout(close, LEAVE_GRACE_MS);
+          return;
+        }
+        return close();
+      }
       close();
-      if (!link || !element || !previewed(link)) return;
+      if (!element || !previewed(link)) return;
       resting.current = link;
       timer.current = window.setTimeout(
         () => setShown({ link, anchor: element }),
@@ -229,46 +266,55 @@ export function useLinkPreview(
       );
     } else if (doc && typeof link.dest === "string") {
       const name = link.dest;
-      setContent({ kind: "looking" });
       void (async () => {
-        const text = await remember(`entry\n${name}`, () =>
+        const entry = await remember(`entry\n${name}`, () =>
           referenceEntry(doc, name),
         );
         if (!live) return;
         // Nothing printed there to go by: nothing to show.
-        if (!text) return close();
+        if (!entry) return close();
+        const show = (rest: CitationState) =>
+          live &&
+          setContent({
+            kind: "citation",
+            citation: { entry, ...rest } as Citation,
+          });
+        show({ state: "looking" });
         try {
-          const answer = await remember(`cite\n${text}`, () =>
-            ask<{ items?: Reference[] }>(
-              `${path}/citation-preview?excerpt=${encodeURIComponent(text)}`,
-            ),
-          );
-          const found = answer.items?.find((item) => item?.title);
+          const work = await remember(`cite\n${entry}`, async () => {
+            leaving.current ??= new AbortController();
+            return lookupCitation(entry, leaving.current.signal);
+          });
+          show(work ? { state: "found", work } : { state: "missing" });
+        } catch (error) {
           if (live)
-            setContent(
-              found
-                ? { kind: "reference", reference: found }
-                : { kind: "entry", text },
-            );
-        } catch {
-          if (live) setContent({ kind: "entry", text });
+            show({
+              state: "failed",
+              message: error instanceof Error ? error.message : String(error),
+            });
         }
       })();
     }
     return () => {
       live = false;
     };
-  }, [shown, doc, paperId]);
+  }, [shown, doc, paperId, attempt]);
 
   // Scrolling moves the link from under the pointer: the preview goes, rather than float over another line.
+  // (A card that scrolls inside itself is not the page scrolling.)
   useEffect(() => {
     if (!shown) return;
-    const away = () => close();
+    const away = (event: Event) => {
+      if (event.target instanceof Node && card.current?.contains(event.target))
+        return;
+      close();
+    };
+    const resized = () => close();
     window.addEventListener("scroll", away, { capture: true, passive: true });
-    window.addEventListener("resize", away);
+    window.addEventListener("resize", resized);
     return () => {
       window.removeEventListener("scroll", away, { capture: true });
-      window.removeEventListener("resize", away);
+      window.removeEventListener("resize", resized);
     };
   }, [shown]);
 
@@ -278,64 +324,128 @@ export function useLinkPreview(
     (link: Link) => (link === described ? id : undefined),
     [described, id],
   );
+
+  /** Tab on a link whose card is open goes into the card, whose buttons are not otherwise in the way. */
+  const key = useCallback((link: Link, event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Tab" || event.shiftKey || link !== resting.current)
+      return;
+    const first = card.current?.querySelector<HTMLElement>(
+      "button:not(:disabled), a[href]",
+    );
+    if (!first) return;
+    event.preventDefault();
+    first.focus();
+  }, []);
+
+  const cited = open && content.kind === "citation" ? content.citation : null;
+  const citation = shown?.link;
   return {
     hover,
     close,
     describedBy,
-    // Only there while it is open, as a tooltip is: a closed one is nothing to find on the page.
-    element: open && (
-      <Floating
-        open
-        anchor={shown.anchor}
-        placement={{ side: "top", align: "start" }}
-        onDismiss={close}
-        role="tooltip"
-        id={id}
-        className={styles.preview}
-      >
-        <PreviewBody content={content} />
-      </Floating>
+    key,
+    element: (
+      <>
+        {/* Only there while it is open, as a tooltip is: a closed one is nothing to find on the page. */}
+        {open && cited && citation && (
+          <Floating
+            open
+            anchor={shown.anchor}
+            placement={{ side: "top", align: "start" }}
+            onDismiss={(reason) => {
+              const inside = card.current?.contains(document.activeElement);
+              close();
+              if (reason === "escape" && inside) shown.anchor.focus();
+            }}
+            id={id}
+          >
+            <div
+              ref={card}
+              role="dialog"
+              aria-label={t("reader.cite.card")}
+              onPointerOver={() => window.clearTimeout(leaveTimer.current)}
+              onPointerOut={(event) => {
+                // Out of the card (not between two of its parts): a moment to cross back to the link.
+                const next = event.relatedTarget;
+                if (next instanceof Node && event.currentTarget.contains(next))
+                  return;
+                window.clearTimeout(leaveTimer.current);
+                leaveTimer.current = window.setTimeout(close, LEAVE_GRACE_MS);
+              }}
+              onFocus={() => window.clearTimeout(leaveTimer.current)}
+              onBlur={(event) => {
+                const next = event.relatedTarget;
+                if (
+                  !(next instanceof Node) ||
+                  (!event.currentTarget.contains(next) && next !== shown.anchor)
+                )
+                  close();
+              }}
+            >
+              <CitationCard
+                citation={cited}
+                add={
+                  cited.state === "found"
+                    ? library.states[cited.work.arxiv]
+                    : undefined
+                }
+                onRetry={() => setAttempt((count) => count + 1)}
+                onPreview={(work) => {
+                  close();
+                  setPanel(work);
+                }}
+                onAdd={library.add}
+                onOpenPaper={(paper) => {
+                  close();
+                  window.location.hash = readerHash({ paperId: paper });
+                }}
+                onJump={() => {
+                  const dest = citation.dest;
+                  close();
+                  if (dest !== undefined) follow?.current?.(dest);
+                }}
+              />
+            </div>
+          </Floating>
+        )}
+        {open && content.kind === "web" && (
+          <Floating
+            open
+            anchor={shown.anchor}
+            placement={{ side: "top", align: "start" }}
+            onDismiss={close}
+            role="tooltip"
+            id={id}
+            className={styles.preview}
+          >
+            <WebBody content={content} />
+          </Floating>
+        )}
+        {panel && (
+          <PreviewPanel
+            work={panel}
+            add={library.states[panel.arxiv]}
+            onAdd={library.add}
+            onOpenPaper={(paper) => {
+              setPanel(null);
+              window.location.hash = readerHash({ paperId: paper });
+            }}
+            onClose={() => setPanel(null)}
+          />
+        )}
+      </>
     ),
   };
 }
 
-function PreviewBody({ content }: { content: Content }) {
-  const { t } = useI18n();
-  switch (content.kind) {
-    case "looking":
-      return (
-        <p className={styles.status} aria-busy="true">
-          <Spinner size={14} />
-          {t("reader.link.looking")}
-        </p>
-      );
-    case "reference": {
-      const { title, authors = [], year } = content.reference;
-      const names =
-        authors.length > AUTHORS
-          ? t("reader.link.etAl", {
-              authors: authors.slice(0, AUTHORS).join(", "),
-            })
-          : authors.join(", ");
-      const byline = [names, year].filter(Boolean).join(" · ");
-      return (
-        <>
-          <p className={styles.title}>{title}</p>
-          {byline && <p className={styles.meta}>{byline}</p>}
-        </>
-      );
-    }
-    case "entry":
-      return <p className={styles.entry}>{content.text}</p>;
-    case "web":
-      return (
-        <>
-          <p className={styles.meta}>
-            {content.host}
-            {content.title === null && <Spinner size={14} />}
-          </p>
-          {content.title && <p className={styles.title}>{content.title}</p>}
-        </>
-      );
-  }
+function WebBody({ content }: { content: Extract<Content, { kind: "web" }> }) {
+  return (
+    <>
+      <p className={styles.meta}>
+        {content.host}
+        {content.title === null && <Spinner size={14} />}
+      </p>
+      {content.title && <p className={styles.title}>{content.title}</p>}
+    </>
+  );
 }

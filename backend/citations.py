@@ -11,7 +11,7 @@ from typing import Literal
 from urllib.parse import quote
 
 import httpx
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Query, Response
 from pydantic import Field, field_validator
 from sqlalchemy import JSON, ForeignKey, Integer, String, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, mapped_column
@@ -161,7 +161,270 @@ def fetch_relations(identifier, relation, offset):
         _slots.release()
 
 
+# --- Metadata of one cited work -------------------------------------------------
+# Private, minimal lookup. The controller may swap `lookup` for `backend.scholar.lookup`
+# (same signature and fields) when that module lands.
+
+_FIELDS = (
+    "title,authors,year,venue,abstract,citationCount,referenceCount,externalIds,url"
+)
+_DOI = re.compile(r"\b(10\.\d{4,9}/[^\s\"<>]+)", re.IGNORECASE)
+_ARXIV = re.compile(
+    r"(?:arxiv[:\s/]*(?:abs/)?|arxiv\.org/abs/)(\d{4}\.\d{4,5})(?:v\d+)?", re.IGNORECASE
+)
+_meta_cache = OrderedDict()
+_meta_lock = threading.Lock()
+_meta_slots = threading.BoundedSemaphore(3)
+_pdf_slots = threading.BoundedSemaphore(2)
+_pace_lock = threading.Lock()
+_pace_last = 0.0
+# Seconds between two requests to the public services, and the timeout of one.
+_SPACING = 0.6
+_TIMEOUT = 8.0
+FOUND_TTL = 24 * 3600
+MISSING_TTL = 3600
+
+
+def _norm(value):
+    return "".join(c for c in (value or "").casefold() if c.isalnum())
+
+
+def references_in(text):
+    """The public identifiers an entry of a reference list prints: (doi, arxiv)."""
+    doi = _DOI.search(text or "")
+    arxiv = _ARXIV.search(text or "")
+    return (
+        doi.group(1).rstrip(".,;)]}") if doi else None,
+        arxiv.group(1) if arxiv else None,
+    )
+
+
+def _get(url, params=None):
+    """One bounded GET of a public service: the parsed JSON, or the text of a feed."""
+    global _pace_last
+    with _pace_lock:
+        wait = _SPACING - (time.monotonic() - _pace_last)
+        if wait > 0:
+            time.sleep(wait)
+        _pace_last = time.monotonic()
+    with httpx.Client(timeout=_TIMEOUT, follow_redirects=False) as client:  # noqa: SIM117
+        with client.stream(
+            "GET", url, params=params, headers={"User-Agent": "PaperWorkspace/1.0"}
+        ) as response:
+            if response.status_code == 404:
+                return None
+            if response.status_code != 200:
+                raise httpx.HTTPError(f"HTTP {response.status_code}")
+            raw = bytearray()
+            for chunk in response.iter_bytes():
+                raw.extend(chunk)
+                if len(raw) > 2 * 1024**2:
+                    raise httpx.HTTPError("too large")
+    return json.loads(raw)
+
+
+def _from_s2(row):
+    ids = row.get("externalIds") or {}
+    return {
+        "title": row.get("title") or "",
+        "authors": [a["name"] for a in row.get("authors") or [] if a.get("name")][:100],
+        "year": row.get("year"),
+        "venue": row.get("venue") or "",
+        "abstract": (row.get("abstract") or "")[:20000],
+        "citation_count": row.get("citationCount"),
+        "reference_count": row.get("referenceCount"),
+        "doi": ids.get("DOI") or "",
+        "arxiv": ids.get("ArXiv") or "",
+        "url": row.get("url") or "",
+    }
+
+
+def _from_openalex(row):
+    index = row.get("abstract_inverted_index") or {}
+    words = sorted((at, word) for word, places in index.items() for at in places)
+    doi = (row.get("doi") or "").removeprefix("https://doi.org/")
+    arxiv = ""
+    match = re.fullmatch(r"10\.48550/arxiv\.(.+)", doi, re.IGNORECASE)
+    if match:
+        arxiv = match.group(1)
+    source = ((row.get("primary_location") or {}).get("source") or {}).get(
+        "display_name"
+    )
+    return {
+        "title": row.get("title") or "",
+        "authors": [
+            (a.get("author") or {}).get("display_name")
+            for a in row.get("authorships") or []
+            if (a.get("author") or {}).get("display_name")
+        ][:100],
+        "year": row.get("publication_year"),
+        "venue": source or "",
+        "abstract": " ".join(word for _, word in words)[:20000],
+        "citation_count": row.get("cited_by_count"),
+        "reference_count": len(row.get("referenced_works") or []) or None,
+        "doi": doi,
+        "arxiv": arxiv,
+        "url": row.get("id") or "",
+    }
+
+
+def _from_arxiv(arxiv):
+    from .arxiv_import import metadata_api
+
+    data = metadata_api(arxiv)
+    return {
+        "title": data["title"],
+        "authors": [a.strip() for a in data["authors"].split(";") if a.strip()],
+        "year": None,
+        "venue": "arXiv",
+        "abstract": data["abstract"],
+        "citation_count": None,
+        "reference_count": None,
+        "doi": "",
+        "arxiv": re.sub(r"v\d+$", "", data["arxiv_id"]),
+        "url": "https://arxiv.org/abs/" + re.sub(r"v\d+$", "", data["arxiv_id"]),
+    }
+
+
+def _plausible(item, title):
+    """A work found by title is only taken when its title is in the text that was asked about."""
+    found, asked = _norm(item.get("title")), _norm(title)
+    return len(found) >= 12 and (found in asked or asked in found)
+
+
+def _sources(doi, arxiv, title):
+    """The services to ask, in order: each returns an item, None (not there) or raises."""
+    base = "https://api.semanticscholar.org/graph/v1/paper/"
+
+    def s2():
+        if doi or arxiv:
+            ident = f"DOI:{doi}" if doi else f"ARXIV:{arxiv}"
+            row = _get(base + quote(ident, safe=":/"), {"fields": _FIELDS})
+            return _from_s2(row) if isinstance(row, dict) and row.get("title") else None
+        data = _get(base + "search/match", {"query": title[:300], "fields": _FIELDS})
+        rows = (data or {}).get("data") or []
+        item = _from_s2(rows[0]) if rows and rows[0].get("title") else None
+        return item if item and _plausible(item, title) else None
+
+    def openalex():
+        root = "https://api.openalex.org/works"
+        if doi or arxiv:
+            key = doi or f"10.48550/arXiv.{arxiv}"
+            row = _get(f"{root}/https://doi.org/{quote(key, safe='/')}")
+            return (
+                _from_openalex(row)
+                if isinstance(row, dict) and row.get("title")
+                else None
+            )
+        data = _get(root, {"search": title[:300], "per-page": 1})
+        rows = (data or {}).get("results") or []
+        item = _from_openalex(rows[0]) if rows and rows[0].get("title") else None
+        return item if item and _plausible(item, title) else None
+
+    out = [s2, openalex]
+    if arxiv:
+        out.append(lambda: _from_arxiv(arxiv))
+    return out
+
+
+def lookup(*, doi=None, arxiv=None, title=None):
+    """The work named by a DOI, an arXiv id or (failing those) a title, or None.
+
+    Asks Semantic Scholar, then OpenAlex, then arXiv; keeps what it was told for a
+    day. Raises HTTPException(503) when no service could be reached at all.
+    """
+    doi = (doi or "").strip().removeprefix("https://doi.org/") or None
+    arxiv = re.sub(r"v\d+$", "", (arxiv or "").strip().lower()) or None
+    title = (title or "").strip() or None
+    if not (doi or arxiv or title):
+        return None
+    key = (
+        ("doi", doi.lower())
+        if doi
+        else ("arxiv", arxiv)
+        if arxiv
+        else ("title", _norm(title))
+    )
+    with _meta_lock:
+        hit = _meta_cache.get(key)
+        if hit and time.monotonic() < hit[0]:
+            _meta_cache.move_to_end(key)
+            return hit[1]
+    if not _meta_slots.acquire(blocking=False):
+        raise HTTPException(429, "文献查询繁忙，请稍后重试")
+    try:
+        failed, item = 0, None
+        sources = _sources(doi, arxiv, title or "")
+        for ask in sources:
+            try:
+                item = ask()
+            except (httpx.HTTPError, ValueError, KeyError, TypeError, AttributeError):
+                failed += 1
+                continue
+            if item:
+                break
+        if not item and failed == len(sources):
+            raise HTTPException(503, "文献服务暂时连不上，请稍后重试")
+        # A DOI or arXiv id read from the entry is a fact even if the service omitted it.
+        if item:
+            item["doi"] = item.get("doi") or doi or ""
+            item["arxiv"] = item.get("arxiv") or arxiv or ""
+        with _meta_lock:
+            _meta_cache[key] = (
+                time.monotonic() + (FOUND_TTL if item else MISSING_TTL),
+                item,
+            )
+            while len(_meta_cache) > 512:
+                _meta_cache.popitem(last=False)
+        return item
+    finally:
+        _meta_slots.release()
+
+
 def install_citation_routes(app, settings, db, auth, owned):
+    @app.get("/api/v1/citations/lookup")
+    def lookup_route(
+        entry: str = Query("", max_length=2000),
+        doi: str = Query("", max_length=250),
+        arxiv: str = Query("", max_length=100),
+        title: str = Query("", max_length=1000),
+        a=Depends(auth),
+    ):
+        # An entry of a reference list is public bibliographic text; nothing else goes upstream.
+        found_doi, found_arxiv = references_in(entry)
+        doi, arxiv = doi or found_doi or "", arxiv or found_arxiv or ""
+        title = title or ("" if doi or arxiv else entry)
+        if not (doi or arxiv or title):
+            raise HTTPException(422, "缺少要查询的文献")
+        ask = getattr(app.state, "citation_lookup", lookup)
+        return {"item": ask(doi=doi or None, arxiv=arxiv or None, title=title or None)}
+
+    @app.get("/api/v1/citations/arxiv-pdf")
+    def arxiv_pdf(id: str = Query(max_length=100), a=Depends(auth)):
+        from .arxiv_import import ArxivNotFound, download, identifier
+
+        try:
+            ident = identifier(id)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        if not _pdf_slots.acquire(blocking=False):
+            raise HTTPException(429, "预览繁忙，请稍后重试")
+        try:
+            data = download(f"/pdf/{ident}", 50 * 1024**2)
+        except ArxivNotFound as error:
+            raise HTTPException(404, str(error)) from None
+        except (ValueError, httpx.HTTPError) as error:
+            raise HTTPException(502, str(error)) from None
+        finally:
+            _pdf_slots.release()
+        if not data.startswith(b"%PDF"):
+            raise HTTPException(502, "arXiv 没有返回 PDF")
+        return Response(
+            data,
+            media_type="application/pdf",
+            headers={"Cache-Control": "private, max-age=3600"},
+        )
+
     @app.get("/api/v1/papers/{id}/citations")
     def read(
         id: str,

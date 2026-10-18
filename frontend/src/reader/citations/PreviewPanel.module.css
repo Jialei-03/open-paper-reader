@@ -1,0 +1,137 @@
+/*
+ * The side panel of a cited work: a manual popover (the top layer), put to the
+ * right of the window, on the card's surface. It does not hold the page back.
+ */
+.panel {
+  position: fixed;
+  inset: var(--ui-space-12) var(--ui-space-12) var(--ui-space-12) auto;
+  width: min(520px, calc(100vw - 2 * var(--ui-space-12)));
+  height: auto;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  display: none;
+  flex-direction: column;
+  border: 0;
+  border-radius: var(--ui-r-12);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  color: var(--ui-fg);
+  font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
+  overflow: hidden;
+}
+
+.panel:popover-open {
+  display: flex;
+}
+
+.panel p {
+  margin: 0;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-12) var(--ui-space-12) var(--ui-space-8)
+    var(--ui-space-16);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--ui-text-15);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: break-word;
+}
+
+.meta {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-4) var(--ui-space-16) var(--ui-space-8);
+}
+
+.abstract {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-8) var(--ui-space-16) var(--ui-space-16);
+  border-top: 1px solid var(--ui-edge-subtle);
+  overflow-y: auto;
+}
+
+.text {
+  color: var(--ui-fg-1);
+  line-height: var(--ui-leading-loose);
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.problem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4) var(--ui-space-8);
+  padding: var(--ui-space-4) var(--ui-space-16);
+  color: var(--ui-danger-text);
+  font-size: var(--ui-text-12);
+}
+
+.links {
+  display: flex;
+  gap: var(--ui-space-12);
+  font-size: var(--ui-text-12);
+}
+
+.links a {
+  color: var(--ui-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.fulltext {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+  min-height: 0;
+  padding-top: var(--ui-space-8);
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+
+.fulltext > .note {
+  padding: 0 var(--ui-space-16);
+}
+
+.pages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--ui-desk);
+}
+
+.pages > .note,
+.pages > .problem {
+  padding: var(--ui-space-16);
+}
