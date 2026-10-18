@@ -21,6 +21,8 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${port}`,
     headless: true,
+    // The sign-in page and the interface follow the browser language; the specs are written in Chinese.
+    locale: "zh-CN",
     viewport: { width: 1440, height: 1000 },
     screenshot: "only-on-failure",
     trace: "retain-on-failure",

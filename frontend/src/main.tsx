@@ -12,6 +12,7 @@ import { ProductSite } from "./features/ProductSite";
 import { Login } from "./features/Login";
 import { AccountRecovery } from "./features/AccountRecovery";
 import { useAppearance } from "./components/Appearance";
+import { I18nProvider, useI18n } from "./i18n/I18nProvider";
 import { api, errorStatus } from "./api";
 
 /*
@@ -77,20 +78,24 @@ class StaleRelease extends React.Component<
     }
   }
   render() {
-    return this.state.failed ? (
-      <div className="boot">
-        纸间 <span>页面已更新，请刷新后继续</span>
-      </div>
-    ) : (
-      this.props.children
-    );
+    return this.state.failed ? <StaleNotice /> : this.props.children;
   }
 }
 
-function Boot() {
+function StaleNotice() {
+  const { t } = useI18n();
   return (
     <div className="boot">
-      纸间 <span>正在打开你的空间…</span>
+      open-paper-reader <span>{t("boot.stale")}</span>
+    </div>
+  );
+}
+
+function Boot() {
+  const { t } = useI18n();
+  return (
+    <div className="boot">
+      open-paper-reader <span>{t("boot.opening")}</span>
     </div>
   );
 }
@@ -203,10 +208,7 @@ function Root() {
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
-  return !hash ||
-    hash === "#home" ||
-    hash === "#features" ||
-    hash.startsWith("#docs") ? (
+  return !hash || hash === "#home" || hash === "#how" ? (
     <ProductSite path={hash.slice(1) || "home"} />
   ) : hash.startsWith("#shared/") ? (
     <StaleRelease>
@@ -219,8 +221,8 @@ function Root() {
   );
 }
 createRoot(document.getElementById("root")!).render(
-  <>
+  <I18nProvider>
     <Root />
     <FileDownloadDialog />
-  </>,
+  </I18nProvider>,
 );
