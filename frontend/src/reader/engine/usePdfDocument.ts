@@ -37,9 +37,13 @@ function reasonFor(error: unknown): MessageKey {
 /**
  * Opens the PDF of a file through pdf.js, a range at a time (as the old reader
  * does), and reports how far the download has got. Changing `fileId`, or
- * leaving, closes the document and its worker.
+ * leaving, closes the document and its worker. `url` opens that address instead
+ * of the file's own (a cited paper's preview), keyed by `fileId` all the same.
  */
-export function usePdfDocument(fileId: string | null): PdfDocumentState {
+export function usePdfDocument(
+  fileId: string | null,
+  url?: string,
+): PdfDocumentState {
   const { t } = useI18n();
   const [attempt, setAttempt] = useState(0);
   const [answer, setAnswer] = useState<Answer | null>(null);
@@ -59,7 +63,7 @@ export function usePdfDocument(fileId: string | null): PdfDocumentState {
           import.meta.url,
         ).toString();
         task = pdfjs.getDocument({
-          url: "/api/v1/files/" + fileId + "/content",
+          url: url ?? "/api/v1/files/" + fileId + "/content",
           withCredentials: true,
           isEvalSupported: false,
           disableAutoFetch: true,
@@ -86,7 +90,7 @@ export function usePdfDocument(fileId: string | null): PdfDocumentState {
       // Destroying the task destroys the document it opened, and its worker.
       void task?.destroy();
     };
-  }, [key, fileId]);
+  }, [key, fileId, url]);
 
   // What was answered for an earlier file (or attempt) is not this one's: that document is closed.
   const current = answer?.key === key ? answer : null;

@@ -1,5 +1,11 @@
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { useEffect, useRef, useState, type FocusEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
 import {
   safePdfUrl,
   usePdfLinks,
@@ -41,6 +47,8 @@ export interface LinkLayerProps {
   onPreview?(link: Link | null, element?: HTMLElement): void;
   /** What describes a link while it is described (its preview), by id. */
   describedBy?(link: Link): string | undefined;
+  /** A key went down on a link's box (Tab goes on into its preview's card). */
+  onPreviewKey?(link: Link, event: KeyboardEvent<HTMLElement>): void;
 }
 
 /**
@@ -61,6 +69,7 @@ export function LinkLayer({
   onExternal,
   onPreview,
   describedBy,
+  onPreviewKey,
 }: LinkLayerProps) {
   const { t } = useI18n();
   const layer = useRef<HTMLDivElement>(null);
@@ -166,12 +175,15 @@ export function LinkLayer({
         }, DOUBLE_CLICK_MS);
     };
     host.addEventListener("pointermove", move);
+    // A card opening (or closing) under a resting pointer takes the pointer from the page and gives it back without a move.
+    host.addEventListener("pointerenter", move);
     host.addEventListener("pointerleave", leave);
     host.addEventListener("pointerdown", down);
     host.addEventListener("click", click);
     return () => {
       window.clearTimeout(pending);
       host.removeEventListener("pointermove", move);
+      host.removeEventListener("pointerenter", move);
       host.removeEventListener("pointerleave", leave);
       host.removeEventListener("pointerdown", down);
       host.removeEventListener("click", click);
@@ -196,6 +208,8 @@ export function LinkLayer({
               onPreview?.(link, event.currentTarget);
           },
           onBlur: () => onPreview?.(null),
+          onKeyDown: (event: KeyboardEvent<HTMLElement>) =>
+            onPreviewKey?.(link, event),
         };
         const shared = {
           className: styles.link,

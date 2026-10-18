@@ -220,3 +220,160 @@ def test_inline_citation_matches_full_title_without_disclosing_excerpt(env):
         a.get(f"/api/v1/papers/{p['id']}/citations").json()["items"][0]["abstract"]
         == card["abstract"]
     )
+
+
+S2_ROW = {
+    "title": "Attention Is All You Need",
+    "authors": [{"name": "Ashish Vaswani"}, {"name": "Noam Shazeer"}],
+    "year": 2017,
+    "venue": "NeurIPS",
+    "abstract": "The dominant sequence transduction models...",
+    "citationCount": 100000,
+    "referenceCount": 40,
+    "externalIds": {"DOI": "10.5555/3295222.3295349", "ArXiv": "1706.03762"},
+    "url": "https://www.semanticscholar.org/paper/x",
+}
+
+
+@pytest.fixture
+def meta(monkeypatch):
+    from backend import citations
+
+    monkeypatch.setattr(citations, "_SPACING", 0)
+    citations._meta_cache.clear()
+    calls = []
+    answers = {}
+
+    def get(url, params=None):
+        calls.append((url, params))
+        for part, answer in answers.items():
+            if part in url:
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+        return None
+
+    monkeypatch.setattr(citations, "_get", get)
+    return citations, calls, answers
+
+
+def test_lookup_reads_ids_from_an_entry_and_caches(meta):
+    citations, calls, answers = meta
+    answers["semanticscholar"] = S2_ROW
+    assert citations.references_in(
+        "A. Vaswani. Attention. doi:10.5555/3295222.3295349. arXiv:1706.03762v5."
+    ) == ("10.5555/3295222.3295349", "1706.03762")
+    item = citations.lookup(doi="10.5555/3295222.3295349")
+    assert item["title"] == "Attention Is All You Need"
+    assert item["authors"] == ["Ashish Vaswani", "Noam Shazeer"]
+    assert (item["year"], item["venue"], item["citation_count"]) == (
+        2017,
+        "NeurIPS",
+        100000,
+    )
+    assert item["reference_count"] == 40 and item["arxiv"] == "1706.03762"
+    assert "DOI:10.5555" in calls[0][0]
+    citations.lookup(doi="10.5555/3295222.3295349")
+    assert len(calls) == 1
+
+
+def test_lookup_falls_back_to_openalex_then_arxiv_and_reports_outage(meta):
+    citations, _, answers = meta
+    answers["semanticscholar"] = httpx.ConnectTimeout("slow")
+    answers["openalex"] = {
+        "title": "Attention Is All You Need",
+        "publication_year": 2017,
+        "cited_by_count": 9,
+        "doi": "https://doi.org/10.48550/arXiv.1706.03762",
+        "authorships": [{"author": {"display_name": "A. V."}}],
+        "abstract_inverted_index": {"Hello": [0], "world": [1]},
+        "primary_location": {"source": {"display_name": "NeurIPS"}},
+    }
+    item = citations.lookup(arxiv="1706.03762v2")
+    assert item["abstract"] == "Hello world" and item["arxiv"] == "1706.03762"
+    assert item["venue"] == "NeurIPS" and item["citation_count"] == 9
+    citations._meta_cache.clear()
+    answers["openalex"] = httpx.ReadTimeout("slow")
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(
+        citations,
+        "_from_arxiv",
+        lambda a: {"title": "T", "authors": [], "arxiv": a, "doi": ""},
+    )
+    try:
+        assert citations.lookup(arxiv="1706.03762")["title"] == "T"
+        citations._meta_cache.clear()
+
+        def broken(a):
+            raise ValueError("down")
+
+        monkey.setattr(citations, "_from_arxiv", broken)
+        with pytest.raises(HTTPException) as error:
+            citations.lookup(arxiv="1706.03762")
+        assert error.value.status_code == 503
+    finally:
+        monkey.undo()
+
+
+def test_lookup_by_title_needs_a_plausible_match_and_missing_is_none(meta):
+    citations, _, answers = meta
+    entry = (
+        "Y. LeCun et al. Gradient-based learning applied to document recognition. 1998."
+    )
+    answers["search/match"] = {
+        "data": [{**S2_ROW, "title": "Something unrelated entirely"}]
+    }
+    answers["openalex"] = {"results": []}
+    assert citations.lookup(title=entry) is None
+    citations._meta_cache.clear()
+    answers["search/match"] = {
+        "data": [
+            {
+                **S2_ROW,
+                "title": "Gradient-based learning applied to document recognition",
+            }
+        ]
+    }
+    assert citations.lookup(title=entry)["title"].startswith("Gradient-based")
+
+
+def test_lookup_route_sends_only_public_ids_and_needs_sign_in(env):
+    app, a, _, _ = env
+    asked = []
+
+    def fake(**kw):
+        asked.append(kw)
+        return {"title": "X"}
+
+    app.state.citation_lookup = fake
+    entry = "A. B. Title of it. arXiv:1706.03762v5, 2017."
+    r = a.get("/api/v1/citations/lookup", params={"entry": entry})
+    assert r.json() == {"item": {"title": "X"}}
+    assert asked == [{"doi": None, "arxiv": "1706.03762", "title": None}]
+    a.get("/api/v1/citations/lookup", params={"entry": "Plain Title Words Here 1999"})
+    assert asked[1]["title"] == "Plain Title Words Here 1999"
+    assert a.get("/api/v1/citations/lookup").status_code == 422
+    from fastapi.testclient import TestClient
+
+    assert TestClient(app).get("/api/v1/citations/lookup?doi=10.1/x").status_code in {
+        401,
+        403,
+    }
+
+
+def test_arxiv_pdf_route_validates_and_streams(env, monkeypatch):
+    _, a, _, _ = env
+    from backend import arxiv_import
+
+    monkeypatch.setattr(arxiv_import, "download", lambda path, limit: b"%PDF-1.4 x")
+    r = a.get("/api/v1/citations/arxiv-pdf", params={"id": "arXiv:1706.03762"})
+    assert r.status_code == 200 and r.headers["content-type"] == "application/pdf"
+    assert (
+        a.get("/api/v1/citations/arxiv-pdf", params={"id": "http://evil/x"}).status_code
+        == 422
+    )
+    monkeypatch.setattr(arxiv_import, "download", lambda path, limit: b"<html>")
+    assert (
+        a.get("/api/v1/citations/arxiv-pdf", params={"id": "1706.03762"}).status_code
+        == 502
+    )

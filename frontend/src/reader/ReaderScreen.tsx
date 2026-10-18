@@ -146,7 +146,7 @@ function PaperPages({
   const store = usePdfAnnotations(file.id);
   const annotations = store.rows;
   const strokes = usePdfInk(file.id).strokes;
-  const { hover, close, describedBy } = preview;
+  const { hover, close, describedBy, key: previewKey } = preview;
   const pageOverlays = useCallback(
     (page: number, geometry: PageGeometry) => (
       <>
@@ -174,6 +174,7 @@ function PaperPages({
           onExternal={close}
           onPreview={hover}
           describedBy={describedBy}
+          onPreviewKey={previewKey}
         />
         {region?.page === page && (
           <div
@@ -192,6 +193,7 @@ function PaperPages({
       hover,
       close,
       describedBy,
+      previewKey,
       region,
       keypoints,
       translated,
@@ -673,7 +675,8 @@ function PaperCard({
   };
   const foldedModes = useFoldedModeEntries(modeControls);
   const find = useFind(shownDoc, controller);
-  const preview = useLinkPreview(route.paperId, doc);
+  const followLink = useRef<((dest: PdfDestination) => void) | null>(null);
+  const preview = useLinkPreview(route.paperId, doc, followLink);
   const controllerNow = useRef(controller);
   controllerNow.current = controller;
   const docNow = useRef(doc);
@@ -741,6 +744,7 @@ function PaperCard({
     },
     [preview.close],
   );
+  followLink.current = followLinkInPaper;
   const back = () => {
     const spot = trail.at(-1);
     const desk = controller?.root;
