@@ -472,3 +472,38 @@ def test_symbol_retry_exemption_does_not_hide_prose_or_identifiers(text):
     from deploy.translation.patch_layout_quality import symbol_only
 
     assert not symbol_only(text)
+
+
+def test_layout_bridge_skips_lines_a_library_printed(tmp_path):
+    source = tmp_path / "input.pdf"
+    source.write_bytes(b"%PDF-1.7\nfixture")
+    runtime = tmp_path / "noisy-runtime"
+    runtime.write_text(
+        f"#!{sys.executable}\n"
+        "import sys,json,pathlib,shutil\n"
+        "c=json.loads(sys.stdin.readline())\n"
+        "print('',flush=True);print('Loading layout model...',flush=True);print('[1, 2]',flush=True)\n"
+        "out=pathlib.Path(c['output_dir'])/'translated.pdf';shutil.copyfile(c['input_file'],out)\n"
+        "print(json.dumps({'type':'finish','pdf':str(out)}),flush=True)\n"
+    )
+    runtime.chmod(0o700)
+    pdf, _ = layout_translation.translate_pdf(
+        runtime, source, tmp_path / "out", {}, lambda _: None, lambda: False
+    )
+    assert pdf.name == "translated.pdf"
+
+
+def test_layout_bridge_gives_up_on_a_flood_of_unreadable_output(tmp_path):
+    source = tmp_path / "input.pdf"
+    source.write_bytes(b"%PDF-1.7\nfixture")
+    runtime = tmp_path / "flood-runtime"
+    runtime.write_text(
+        f"#!{sys.executable}\n"
+        "import sys\nsys.stdin.readline()\n"
+        "[print('noise',flush=True) for _ in range(500)]\n"
+    )
+    runtime.chmod(0o700)
+    with pytest.raises(ValueError, match="无法识别"):
+        layout_translation.translate_pdf(
+            runtime, source, tmp_path / "out", {}, lambda _: None, lambda: False
+        )

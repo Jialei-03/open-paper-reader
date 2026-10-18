@@ -18,7 +18,21 @@ import uuid
 from collections import Counter
 from pathlib import Path
 
-OUTPUT = sys.stdout
+def protocol_output():
+    """The JSONL channel to the parent: the real stdout, kept apart from everyone else's.
+
+    BabelDOC and the libraries under it print to stdout on their own; any such
+    line would break the protocol. File descriptor 1 is pointed at stderr (the
+    parent's error log), and the protocol keeps a private copy of the original.
+    """
+    sys.stdout.flush()
+    private = os.dup(1)
+    os.dup2(2, 1)
+    sys.stdout = os.fdopen(1, "w", buffering=1, closefd=False)
+    return os.fdopen(private, "w", buffering=1)
+
+
+OUTPUT = protocol_output() if __name__ == "__main__" else sys.stdout
 WRITE_LOCK = threading.Lock()
 PENDING_LOCK = threading.Lock()
 PENDING = {}

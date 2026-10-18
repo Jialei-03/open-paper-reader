@@ -208,10 +208,20 @@ def translate_pdf(
                 else 1000,
             }
         )
+        stray = 0
         for raw in iter(lambda: process.stdout.readline(1024 * 1024 + 1), ""):
             if len(raw.encode()) > 1024 * 1024:
                 raise ValueError("版面处理返回过多数据")
-            event = json.loads(raw)
+            # Only JSON objects are the protocol; a stray line a library printed is skipped (within reason).
+            try:
+                event = json.loads(raw) if raw.lstrip().startswith("{") else None
+            except json.JSONDecodeError:
+                event = None
+            if not isinstance(event, dict):
+                stray += 1
+                if stray > 200:
+                    raise ValueError("版面处理输出了无法识别的内容")
+                continue
             if event.get("type") == "translate":
                 pending = [future for future in pending if not future.done()]
                 pending.append(pool.submit(respond, event))
