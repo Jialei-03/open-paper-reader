@@ -4,6 +4,8 @@ import type { Paper, SourceFile } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
 import { GuideTab } from "./panel/GuideTab";
+import { AssistantThread, type Assistant } from "./assistant";
+import type { ReaderRoute } from "./route";
 import { RegionBoundary } from "./RegionBoundary";
 import styles from "./RightPanel.module.css";
 
@@ -36,6 +38,8 @@ export function RightPanel({
   paper,
   file,
   onJumpToPage,
+  assistant,
+  onCite,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
@@ -45,6 +49,8 @@ export function RightPanel({
   /** A page named in the panel (the guide's page chips) was pressed. */
   onJumpToPage?: (page: number) => void;
   overlay?: PanelOverlay;
+  assistant?: Assistant;
+  onCite?: (route: ReaderRoute) => void;
 }) {
   const { t } = useI18n();
   const ids = useId();
@@ -123,6 +129,8 @@ export function RightPanel({
                   file={file}
                   onJumpToPage={onJumpToPage}
                 />
+              ) : value === "assistant" && assistant && onCite ? (
+                <AssistantThread assistant={assistant} onCite={onCite} />
               ) : (
                 <p className={styles.placeholder}>
                   {t(`reader.tab.${value}.empty`)}

@@ -48,8 +48,10 @@ import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
 import { SelectionMenu } from "./selection/SelectionMenu";
+import { Composer, useAssistant } from "./assistant";
+import type { AskRequest } from "./types";
 import { linkTarget } from "./outline";
-import { followLink, type ReaderRoute } from "./route";
+import { followLink, readerHash, type ReaderRoute } from "./route";
 import { useMediaQuery } from "./useMediaQuery";
 import { usePaper } from "./usePaper";
 import styles from "./ReaderScreen.module.css";
@@ -690,6 +692,11 @@ export function ReaderScreen({
   const [file, setFile] = useState<SourceFile | null>(null);
   const [visits, setVisits] = useState(() => recentPapers(owner));
   const actions = useRef<PaperActions>(null);
+  const assistant = useAssistant({
+    paper: loaded?.id === paperId ? loaded : null,
+    file,
+  });
+  const [pending, setPending] = useState<AskRequest | null>(null);
 
   // The panel only opens over the paper; a window that has grown wide shows it docked, and shut when narrowed again.
   useEffect(() => {
@@ -756,12 +763,19 @@ export function ReaderScreen({
             onFile={setFile}
             actions={actions}
           />
+          <Composer
+            assistant={assistant}
+            pending={pending}
+            onClearPending={() => setPending(null)}
+          />
         </Card>
         <RightPanel
           paperId={paperId}
           paper={loaded?.id === paperId ? loaded : null}
           file={file?.paper_id === paperId ? file : null}
           onJumpToPage={(page) => actions.current?.jump(page)}
+          assistant={assistant}
+          onCite={(target) => go(readerHash(target).slice(1))}
           overlay={
             narrow
               ? {
