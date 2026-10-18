@@ -80,6 +80,29 @@ const ReaderScreen = lazy(() =>
   })),
 );
 const S2Screens = lazy(() => import("./screens/s2-temp")); // TEMP S2
+// TEMP S3: loads the new settings and setup screens with their kit, apart from the old interface.
+const TempScreens = lazy(async () => {
+  const [{ SettingsScreen }, { SetupScreen }, { Shell, Toaster }] =
+    await Promise.all([
+      import("./screens/SettingsScreen"),
+      import("./screens/SetupScreen"),
+      import("./ui"),
+    ]);
+  return {
+    default: ({ section, go }: { section: string; go(r: string): void }) => (
+      <>
+        {section === "settings2" ? (
+          <Shell>
+            <SettingsScreen go={go} />
+          </Shell>
+        ) : (
+          <SetupScreen onDone={() => go("settings2")} />
+        )}
+        <Toaster />
+      </>
+    ),
+  };
+});
 /** What shows while the reader's chunk loads. */
 function ReaderLoading() {
   const { t } = useI18n();
@@ -424,6 +447,15 @@ export function Workspace({
       </Suspense>
     );
   // TEMP S2 end
+  // TEMP S3: the new settings and setup screens, until S1's shell mounts them.
+  if (section === "settings2" || section === "setup2")
+    return (
+      <I18nProvider>
+        <Suspense fallback={null}>
+          <TempScreens section={section} go={go} />
+        </Suspense>
+      </I18nProvider>
+    );
   if (reader)
     return (
       <I18nProvider>

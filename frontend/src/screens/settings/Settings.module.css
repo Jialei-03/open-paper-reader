@@ -1,0 +1,236 @@
+/*
+ * The settings card: a header, then one column of sections that scrolls. The
+ * root sets the font and colors itself (there is no global reset here).
+ */
+.card {
+  --settings-column: 640px;
+  --settings-figure-min: 140px;
+  flex: 1;
+  min-height: 0;
+  color: var(--ui-fg);
+  font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(.card) :focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-40);
+  box-sizing: border-box;
+  max-width: var(--settings-column);
+  margin: 0 auto;
+  padding: var(--ui-space-24) var(--ui-space-24) var(--ui-space-48);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-12);
+  padding-bottom: var(--ui-space-8);
+  border-bottom: 1px solid var(--ui-edge-subtle);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ui-text-15);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.sectionLead {
+  margin: var(--ui-space-4) 0 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.subTitle {
+  margin: var(--ui-space-8) 0 0;
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-strong);
+}
+
+/* A setting: what it is on the left, its control on the right. */
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-16);
+  min-height: var(--ui-control-lg);
+}
+
+.settingLabel {
+  color: var(--ui-fg-1);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-12);
+  min-height: var(--ui-control-lg);
+  padding: var(--ui-space-8) var(--ui-space-10);
+  margin: 0 calc(-1 * var(--ui-space-10));
+  border-radius: var(--ui-r-10);
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.row:hover {
+  background: var(--ui-hover);
+}
+
+.rowText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rowTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-width: 0;
+  overflow: hidden;
+  font-weight: var(--ui-weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMeta {
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+
+.badge {
+  flex: none;
+  padding: 0 var(--ui-space-6);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-11);
+  font-weight: var(--ui-weight-regular);
+  line-height: var(--ui-leading);
+}
+
+.current {
+  background: var(--ui-accent-soft);
+  color: var(--ui-fg);
+}
+
+.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.muted {
+  margin: 0;
+  color: var(--ui-fg-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--ui-danger-text);
+}
+
+/* How much of the storage is used: a thin bar. */
+.meter {
+  height: var(--ui-space-6);
+  overflow: hidden;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-bg-2);
+}
+
+.meterFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-accent);
+  transform-origin: left;
+  transition: transform var(--ui-dur-3) var(--ui-ease-out);
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(var(--settings-figure-min), 1fr)
+  );
+  gap: var(--ui-space-8) var(--ui-space-16);
+  margin: 0;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+}
+
+.figure dt {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.figure dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 560px) {
+  .column {
+    padding: var(--ui-space-16) var(--ui-space-16) var(--ui-space-32);
+  }
+
+  .setting {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
