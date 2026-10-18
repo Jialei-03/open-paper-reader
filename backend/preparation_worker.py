@@ -167,9 +167,18 @@ def process(settings, maker, identifier):
             or hashlib.sha256(path.read_bytes()).hexdigest() != file.sha256
         ):
             raise ValueError("原文文件缺失或已变更")
-        texts = {n + 1: text for n, text in enumerate(extract_pdf_pages(path))}
-        if any(not text.strip() for text in texts.values()):
-            raise ValueError("存在无文字层页面，自动准备需要 OCR；原文仍可阅读")
+        # Keyed by the real page number. A page without a text layer (a scanned
+        # figure, a signature page) is left out of page translation and the
+        # guide; the rest of the paper is prepared as usual.
+        texts = {
+            n + 1: text
+            for n, text in enumerate(extract_pdf_pages(path))
+            if text.strip()
+        }
+        if not texts:
+            raise ValueError(
+                "这篇论文没有文字层（可能是扫描版），自动导读需要 OCR；原文仍可阅读"
+            )
         progress(stage="准备导读与共用译文", total=len(texts), error="")
         translated = bind(
             {**config, **task_options(config, "translate")},

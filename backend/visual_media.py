@@ -43,9 +43,14 @@ def archive_images(raw, selected=""):
     return rows, found
 
 
+def is_pdf(raw):
+    # The format allows stray bytes before the header, within the first 1024.
+    return b"%PDF-" in raw[:1024]
+
+
 def box_text(raw, page, rect):
     """The text of a PDF page that lies inside a box given as fractions of the page."""
-    if not raw.startswith(b"%PDF-"):
+    if not is_pdf(raw):
         return {"text": ""}
     import pypdfium2 as pdfium
 
@@ -94,7 +99,7 @@ def main():
     from PIL import Image, ImageOps
 
     page = request["page"]
-    if raw.startswith(b"%PDF-"):
+    if is_pdf(raw):
         import pypdfium2 as pdfium
 
         with pdfium.PdfDocument(raw) as pdf:
@@ -136,7 +141,7 @@ def main():
             rgba = ImageOps.exif_transpose(source).convert("RGBA")
             im = Image.new("RGB", rgba.size, "white")
             im.paste(rgba, mask=rgba.getchannel("A"))
-    if request.get("rect") and not raw.startswith(b"%PDF-"):
+    if request.get("rect") and not is_pdf(raw):
         x, y, w, h = request["rect"]
         im = im.crop(
             (

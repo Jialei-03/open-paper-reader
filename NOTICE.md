@@ -35,6 +35,7 @@
 | BSD-3-Clause | Starlette、uvicorn、httpx、pypdf、pypdfium2（及它打包的 PDFium 等，各有自己的许可证） |
 | Apache-2.0 | `python-multipart`、`regex` |
 | MIT-CMU（HPND） | Pillow |
+| Apache-2.0 OR BSD-3-Clause | `cryptography`（pypdf 读取 AES 加密的 PDF 时需要） |
 | **LGPL-3.0** | psycopg（`psycopg[binary]`） |
 
 `pytest`（MIT）只在开发和测试时使用。

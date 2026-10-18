@@ -125,20 +125,46 @@ def file_bytes(settings, f):
         fail(404, "File missing or unsafe; restore from backup")
 
 
+INVALID_MEDIA = "Invalid, encrypted, oversized, or unsupported media"
+# The inspector's reason for refusing a PDF, as the reader is told it.
+PDF_REFUSALS = {
+    "encrypted": "Encrypted PDF",
+    "unreadable": "Unreadable PDF",
+    "too_many_pages": "Too many pages",
+}
+
+
 def detect(data, name):
     ext = Path(name).suffix.lower()
-    if data.startswith(b"%PDF-") or ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+    # The format allows bytes before the header, within the first 1024. Only a
+    # file named as a PDF is searched that far: an archive or a web page can
+    # carry a PDF header without being one.
+    pdf = data.startswith(b"%PDF-") or (ext == ".pdf" and b"%PDF-" in data[:1024])
+    if ext == ".pdf" and not pdf:
+        fail(422, "Not a PDF")
+    if pdf or ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
         try:
             proc = subprocess.run(
-                [sys.executable, str(Path(__file__).with_name("media.py"))],
+                [
+                    sys.executable,
+                    str(Path(__file__).with_name("media.py")),
+                    "pdf" if pdf else "image",
+                ],
                 input=data,
                 capture_output=True,
                 timeout=15,
-                check=True,
+                check=False,
             )
-            return tuple(json.loads(proc.stdout))
-        except (subprocess.SubprocessError, ValueError):
-            fail(422, "Invalid, encrypted, oversized, or unsupported media")
+        except subprocess.SubprocessError:
+            fail(422, INVALID_MEDIA)
+        if proc.returncode == 0:
+            try:
+                return tuple(json.loads(proc.stdout))
+            except ValueError:
+                fail(422, INVALID_MEDIA)
+        lines = proc.stderr.decode("utf-8", "replace").strip().splitlines()
+        reason = lines[-1].strip() if lines else ""
+        fail(422, PDF_REFUSALS.get(reason, INVALID_MEDIA) if pdf else INVALID_MEDIA)
     if ext in {
         ".tex",
         ".txt",

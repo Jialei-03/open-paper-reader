@@ -133,7 +133,12 @@ def safe_blob(settings, record, maximum):
             if record.mime == "image/png"
             else None
         )
-        if signature is None or not raw.startswith(signature):
+        # A PDF may have stray bytes before its header, within the first 1024.
+        if signature is None or not (
+            signature in raw[:1024]
+            if record.mime == "application/pdf"
+            else raw.startswith(signature)
+        ):
             not_found()
         return raw
     except OSError:

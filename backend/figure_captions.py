@@ -11,7 +11,8 @@ CAPTION = re.compile(
 def extract(raw):
     import pypdfium2 as pdfium
 
-    if not raw.startswith(b"%PDF-"):
+    # The format allows stray bytes before the header, within the first 1024.
+    if b"%PDF-" not in raw[:1024]:
         raise ValueError("附件不是 PDF")
     rows = []
     with pdfium.PdfDocument(raw) as pdf:

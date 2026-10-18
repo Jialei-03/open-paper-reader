@@ -47,6 +47,13 @@ def identifier(value):
     return value.lower()
 
 
+class ArxivNotFound(ValueError):
+    """arXiv has no such paper, version or file; asking again will not change that."""
+
+    def __init__(self, message="arXiv 上找不到这篇论文（或这个版本），请检查编号"):
+        super().__init__(message)
+
+
 def download(path, limit=50 * 1024**2):
     for attempt in range(3):
         report(attempt=attempt + 1, received=0, total=None)
@@ -54,6 +61,8 @@ def download(path, limit=50 * 1024**2):
             return _download_once(path, limit)
         except httpx.HTTPStatusError as error:
             status = error.response.status_code
+            if status in {404, 410}:
+                raise ArxivNotFound() from None
             if status not in {408, 429, 500, 502, 503, 504} or attempt == 2:
                 raise ValueError(
                     f"arXiv 下载失败（HTTP {status}），请稍后重试"
