@@ -4,7 +4,6 @@ Run separately from HTTP and chat workers. Completed artifacts are reused;
 page checkpoints survive failures. A render job consumes the same sentence memory.
 """
 
-import fcntl
 import hashlib
 import json
 import logging
@@ -17,6 +16,8 @@ from types import SimpleNamespace
 
 from sqlalchemy import select, update
 
+from .filelock import lock_nowait
+from .parent_watch import watch_parent
 from .config import Settings, database
 from .direct_runs import page_units, whole_paper
 from .layout_install import layout_available
@@ -496,6 +497,7 @@ def reconcile(settings, maker):
 
 
 def main():
+    watch_parent()
     logging.basicConfig(level=logging.WARNING)
     settings = Settings.env()
     engine, maker = database(settings)
@@ -504,7 +506,7 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: stopping.set())
     path = Path(settings.storage).parent / "preparation-worker.lock"
     with path.open("a") as lock, TaskExecutor() as pool:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_nowait(lock)
         with maker() as d:
             d.execute(
                 update(PaperPreparation)

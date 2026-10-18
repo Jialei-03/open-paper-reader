@@ -1,7 +1,6 @@
 """Concurrent Pi supervisor. Python owns credentials and business access."""
 
 import asyncio
-import fcntl
 import json
 import os
 import selectors
@@ -14,6 +13,8 @@ from pathlib import Path
 
 from sqlalchemy import func, select, update
 
+from .filelock import lock_nowait
+from .parent_watch import watch_parent
 from . import agent_budget, agent_limits, translation_settings
 from .agent_attachments import attachments as chat_attachments
 from .agent_budget import RunBudget
@@ -619,12 +620,13 @@ def ready_job(d, settings):
 
 
 def main():
+    watch_parent()
     from .main import create_app
 
     app = create_app()
     lockpath = Path(app.state.settings.storage).parent / "agent-worker.lock"
     with lockpath.open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_nowait(lock)
         with app.state.maker() as d:
             for interrupted in d.scalars(
                 select(AgentRun).where(AgentRun.status.in_(["running", "cancelled"]))

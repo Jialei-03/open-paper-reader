@@ -7,9 +7,11 @@ server listens on 127.0.0.1 only and signs its one reader in by itself.
 """
 
 import argparse
+import contextlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -18,7 +20,11 @@ import urllib.request
 import webbrowser
 from pathlib import Path
 
+import uvicorn
+
+from ..filelock import lock_nowait
 from .paths import PACKAGE, agent_runtime_dir, data_dir
+from .supervisor import Supervisor
 
 WORKERS = ("agent_worker", "preparation_worker", "translation_worker")
 NODE_MAJOR = 20
@@ -140,30 +146,45 @@ def running(url):
         return False
 
 
-def start_workers(agent):
-    names = WORKERS if agent else tuple(w for w in WORKERS if w != "agent_worker")
-    return [
-        subprocess.Popen(
-            [sys.executable, "-m", "backend." + name],
-            cwd=PACKAGE.parent,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True,
-        )
-        for name in names
-    ]
+def claim_instance(data, url):
+    """Hold data/instance.lock for the life of this process.
+
+    Returns the open lock file, or None when another instance owns the folder
+    (its URL is returned second so we can name it).
+    """
+    data.mkdir(parents=True, exist_ok=True, mode=0o700)
+    handle = (data / "instance.lock").open("a+")
+    try:
+        lock_nowait(handle)
+    except OSError:
+        handle.close()
+        other = None
+        with contextlib.suppress(OSError, ValueError):
+            other = (data / "instance.url").read_text().strip() or None
+        return None, other
+    (data / "instance.url").write_text(url)
+    return handle, None
 
 
-def stop(processes):
-    for process in processes:
-        if process.poll() is None:
-            process.terminate()
-    deadline = time.monotonic() + 8
-    for process in processes:
+class Server(uvicorn.Server):
+    """uvicorn that treats SIGTERM and SIGHUP like Ctrl+C and returns normally."""
+
+    @contextlib.contextmanager
+    def capture_signals(self):
+        names = ("SIGINT", "SIGTERM", "SIGHUP", "SIGBREAK")
+        old = {}
+        for name in names:
+            number = getattr(signal, name, None)
+            if number is None:
+                continue
+            with contextlib.suppress(ValueError, OSError):
+                old[number] = signal.signal(number, self.handle_exit)
         try:
-            process.wait(timeout=max(0.1, deadline - time.monotonic()))
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
+            yield
+        finally:
+            for number, handler in old.items():
+                with contextlib.suppress(ValueError, OSError):
+                    signal.signal(number, handler)
 
 
 def open_when_ready(url, stop_event):
@@ -204,7 +225,15 @@ def main(argv=None):
     args = parse(argv)
     data = (args.data or data_dir()).expanduser().resolve()
     url = f"http://{args.host}:{args.port}"
+    instance, other = claim_instance(data, url)
+    if instance is None:
+        say(
+            f"open-paper-reader is already running at {other or 'another address'} "
+            f"(this data folder is in use: {data}). Stop it first, or use another --data folder."
+        )
+        return 1
     if running(url):
+        instance.close()
         say(f"open-paper-reader is already running at {url}")
         if not args.no_browser:
             webbrowser.open(url)
@@ -228,18 +257,21 @@ def main(argv=None):
     if not shutil.which("docker"):
         say("Docker was not found: the assistant's code sandbox (terminal tools) is off.")
 
-    import uvicorn
-
     from ..main import app
 
-    workers = start_workers(agent)
+    workers = Supervisor(
+        WORKERS if agent else tuple(w for w in WORKERS if w != "agent_worker"),
+        PACKAGE.parent,
+        log=say,
+    )
+    workers.start()
     stopping = threading.Event()
     if not args.no_browser:
         threading.Thread(
             target=open_when_ready, args=(url, stopping), daemon=True
         ).start()
     say(f"open-paper-reader is running at {url} as “{reader}”. Press Ctrl+C to stop.")
-    server = uvicorn.Server(
+    server = Server(
         uvicorn.Config(
             app,
             host=args.host,
@@ -251,10 +283,11 @@ def main(argv=None):
     try:
         server.run()
     except KeyboardInterrupt:
-        pass  # uvicorn has already shut down; Ctrl+C is the normal way to stop
+        pass
     finally:
         stopping.set()
-        stop(workers)
+        workers.stop()
+        instance.close()
     say("Stopped.")
     return 0
 

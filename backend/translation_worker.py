@@ -1,6 +1,5 @@
 """Single dispatcher: python -m backend.translation_worker. Web requests never run TeX."""
 
-import fcntl
 import hashlib
 import json
 import logging
@@ -14,6 +13,8 @@ from pathlib import Path
 
 from sqlalchemy import select, update
 
+from .filelock import lock_nowait
+from .parent_watch import watch_parent
 from .arxiv_import import NO_PDF, NO_SOURCE, ArxivNotFound, download, extract_source
 from .config import Settings, database
 from .latex_install import latex_runtime, tex_env
@@ -293,6 +294,7 @@ def process(settings, maker, job_id):
 
 
 def main():
+    watch_parent()
     logging.basicConfig(level=logging.WARNING)
     logging.getLogger("backend.translation_engine").setLevel(logging.INFO)
     logging.getLogger("backend.translation_cache").setLevel(logging.INFO)
@@ -304,7 +306,7 @@ def main():
     _engine, maker = database(settings)
     lock_path = Path(settings.storage).parent / "translation-worker.lock"
     with lock_path.open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        lock_nowait(lock)
         with maker() as d:
             d.execute(
                 update(TranslationJob)
