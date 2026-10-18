@@ -1,6 +1,6 @@
 {
-  "name": "zhijian-frontend",
-  "description": "Zhijian (纸间): the web interface of an open-source paper-reading workspace",
+  "name": "open-paper-reader-frontend",
+  "description": "open-paper-reader: the web interface of an open-source paper reader",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,7 +17,7 @@
     "test:unit": "vitest run",
     "test:ui": "playwright test -c playwright.ui.config.ts",
     "format": "prettier --write src e2e e2e-ui *.ts *.json scripts",
-    "check": "tsc -b && prettier --check src e2e e2e-ui *.ts *.json scripts",
+    "check": "node scripts/check-catalog.mjs && tsc -b && prettier --check src e2e e2e-ui *.ts *.json scripts",
     "ui": "shadcn"
   },
   "dependencies": {

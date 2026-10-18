@@ -2,6 +2,13 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.0] - 未发布
+
+### 改名为 open-paper-reader
+- 项目从「纸间」改名为 open-paper-reader，命令名 `open-paper-reader`，别名 `opr`。README 改为中英两份（`README.md`、`README.en.md`），按新定位重写：本机优先，内置 Pi，可连 API 密钥和本机模型；接入 Claude Code、Codex 是 v2 的计划，当前版本没有。
+- 前端和助手运行时的包名、后端 OpenAPI 标题随之改名。
+- 新增 `frontend/scripts/check-catalog.mjs`，接入 `npm run check`：中英文案键必须一致，新界面源码（`src/reader`、`src/screens`、`src/app`、`src/ui`）里不能写死中文（已知例外登记在 `catalog-allowlist.txt`）。
+
 ## [未发布]
 
 ### 导入更稳

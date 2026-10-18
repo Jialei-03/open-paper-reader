@@ -1,7 +1,7 @@
 {
-  "name": "agent-runtime",
+  "name": "open-paper-reader-agent-runtime",
   "version": "0.1.0",
-  "description": "Zhijian's research assistant runtime: a Pi agent with workspace skills, isolated coding tools and public web access",
+  "description": "open-paper-reader's research assistant runtime: a Pi agent with workspace skills, isolated coding tools and public web access",
   "scripts": {
     "test": "node --test runner.test.mjs"
   },
