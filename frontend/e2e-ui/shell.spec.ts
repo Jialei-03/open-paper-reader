@@ -214,6 +214,154 @@ test("collapsed items show their name in a tooltip on the right", async ({
   expect(tip.left).toBeGreaterThanOrEqual(button.right);
 });
 
+/**
+ * The parts of an element's focus ring (it reaches 4px out) that an ancestor
+ * which cuts overflow would hide, one entry per side.
+ */
+const clippedRing = (target: Locator) =>
+  target.evaluate((element) => {
+    const reach = 4;
+    const box = element.getBoundingClientRect();
+    const hidden: string[] = [];
+    for (let node = element.parentElement; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      const clip = node.getBoundingClientRect();
+      const name = node.getAttribute("aria-label") ?? node.className;
+      if (style.overflowY !== "visible") {
+        if (box.top - reach < clip.top) hidden.push(`top, by ${name}`);
+        if (box.bottom + reach > clip.bottom) hidden.push(`bottom, by ${name}`);
+      }
+      if (style.overflowX !== "visible") {
+        if (box.left - reach < clip.left) hidden.push(`left, by ${name}`);
+        if (box.right + reach > clip.right) hidden.push(`right, by ${name}`);
+      }
+    }
+    return hidden;
+  });
+
+for (const collapsed of [false, true]) {
+  test(`the focus ring of every sidebar item is whole (${collapsed ? "collapsed" : "open"})`, async ({
+    page,
+  }) => {
+    await openKit(page, { locale: "en" });
+    if (collapsed) {
+      await page.getByRole("button", { name: "Collapse sidebar" }).click();
+      await expect.poll(() => widthOf(sidebar(page))).toBe(56);
+    }
+    // From the toggle at the top, by keyboard, down through all six items.
+    await page
+      .getByRole("button", {
+        name: collapsed ? "Expand sidebar" : "Collapse sidebar",
+      })
+      .focus();
+    for (const name of [
+      "Import",
+      "Search",
+      "Reading",
+      "Library",
+      LONG,
+      "Settings",
+    ]) {
+      await page.keyboard.press("Tab");
+      const focused = item(page, name);
+      await expect(focused).toBeFocused();
+      // The ring is really there (4px out), and nothing cuts it.
+      expect(await cssOf(focused, "box-shadow")).toMatch(/0px 0px 0px 4px/);
+      expect(await clippedRing(focused), name).toEqual([]);
+    }
+  });
+}
+
+test("the sidebar changes its width at once and fades its text in", async ({
+  page,
+}) => {
+  // What the sidebar does when it is first drawn: its text is there, not fading in.
+  await page.addInitScript(() => {
+    const runs: string[] = [];
+    Object.assign(window, { navFades: runs });
+    document.addEventListener(
+      "transitionrun",
+      (event) => {
+        if ((event.target as Element).closest?.("nav"))
+          runs.push(event.propertyName);
+      },
+      true,
+    );
+  });
+  await openKit(page, { locale: "en" });
+  await expect(
+    sidebar(page).getByText("Library", { exact: true }),
+  ).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { navFades: string[] }).navFades,
+    ),
+  ).toEqual([]);
+  // One turn of the page for the whole sequence: nothing can run on between the steps.
+  const seen = await page.evaluate(async () => {
+    const nav = document.querySelector<HTMLElement>(
+      'nav[aria-label="Workspace"]',
+    )!;
+    const press = (name: string) =>
+      nav
+        .querySelector<HTMLButtonElement>(`button[aria-label="${name}"]`)!
+        .click();
+    // React draws the new state a moment after the click, before anything else runs:
+    // waiting in microtasks keeps the page from painting (or a transition from ending).
+    const drawn = async () => {
+      for (let turn = 0; turn < 50; turn++) await Promise.resolve();
+    };
+    const transitions = () =>
+      document
+        .getAnimations()
+        .filter((animation) => animation instanceof CSSTransition)
+        .map((animation) => (animation as CSSTransition).transitionProperty);
+    const textOf = (text: string) =>
+      [...nav.querySelectorAll<HTMLElement>("span, div")].find(
+        (element) => element.textContent === text,
+      )!;
+
+    press("Collapse sidebar");
+    await drawn();
+    const collapsed = {
+      width: nav.getBoundingClientRect().width,
+      transitions: transitions(),
+    };
+    press("Expand sidebar");
+    await drawn();
+    const expanded = {
+      width: nav.getBoundingClientRect().width,
+      transitions: transitions(),
+      fading: ["Library", "128", "Papers"].map((text) => ({
+        text,
+        opacity: Number(getComputedStyle(textOf(text)).opacity),
+        running: textOf(text)
+          .getAnimations()
+          .map((animation) => (animation as CSSTransition).transitionProperty),
+      })),
+    };
+    return { collapsed, expanded };
+  });
+
+  // The width is where it is going the moment the button is pressed, and never animated.
+  expect(seen.collapsed.width).toBe(56);
+  expect(seen.expanded.width).toBe(220);
+  expect(seen.collapsed.transitions).not.toContain("width");
+  expect(seen.expanded.transitions).not.toContain("width");
+  // Going out is at once; coming in is a fade of opacity alone: the label, the note and the title.
+  expect(seen.collapsed.transitions).not.toContain("opacity");
+  for (const { text, opacity, running } of seen.expanded.fading) {
+    expect(running, text).toContain("opacity");
+    expect(running, text).not.toContain("transform");
+    expect(opacity, text).toBeLessThan(1);
+  }
+  await expect(sidebar(page).getByText("Library", { exact: true })).toHaveCSS(
+    "opacity",
+    "1",
+  );
+});
+
 test("active item is marked as current", async ({ page }) => {
   await openKit(page);
   await expect(item(page, "Reading")).toHaveAttribute("aria-current", "page");

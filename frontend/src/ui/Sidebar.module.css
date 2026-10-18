@@ -8,9 +8,11 @@
   flex: none;
   flex-direction: column;
   width: var(--sidebar-width);
-  /* It sits on the shell: no surface. Overflow is cut while the width is in motion. */
+  /*
+   * It sits on the shell: no surface. The width changes at once and is never
+   * animated: the cards beside it would be laid out again on every frame.
+   */
   overflow: hidden;
-  transition: width var(--ui-dur-3) var(--ui-ease-in-out);
 }
 
 .collapsed {
@@ -51,7 +53,8 @@
   flex-direction: column;
   gap: var(--ui-space-2);
   min-height: 0;
-  padding: 0 var(--sidebar-inset) var(--ui-space-8);
+  /* Room for the focus ring (it reaches 4px out), which the scrolling would cut. */
+  padding: var(--ui-space-4) var(--sidebar-inset) var(--ui-space-8);
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
@@ -169,6 +172,25 @@
 .collapsed .label,
 .collapsed .meta {
   display: none;
+}
+
+/*
+ * What comes back when the sidebar opens fades in (opacity only). Going the other
+ * way nothing fades: the text is gone with the width. They are `display: none`
+ * while collapsed, so the fade starts from `@starting-style`. Not at load
+ * (`data-settled` is set once the sidebar is in place): what is drawn from the
+ * start is just there.
+ */
+.sidebar[data-settled]:not(.collapsed)
+  :is(.header, .label, .meta, .sectionTitle) {
+  transition: opacity var(--ui-dur-1) var(--ui-ease-out);
+}
+
+@starting-style {
+  .sidebar[data-settled]:not(.collapsed)
+    :is(.header, .label, .meta, .sectionTitle) {
+    opacity: 0;
+  }
 }
 
 /* The dot moves up to the corner of the icon. */

@@ -413,11 +413,21 @@ test("a horizontal list moves with the left and right arrows", async ({
   await expect(first).toBeFocused();
   await page.keyboard.press("ArrowLeft");
   await expect(last).toBeFocused();
-  // The items sit side by side.
-  const [a, b] = await Promise.all([
-    first.evaluate((el) => el.getBoundingClientRect().toJSON()),
-    last.evaluate((el) => el.getBoundingClientRect().toJSON()),
-  ]);
+  // The items sit side by side. Both are measured in one turn of the page, from the
+  // list's own corner: the list is in a card that scrolls, and a scroll between two
+  // readings would move one of them and not the other.
+  const [a, b] = await list.evaluate((element) => {
+    const items = element.querySelectorAll('[role="menuitem"]');
+    const origin = element.getBoundingClientRect();
+    return [items[0], items[items.length - 1]].map((item) => {
+      const { left, right, top } = item.getBoundingClientRect();
+      return {
+        left: left - origin.left,
+        right: right - origin.left,
+        top: top - origin.top,
+      };
+    });
+  });
   expect(b.left).toBeGreaterThanOrEqual(a.right);
   expect(Math.abs(a.top - b.top)).toBeLessThanOrEqual(1);
 });

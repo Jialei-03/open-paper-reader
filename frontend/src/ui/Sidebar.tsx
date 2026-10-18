@@ -69,7 +69,7 @@ export interface SidebarProps {
  * The navigation down the left of the window. It has no surface of its own: it
  * sits on the shell, and its items are lit only when the pointer is on them or
  * they are current. 220px wide, 56px once collapsed, when only the icons are
- * left. Ctrl+\ (Command+\ on a Mac) collapses and expands it, from anywhere but
+ * left (the change is at once; the text that returns fades in). Ctrl+\ (Command+\ on a Mac) collapses and expands it, from anywhere but
  * a text field.
  */
 export function Sidebar({
@@ -82,6 +82,12 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useI18n();
   const mac = currentPlatformIsMac();
+  const nav = useRef<HTMLElement>(null);
+
+  // The text that comes back when the sidebar opens fades in; what is there at load does not.
+  useEffect(() => {
+    nav.current?.setAttribute("data-settled", "");
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -99,6 +105,7 @@ export function Sidebar({
   return (
     <SidebarContext.Provider value={{ collapsed }}>
       <nav
+        ref={nav}
         aria-label={label}
         className={clsx(styles.sidebar, collapsed && styles.collapsed)}
       >
