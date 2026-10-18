@@ -167,7 +167,7 @@ def fetch_relations(identifier, relation, offset):
 
 _DOI = re.compile(r"\b(10\.\d{4,9}/[^\s\"<>]+)", re.IGNORECASE)
 _ARXIV = re.compile(
-    r"(?:arxiv[:\s/]*(?:abs/)?|arxiv\.org/abs/)(\d{4}\.\d{4,5})(?:v\d+)?", re.IGNORECASE
+    r"(?:arxiv[:\s/]*(?:abs/)?|arxiv\.org/abs/|\babs/)(\d{4}\.\d{4,5})(?:v\d+)?", re.IGNORECASE
 )
 _pdf_slots = threading.BoundedSemaphore(2)
 
@@ -182,7 +182,7 @@ def references_in(text):
     )
 
 
-def lookup(*, doi=None, arxiv=None, title=None):
+def lookup(*, doi=None, arxiv=None, title=None, within=None):
     """The work named by a DOI, an arXiv id or a title, or None if nobody knows it.
 
     Raises HTTPException(503) when no service could be reached at all.
@@ -190,7 +190,7 @@ def lookup(*, doi=None, arxiv=None, title=None):
     from . import scholar
 
     try:
-        item = scholar.lookup_checked(doi=doi, arxiv=arxiv, title=title)
+        item = scholar.lookup_checked(doi=doi, arxiv=arxiv, title=title, within=within)
     except scholar.ScholarUnavailable:
         raise HTTPException(503, "文献服务暂时连不上，请稍后重试") from None
     if item:
@@ -219,7 +219,8 @@ def install_citation_routes(app, settings, db, auth, owned):
         if not (doi or arxiv or title):
             raise HTTPException(422, "缺少要查询的文献")
         ask = getattr(app.state, "citation_lookup", lookup)
-        return {"item": ask(doi=doi or None, arxiv=arxiv or None, title=title or None)}
+        within = {"within": entry} if title and title == entry else {}
+        return {"item": ask(doi=doi or None, arxiv=arxiv or None, title=title or None, **within)}
 
     @app.get("/api/v1/citations/arxiv-pdf")
     def arxiv_pdf(id: str = Query(max_length=100), a=Depends(auth)):

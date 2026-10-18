@@ -368,8 +368,20 @@ def _same_title(wanted, found):
     return bool(a and b) and (a == b or difflib.SequenceMatcher(None, a, b).ratio() >= 0.9)
 
 
-def lookup_checked(*, doi=None, arxiv=None, title=None):
-    """Look a paper up; ``None`` if no source knows it, ``ScholarUnavailable`` if none answered."""
+def _title_fits(wanted, found, within=None):
+    if _same_title(wanted, found):
+        return True
+    # An entry carries authors, venue and year around the title.
+    named = _normal(found)
+    return bool(within and len(named) >= 12 and named in _normal(within))
+
+
+def lookup_checked(*, doi=None, arxiv=None, title=None, within=None):
+    """Look a paper up; ``None`` if no source knows it, ``ScholarUnavailable`` if none answered.
+
+    ``within`` is a whole reference-list entry the title was taken from: a found
+    work is then accepted when its title appears in that entry.
+    """
     doi = clean_doi(doi or "")
     arxiv = clean_arxiv(arxiv or "")
     title = " ".join((title or "").split())[:300]
@@ -394,7 +406,7 @@ def lookup_checked(*, doi=None, arxiv=None, title=None):
         answered = True
         if not found:
             continue
-        if by_title and not _same_title(title, found["title"]):
+        if by_title and not _title_fits(title, found["title"], within):
             continue
         if result is None:
             result = found
@@ -414,9 +426,9 @@ def lookup_checked(*, doi=None, arxiv=None, title=None):
     return dict(result)
 
 
-def lookup(*, doi=None, arxiv=None, title=None):
+def lookup(*, doi=None, arxiv=None, title=None, within=None):
     """Like ``lookup_checked``, but an unreachable network reads as "not found"."""
     try:
-        return lookup_checked(doi=doi, arxiv=arxiv, title=title)
+        return lookup_checked(doi=doi, arxiv=arxiv, title=title, within=within)
     except ScholarUnavailable:
         return None

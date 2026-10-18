@@ -240,7 +240,12 @@ def test_lookup_reads_ids_from_an_entry_and_asks_scholar(monkeypatch):
     # Identifiers read from the entry stay even when the service leaves them out.
     assert item["doi"] == "10.5555/3295222.3295349" and item["arxiv"] == "1706.03762"
     assert asked == [
-        {"doi": "10.5555/3295222.3295349", "arxiv": "1706.03762v5", "title": None}
+        {
+            "doi": "10.5555/3295222.3295349",
+            "arxiv": "1706.03762v5",
+            "title": None,
+            "within": None,
+        }
     ]
     monkeypatch.setattr(scholar, "lookup_checked", lambda **kw: None)
     assert citations.lookup(title="Nothing known by this name at all") is None
@@ -298,3 +303,20 @@ def test_arxiv_pdf_route_validates_and_streams(env, monkeypatch):
         a.get("/api/v1/citations/arxiv-pdf", params={"id": "1706.03762"}).status_code
         == 502
     )
+
+
+def test_entries_name_arxiv_as_corr_abs_and_titles_inside_entries_match():
+    from backend import citations, scholar
+
+    entry = (
+        "Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio. Neural machine "
+        "translation by jointly learning to align and translate. CoRR, "
+        "abs/1409.0473, 2014."
+    )
+    assert citations.references_in(entry) == (None, "1409.0473")
+    title = "Neural machine translation by jointly learning to align and translate"
+    assert scholar._title_fits(entry, title, within=entry)
+    assert not scholar._title_fits(entry, title)
+    assert not scholar._title_fits(entry, "Attention is all you need", within=entry)
+    # A very short title inside an entry proves nothing.
+    assert not scholar._title_fits(entry, "Neural", within=entry)
