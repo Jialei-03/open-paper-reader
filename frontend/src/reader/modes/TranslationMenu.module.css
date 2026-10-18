@@ -1,0 +1,6 @@
+/* The button of the one menu that holds the modes in a narrow strip: the chosen mode, and the sign that it opens. */
+.current {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+}

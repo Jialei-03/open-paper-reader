@@ -51,6 +51,10 @@ import styles from "./PaperHeader.module.css";
  * title and the page: they move into the more menu.
  */
 const NARROW_CARD = 560;
+/** Below this the reading modes are one menu instead of the switch (the switch and its menu are about 180px). */
+const TIGHT_CARD = 700;
+/** Below this not even that one button fits: the modes go into the more menu. */
+const TINY_CARD = 420;
 /** The page number is announced to a screen reader once it has stopped changing for this long (ms). */
 const ANNOUNCE_AFTER = 500;
 /** The percentages the zoom menu offers. */
@@ -69,18 +73,21 @@ function useSettled<T>(value: T, delay: number): T {
   return settled;
 }
 
-/** Whether the card around `bar` is narrower than `NARROW_CARD`. */
-function useNarrowCard(bar: RefObject<HTMLElement | null>): boolean {
+/** Whether the card around `bar` is narrower than `limit` (`NARROW_CARD` unless given). */
+function useNarrowCard(
+  bar: RefObject<HTMLElement | null>,
+  limit = NARROW_CARD,
+): boolean {
   const [narrow, setNarrow] = useState(false);
   useLayoutEffect(() => {
     const card = bar.current?.parentElement;
     if (!card) return;
-    const measure = () => setNarrow(card.offsetWidth < NARROW_CARD);
+    const measure = () => setNarrow(card.offsetWidth < limit);
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(card);
     return () => observer.disconnect();
-  }, [bar]);
+  }, [bar, limit]);
   return narrow;
 }
 
@@ -233,6 +240,13 @@ export interface PaperHeaderProps {
   onBack?: () => void;
   /** The button that opens the side panel, in a window too narrow to show it beside the paper. */
   panelToggle?: ReactNode;
+  /**
+   * The controls for how the paper is read (the reading modes and the translation settings), made for a
+   * strip with room for them or, with `compact`, one that has less.
+   */
+  modes?: (compact: boolean) => ReactNode;
+  /** The same as menu entries, for the more menu of a strip with no room for `modes` at all. */
+  modeItems?: MenuEntry[];
 }
 
 /**
@@ -255,10 +269,14 @@ export function PaperHeader({
   onPaperChange,
   onBack,
   panelToggle,
+  modes,
+  modeItems,
 }: PaperHeaderProps) {
   const { t } = useI18n();
   const bar = useRef<HTMLDivElement>(null);
   const narrow = useNarrowCard(bar);
+  const tight = useNarrowCard(bar, TIGHT_CARD);
+  const tiny = useNarrowCard(bar, TINY_CARD);
   const [outlineButton, setOutlineButton] = useState<HTMLElement | null>(null);
   const [exporting, setExporting] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
@@ -374,6 +392,13 @@ export function PaperHeader({
   ];
 
   const moreItems: MenuEntry[] = [
+    // The reading modes, where the strip has no room for even their one button.
+    ...(tiny && file && modeItems?.length
+      ? ([
+          ...modeItems,
+          { kind: "separator", id: "modes-end" },
+        ] satisfies MenuEntry[])
+      : []),
     // What no longer fits beside the title.
     ...(narrow && reading
       ? ([
@@ -445,6 +470,9 @@ export function PaperHeader({
             onNavigate={onNavigate}
             onDone={toPaper}
           />
+        )}
+        {file && modes && !tiny && (
+          <div className={styles.group}>{modes(tight)}</div>
         )}
         <div className={styles.group}>
           {reading && !narrow && (
