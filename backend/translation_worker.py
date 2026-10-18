@@ -14,7 +14,7 @@ from pathlib import Path
 
 from sqlalchemy import select, update
 
-from .arxiv_import import download, extract_source
+from .arxiv_import import NO_PDF, NO_SOURCE, ArxivNotFound, download, extract_source
 from .config import Settings, database
 from .models import File, Paper, TranslationJob, now
 from .translation_dispatch import TaskExecutor
@@ -157,7 +157,11 @@ def process(settings, maker, job_id):
                 process_layout(settings, maker, job_id, config, work, progress)
             return
         progress(0, 0, "下载固定版本的原文与源码")
-        raw = download("/pdf/" + arxiv)
+        # The paper exists (it was imported); a 404 here is a missing file.
+        try:
+            raw = download("/pdf/" + arxiv)
+        except ArxivNotFound:
+            raise ValueError(NO_PDF) from None
         if not raw.startswith(b"%PDF-"):
             raise ValueError("arXiv 未返回有效 PDF")
         checksum = hashlib.sha256(raw).hexdigest()
@@ -178,7 +182,10 @@ def process(settings, maker, job_id):
             current = d.get(TranslationJob, job_id)
             current.source_file = source_file
             d.commit()
-        raw = download("/src/" + arxiv)
+        try:
+            raw = download("/src/" + arxiv)
+        except ArxivNotFound:
+            raise ValueError(NO_SOURCE) from None
         progress(0, 0, "解析章节、公式和图表")
         extract_source(raw, work / "source")
         cache_path = work / "units.json"

@@ -29,7 +29,7 @@ python -m backend.preparation_worker
 python -m backend.translation_worker
 ```
 
-可使用 `deploy/systemd/paper-preparation-worker.service`，与 HTTP 服务加载相同配置。设置 `PDF_LAYOUT_IMAGE` 启用布局生成，`TRANSLATION_TEX_IMAGE` 指向包含完整字体和宏包的 TeX 镜像。没有可用模型时任务等待，不反复调用模型；没有文字层的扫描页会明确提示需要 OCR，不发布空译文。
+可使用 `deploy/systemd/paper-preparation-worker.service`，与 HTTP 服务加载相同配置。设置 `PDF_LAYOUT_IMAGE` 启用布局生成，`TRANSLATION_TEX_IMAGE` 指向包含完整字体和宏包的 TeX 镜像。没有可用模型时任务等待，不反复调用模型。整篇都没有文字层（扫描版）的论文不做自动准备，提示「这篇论文没有文字层（可能是扫描版），自动导读需要 OCR；原文仍可阅读」；只有个别页没有文字层时，这些页跳过页面翻译、也不作为导读的依据，其余页照常准备，页码保持原样。不发布空译文。
 
 模型请求和翻译批次没有固定的 3/6 并发上限。上游限流会退避，已成功的句子可继续复用。PDF 排版与 LaTeX 编译保留容器隔离、磁盘及内存保护。
 

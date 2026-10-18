@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .arxiv_import import ArxivNotFound, download, identifier, metadata
+from .arxiv_import import NO_PDF, ArxivNotFound, download, identifier, metadata
 from .import_progress import read as read_import_progress
 from .import_progress import report, tracking
 from .model_options import task_options
@@ -163,9 +163,7 @@ def import_arxiv_paper(d, settings, actor, url, snapshot, *, existing=None, tags
         try:
             raw = download("/pdf/" + meta["arxiv_id"])
         except ArxivNotFound:
-            raise HTTPException(
-                422, "arXiv 没有提供这篇论文的 PDF，可能还在生成或只有网页版"
-            ) from None
+            raise HTTPException(422, NO_PDF) from None
         if not raw.startswith(b"%PDF-"):
             # A page instead of the file is a transient answer; try again.
             raise ValueError("Invalid PDF")

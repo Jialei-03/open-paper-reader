@@ -10,9 +10,18 @@ import io
 
 from PIL import Image, ImageDraw
 from pypdf import PdfReader, PdfWriter
+from pypdf.constants import UserAccessPermissions as Allow
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 WIDTH, HEIGHT = 612, 792
+# What a publisher typically allows without the owner password: printing and
+# copying text, not editing. The reserved bits are set, as Acrobat writes them.
+PUBLISHER_PERMISSIONS = 0xFFFFF0C0 | int(
+    Allow.PRINT
+    | Allow.EXTRACT
+    | Allow.EXTRACT_TEXT_AND_GRAPHICS
+    | Allow.PRINT_TO_REPRESENTATION
+)
 
 
 def _text_page(writer, number):
@@ -93,7 +102,10 @@ def owner_locked_pdf(algorithm: str = "AES-128") -> bytes:
     """Only an owner password; the user password is empty, so it opens directly."""
     writer = _text_writer(3)
     writer.encrypt(
-        user_password="", owner_password="publisher-owner", algorithm=algorithm
+        user_password="",
+        owner_password="publisher-owner",
+        algorithm=algorithm,
+        permissions_flag=PUBLISHER_PERMISSIONS,
     )
     return _bytes(writer)
 

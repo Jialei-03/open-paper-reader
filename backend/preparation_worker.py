@@ -65,7 +65,10 @@ def artifact_key(row, file, config, kind, parameters):
     ).hexdigest()
 
 
-def save_artifact(settings, maker, row, file, config, kind, parameters, result):
+def save_artifact(
+    settings, maker, row, file, config, kind, parameters, result, pages=None
+):
+    """Publish one artifact; ``pages`` are the pages it was made from."""
     key = artifact_key(row, file, config, kind, parameters)
     with maker() as d:
         lock_owner(d, row.owner)
@@ -108,7 +111,9 @@ def save_artifact(settings, maker, row, file, config, kind, parameters, result):
         value.size = size
         value.updated_at = now()
         value.evidence_pages = (
-            [parameters["page"]]
+            sorted(pages)
+            if pages is not None
+            else [parameters["page"]]
             if kind == "page_translation"
             else list(range(1, (file.pages or 0) + 1))
         )
@@ -293,7 +298,11 @@ def process(settings, maker, identifier):
                 artifact_prompt(file, body, direct=True),
                 texts,
             )
-            save_artifact(settings, maker, row, file, config, "guide", {}, check(raw))
+            # The guide is made from the pages with text; a scanned page is not
+            # evidence for it.
+            save_artifact(
+                settings, maker, row, file, config, "guide", {}, check(raw), texts
+            )
             progress(guide_status="completed")
 
         errors = []

@@ -47,6 +47,11 @@ def identifier(value):
     return value.lower()
 
 
+# A paper that exists can still lack one of its files on arXiv.
+NO_PDF = "arXiv 没有提供这篇论文的 PDF，可能还在生成或只有网页版"
+NO_SOURCE = "该版本未提供可用的 LaTeX 源码；本阶段不支持纯 PDF 翻译"
+
+
 class ArxivNotFound(ValueError):
     """arXiv has no such paper, version or file; asking again will not change that."""
 
@@ -187,7 +192,7 @@ def extract_source(data, destination):
                 with archive.extractfile(m) as src:
                     target.write_bytes(src.read())
     if not list(destination.rglob("*.tex")):
-        raise ValueError("该版本未提供可用的 LaTeX 源码；本阶段不支持纯 PDF 翻译")
+        raise ValueError(NO_SOURCE)
 
 
 class CitationMetadata(HTMLParser):
