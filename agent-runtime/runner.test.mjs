@@ -37,3 +37,61 @@ test('lease released on provider setup and stream failures', async () => {
     assert.equal(released,1);
   }
 });
+
+import {explain, plain, modelCalls, statusMessage, CONNECTION, INTERRUPTED, MALFORMED, FAILED} from './model-call.mjs';
+test('a failed model call is explained in the backend\'s words, keeping HTTP status', () => {
+  assert.equal(explain({status:500, error:'500: {"message":"boom"}'}), '模型服务返回 HTTP 500：服务暂时出错，请稍后重试');
+  assert.equal(explain({status:429}), statusMessage(429));
+  for (const status of [400,401,403,404,408,429,502]) assert.match(statusMessage(status), new RegExp(`HTTP ${status}：`));
+  assert.equal(explain({}), CONNECTION);
+  assert.equal(explain({status:200, error:'terminated'}), INTERRUPTED);
+  assert.equal(explain({status:200, error:'Stream ended without finish_reason'}), INTERRUPTED);
+  assert.equal(explain({status:200, error:"Expected property name or '}' in JSON at position 1"}), MALFORMED);
+  assert.equal(explain({silent:300}), '模型服务超过 300 秒没有回应，已停止；请稍后重试或换一个模型');
+  // Our own reasons pass; SDK internals do not.
+  assert.equal(plain('会话上下文达到本轮限制，请新建会话'), '会话上下文达到本轮限制，请新建会话');
+  assert.equal(plain('TypeError: fetch failed\n    at node:internal'), FAILED);
+});
+
+const stream = (events, gap = 0) => ({
+  result: async () => 'result',
+  async *[Symbol.asyncIterator]() { for (const e of events) { await new Promise(r => setTimeout(r, gap)); yield e; } },
+});
+test('a model call records the provider status and explains its failure', async () => {
+  const models = modelCalls(async () => ({status:500}), 5);
+  const call = models.watch(() => {
+    const events = stream([{type:'error', error:{errorMessage:'500: {}'}}]);
+    return {...events, async *[Symbol.asyncIterator]() { await models.fetch('https://x'); yield* events; }};
+  });
+  for await (const e of call) void e;
+  assert.equal(models.failure(), statusMessage(500));
+  assert.equal(await call.result(), 'result');
+  // The next call starts clean.
+  for await (const e of models.watch(() => stream([{type:'done'}]))) void e;
+  assert.equal(models.failure(), undefined);
+});
+test('a silent model is aborted after the limit; a talking one is not', async () => {
+  const models = modelCalls(async () => ({status:200}), 0.1);
+  let seen;
+  const silent = models.watch(signal => {
+    seen = signal;
+    return {result: async () => 'r', async *[Symbol.asyncIterator]() {
+      await new Promise(resolve => signal.addEventListener('abort', resolve));
+      yield {type:'error', error:{errorMessage:'Request aborted'}};
+    }};
+  });
+  for await (const e of silent) void e;
+  assert.equal(seen.aborted, true);
+  assert.equal(models.failure(), '模型服务超过 0.1 秒没有回应，已停止；请稍后重试或换一个模型');
+  // Events every 50 ms keep a 100 ms limit from firing over 300 ms in all.
+  const talking = models.watch(signal => { seen = signal; return stream(Array(6).fill({type:'text_delta'}).concat({type:'done'}), 50); });
+  for await (const e of talking) void e;
+  assert.equal(seen.aborted, false);
+  assert.equal(models.failure(), undefined);
+  // The agent's own stop still reaches the provider.
+  const stop = new AbortController();
+  const stopped = models.watch(signal => { seen = signal; return stream([]); }, stop.signal);
+  stop.abort();
+  assert.equal(seen.aborted, true);
+  for await (const e of stopped) void e;
+});

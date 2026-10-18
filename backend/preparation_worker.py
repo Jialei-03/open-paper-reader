@@ -27,8 +27,8 @@ from .pdf_text import extract_pdf_pages
 from .reading_artifacts import RESULT_LIMIT, artifact_prompt, check_result
 from .storage_budget import lock_owner, require_space
 from .translation_dispatch import TaskExecutor
-from .translation_memory import SentenceMemory
-from .translation_settings import complete, read_config
+from .translation_memory import SentenceMemory, request
+from .translation_settings import read_config
 
 LOG = logging.getLogger(__name__)
 
@@ -216,7 +216,7 @@ def process(settings, maker, identifier):
                 # layout-aware fallback as an explicit reader translation.
                 result = json.loads(
                     memory.page(
-                        lambda s, c: complete(translated, s, c, cancelled=stop),
+                        lambda s, c: request(translated, s, c, stop),
                         texts[number], number,
                     )
                 )
@@ -276,8 +276,10 @@ def process(settings, maker, identifier):
                     evidence_text={str(n): t for n, t in texts.items()},
                 )
 
+            # Like page translations, a rate limit or a server error is tried
+            # again in place rather than failing the whole preparation.
             raw = whole_paper(
-                lambda s, c: complete(guide_cfg, s, c, cancelled=stop),
+                lambda s, c: request(guide_cfg, s, c, stop),
                 check,
                 artifact_prompt(file, body, direct=True),
                 texts,
