@@ -293,3 +293,33 @@ def test_tectonic_errors_are_reported_by_what_went_wrong(tmp_path, monkeypatch):
     monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=1, stdout=log, stderr=b''))
     with pytest.raises(ValueError, match='hpdftex.def:207: Undefined control sequence'):
         engine.compile_project(tmp_path, tectonic='tectonic', tex_env={})
+
+
+def test_hangul_and_kana_get_a_fallback_font_only_where_one_exists(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text('\\documentclass{article}\n\\usepackage[UTF8]{ctex}\n\\begin{document}\n中文 유지\n\\end{document}\n')
+    engine.prepare_compile_source(main)
+    tex = main.read_text()
+    block = tex[tex.index('% open-paper-reader CJK fallback fonts'):tex.index('\\begin{document}')]
+    assert '\\@ifpackageloaded{xeCJK}' in block
+    assert '\\IfFontExistsTF{Noto Serif CJK KR}' in block
+    assert '\\IfFontExistsTF{Apple SD Gothic Neo}' in block
+    engine.prepare_compile_source(main)
+    assert main.read_text().count('% open-paper-reader CJK fallback fonts') == 1
+
+
+def test_a_guard_written_by_an_earlier_release_is_made_xetex_safe(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text('\\documentclass{article}\n\\ifdefined\\pdfoutput\\pdfoutput=1\\fi\n\\begin{document}x\\end{document}\n')
+    engine.prepare_compile_source(main)
+    assert '\\ifdefined\\XeTeXversion\\else\\ifdefined\\pdfoutput\\pdfoutput=1\\fi\\fi' in main.read_text()
+
+
+def test_tectonic_missing_glyphs_are_named_from_their_code_points(tmp_path, monkeypatch):
+    (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}中文\end{document}')
+    (tmp_path / 'build').mkdir()
+    (tmp_path / 'build/main.pdf').write_bytes(b'%PDF-1.7')
+    log = 'warning: x:8: Missing character: There is no \ufffd\ufffd (U+C720) in font [Fandol]!'.encode()
+    monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=0, stdout=log, stderr=b''))
+    with pytest.raises(ValueError, match='缺失字形：유'):
+        engine.compile_project(tmp_path, tectonic='tectonic', tex_env={})

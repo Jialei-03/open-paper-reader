@@ -556,6 +556,37 @@ def legacy_font_punctuation(main):
             path.write_text(repaired)
 
 
+CJK_FALLBACK_MARK = "% open-paper-reader CJK fallback fonts"
+# Fonts with Hangul and kana (FandolSong has neither): the hosted image's Noto
+# CJK first, then what a Mac carries. Only one that is actually there is used.
+CJK_FALLBACKS = ("Noto Serif CJK KR", "Noto Sans CJK KR", "Apple SD Gothic Neo")
+
+
+def cjk_fallback_fonts(main):
+    """Korean or Japanese in a paper set in a font that has them, not left as missing glyphs."""
+    tex = main.read_text(errors="replace")
+    begin = tex.find(r"\begin{document}")
+    if begin < 0 or CJK_FALLBACK_MARK in tex:
+        return
+    choice = ""
+    for font in reversed(CJK_FALLBACKS):
+        choice = r"\IfFontExistsTF{" + font + r"}{\opr@cjkfallback{" + font + "}}{" + choice + "}"
+    block = "\n".join([
+        CJK_FALLBACK_MARK,
+        r"\makeatletter",
+        r"\@ifpackageloaded{xeCJK}{%",
+        r"  \def\opr@cjkfallback#1{\xeCJKsetup{AutoFallBack=true}%",
+        r"    \setCJKfallbackfamilyfont{\CJKrmdefault}{#1}%",
+        r"    \setCJKfallbackfamilyfont{\CJKsfdefault}{#1}%",
+        r"    \setCJKfallbackfamilyfont{\CJKttdefault}{#1}}%",
+        "  " + choice + "%",
+        r"}{}",
+        r"\makeatother",
+        "",
+    ])
+    main.write_text(tex[:begin] + block + tex[begin:])
+
+
 def resolve_subfigure_packages(main):
     """subcaption refuses to load beside subfig; drop whichever one the paper never uses.
 
@@ -616,6 +647,8 @@ def prepare_compile_source(main):
         # XeTeX (and Tectonic's) may define \pdfoutput too; setting it there makes
         # hyperref pick its pdfTeX driver and stop on the first \pdf... primitive.
         repaired = re.sub(r"(?m)^([ \t]*)\\pdfoutput[ \t]*=?[ \t]*([01])\b", r"\1\\ifdefined\\XeTeXversion\\else\\ifdefined\\pdfoutput\\pdfoutput=\2\\fi\\fi", content)
+        # A source prepared by an earlier release carries the older, XeTeX-unsafe guard.
+        repaired = re.sub(r"(?m)^([ \t]*)\\ifdefined\\pdfoutput\\pdfoutput=([01])\\fi", r"\1\\ifdefined\\XeTeXversion\\else\\ifdefined\\pdfoutput\\pdfoutput=\2\\fi\\fi", repaired)
         disabled = regex.compile(
             r"(?m)^([ \t]*)(\\DisableLigatures(?:\[[^\]]*\])?\s*(\{(?:[^{}]|(?3))*\}))"
         )
@@ -626,6 +659,7 @@ def prepare_compile_source(main):
         if repaired != content:
             path.write_text(repaired)
     resolve_subfigure_packages(main)
+    cjk_fallback_fonts(main)
     legacy_font_punctuation(main)
     tex = main.read_text()
     # A translated title occasionally has its closing brace before the final
@@ -955,7 +989,8 @@ def compiled(directory, main, result, forced=False):
             ]
         raise ValueError("中文 PDF 编译失败：" + message)
     if "Missing character:" in log:
-        missing = sorted(set(re.findall(r"Missing character: There is no (.) \(", log)))
+        codes = re.findall(r"Missing character: There is no .*? \((?:U\+|\")([0-9A-Fa-f]{4,6})\)", log)
+        missing = sorted({chr(int(code, 16)) for code in codes})
         detail = "：" + " ".join(missing[:8]) if missing else ""
         raise ValueError("译文存在缺失字形" + detail + "，未发布不完整 PDF")
     return target
