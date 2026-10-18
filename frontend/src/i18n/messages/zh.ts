@@ -479,33 +479,70 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.nav": "站点导航",
   "site.nav.how": "工作方式",
   "site.nav.github": "GitHub",
-  "site.nav.start": "开始阅读",
+  "site.nav.start": "打开在线版",
   "site.language": "语言",
   "site.hero.title": "和一位同样读过论文的 AI 助手，一起读论文。",
   "site.hero.lead":
-    "导入 PDF，自动得到导读；划选一句话就能解释；有问题直接问助手。每个回答都能点回原文那一句。",
-  "site.hero.start": "开始阅读",
+    "导入 PDF 或粘贴 arXiv 链接，自动得到导读；划选一句话就能解释或翻译；有问题直接问助手。每个回答都能点回原文那一句。",
+  "site.hero.start": "打开在线版",
   "site.hero.source": "查看源码",
-  "site.shot.alt": "阅读器：左边是论文，右边是导读、助手和笔记。",
+  "site.shot.alt":
+    "阅读器：左边是论文，右边的助手回答带着页码标签，点一下回到原文那一句。",
   "site.how.title": "从一份 PDF，到一个能核对的回答",
   "site.how.import.title": "导入",
-  "site.how.import.body": "上传 PDF 或粘贴 arXiv 链接，论文在后台自动准备好。",
+  "site.how.import.body":
+    "上传 PDF 或粘贴 arXiv 链接，论文在后台自动准备好。⌘K 可以随时打开另一篇。",
   "site.how.guide.title": "自动导读",
   "site.how.guide.body":
-    "一段简短的摘要、关键词和按章节的导读，每一条都带页码。",
+    "一段简短的摘要、关键词和按章节的导读，每一节都带页码，点一下跳到那一页。",
+  "site.how.ask.alt":
+    "助手面板里的回答：过程可以折叠，回答里的页码标签可以回到原文。",
   "site.how.select.title": "划选理解",
   "site.how.select.body":
-    "选中文字即可解释、翻译、高亮，或记进笔记，并保留回到原文的链接。",
+    "选中文字，弹出菜单：解释 E、翻译 T、高亮 H、记到笔记 N、问助手 ↵。译文就出现在选区旁边，记到笔记时会留下回到原文的链接。",
   "site.how.ask.title": "问助手",
   "site.how.ask.body":
-    "围绕整篇论文提问。回答附带页码，点一下就回到原文那一句。",
-  "site.modes.title": "按你的习惯读",
-  "site.modes.body":
-    "在原文、双栏对照和保留版式的译文之间切换。浅色与深色，中文与英文。",
-  "site.open.title": "开源，用你自己的模型",
+    "助手在右侧面板回答，处理过程可以折叠起来看；回答里的页码标签会带你回到原文那一句。",
+  "site.modes.title": "原文、对照、译文",
+  "site.modes.body": "同一篇论文，三种读法，在阅读器顶部随时切换。",
+  "site.open.title": "开源",
   "site.open.body":
-    "open-paper-reader 是开源的。接入你已经在用的模型，论文和笔记留在你自己的空间里。",
-  "site.footer": "MIT 许可",
+    "open-paper-reader 以 MIT 许可开源。想自己装，用上面的命令；不想装，可以直接用在线版，同样用你自己的密钥。中文和英文界面，浅色和深色。",
+  "site.nav.modes": "阅读方式",
+  "site.nav.local": "本地优先",
+  "site.hero.install": "在自己的电脑上运行",
+  "site.hero.copy": "复制命令",
+  "site.hero.copied": "已复制",
+  "site.hero.note": "需要 uv 或 pipx。第一次打开时添加一个模型，之后不用登录。",
+  "site.how.guide.alt":
+    "右侧导读标签：三句摘要、关键词和按章节的导读，每节后面有页码标签。",
+  "site.how.select.alt":
+    "论文里选中一句话，下方弹出菜单：解释、翻译、高亮、记到笔记、问助手。",
+  "site.modes.original.title": "原文",
+  "site.modes.original.body": "论文本身，所有划选、高亮和提问都在这里发生。",
+  "site.modes.parallel.title": "对照",
+  "site.modes.parallel.body":
+    "每一页右边是这一页的译文，鼠标放到一句译文上，原文里对应的那句会标出来。",
+  "site.modes.translated.title": "译文",
+  "site.modes.translated.body":
+    "保留版式的译文 PDF（本机按需安装 BabelDOC）。对有 LaTeX 源码的 arXiv 论文，直接翻译源码再重新编译成 PDF，正在加入，尚未发布。",
+  "site.modes.alt": "对照模式：左边是论文页，右边是这一页的中文译文。",
+  "site.local.title": "本地优先，数据在你手里",
+  "site.local.body": "主要装在自己的电脑上用。",
+  "site.local.data.title": "都在本机",
+  "site.local.data.body":
+    "论文和笔记存在 ~/.open-paper-reader/ 的 SQLite 里，没有后台抓取，没有遥测。",
+  "site.local.account.title": "不用登录",
+  "site.local.account.body":
+    "在你自己的电脑上没有账户和密码，一条命令启动，浏览器自动打开。",
+  "site.local.models.title": "你自己的模型",
+  "site.local.models.body":
+    "填入你的 API 密钥，或连接本机的 Ollama、LM Studio。助手内置 Pi。",
+  "site.local.planned.title": "计划中",
+  "site.local.planned.body":
+    "让你本机的 Claude Code 或 Codex 来读论文，目前只是计划，现在的版本里没有。",
+  "site.open.source": "在 GitHub 上查看",
+  "site.footer": "MIT 许可。与 Anthropic、OpenAI 无关联。",
   "login.home": "open-paper-reader 首页",
   "login.title": "欢迎回来",
   "login.title.register": "创建账户",

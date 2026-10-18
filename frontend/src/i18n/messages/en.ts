@@ -525,35 +525,74 @@ export const en = {
   "site.nav": "Site",
   "site.nav.how": "How it works",
   "site.nav.github": "GitHub",
-  "site.nav.start": "Start reading",
+  "site.nav.start": "Open hosted version",
   "site.language": "Language",
   "site.hero.title": "Read papers with an AI assistant that has read them too.",
   "site.hero.lead":
-    "Import a PDF and get a guide. Select a sentence to have it explained. Ask the assistant anything. Every answer points back to the exact sentence in the paper.",
-  "site.hero.start": "Start reading",
+    "Import a PDF or paste an arXiv link and get a guide. Select a sentence to have it explained or translated. Ask the assistant anything. Every answer points back to the exact sentence in the paper.",
+  "site.hero.start": "Open hosted version",
   "site.hero.source": "View source",
   "site.shot.alt":
-    "The reader: a paper on the left, the guide, assistant and notes on the right.",
+    "The reader: a paper on the left; on the right the assistant's answer, with a page chip that returns to the exact sentence.",
   "site.how.title": "From a PDF to an answer you can check",
   "site.how.import.title": "Import",
   "site.how.import.body":
-    "Upload a PDF or paste an arXiv link. The paper is prepared in the background.",
+    "Upload a PDF or paste an arXiv link. The paper is prepared in the background. ⌘K opens another one at any time.",
   "site.how.guide.title": "Get the guide",
   "site.how.guide.body":
-    "A short summary, keywords and a section-by-section guide, each with page links.",
+    "A short summary, keywords and a section-by-section guide. Each section has page chips that jump to the page.",
+  "site.how.ask.alt":
+    "An answer in the assistant panel: the process can be folded, and page chips in the answer return to the paper.",
   "site.how.select.title": "Select to understand",
   "site.how.select.body":
-    "Select text to explain or translate it, highlight it, or save it to your notes with a link back.",
+    "Select text and a menu appears: Explain E, Translate T, Highlight H, Add to notes N, Ask ↵. The translation pops up next to the selection, and a note keeps a link back to the paper.",
   "site.how.ask.title": "Ask the assistant",
   "site.how.ask.body":
-    "Ask about the whole paper. Answers cite pages, and one click returns to the sentence.",
-  "site.modes.title": "Read it your way",
+    "The assistant answers in the side panel, with its process folded away until you want it. Page chips in the answer take you back to the sentence.",
+  "site.modes.title": "Original, parallel, translated",
   "site.modes.body":
-    "Switch between the original, a side-by-side translation and a translated copy that keeps the layout. Light and dark, in English or Chinese.",
-  "site.open.title": "Open source, with your own model",
+    "One paper, three ways to read it. Switch at the top of the reader at any time.",
+  "site.open.title": "Open source",
   "site.open.body":
-    "open-paper-reader is open source. Connect the model you already use; your papers and notes stay in your own workspace.",
-  "site.footer": "MIT licensed",
+    "open-paper-reader is open source under the MIT license. To run it yourself, use the command above; if you would rather not install anything, use the hosted version, also with your own key. Chinese and English interface, light and dark.",
+  "site.nav.modes": "Reading modes",
+  "site.nav.local": "Local-first",
+  "site.hero.install": "Run it on your own computer",
+  "site.hero.copy": "Copy command",
+  "site.hero.copied": "Copied",
+  "site.hero.note":
+    "Needs uv or pipx. Add a model the first time you open it; there is no sign-in after that.",
+  "site.how.guide.alt":
+    "The guide tab: a three-line summary, keywords and a guide by section, each with page chips.",
+  "site.how.select.alt":
+    "A sentence selected in the paper, with a menu under it: explain, translate, highlight, add to notes, ask.",
+  "site.modes.original.title": "Original",
+  "site.modes.original.body":
+    "The paper itself. Selecting, highlighting and asking all happen here.",
+  "site.modes.parallel.title": "Parallel",
+  "site.modes.parallel.body":
+    "Each page has its translation beside it. Hover a translated sentence and the matching sentence is marked in the original.",
+  "site.modes.translated.title": "Translated",
+  "site.modes.translated.body":
+    "A translated PDF that keeps the layout (BabelDOC, installed on demand on your machine). For arXiv papers with LaTeX source, translating the source and recompiling it into a PDF is being added and is not released yet.",
+  "site.modes.alt":
+    "Parallel mode: the paper page on the left, its Chinese translation on the right.",
+  "site.local.title": "Local-first, your data stays with you",
+  "site.local.body": "Made mainly to run on your own computer.",
+  "site.local.data.title": "All on this machine",
+  "site.local.data.body":
+    "Papers and notes live in SQLite under ~/.open-paper-reader/. No background crawling, no telemetry.",
+  "site.local.account.title": "No sign-in",
+  "site.local.account.body":
+    "On your own computer there is no account and no password. One command starts it and opens the browser.",
+  "site.local.models.title": "Your own models",
+  "site.local.models.body":
+    "Use your API key, or connect Ollama or LM Studio on this machine. The assistant is the built-in Pi agent.",
+  "site.local.planned.title": "Planned",
+  "site.local.planned.body":
+    "Letting the Claude Code or Codex on your machine read papers. Only a plan for now; it is not in the current version.",
+  "site.open.source": "View on GitHub",
+  "site.footer": "MIT license. Not affiliated with Anthropic or OpenAI.",
   "login.home": "open-paper-reader home",
   "login.title": "Welcome back",
   "login.title.register": "Create an account",
