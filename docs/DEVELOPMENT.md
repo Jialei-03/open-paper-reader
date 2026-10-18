@@ -109,6 +109,8 @@ cd frontend && npx playwright install chromium --only-shell && npx playwright te
 
 - 用真实模型验证会调用上游服务并产生费用。记录用的模型、材料、结果和限制；不要把合成夹具的测试说成真实模型或真实论文的验收。`scripts/bench_model.py` 见 [性能](PERFORMANCE.md)。
 - 新界面的组件在 `frontend/src/ui/`，在仅供开发的演示页 `frontend/ui-kit.html` 里展示：运行 `npm --prefix frontend run dev`，再打开 `/ui-kit.html`；它不属于生产构建。组件的测试在 `frontend/e2e-ui/`。
+- 新阅读器在 `#read/<论文 id>`（第 2 阶段结束前旧界面不链接它），浏览器测试在 `frontend/e2e/reader/`。多个检出并行跑浏览器测试时，用 `E2E_PORT`（默认 8766）和 `UI_KIT_PORT`（默认 5174）给各自的测试服务器换端口。
+- 生产环境是 Python 3.11，CI 也用 3.11；本机是更新的版本时，上线前用 `uv venv --python 3.11` 建一个环境跑一遍 `pytest -q`。
 - `backend/devtools/fake_model.py` 是一个兼容 OpenAI 接口的假模型，按模型名注入故障（超时、回答中途断开、返回内容无法识别、429/5xx 等），`backend/tests/test_model_faults.py` 用它。想亲眼看界面怎么处理失败，可以手动启动：`python -m backend.devtools.fake_model --port 8899`（8899 被占用时换一个端口）。
 
 ## 5. 约定
