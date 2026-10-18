@@ -2,6 +2,8 @@ import clsx from "clsx";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
+import { AssistantThread, type Assistant } from "./assistant";
+import type { ReaderRoute } from "./route";
 import { RegionBoundary } from "./RegionBoundary";
 import styles from "./RightPanel.module.css";
 
@@ -31,10 +33,14 @@ export interface PanelOverlay {
  */
 export function RightPanel({
   overlay,
+  assistant,
+  onCite,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
   overlay?: PanelOverlay;
+  assistant?: Assistant;
+  onCite?: (route: ReaderRoute) => void;
 }) {
   const { t } = useI18n();
   const ids = useId();
@@ -106,9 +112,13 @@ export function RightPanel({
               aria-labelledby={`${ids}-${value}-tab`}
               hidden={view !== value}
             >
-              <p className={styles.placeholder}>
-                {t(`reader.tab.${value}.empty`)}
-              </p>
+              {value === "assistant" && assistant && onCite ? (
+                <AssistantThread assistant={assistant} onCite={onCite} />
+              ) : (
+                <p className={styles.placeholder}>
+                  {t(`reader.tab.${value}.empty`)}
+                </p>
+              )}
             </div>
           ))}
         </div>

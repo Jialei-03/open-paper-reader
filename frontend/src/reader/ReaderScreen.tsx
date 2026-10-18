@@ -48,8 +48,10 @@ import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
+import { Composer, useAssistant } from "./assistant";
+import type { AskRequest } from "./types";
 import { linkTarget } from "./outline";
-import { followLink, type ReaderRoute } from "./route";
+import { followLink, readerHash, type ReaderRoute } from "./route";
 import { usePaper } from "./usePaper";
 import styles from "./ReaderScreen.module.css";
 
@@ -357,6 +359,7 @@ function PaperCard({
   owner,
   panelToggle,
   onPaper,
+  onFile,
   actions,
 }: {
   route: ReaderRoute;
@@ -364,6 +367,7 @@ function PaperCard({
   owner: string;
   panelToggle: ReactNode;
   onPaper: (paper: Paper) => void;
+  onFile: (file: SourceFile | null) => void;
   actions: RefObject<PaperActions | null>;
 }) {
   const [paper, setPaper] = useState<Paper | null>(null);
@@ -382,6 +386,7 @@ function PaperCard({
   const [controller, setController] = useState<PdfController | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const doc = source?.doc ?? null;
+  useEffect(() => onFile(source?.file ?? null), [source?.file, onFile]);
   const pages = doc?.numPages ?? 0;
   const find = useFind(doc, controller);
   const preview = useLinkPreview(route.paperId, doc);
@@ -662,6 +667,12 @@ export function ReaderScreen({
   const [loaded, setLoaded] = useState<Paper | null>(null);
   const [visits, setVisits] = useState(() => recentPapers(owner));
   const actions = useRef<PaperActions>(null);
+  const [file, setFile] = useState<SourceFile | null>(null);
+  const assistant = useAssistant({
+    paper: loaded?.id === paperId ? loaded : null,
+    file,
+  });
+  const [pending, setPending] = useState<AskRequest | null>(null);
 
   // The panel only opens over the paper; a window that has grown wide shows it docked, and shut when narrowed again.
   useEffect(() => {
@@ -724,11 +735,19 @@ export function ReaderScreen({
             owner={owner}
             panelToggle={panelToggle}
             onPaper={setLoaded}
+            onFile={setFile}
             actions={actions}
+          />
+          <Composer
+            assistant={assistant}
+            pending={pending}
+            onClearPending={() => setPending(null)}
           />
         </Card>
         <RightPanel
           paperId={paperId}
+          assistant={assistant}
+          onCite={(target) => go(readerHash(target).slice(1))}
           overlay={
             narrow
               ? {

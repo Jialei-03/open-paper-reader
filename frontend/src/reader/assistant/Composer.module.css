@@ -1,0 +1,156 @@
+/*
+ * The question box at the bottom of the paper's card. It hangs from a line of
+ * no height at the foot of the card (as the find bar hangs from its top), so
+ * the pages do not move for it, and floats over the paper: 70% of the card,
+ * at most 720px, never wider than the card leaves room for.
+ */
+.anchor {
+  --composer-share: 70%;
+  --composer-max-width: 720px;
+  --composer-min-width: 320px;
+  --composer-send-size: 32px;
+  --composer-stop-icon: 12px;
+  --composer-chip-height: 24px;
+  --composer-chip-remove: 18px;
+  /* Over the pages' layers (no higher than 1) and the find bar (2), inside the card. */
+  --composer-layer: 3;
+  position: relative;
+  z-index: var(--composer-layer);
+  flex: none;
+  height: 0;
+}
+
+.composer {
+  position: absolute;
+  bottom: var(--ui-space-20);
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  box-sizing: border-box;
+  width: min(
+    var(--composer-max-width),
+    max(var(--composer-share), var(--composer-min-width)),
+    calc(100% - 2 * var(--ui-space-16))
+  );
+  padding: var(--ui-space-12) var(--ui-space-12) var(--ui-space-10)
+    var(--ui-space-16);
+  border-radius: var(--ui-r-24);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-composer);
+  transform: translateX(-50%);
+}
+
+/* Typing in it draws the edge a little stronger, in place of a ring around the field. */
+.composer:focus-within {
+  box-shadow: var(--ui-elev-2);
+}
+
+/* The field without its own box: the composer is the box. */
+.composer .input,
+.composer .input:hover:not(:disabled),
+.composer .input:focus-visible {
+  min-height: 0;
+  padding: var(--ui-space-2) 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading);
+}
+
+/* On the plain raised surface the fainter placeholder color still reads (rule R6). */
+.composer .input::placeholder {
+  color: var(--ui-fg-3);
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-width: 0;
+}
+
+/* The context the question carries: orange, as context labels are. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  height: var(--composer-chip-height);
+  padding: 0 var(--ui-space-4) 0 var(--ui-space-10);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
+  font-size: var(--ui-text-12);
+}
+
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipRemove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--composer-chip-remove);
+  height: var(--composer-chip-remove);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.chipRemove:hover {
+  background: var(--ui-accent-soft);
+}
+
+.hint,
+.error {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+}
+
+.hint {
+  color: var(--ui-fg-2);
+}
+
+.error {
+  color: var(--ui-danger-text);
+}
+
+.settings {
+  border-radius: var(--ui-r-4);
+  color: var(--ui-accent-text);
+  font-weight: var(--ui-weight-strong);
+  text-decoration: none;
+}
+
+.settings:hover {
+  text-decoration: underline;
+}
+
+/* Send and stop: round, in ink, at the right end. */
+.tools .round {
+  flex: none;
+  width: var(--composer-send-size);
+  height: var(--composer-send-size);
+  margin-left: auto;
+  padding: 0;
+  border-radius: var(--ui-r-pill);
+}
+
+.stop svg {
+  width: var(--composer-stop-icon);
+  height: var(--composer-stop-icon);
+  fill: currentColor;
+}

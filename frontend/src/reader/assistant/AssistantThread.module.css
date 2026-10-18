@@ -1,0 +1,357 @@
+/*
+ * The conversation in the side panel: questions as bubbles on the right, the
+ * process and the answer on the left, on the card's own surface.
+ */
+.thread {
+  --thread-bubble-share: 88%;
+  --thread-step-height: 28px;
+  --thread-quote-lines: 3;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-24);
+  padding-top: var(--ui-space-8);
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-10);
+  min-width: 0;
+}
+
+/* The question. */
+.ask {
+  align-self: flex-end;
+  max-width: var(--thread-bubble-share);
+  padding: var(--ui-space-10) var(--ui-space-12);
+  border-radius: var(--ui-r-20) var(--ui-r-20) var(--ui-r-6) var(--ui-r-20);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  overflow-wrap: anywhere;
+}
+
+/* The sentence it was about, above it, marked in orange. On the bubble's tint: --ui-fg-2 (rule R6). */
+.quote {
+  display: -webkit-box;
+  margin: 0 0 var(--ui-space-6);
+  padding-left: var(--ui-space-8);
+  overflow: hidden;
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--thread-quote-lines);
+  line-clamp: var(--thread-quote-lines);
+}
+
+.where {
+  display: block;
+  margin-bottom: var(--ui-space-4);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.prompt {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* The process, folded into one line. */
+.processBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+}
+
+.process {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--ui-space-6);
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+}
+
+.toggle {
+  margin-left: calc(-1 * var(--ui-space-6));
+  padding: var(--ui-space-2) var(--ui-space-6);
+  border: 0;
+  border-radius: var(--ui-r-6);
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--ui-dur-1) var(--ui-ease-out),
+    color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.toggle:hover {
+  background: var(--ui-hover);
+  color: var(--ui-fg-1);
+}
+
+.chevron {
+  flex: none;
+  transition: transform var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.toggle[aria-expanded="true"] .chevron {
+  transform: rotate(90deg);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps[hidden] {
+  display: none;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-height: var(--thread-step-height);
+  padding: 0 var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+}
+
+.step svg {
+  flex: none;
+  color: var(--ui-fg-2);
+}
+
+.stepText {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4) var(--ui-space-6);
+  min-width: 0;
+}
+
+.code {
+  max-width: 100%;
+  padding: 1px var(--ui-space-6);
+  overflow: hidden;
+  border-radius: var(--ui-r-6);
+  background: var(--ui-fill);
+  color: var(--ui-fg-1);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-11);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result {
+  color: var(--ui-fg-2);
+}
+
+.status {
+  flex: none;
+  margin-left: auto;
+  font-size: var(--ui-text-11);
+}
+
+.completed {
+  color: var(--ui-success-text);
+}
+
+.running {
+  color: var(--ui-fg-2);
+}
+
+.failed {
+  color: var(--ui-danger-text);
+}
+
+/* The answer. */
+.answer {
+  min-width: 0;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading-loose);
+  overflow-wrap: anywhere;
+}
+
+.answer > :first-child {
+  margin-top: 0;
+}
+
+.answer > :last-child {
+  margin-bottom: 0;
+}
+
+.answer :where(p, ul, ol, pre, blockquote, table) {
+  margin: 0 0 var(--ui-space-10);
+}
+
+/* The old screens' global reset takes list markers away; an answer's lists keep theirs. */
+.answer :where(ul, ol) {
+  padding-left: var(--ui-space-20);
+}
+
+.answer :where(ul) {
+  list-style: disc;
+}
+
+.answer :where(ol) {
+  list-style: decimal;
+}
+
+.answer :where(li + li) {
+  margin-top: var(--ui-space-2);
+}
+
+.answer :where(h1, h2, h3, h4, h5, h6) {
+  margin: var(--ui-space-16) 0 var(--ui-space-6);
+  font-size: var(--ui-text-15);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.answer :where(strong, b) {
+  font-weight: var(--ui-weight-strong);
+}
+
+.answer :where(code) {
+  padding: 1px var(--ui-space-4);
+  border-radius: var(--ui-r-4);
+  background: var(--ui-fill);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-12);
+}
+
+.answer :where(pre) {
+  padding: var(--ui-space-10) var(--ui-space-12);
+  overflow-x: auto;
+  border-radius: var(--ui-r-10);
+  background: var(--ui-bg-2);
+  line-height: var(--ui-leading);
+}
+
+.answer :where(pre code) {
+  padding: 0;
+  background: none;
+}
+
+.answer :where(blockquote) {
+  padding-left: var(--ui-space-10);
+  box-shadow: inset 2px 0 0 var(--ui-edge);
+  color: var(--ui-fg-1);
+}
+
+.answer :where(table) {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--ui-text-13);
+}
+
+.answer :where(th, td) {
+  padding: var(--ui-space-4) var(--ui-space-8);
+  box-shadow: inset 0 -1px 0 var(--ui-edge);
+  text-align: left;
+}
+
+.answer :where(hr) {
+  height: 1px;
+  margin: var(--ui-space-12) 0;
+  border: 0;
+  background: var(--ui-edge);
+}
+
+.link {
+  border-radius: var(--ui-r-4);
+  color: var(--ui-accent-text);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* A page the answer cites: a small orange label that leads to the sentence. */
+.cite {
+  margin: 0 1px;
+  padding: 1px var(--ui-space-6);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-text);
+  font-size: var(--ui-text-11);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.cite:hover {
+  text-decoration: underline;
+}
+
+/* Waiting for the first words: a slow breath, only while it is so. */
+.thinking {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  animation: breathe calc(var(--ui-dur-3) * 5) var(--ui-ease-in-out) infinite
+    alternate;
+}
+
+@keyframes breathe {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking {
+    animation: none;
+  }
+}
+
+.failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4) var(--ui-space-8);
+}
+
+.failureText {
+  margin: 0;
+  color: var(--ui-danger-text);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+.stopped {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.empty {
+  margin: 0;
+  color: var(--ui-fg-2);
+  line-height: var(--ui-leading);
+}
+
+.state {
+  display: flex;
+  justify-content: center;
+  padding: var(--ui-space-24);
+  color: var(--ui-fg-2);
+}
