@@ -788,7 +788,7 @@ test("the paper takes the keyboard on opening, so the zoom keys work at once", a
   expect(ring.shadow).toContain("inset");
 });
 
-test("a link to a quote gives the paper the keyboard once it is there, and a field being typed in keeps it", async ({
+test("a link to a quote gives the paper the keyboard once it is there, and wherever the keyboard was put it stays", async ({
   page,
 }) => {
   // The address names no page, so the quote is looked for on page 1 (layers.spec.ts has the rest).
@@ -813,6 +813,16 @@ test("a link to a quote gives the paper the keyboard once it is there, and a fie
   await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
   await page.waitForTimeout(300);
   await expect(page.locator("#probe")).toBeFocused();
+
+  // Nor does a button the keyboard was put on (the side panel's tab, say) lose it to the PDF arriving.
+  const other = await createPaperWithPdf(page, { pages: 3 });
+  await openReader(page, { paperId: other.paperId });
+  const tab = page.getByRole("tab", { name: "导读" });
+  await tab.focus();
+  await expect(tab).toBeFocused();
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  await page.waitForTimeout(300);
+  await expect(tab).toBeFocused();
   await page.unroute(slow);
 });
 

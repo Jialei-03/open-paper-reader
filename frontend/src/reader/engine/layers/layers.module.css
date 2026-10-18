@@ -3,8 +3,10 @@
  * page (percentages), so a zoom moves it with the page and lays nothing out
  * again. Inside the page, from the bottom: the canvas; the highlights; the
  * handwriting; the text layer (z-index 1, above both, so the text can still be
- * selected through them); the links (z-index 2, catching the pointer only where
- * there is a link); the find's match and the reference (pdf-engine.css).
+ * selected through them); the links (z-index 2, for the keyboard and the tint;
+ * the pointer goes through them too); the find's match and the reference
+ * (pdf-engine.css). Nothing here catches the pointer: what it rests on or
+ * clicks is worked out from where it is on the page.
  *
  * The paper is white in both themes (the dark one dims the whole page with a
  * filter), so what is laid on it is dark on light either way.
@@ -87,7 +89,12 @@
   --link-hover: rgb(var(--ui-shade) / 0.08);
 }
 
-/* Clear until the pointer is on it: the PDF draws the link (blue text, a box) itself, or not. */
+/*
+ * Clear: the PDF draws the link (blue text, a box) itself, or not. The pointer
+ * goes through to the text, so the text can be selected on and across it; the
+ * page finds the link under the pointer (LinkLayer), marks it pointed (tinted)
+ * and follows a click on it. The box is there for the keyboard.
+ */
 .link {
   position: absolute;
   display: block;
@@ -97,12 +104,10 @@
   border: 0;
   border-radius: var(--ui-r-4);
   background: transparent;
-  cursor: pointer;
-  pointer-events: auto;
+  pointer-events: none;
   transition: background-color var(--ui-dur-1) var(--ui-ease-out);
-  -webkit-tap-highlight-color: transparent;
 }
 
-.link:hover {
+.link[data-pointed] {
   background: var(--link-hover);
 }

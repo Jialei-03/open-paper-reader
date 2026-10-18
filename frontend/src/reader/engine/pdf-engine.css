@@ -81,6 +81,15 @@
 }
 
 /*
+ * A link under the pointer (engine/layers/LinkLayer marks the page): the hand,
+ * over the link's text too, which otherwise shows the text cursor.
+ */
+.opr-pdf [data-link-under-pointer],
+.opr-pdf [data-link-under-pointer] .textLayer :is(span, br) {
+  cursor: pointer;
+}
+
+/*
  * Where the address points (a link into the paper). A sentence: lib/reference's
  * highlight lays a layer over the page with a box for each line of it, which is
  * underlined and tinted in the accent. A region (`rect`): its box, ringed in the

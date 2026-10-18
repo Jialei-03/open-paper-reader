@@ -281,6 +281,16 @@ interface PaperActions {
   find(): boolean;
 }
 
+/**
+ * Whether nobody has the keyboard (it is on the page itself): then the paper
+ * may take it. Once the person has put it somewhere (a field, the side panel, a
+ * button), a PDF that finishes loading later does not take it from there.
+ */
+function keyboardFree(): boolean {
+  const active = document.activeElement;
+  return !active || active === document.body;
+}
+
 /** Whether the keyboard is in a field that takes text, where letters are for typing. */
 function typing(target: EventTarget | null): boolean {
   return (
@@ -344,8 +354,8 @@ function PaperCard({
   };
 
   // The keys of the paper work from wherever the keyboard is in the card, so the paper has the keyboard
-  // from the start, unless somebody is typing, or an address with a quote (which goes to the quote,
-  // and gives the paper the keyboard once it is there, below).
+  // from the start, unless the person has already put it somewhere (typing, the side panel), or an
+  // address with a quote (which goes to the quote, and gives the paper the keyboard once it is there, below).
   const focused = useRef<PDFDocumentProxy | null>(null);
   const reference =
     route.quote !== undefined ||
@@ -355,7 +365,7 @@ function PaperCard({
     const desk = controller?.root;
     if (!doc || !desk || focused.current === doc) return;
     focused.current = doc;
-    if (reference || typing(document.activeElement)) return;
+    if (reference || !keyboardFree()) return;
     desk.focus({ preventScroll: true });
   }, [doc, controller, reference]);
 
@@ -466,7 +476,7 @@ function PaperCard({
     "fill",
   );
   // Once the reference's page is drawn: the region to the middle if the sentence was not found there,
-  // and the keyboard to the paper (as on any opening), once for each time the address is entered.
+  // and the keyboard to the paper if nobody has it (as on any opening), once for each time the address is entered.
   const landed = useRef<string | null>(null);
   useEffect(() => {
     if (!reference || !referenceLayer) return;
@@ -481,7 +491,7 @@ function PaperCard({
           inline: "nearest",
           behavior: "instant",
         });
-    if (!typing(document.activeElement))
+    if (keyboardFree())
       controllerNow.current?.root?.focus({ preventScroll: true });
   }, [reference, referenceLayer, referenceKey, visits]);
 

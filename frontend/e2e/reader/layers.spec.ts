@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
+  AFTER_LINKS,
   createPaperWithPdf,
   openReader,
   saveHighlight,
@@ -33,6 +34,67 @@ const xy = (point: { x: number; y: number }): [number, number] => [
   point.x,
   point.y,
 ];
+
+/**
+ * A point for the mouse, in whole pixels, as a real mouse gives them: Chromium
+ * starts no text selection from a press at a fraction of a pixel that is then
+ * dragged (seen with Playwright; a point at x.3 selects nothing, at x.0 it does).
+ */
+const whole = ({ x, y }: { x: number; y: number }) => ({
+  x: Math.round(x),
+  y: Math.round(y),
+});
+
+/**
+ * The middle of an element, for the mouse. The link boxes let the pointer
+ * through to the text (Playwright would refuse to click them as elements):
+ * they are pointed at.
+ */
+async function centre(element: Locator) {
+  const box = (await element.boundingBox())!;
+  return whole({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+}
+
+/** The middle of character `index` of `text` on the page, as its text layer has it. */
+const charAt = async (sheet: Locator, text: string, index: number) =>
+  whole(
+    await sheet.evaluate(
+      (element, { text, index }) => {
+        const walker = document.createTreeWalker(
+          element.querySelector(".textLayer")!,
+          NodeFilter.SHOW_TEXT,
+        );
+        while (walker.nextNode()) {
+          const node = walker.currentNode as Text;
+          const at = node.data.indexOf(text);
+          if (at < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, at + index);
+          range.setEnd(node, at + index + 1);
+          const box = range.getBoundingClientRect();
+          return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        }
+        throw new Error(`"${text}" is not on the page`);
+      },
+      { text, index },
+    ),
+  );
+
+/** The text selected on the page. */
+const selected = (page: Page) =>
+  page.evaluate(() => window.getSelection()?.toString() ?? "");
+
+/** Press at `from`, move to `to` and let go, as a person selects text. */
+async function drag(
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) {
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 10 });
+  await page.mouse.up();
+}
 
 /** A point given in PDF units (from the bottom left of a letter page), in the window. */
 const pdfPoint = (sheet: Locator, x: number, y: number) =>
@@ -262,17 +324,24 @@ test("internal links jump and come back", async ({ page }) => {
     exact: true,
   });
   await expect(link).toHaveCount(1);
-  // The link is a clear box over the page, tinted while the pointer is on it.
+  // The link is a clear box over the page, tinted while the pointer is on it, and the hand shows.
   const resting = await link.evaluate(
     (element) => getComputedStyle(element).backgroundColor,
   );
-  await link.hover();
+  const spot = await centre(link);
+  await page.mouse.move(spot.x, spot.y);
   await expect
     .poll(() =>
       link.evaluate((element) => getComputedStyle(element).backgroundColor),
     )
     .not.toBe(resting);
-  await link.click();
+  expect(
+    await page.evaluate(
+      ({ x, y }) => getComputedStyle(document.elementFromPoint(x, y)!).cursor,
+      spot,
+    ),
+  ).toBe("pointer");
+  await page.mouse.click(spot.x, spot.y);
   await expect(pageInput(page)).toHaveValue("5");
   await expect(pdfPage(page, 5)).toBeInViewport();
   await expect(backButton(page)).toBeVisible();
@@ -282,6 +351,14 @@ test("internal links jump and come back", async ({ page }) => {
   await expect
     .poll(() => scroller(page).evaluate((desk) => desk.scrollTop))
     .toBeCloseTo(before, 0);
+  await expect(backButton(page)).toHaveCount(0);
+
+  // The keyboard reaches the link (Tab) and follows it (Enter), with the same way back.
+  await link.focus();
+  await page.keyboard.press("Enter");
+  await expect(pageInput(page)).toHaveValue("5");
+  await backButton(page).click();
+  await expect(pageInput(page)).toHaveValue("2");
   await expect(backButton(page)).toHaveCount(0);
 
   // Going somewhere by the page field leaves no way back.
@@ -309,21 +386,29 @@ test("unsafe links are not followed", async ({ page }) => {
     first.getByRole("button", { name: "跳到链接的位置", exact: true }),
   ).toHaveCount(1);
 
-  // Where the javascript: link is, there is nothing to click.
+  // Where the javascript: link is there is no box, the pointer is no hand, and a click does nothing.
   const unsafe = await pdfPoint(first, 120, 615);
   expect(
-    await page.evaluate(
-      ({ x, y }) =>
-        document.elementFromPoint(x, y)?.closest("a, button")?.outerHTML ??
-        null,
+    await first.locator("a, button").evaluateAll(
+      (boxes, { x, y }) =>
+        boxes.some((box) => {
+          const r = box.getBoundingClientRect();
+          return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+        }),
       unsafe,
     ),
-  ).toBeNull();
+  ).toBe(false);
+  await page.mouse.move(unsafe.x, unsafe.y);
+  expect(
+    await first.evaluate((sheet) =>
+      sheet.hasAttribute("data-link-under-pointer"),
+    ),
+  ).toBe(false);
   let popups = 0;
-  page.on("popup", () => popups++);
+  page.context().on("page", () => popups++);
   const address = page.url();
   await page.mouse.click(unsafe.x, unsafe.y);
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(800);
   expect(popups).toBe(0);
   expect(page.url()).toBe(address);
   await expect(pageInput(page)).toHaveValue("1");
@@ -370,7 +455,8 @@ test("hovering a citation shows a preview", async ({ page }) => {
     exact: true,
   });
   const preview = tooltip(page, "Attention Is All You Need");
-  await citation.hover();
+  const spot = await centre(citation);
+  await page.mouse.move(spot.x, spot.y);
   // Not at once: the pointer may only be passing.
   await page.waitForTimeout(150);
   await expect(preview).toHaveCount(0);
@@ -385,14 +471,14 @@ test("hovering a citation shows a preview", async ({ page }) => {
   await expect(preview).toBeHidden();
 
   // Again: the answer is remembered, and Esc puts the preview away.
-  await citation.hover();
+  await page.mouse.move(spot.x, spot.y);
   await expect(preview).toBeVisible();
   expect(asked).toHaveLength(1);
   await page.keyboard.press("Escape");
   await expect(preview).toBeHidden();
 
   // Clicking it goes to the entry, with a way back.
-  await citation.click();
+  await page.mouse.click(spot.x, spot.y);
   await expect(pageInput(page)).toHaveValue("3");
   await expect(backButton(page)).toBeVisible();
 });
@@ -418,9 +504,10 @@ test("a citation the service cannot place shows the entry instead", async ({
   await openReader(page, { paperId: paper.paperId });
   const first = pdfPage(page, 1);
   await expect(first).toHaveAttribute("data-rendered", "true");
-  await first
-    .getByRole("button", { name: "跳到所引文献", exact: true })
-    .hover();
+  const spot = await centre(
+    first.getByRole("button", { name: "跳到所引文献", exact: true }),
+  );
+  await page.mouse.move(spot.x, spot.y);
   await expect(tooltip(page, "Gradient-based learning")).toBeVisible();
   // The failure itself is not news.
   await expect(page.getByText("引用服务暂不可用")).toHaveCount(0);
@@ -441,12 +528,180 @@ test("hovering a web link shows its site and title", async ({ page }) => {
   await openReader(page, { paperId: paper.paperId });
   const first = pdfPage(page, 1);
   await expect(first).toHaveAttribute("data-rendered", "true");
-  await first.getByRole("link").hover();
+  const spot = await centre(first.getByRole("link"));
+  await page.mouse.move(spot.x, spot.y);
   const preview = tooltip(page, "An Example Paper");
   await expect(preview).toBeVisible();
   await expect(preview).toContainText("example.org");
   await page.mouse.move(5, 5);
   await expect(preview).toBeHidden();
+});
+
+/** The first page's lines with a link in their middle (see the fixtures' citations and web links). */
+const CITING = "See [1] for details.";
+const WEB = "Read example.org/paper online.";
+
+/** A paper whose first page has a citation and a web link in the middle of lines of text. */
+async function openLinkedLines(page: Page) {
+  await signIn(page);
+  const paper = await createPaperWithPdf(page, {
+    pages: 2,
+    citations: [
+      {
+        from: 1,
+        to: 2,
+        key: "smith2001",
+        entry: "J. Smith. A study of links. 2001.",
+      },
+    ],
+    webLinks: [
+      {
+        page: 1,
+        url: "https://example.org/paper",
+        before: "Read ",
+        label: "example.org/paper",
+        after: " online.",
+      },
+    ],
+  });
+  // Whatever the previews ask stays here.
+  await page.route("**/api/v1/papers/*/citation-preview?**", (route) =>
+    route.fulfill({ json: { items: [] } }),
+  );
+  await page.route("**/api/v1/papers/*/link-preview?**", (route) =>
+    route.fulfill({ json: { title: "" } }),
+  );
+  await openReader(page, { paperId: paper.paperId });
+  const first = pdfPage(page, 1);
+  await expect(first).toHaveAttribute("data-rendered", "true");
+  // The fixture lays the links over their words.
+  const [cite, web] = await Promise.all([
+    centre(first.getByRole("button", { name: "跳到所引文献", exact: true })),
+    centre(first.getByRole("link")),
+  ]);
+  const [bracket, address] = await Promise.all([
+    charAt(first, CITING, 5),
+    charAt(first, WEB, 13),
+  ]);
+  expect(Math.abs(cite.x - bracket.x)).toBeLessThan(4);
+  expect(Math.abs(web.y - address.y)).toBeLessThan(4);
+  return first;
+}
+
+/** Counts the pages the browser opens from here on. */
+function countOpened(page: Page) {
+  const opened: Page[] = [];
+  page.context().on("page", (other) => opened.push(other));
+  return opened;
+}
+
+test("a selection dragged across a link covers just that text", async ({
+  page,
+}) => {
+  const first = await openLinkedLines(page);
+  const opened = countOpened(page);
+  // From inside "See" to inside "details", over the citation.
+  await drag(
+    page,
+    await charAt(first, CITING, 1),
+    await charAt(first, CITING, 15),
+  );
+  const across = (await selected(page)).trim();
+  expect(across).toContain("[1] for de");
+  expect(CITING).toContain(across);
+  // Nothing was followed or previewed on the way.
+  await page.waitForTimeout(600);
+  await expect(pageInput(page)).toHaveValue("1");
+  await expect(page.locator('[role="tooltip"]')).toHaveCount(0);
+
+  // From the line below up onto the citation: the text between, and nothing after it.
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  await drag(page, await charAt(first, WEB, 8), await charAt(first, CITING, 5));
+  const upward = await selected(page);
+  expect(upward).toContain("for details.");
+  expect(upward).toContain("Read exa");
+  expect(upward).not.toContain(AFTER_LINKS.slice(0, 10));
+  expect(upward).not.toContain("Page 1 of");
+  await page.waitForTimeout(600);
+  await expect(pageInput(page)).toHaveValue("1");
+  expect(opened).toHaveLength(0);
+});
+
+test("a selection can start on a link and go past it", async ({ page }) => {
+  const first = await openLinkedLines(page);
+  const opened = countOpened(page);
+  // From the citation's number to the end of its line.
+  await drag(
+    page,
+    await charAt(first, CITING, 5),
+    await charAt(first, CITING, 17),
+  );
+  const fromCitation = (await selected(page)).trim();
+  expect(fromCitation).toContain("] for deta");
+  expect(CITING).toContain(fromCitation);
+  // From inside the web address to the word after it.
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  await drag(page, await charAt(first, WEB, 9), await charAt(first, WEB, 26));
+  const fromAddress = (await selected(page)).trim();
+  expect(fromAddress).toContain("org/paper onl");
+  expect(WEB).toContain(fromAddress);
+  await page.waitForTimeout(600);
+  await expect(pageInput(page)).toHaveValue("1");
+  expect(opened).toHaveLength(0);
+});
+
+test("double-clicking a link's text selects a word and opens nothing", async ({
+  page,
+}) => {
+  const first = await openLinkedLines(page);
+  const opened = countOpened(page);
+  const word = await charAt(first, WEB, 7);
+  await page.mouse.dblclick(word.x, word.y);
+  await page.waitForTimeout(800);
+  const picked = (await selected(page)).trim();
+  expect(picked.length).toBeGreaterThan(0);
+  expect("example.org/paper").toContain(picked);
+  expect(opened).toHaveLength(0);
+
+  // The citation's number too: selected, and the paper stays where it is.
+  await page.evaluate(() => window.getSelection()?.removeAllRanges());
+  const number = await charAt(first, CITING, 5);
+  await page.mouse.dblclick(number.x, number.y);
+  await page.waitForTimeout(800);
+  // A word of "[1]" (Chromium takes "1" or a bracket, by which side of the digit is nearer).
+  const cited = (await selected(page)).trim();
+  expect(cited.length).toBeGreaterThan(0);
+  expect("[1]").toContain(cited);
+  await expect(pageInput(page)).toHaveValue("1");
+  await expect(backButton(page)).toHaveCount(0);
+});
+
+test("a click on a link in a line follows it", async ({ page }) => {
+  const first = await openLinkedLines(page);
+  await page.context().route("https://example.org/**", (route) =>
+    route.fulfill({
+      contentType: "text/html",
+      body: "<title>Example</title>",
+    }),
+  );
+  const opened = countOpened(page);
+  // The web link: one new tab, which cannot reach back to the reader.
+  const popup = page.context().waitForEvent("page");
+  const address = await charAt(first, WEB, 10);
+  await page.mouse.click(address.x, address.y);
+  const tab = await popup;
+  await tab.waitForLoadState();
+  expect(tab.url()).toBe("https://example.org/paper");
+  expect(await tab.evaluate(() => window.opener)).toBeNull();
+  await page.waitForTimeout(600);
+  expect(opened).toHaveLength(1);
+  await tab.close();
+
+  // The citation: to its entry, with a way back.
+  const number = await charAt(first, CITING, 5);
+  await page.mouse.click(number.x, number.y);
+  await expect(pageInput(page)).toHaveValue("2");
+  await expect(backButton(page)).toBeVisible();
 });
 
 const SENTENCE = "Evidence stays connected to its source.";

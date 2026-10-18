@@ -36,12 +36,58 @@ export type OutlineItem = {
 };
 
 /**
- * A citation, as a paper typeset with hyperref has one: a link on page `from`
- * (under the page's lines, at 40–200 × 560–590 points) to the destination named
- * `cite.<key>`, which is the start of `entry`, a line of the reference list on
- * page `to` (at 40, 390).
+ * A citation, as a paper typeset with hyperref has one: in a line of text on
+ * page `from` (`See [n] for details.`, the n-th citation, at 40 × 570 points
+ * and 24 points lower for each citation before it), a link over `[n]` to the
+ * destination named `cite.<key>`, which is the start of `entry`, a line of the
+ * reference list on page `to` (at 40, 390).
  */
 export type Citation = { from: number; to: number; key: string; entry: string };
+
+/**
+ * A link to a web address in a line of text: `before`, then `label` (the link)
+ * then `after`, on `page` at 40 × 450 points (24 points lower for each web link
+ * before it).
+ */
+export type WebLink = {
+  page: number;
+  url: string;
+  before: string;
+  label: string;
+  after: string;
+};
+
+/** The words of a page that has links in its lines go on after them, on this line (at 40 × 330). */
+export const AFTER_LINKS = "Text after the links.";
+
+/** Helvetica's advance widths (its AFM), in thousandths of the font size, for laying a link over its words. */
+const HELVETICA: [number, string][] = [
+  [222, "ijl"],
+  [278, " !,./:;[]ftI"],
+  [333, "-r"],
+  [500, "ckJsvxyz"],
+  [556, "abdeghnopqu0123456789#?_L"],
+  [611, "FTZ"],
+  [667, "ABEKPSVXY&"],
+  [722, "CDHNRUw"],
+  [778, "GOQ"],
+  [833, "mM"],
+  [944, "W"],
+];
+const widthOf = (char: string) =>
+  HELVETICA.find(([, chars]) => chars.includes(char))?.[0] ?? 556;
+/** How wide `text` is in Helvetica at `size` points. */
+const helvetica = (text: string, size: number) =>
+  ([...text].reduce((sum, char) => sum + widthOf(char), 0) * size) / 1000;
+
+/** A line of 12-point text at `y` with a link box over its middle part, as PDF content and the box. */
+function linkedLine(y: number, before: string, label: string, after: string) {
+  const left = 40 + helvetica(before, 12);
+  return {
+    content: ` BT /F1 12 Tf 40 ${y} Td (${before}${label}${after}) Tj ET`,
+    rect: `[${left.toFixed(2)} ${y - 4} ${(left + helvetica(label, 12)).toFixed(2)} ${y + 12}]`,
+  };
+}
 
 /**
  * A PDF of `pages` pages, each saying which one it is. `links` are internal
@@ -49,7 +95,9 @@ export type Citation = { from: number; to: number; key: string; entry: string };
  * the PDF's own table of contents; `words` puts a word on a page (a second line
  * under the one that says which page it is), to search for; `size` is a page's
  * width and height in points (a letter page, 612 × 792, unless given);
- * `citations` are links to entries of a reference list, by name.
+ * `citations` are links to entries of a reference list, by name; `webLinks`
+ * links to addresses. A page with either in its lines has a last line after
+ * them (`AFTER_LINKS`).
  */
 export function pdfWithPages(
   pages: number,
@@ -59,12 +107,20 @@ export function pdfWithPages(
     words?: Record<number, string>;
     size?: [number, number];
     citations?: Citation[];
+    webLinks?: WebLink[];
   } = {},
 ): Buffer {
   const [width, height] = options.size ?? [612, 792];
   const citations = options.citations ?? [];
+  const webLinks = options.webLinks ?? [];
+  const cited = citations.map((_, index) =>
+    linkedLine(570 - 24 * index, "See ", `[${index + 1}]`, " for details."),
+  );
+  const linked = webLinks.map((link, index) =>
+    linkedLine(450 - 24 * index, link.before, link.label, link.after),
+  );
   // 1 catalog, 2 page tree, 3 font; then a page and its content per page; then the links; then the
-  // outline; then the citations' links, and the name tree of their destinations.
+  // outline; then the citations' links, and the name tree of their destinations; then the web links.
   const pageObject = (page: number) => 4 + 2 * (page - 1);
   const linkObject = (index: number) => 4 + 2 * pages + index;
   const outlineRoot = 4 + 2 * pages + links.length;
@@ -84,6 +140,8 @@ export function pdfWithPages(
   const citationObject = (index: number) =>
     outlineRoot + (top.length ? 1 + flat.length : 0) + index;
   const namesObject = citationObject(citations.length);
+  const webObject = (index: number) =>
+    namesObject + (citations.length ? 1 : 0) + index;
 
   const objects: string[] = [
     `<< /Type /Catalog /Pages 2 0 R${top.length ? ` /Outlines ${outlineRoot} 0 R` : ""}${citations.length ? ` /Names << /Dests ${namesObject} 0 R >>` : ""} >>`,
@@ -96,13 +154,23 @@ export function pdfWithPages(
       .filter((citation) => citation.to === page)
       .map(({ entry }) => ` BT /F1 12 Tf 40 390 Td (${entry}) Tj ET`)
       .join("");
-    const stream = `BT /F1 20 Tf 40 ${height - 72} Td (Page ${page} of ${pages}) Tj${word ? ` 0 -40 Td (${word}) Tj` : ""} ET${entries}`;
+    const lines = [
+      ...cited.filter((_, index) => citations[index].from === page),
+      ...linked.filter((_, index) => webLinks[index].page === page),
+    ];
+    const stream =
+      `BT /F1 20 Tf 40 ${height - 72} Td (Page ${page} of ${pages}) Tj${word ? ` 0 -40 Td (${word}) Tj` : ""} ET${entries}` +
+      lines.map((line) => line.content).join("") +
+      (lines.length ? ` BT /F1 12 Tf 40 330 Td (${AFTER_LINKS}) Tj ET` : "");
     const annots = [
       ...links.map((link, index) =>
         link.from === page ? linkObject(index) : 0,
       ),
       ...citations.map((citation, index) =>
         citation.from === page ? citationObject(index) : 0,
+      ),
+      ...webLinks.map((link, index) =>
+        link.page === page ? webObject(index) : 0,
       ),
     ]
       .filter(Boolean)
@@ -137,10 +205,11 @@ export function pdfWithPages(
       );
     });
   }
-  for (const citation of citations)
+  citations.forEach((citation, index) =>
     objects.push(
-      `<< /Type /Annot /Subtype /Link /Rect [40 560 200 590] /Border [0 0 0] /Dest (cite.${citation.key}) >>`,
-    );
+      `<< /Type /Annot /Subtype /Link /Rect ${cited[index].rect} /Border [0 0 0] /Dest (cite.${citation.key}) >>`,
+    ),
+  );
   if (citations.length) {
     // A name tree lists its names in order.
     const named = [...citations]
@@ -151,6 +220,11 @@ export function pdfWithPages(
       );
     objects.push(`<< /Names [${named.join(" ")}] >>`);
   }
+  webLinks.forEach((link, index) =>
+    objects.push(
+      `<< /Type /Annot /Subtype /Link /Rect ${linked[index].rect} /Border [0 0 0] /A << /S /URI /URI (${link.url}) >> >>`,
+    ),
+  );
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [];
   objects.forEach((object, index) => {
@@ -195,6 +269,8 @@ export async function createPaperWithPdf(
     size?: [number, number];
     /** Links to entries of a reference list. */
     citations?: Citation[];
+    /** Links to web addresses, in lines of text. */
+    webLinks?: WebLink[];
   } = {},
 ): Promise<{ paperId: string; fileId: string; title: string }> {
   const title =
@@ -216,13 +292,15 @@ export async function createPaperWithPdf(
     !options.outline &&
     !options.words &&
     !options.size &&
-    !options.citations
+    !options.citations &&
+    !options.webLinks
       ? testPdf()
       : pdfWithPages(options.pages ?? 2, options.links, {
           outline: options.outline,
           words: options.words,
           size: options.size,
           citations: options.citations,
+          webLinks: options.webLinks,
         });
   const upload = await page.request.post(`/api/v1/papers/${paper.id}/files`, {
     headers: await writeHeaders(page),
