@@ -56,7 +56,11 @@ test("opens a paper in the new reader", async ({ page }) => {
   await expect(page.getByRole("button", { name: "打开研究助手" })).toHaveCount(
     0,
   );
-  await expect(page.getByRole("button", { name: /右侧面板/ })).toHaveCount(0);
+  // Wide, the panel is docked and can be put away from the header.
+  await expect(page.getByRole("button", { name: /右侧面板/ })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "收起右侧面板" }),
+  ).toBeVisible();
   // The window is the shell's: it is the cards that scroll, never the page.
   expect(
     await page.evaluate(
@@ -295,12 +299,15 @@ test("the right panel folds away on a narrow window", async ({ page }) => {
   await expect(panelTabs(page)).toBeHidden();
   await expect(show).toBeFocused();
 
-  // Wide again: docked, no toggle; narrow again: still folded.
+  // Wide again: docked, its toggle puts it away; narrow again: still folded.
   await show.click();
   await expect(panelTabs(page)).toBeVisible();
   await page.setViewportSize({ width: 1400, height: 900 });
   await expect(panelTabs(page)).toBeVisible();
-  await expect(page.getByRole("button", { name: /右侧面板/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /右侧面板/ })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "收起右侧面板" }),
+  ).toBeVisible();
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect(panelTabs(page)).toBeHidden();
 });
@@ -519,4 +526,37 @@ test.describe("in English", () => {
       page.getByRole("main").getByRole("link", { name: "Back to library" }),
     ).toBeVisible();
   });
+});
+
+test("a wide window can put the panel away, and it stays away", async ({
+  page,
+}) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page);
+  await openReader(page, { paperId });
+  const paper = page.getByRole("main");
+  await expect(panelTabs(page)).toBeVisible();
+  const before = (await paper.boundingBox())!.width;
+
+  await page.getByRole("button", { name: "收起右侧面板" }).click();
+  await expect(panelTabs(page)).toBeHidden();
+  // The paper takes the room, and the question box floats over it meanwhile.
+  await expect
+    .poll(async () => (await paper.boundingBox())!.width)
+    .toBeGreaterThan(before + 300);
+  await expect(
+    paper.getByRole("textbox", { name: "向助手提问" }),
+  ).toBeVisible();
+
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "展开右侧面板" }),
+  ).toBeVisible();
+  await expect(panelTabs(page)).toBeHidden();
+
+  await page.getByRole("button", { name: "展开右侧面板" }).click();
+  await expect(panelTabs(page)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "收起右侧面板" }),
+  ).toBeVisible();
 });
