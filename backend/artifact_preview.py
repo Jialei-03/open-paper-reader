@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from .reading_artifacts import (
     RESULT_LIMIT,
     GuideSection,
+    Keypoint,
     OutlineEntry,
     Question,
     SuggestedHighlight,
@@ -93,6 +94,7 @@ def preview(kind, raw, *, texts, pages, units=None):
         "quiz": {"questions": (Question, 15)},
         "outline": {"entries": (OutlineEntry, 200)},
         "highlights": {"highlights": (SuggestedHighlight, 30)},
+        "keypoints": {"keypoints": (Keypoint, 24)},
         "page_translation": {"paragraphs": (TranslatedParagraph, 300)},
     }[kind]
     if kind == "page_translation" and "sentences" in arrays and units is not None:
@@ -141,7 +143,7 @@ def preview(kind, raw, *, texts, pages, units=None):
                     v["question"].strip() == entry.question.strip() for v in values
                 ):
                     break
-                if kind in {"outline", "highlights"}:
+                if kind in {"outline", "highlights", "keypoints"}:
                     needle = normalized_text(
                         entry.title if kind == "outline" else entry.quote
                     )

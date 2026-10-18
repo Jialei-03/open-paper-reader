@@ -1,0 +1,33 @@
+/*
+ * The key sentences on a page: a thin underline under each line of the
+ * sentence, in its category's color. Like the highlights, it lies under the
+ * page's text and catches no pointer; where the pointer rests is worked out
+ * from where it is on the page.
+ */
+.layer {
+  --underline: 2px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.mark {
+  position: absolute;
+  box-sizing: border-box;
+  border-bottom: var(--underline) solid
+    color-mix(in oklab, var(--kp) 78%, transparent);
+  transition:
+    background-color var(--ui-dur-2) var(--ui-ease-out),
+    border-color var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.mark[data-active] {
+  border-bottom-color: var(--kp);
+  background: color-mix(in oklab, var(--kp) 14%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    transition: none;
+  }
+}

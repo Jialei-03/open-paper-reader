@@ -1,0 +1,33 @@
+/*
+ * The four kinds of key sentence, each a quiet, low-saturation hue (dusty blue,
+ * sage, mauve, clay rose), set as --kp. The paper is white in both themes, so
+ * its underlines use these as they are; on the panel's own surface the dark
+ * theme gets lighter ones (.onSurface).
+ */
+.novelty {
+  --kp: #5f7fa3;
+}
+.method {
+  --kp: #6c9272;
+}
+.results {
+  --kp: #8672a3;
+}
+.limits {
+  --kp: #a56f78;
+}
+
+:global(:root[data-theme="dark"]) .onSurface.novelty {
+  --kp: #8aa6c6;
+}
+:global(:root[data-theme="dark"]) .onSurface.method {
+  --kp: #93b497;
+}
+:global(:root[data-theme="dark"]) .onSurface.results {
+  --kp: #a995c4;
+}
+:global(:root[data-theme="dark"]) .onSurface.limits {
+  --kp: #c293a0;
+}
+
+/* Never a stray "dark" without a stated theme: the system theme sets data-theme on the root too. */

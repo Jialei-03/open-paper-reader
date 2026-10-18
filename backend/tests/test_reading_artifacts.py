@@ -454,6 +454,60 @@ def test_highlights_with_nothing_verifiable_fail(env, monkeypatch):
     assert done["result"] == {} and done["error"]
 
 
+def keypoint(page, text, category="method", reason="因为重要"):
+    return {"page": page, "quote": text, "category": category, "reason": reason}
+
+
+def keypoints_setup(env):
+    app, a, settings, row = highlights_setup(env)
+    body = {"file_id": row["file_id"], "model_config_id": row["model_config_id"]}
+    row = a.post(
+        f"/api/v1/papers/{row['paper_id']}/reading-artifacts",
+        json={**body, "kind": "keypoints"},
+    ).json()
+    return app, a, settings, row
+
+
+def test_keypoints_keep_only_quotes_found_in_the_paper(env, monkeypatch):
+    app, a, settings, row = keypoints_setup(env)
+    result = {
+        "keypoints": [
+            keypoint(2, LINES[2], "limits"),
+            keypoint(1, LINES[1], "results"),
+            keypoint(1, "A sentence the paper never contains.", "novelty"),
+            keypoint(2, LINES[0] + " Extra.", "method"),
+            keypoint(1, LINES[0], "novelty"),
+            keypoint(1, LINES[0], "novelty"),
+        ]
+    }
+    run_fixture_model(app, settings, row, result, monkeypatch, batches=[(1, 2)])
+    done = a.get("/api/v1/reading-artifacts/" + row["id"]).json()
+    assert done["status"] == "completed", done
+    assert [(k["page"], k["quote"], k["category"]) for k in done["result"]["keypoints"]] == [
+        (1, LINES[0], "novelty"),
+        (1, LINES[1], "results"),
+        (2, LINES[2], "limits"),
+    ]
+    assert done["result"]["keypoints"][0]["reason"] == "因为重要"
+
+
+def test_keypoints_with_nothing_verifiable_fail(env, monkeypatch):
+    app, a, settings, row = keypoints_setup(env)
+    result = {"keypoints": [keypoint(1, "Invented one.", "limits")]}
+    run_fixture_model(app, settings, row, result, monkeypatch, batches=[(1, 2)])
+    done = a.get("/api/v1/reading-artifacts/" + row["id"]).json()
+    assert done["status"] == "failed", done
+    assert done["result"] == {}
+
+
+def test_a_keypoint_with_an_unknown_category_is_refused(env, monkeypatch):
+    app, a, settings, row = keypoints_setup(env)
+    result = {"keypoints": [keypoint(1, LINES[0], "orange")]}
+    run_fixture_model(app, settings, row, result, monkeypatch, batches=[(1, 2)])
+    done = a.get("/api/v1/reading-artifacts/" + row["id"]).json()
+    assert done["status"] == "failed", done
+
+
 def test_a_summary_squeezed_into_one_item_is_split_into_three_sentences(
     env, monkeypatch
 ):

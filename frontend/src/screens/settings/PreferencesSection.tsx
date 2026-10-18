@@ -1,6 +1,7 @@
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { Locale } from "../../i18n/i18n";
+import { useKeypointsEnabled } from "../../reader/keypoints";
 import { SegmentedControl, useAppearance, type Appearance } from "../../ui";
 import { Section } from "./Section";
 import styles from "./Settings.module.css";
@@ -59,6 +60,32 @@ export function LanguageSection() {
           ]}
         />
       </div>
+    </Section>
+  );
+}
+
+/** Whether a paper's key sentences are found and underlined when it is opened. */
+export function KeypointsSection() {
+  const { t } = useI18n();
+  const [enabled, setEnabled] = useKeypointsEnabled();
+  return (
+    <Section title={t("settings.keypoints.title")}>
+      <div className={styles.setting}>
+        <span className={styles.settingLabel}>
+          {t("settings.keypoints.label")}
+        </span>
+        <SegmentedControl<"on" | "off">
+          kind="radio"
+          label={t("settings.keypoints.label")}
+          value={enabled ? "on" : "off"}
+          onChange={(value) => setEnabled(value === "on")}
+          options={[
+            { value: "on", label: t("settings.keypoints.on") },
+            { value: "off", label: t("settings.keypoints.off") },
+          ]}
+        />
+      </div>
+      <p className={styles.settingHint}>{t("settings.keypoints.hint")}</p>
     </Section>
   );
 }

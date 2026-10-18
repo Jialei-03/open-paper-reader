@@ -4,6 +4,7 @@ import type { Paper, SourceFile } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
 import { GuideTab } from "./panel/GuideTab";
+import type { Keypoint, Keypoints } from "./keypoints";
 import { NotesTab, type NotesTabProps } from "./panel/NotesTab";
 import { AssistantThread, type Assistant } from "./assistant";
 import type { ReaderRoute } from "./route";
@@ -41,6 +42,7 @@ export function RightPanel({
   file,
   onJumpToPage,
   assistant,
+  keypoints,
   onCite,
   notes,
   tab,
@@ -55,6 +57,8 @@ export function RightPanel({
   onJumpToPage?: (page: number) => void;
   overlay?: PanelOverlay;
   assistant?: Assistant;
+  /** The key sentences, listed in the guide. */
+  keypoints?: Keypoints;
   onCite?: (route: ReaderRoute) => void;
   /** What the notes tab is made from; until the paper is there, the tab says what it will hold. */
   notes?: NotesTabProps;
@@ -144,6 +148,18 @@ export function RightPanel({
                   paper={paper}
                   file={file}
                   onJumpToPage={onJumpToPage}
+                  keypoints={keypoints}
+                  onJumpKeypoint={
+                    onCite
+                      ? (item) =>
+                          onCite({
+                            paperId: paper.id,
+                            fileId: file.id,
+                            page: item.page,
+                            quote: item.quote,
+                          })
+                      : undefined
+                  }
                 />
               ) : value === "assistant" && assistant && onCite ? (
                 <AssistantThread assistant={assistant} onCite={onCite} />

@@ -47,6 +47,7 @@ ARTIFACT_TASKS = {
     "page_translation": "translate",
     "outline": "extract",
     "highlights": "extract",
+    "keypoints": "extract",
 }
 # Only models whose parameters are known get an override. Sending a field a
 # provider never advertised risks a rejected request, so anything else keeps

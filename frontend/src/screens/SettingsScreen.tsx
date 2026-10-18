@@ -5,6 +5,7 @@ import { DataSection } from "./settings/DataSection";
 import { ModelsSection } from "./settings/ModelsSection";
 import {
   AppearanceSection,
+  KeypointsSection,
   LanguageSection,
 } from "./settings/PreferencesSection";
 import styles from "./settings/Settings.module.css";
@@ -28,6 +29,7 @@ export function SettingsScreen({ go }: { go(hash: string): void }) {
           <ModelsSection />
           <AppearanceSection />
           <LanguageSection />
+          <KeypointsSection />
           <DataSection />
           <UsageSection />
           <AccessSection go={go} />

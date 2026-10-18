@@ -87,6 +87,14 @@
   color: var(--ui-fg-1);
 }
 
+/* What a setting does, in a line or two under it. */
+.settingHint {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
 .list {
   display: flex;
   flex-direction: column;

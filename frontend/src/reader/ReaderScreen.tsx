@@ -59,6 +59,7 @@ import { SelectionMenu, type SelectionNote } from "./selection/SelectionMenu";
 import { Composer, useAssistant } from "./assistant";
 import { excerptMarkdown } from "./notes/excerpt";
 import { useNotes } from "./notes/useNotes";
+import { KeypointLayer, useKeypoints, type Keypoint } from "./keypoints";
 import type { AskRequest } from "./types";
 import { linkTarget } from "./outline";
 import {
@@ -112,6 +113,8 @@ interface Overlays {
   /** The menu's explain and ask, and its keeping in the note. */
   onAsk(request: AskRequest): void;
   onNote(request: SelectionNote): void;
+  /** The key sentences to underline on the pages (of the categories that are shown). */
+  keypoints?: readonly Keypoint[];
 }
 
 /**
@@ -120,7 +123,16 @@ interface Overlays {
  * address points at.
  */
 function PaperPages({
-  overlays: { onLink, preview, region, paper, scroller, onAsk, onNote },
+  overlays: {
+    onLink,
+    preview,
+    region,
+    paper,
+    scroller,
+    onAsk,
+    onNote,
+    keypoints,
+  },
   translated,
   ...props
 }: Omit<PdfPagesProps, "pageOverlays"> & {
@@ -142,6 +154,9 @@ function PaperPages({
           page={page}
           rotation={geometry.rotation}
         />
+        {keypoints && !translated && (
+          <KeypointLayer items={keypoints} page={page} />
+        )}
         <InkLayer
           strokes={strokes}
           page={page}
@@ -168,7 +183,18 @@ function PaperPages({
         )}
       </>
     ),
-    [annotations, strokes, doc, onLink, hover, close, describedBy, region],
+    [
+      annotations,
+      strokes,
+      doc,
+      onLink,
+      hover,
+      close,
+      describedBy,
+      region,
+      keypoints,
+      translated,
+    ],
   );
   return (
     <>
@@ -537,6 +563,7 @@ function PaperCard({
   onFile,
   onAsk,
   onNote,
+  keypoints,
   actions,
 }: {
   route: ReaderRoute;
@@ -549,6 +576,7 @@ function PaperCard({
   /** Selected text to explain or ask about, and to keep in the note. */
   onAsk: Overlays["onAsk"];
   onNote: Overlays["onNote"];
+  keypoints: Overlays["keypoints"];
   actions: RefObject<PaperActions | null>;
 }) {
   const [paper, setPaper] = useState<Paper | null>(null);
@@ -831,6 +859,7 @@ function PaperCard({
     scroller: controller?.root ?? null,
     onAsk,
     onNote,
+    keypoints,
   };
 
   // The screen's mod+f reaches the find bar through this.
@@ -973,6 +1002,7 @@ export function ReaderScreen({
   const assistant = useAssistant({ paper: here, file: hereFile });
   const [pending, setPending] = useState<AskRequest | null>(null);
   const notes = useNotes(here);
+  const keypoints = useKeypoints(here?.id ?? null, hereFile?.id ?? null);
   const [tab, setTab] = useState<PanelView>("guide");
   // How far up the question box reaches over the foot of the paper's card: the pages leave that room under the last.
   const [cover, setCover] = useState(0);
@@ -1109,6 +1139,7 @@ export function ReaderScreen({
             onFile={setFile}
             onAsk={ask}
             onNote={keep}
+            keypoints={keypoints.visible}
             actions={actions}
           />
           <Composer
@@ -1126,6 +1157,7 @@ export function ReaderScreen({
             goFromPanel(() => actions.current?.jump(page))
           }
           assistant={assistant}
+          keypoints={keypoints}
           onCite={jumpFromPanel}
           notes={
             here

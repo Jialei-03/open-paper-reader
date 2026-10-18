@@ -138,7 +138,7 @@ RETRY_SECONDS = 1.5
 # Results about the whole paper are one call too, when the server can hand the
 # model all of it: a paper this short, every page with text. Otherwise (a long
 # book, scanned pages that have to be looked at) the agent reads it with tools.
-WHOLE_PAPER = {"guide", "quiz", "outline", "highlights"}
+WHOLE_PAPER = {"guide", "quiz", "outline", "highlights", "keypoints"}
 DIRECT_PAGES = 60
 DIRECT_CHARS = 350_000
 

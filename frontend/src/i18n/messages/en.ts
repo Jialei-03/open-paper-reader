@@ -273,6 +273,19 @@ export const en = {
   "reader.guide.summary": "Summary",
   "reader.guide.pages": "Pages it comes from",
   "reader.guide.page": "Page {page}",
+  "reader.keypoints.title": "Key sentences",
+  "reader.keypoints.legend": "Kinds of key sentence",
+  "reader.keypoints.novelty": "Novelty",
+  "reader.keypoints.method": "Method",
+  "reader.keypoints.results": "Results",
+  "reader.keypoints.limits": "Limitations",
+  "reader.keypoints.idle":
+    "Find the sentences that state what is new, how it is done, what it achieved and where it falls short.",
+  "reader.keypoints.generate": "Find key sentences",
+  "reader.keypoints.working": "Finding key sentences…",
+  "reader.keypoints.failed": "The key sentences could not be found.",
+  "reader.keypoints.allHidden":
+    "Every kind is hidden. Choose one above to show it.",
   "reader.tab.assistant.empty":
     "Your conversation with the assistant about this paper will appear here.",
   "reader.tab.notes.empty":
@@ -513,6 +526,12 @@ export const en = {
   "settings.language.label": "Interface language",
   "settings.language.zh": "中文",
   "settings.language.en": "English",
+  "settings.keypoints.title": "Reading",
+  "settings.keypoints.label": "Underline key sentences",
+  "settings.keypoints.hint":
+    "When a paper's guide is ready, find its key sentences (novelty, method, results, limitations) and underline them in the paper. This asks the model once more for each paper.",
+  "settings.keypoints.on": "On",
+  "settings.keypoints.off": "Off",
   "settings.data.title": "Data",
   "settings.data.lead": "Papers, notes and what's attached to them.",
   "settings.data.used": "{used} of {limit} used",

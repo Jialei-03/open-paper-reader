@@ -27,7 +27,9 @@ RESERVE = RESULT_LIMIT + EVIDENCE_LIMIT
 class ArtifactInput(Strict):
     file_id: str = Field(pattern=r"^[0-9a-f-]{36}$")
     model_config_id: str = Field(min_length=1, max_length=36)
-    kind: Literal["guide", "quiz", "page_translation", "highlights", "outline"]
+    kind: Literal[
+        "guide", "quiz", "page_translation", "highlights", "outline", "keypoints"
+    ]
     regenerate: bool = False
     page: int = Field(default=1, ge=1, le=3000, strict=True)
     language: Literal[
@@ -113,6 +115,17 @@ class SuggestedHighlight(Strict):
 
 class Highlights(Strict):
     highlights: list[SuggestedHighlight] = Field(min_length=1, max_length=30)
+
+
+class Keypoint(Strict):
+    page: int = Field(ge=1, le=3000, strict=True)
+    quote: str = Field(min_length=1, max_length=500)
+    category: Literal["novelty", "method", "results", "limits"]
+    reason: str = Field(default="", max_length=300)
+
+
+class Keypoints(Strict):
+    keypoints: list[Keypoint] = Field(min_length=1, max_length=24)
 
 
 class OutlineEntry(Strict):
@@ -299,6 +312,21 @@ def artifact_prompt(file, body, direct=False):
             "图内示例对话不能当作正文；同一段落不要混合正文和图中文字。"
             "译文按自然句子排版，去掉PDF造成的行内断行；不改变原文内容。"
         )
+    if body.kind == "keypoints":
+        return (
+            (
+                "阅读下面给出的论文全文，找出最值得读者留意的关键句，分四类："
+                "novelty创新点、method方法、results结果、limits局限。"
+                if direct
+                else f"请使用 read_file 读取附件 {file.id} 的全部 {file.pages} 页（每次最多5页），"
+                "找出最值得读者留意的关键句，分四类：novelty创新点、method方法、results结果、limits局限。"
+            )
+            + "每类2到5句，整篇不超过20句；只选论文自己的陈述，不要选参考文献、页眉或图表标签。"
+            "只给建议，不修改笔记或用户标注。"
+            '最终只返回JSON：{"keypoints":[{"page":1,"quote":"逐字原句","category":"novelty","reason":"一句话说明为什么重要"}]}。'
+            "reason用中文，不超过60字；每句quote不超过300字，必须是页面文本中的一个连续片段，"
+            "只允许调整空白，不得改写、拼接或省略；按页码和原文先后排序。"
+        )
     if body.kind == "highlights":
         return (
             (
@@ -431,7 +459,7 @@ def record_reading_evidence(app, run_id, tool, result):
                 and isinstance(p.get("text"), str)
                 and p["text"].strip()
             )
-            if row.kind in {"page_translation", "highlights", "outline"}:
+            if row.kind in {"page_translation", "highlights", "outline", "keypoints"}:
                 texts = dict(row.evidence_text or {})
                 for p in result.get("pages", []):
                     if (
@@ -487,6 +515,7 @@ def check_result(kind, raw, *, parameters, expected, evidence_pages, evidence_te
         "quiz": Quiz,
         "page_translation": PageTranslation,
         "highlights": Highlights,
+        "keypoints": Keypoints,
         "outline": Outline,
     }[kind]
     result = schema.model_validate(parsed)
@@ -530,7 +559,8 @@ def check_result(kind, raw, *, parameters, expected, evidence_pages, evidence_te
         # reading order whatever order it listed them in; a quote that is not
         # there (or is listed twice) is left out rather than failing the rest.
         found, seen = [], set()
-        for highlight in result.highlights:
+        entries = result.keypoints if kind == "keypoints" else result.highlights
+        for highlight in entries:
             source = normalized_text(evidence_text.get(str(highlight.page), ""))
             quote = normalized_text(highlight.quote)
             position = source.find(quote) if quote else -1
@@ -541,7 +571,11 @@ def check_result(kind, raw, *, parameters, expected, evidence_pages, evidence_te
             found.append((key, highlight))
         if not found:
             raise ValueError("重点建议中没有能在原文核实的原句，请重试")
-        result.highlights = [h for _, h in sorted(found, key=lambda item: item[0])]
+        ordered = [h for _, h in sorted(found, key=lambda item: item[0])]
+        if kind == "keypoints":
+            result.keypoints = ordered
+        else:
+            result.highlights = ordered
     return result.model_dump(mode="json")
 
 
@@ -781,6 +815,7 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
                             "quiz": "论文测验",
                             "page_translation": "本页翻译",
                             "highlights": "重点建议",
+                            "keypoints": "自动高亮",
                             "outline": "智能目录",
                         }[body.kind]
                     )

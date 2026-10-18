@@ -1,0 +1,163 @@
+/*
+ * The key sentences in the guide: a legend that is also the switch of each
+ * category, and the sentences in the paper's order, each a way to its place.
+ */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-10);
+}
+
+.label {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  min-height: 24px;
+  margin: 0;
+  padding: 0 var(--ui-space-10);
+  border: 0;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-accent-soft);
+  color: var(--ui-fg-1);
+  font: inherit;
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+  cursor: pointer;
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.chip:hover {
+  background: var(--ui-selected);
+}
+
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+/* A category that is hidden: its swatch is an empty ring and the name is struck back to a caption. */
+.chip[aria-pressed="false"] {
+  background: transparent;
+  color: var(--ui-fg-3);
+  box-shadow: inset 0 0 0 1px var(--ui-edge);
+}
+
+.swatch {
+  flex: none;
+  width: 14px;
+  height: 0;
+  border-bottom: 2px solid var(--kp);
+}
+
+.chip[aria-pressed="false"] .swatch {
+  border-bottom-style: dotted;
+  opacity: 0.7;
+}
+
+.count {
+  color: var(--ui-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  width: 100%;
+  margin: 0;
+  padding: var(--ui-space-8) var(--ui-space-10);
+  border: 0;
+  border-left: 2px solid var(--kp);
+  border-radius: 0 var(--ui-r-6) var(--ui-r-6) 0;
+  background: transparent;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.item:hover {
+  background: var(--ui-hover);
+}
+
+.item:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.quote {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  overflow-wrap: anywhere;
+}
+
+.page {
+  color: var(--ui-accent-text);
+  white-space: nowrap;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-8);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+.note {
+  margin: 0;
+  color: var(--ui-fg-2);
+}
+
+.error {
+  margin: 0;
+  color: var(--ui-danger-text);
+  overflow-wrap: anywhere;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+}

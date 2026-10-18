@@ -7,12 +7,17 @@ import type { GuideContent, GuideSection } from "./guide";
 import { useSmoothText } from "../stream";
 import styles from "./GuideTab.module.css";
 import { useGuide } from "./useGuide";
+import { KeypointsSection, type Keypoint, type Keypoints } from "../keypoints";
 
 export interface GuideTabProps {
   paper: Paper;
   file: SourceFile;
   /** A page chip was pressed: the paper goes to that page. */
   onJumpToPage(page: number): void;
+  /** The paper's key sentences, listed after the guide; none to list when not given. */
+  keypoints?: Keypoints;
+  /** A key sentence was pressed: the paper goes to it. */
+  onJumpKeypoint?(item: Keypoint): void;
 }
 
 /** `**bold**` and `` `code` `` in a line of the guide; the rest is text as written. */
@@ -153,7 +158,13 @@ function Content({
  * rests on. It is made by the paper's automatic preparation when the paper is
  * opened, or by a press of the button; what has been written shows as it comes.
  */
-export function GuideTab({ paper, file, onJumpToPage }: GuideTabProps) {
+export function GuideTab({
+  paper,
+  file,
+  onJumpToPage,
+  keypoints,
+  onJumpKeypoint,
+}: GuideTabProps) {
   const { t } = useI18n();
   const guide = useGuide(paper.id, file.id);
   const { view } = guide;
@@ -190,6 +201,9 @@ export function GuideTab({ paper, file, onJumpToPage }: GuideTabProps) {
             streaming={view.kind === "working"}
             onJumpToPage={onJumpToPage}
           />
+          {view.kind === "ready" && keypoints && onJumpKeypoint && (
+            <KeypointsSection keypoints={keypoints} onJump={onJumpKeypoint} />
+          )}
         </div>
       );
     case "failed":
