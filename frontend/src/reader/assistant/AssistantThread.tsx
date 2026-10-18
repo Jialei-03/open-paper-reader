@@ -26,7 +26,9 @@ import remarkMath from "remark-math";
 import { useI18n, type I18n } from "../../i18n/I18nProvider";
 import { Button, Spinner } from "../../ui";
 import { followLink, readerHash, type ReaderRoute } from "../route";
+import { AssistantEmpty } from "./AssistantEmpty";
 import { serviceWords } from "../service-error";
+import { fadeTail, useSmoothText } from "../stream";
 import {
   citedRoute,
   conversation,
@@ -82,12 +84,7 @@ export function AssistantThread({ assistant, onCite }: AssistantThreadProps) {
         <Spinner />
       </div>
     );
-  if (!runs.length)
-    return (
-      <p className={styles.empty} role={assistant.error ? "alert" : undefined}>
-        {assistant.error || t("reader.assistant.empty")}
-      </p>
-    );
+  if (!runs.length) return <AssistantEmpty assistant={assistant} />;
   return (
     <div
       ref={thread}
@@ -188,7 +185,7 @@ const Turn = memo(function Turn({
       </div>
       <Process run={run} />
       {run.response ? (
-        <Answer body={run.response} onCite={onCite} />
+        <Answer body={run.response} done={!active} onCite={onCite} />
       ) : (
         active && (
           <p className={styles.thinking}>
@@ -405,11 +402,16 @@ const WEB = /^https?:\/\/[^/\\]/i;
 /** An answer in Markdown, drawn again only when its text changes (it grows as it is written). */
 const Answer = memo(function Answer({
   body,
+  done,
   onCite,
 }: {
   body: string;
+  /** The answer is complete: whatever is still to be shown is shown at once. */
+  done: boolean;
   onCite(route: ReaderRoute): void;
 }) {
+  // It arrives in bursts, a poll at a time; it is shown at an even pace.
+  const { text, flowing } = useSmoothText(body, { done });
   const components: Components = {
     a: ({ href, children }) => {
       const route = citedRoute(href);
@@ -440,11 +442,13 @@ const Answer = memo(function Answer({
     <div className={styles.answer}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[[rehypeKatex, MATH]]}
+        rehypePlugins={
+          flowing ? [[rehypeKatex, MATH], fadeTail] : [[rehypeKatex, MATH]]
+        }
         skipHtml
         components={components}
       >
-        {body}
+        {text}
       </ReactMarkdown>
     </div>
   );
