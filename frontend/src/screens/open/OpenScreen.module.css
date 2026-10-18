@@ -1,0 +1,60 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 100dvh;
+  padding: var(--ui-space-24) var(--ui-space-16);
+  background: var(--ui-bg-1);
+  color: var(--ui-fg);
+  font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(.root) :focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.card {
+  gap: var(--ui-space-16);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 440px;
+  padding: var(--ui-space-32);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-20);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.address {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  overflow-wrap: anywhere;
+}
+
+.stage {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin: 0;
+  color: var(--ui-fg-1);
+}
+
+.error {
+  margin: 0;
+  color: var(--ui-danger, var(--ui-fg));
+  font-size: var(--ui-text-14);
+}
+
+.actions {
+  display: flex;
+  gap: var(--ui-space-8);
+  justify-content: flex-end;
+}

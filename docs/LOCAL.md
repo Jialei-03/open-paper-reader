@@ -94,6 +94,15 @@ websites reaching it through DNS rebinding) and did not pass through a proxy.
 Writes still need the session's CSRF token. Do not put it behind a reverse
 proxy or share the port; use the hosted setup (README, Docker) for a server.
 
+## Opening papers from the browser
+
+Paste any paper address into the home box: arXiv, alphaxiv and ar5iv pages, a
+publisher's page that names its PDF (`citation_pdf_url`), or a direct PDF link.
+The browser extension in [`extension/`](../extension/README.md) (Chrome or Edge,
+"Load unpacked") does the same from the toolbar or the right-click menu: it opens
+`http://127.0.0.1:8765/#open?url=<address>` and sends nothing but that address.
+A page that needs a subscription has no PDF to fetch; download it and drag it in.
+
 ## Building the package
 
 ```bash
@@ -115,5 +124,6 @@ checkout (build the frontend first).
 密钥，也可以用本机的 Ollama / LM Studio（只有本机版允许 `http://127.0.0.1` 地址，
 不需要密钥）。版面翻译按需安装：译文模式或设置里点「安装版面翻译」，装在数据目录
 的 `babeldoc-venv`，可看进度、可取消。arXiv 论文的译文从 LaTeX 源码翻译再编译：译文模式或设置里点「安装 LaTeX 编译器」，从 Tectonic 官方 GitHub 发布页下载到数据目录的 `tools/tectonic`，装完会先编译一页中文小样，取回宏包和 Fandol 中文字体；没有源码的版本可以改用版面翻译。没有 Docker 时，代码沙箱类工具明确提示不可用。
+任意论文网址（出版社页面、PDF 直链、alphaxiv 等）可以直接粘贴到首页的导入框；浏览器扩展见 [`extension/`](../extension/README.md)，点工具栏按钮或右键菜单即在本机版里打开，只发送网址。
 免登录只在本机模式、只监听 127.0.0.1、请求来自本机且 Host 是本机时生效，其他情况一律按
 正常登录处理。

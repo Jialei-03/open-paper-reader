@@ -64,9 +64,7 @@ test("with no papers, a dropped PDF is imported and opened", async ({
   await page.goto(HOME);
   const home = page.getByRole("main");
   await expect(home.getByRole("heading", { name: "首页" })).toBeVisible();
-  await expect(
-    home.getByText("把 PDF 拖进来，或粘贴 arXiv 链接"),
-  ).toBeVisible();
+  await expect(home.getByText("把 PDF 拖进来，或粘贴论文链接")).toBeVisible();
   await expect(home.getByText("继续阅读")).toHaveCount(0);
 
   // Something that is not a PDF is refused, and says why.

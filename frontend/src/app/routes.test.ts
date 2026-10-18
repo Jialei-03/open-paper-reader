@@ -48,3 +48,21 @@ describe("parseAppRoute", () => {
       expect(parseAppRoute(hash)).toEqual({ screen: "home", redirect: "home" });
   });
 });
+
+describe("parseAppRoute: #open", () => {
+  it("reads the address the extension sends", () => {
+    expect(
+      parseAppRoute(
+        "open?url=" + encodeURIComponent("https://a.org/p?x=1&y=2"),
+      ),
+    ).toEqual({ screen: "open", url: "https://a.org/p?x=1&y=2" });
+  });
+
+  it("sends a missing or odd address home", () => {
+    expect(parseAppRoute("open")).toEqual({ screen: "home", redirect: "home" });
+    expect(parseAppRoute("open?url=javascript:alert(1)")).toEqual({
+      screen: "home",
+      redirect: "home",
+    });
+  });
+});

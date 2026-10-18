@@ -50,3 +50,9 @@ export const importArxiv = (
   url: string,
   onProgress?: (value: ImportProgress) => void,
 ) => importWithProgress<Paper>("/import/arxiv", { url }, onProgress);
+
+/** Any other address: a publisher's page or a PDF link (the service reads arXiv and alphaxiv ones as arXiv). */
+export const importUrl = (
+  url: string,
+  onProgress?: (value: ImportProgress) => void,
+) => importWithProgress<Paper>("/import/url", { url }, onProgress);
