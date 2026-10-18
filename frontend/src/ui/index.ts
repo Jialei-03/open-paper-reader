@@ -14,6 +14,7 @@ export {
 } from "./Button";
 export { IconButton, type IconButtonProps } from "./IconButton";
 export { Spinner } from "./Spinner";
+export { ErrorBoundary, type ErrorBoundaryProps } from "./ErrorBoundary";
 export { Kbd } from "./Kbd";
 export { Floating, type DismissReason, type FloatingProps } from "./Floating";
 export { Tooltip, type TooltipProps } from "./Tooltip";

@@ -8,6 +8,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type MouseEvent,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -178,7 +179,8 @@ export interface SidebarItemProps {
   active?: boolean;
   /** The paper being read right now: a dot with a soft ring. */
   dot?: boolean;
-  onClick?: () => void;
+  /** Gets the click, so that a link can take it over (and leave a click with a modifier key to the browser). */
+  onClick?: (event: MouseEvent<HTMLElement>) => void;
   /** With an address the item is a link; without, a button. */
   href?: string;
 }

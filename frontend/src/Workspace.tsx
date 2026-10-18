@@ -28,7 +28,7 @@ import { Toaster } from "./components/ui/sonner";
 import { toast as notify } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useAppearance } from "./components/Appearance";
-import React, { useState, useEffect, useRef } from "react";
+import React, { Suspense, lazy, useState, useEffect, useRef } from "react";
 import {
   BookOpen,
   Plus,
@@ -58,6 +58,9 @@ import { Recommendations } from "./features/Recommendations";
 import { SettingsView } from "./features/SettingsView";
 import { LibraryView } from "./features/LibraryView";
 import { PreparationOverview } from "./features/PreparationOverview";
+import { I18nProvider, useI18n } from "./i18n/I18nProvider";
+import { parseReaderRoute } from "./reader/route";
+import { Spinner } from "./ui/Spinner";
 import {
   Clock,
   Star,
@@ -69,6 +72,26 @@ import {
   Search,
   ListChecks,
 } from "lucide-react";
+// The new reader is a screen of its own, with its own interface kit: it loads
+// as a chunk of its own, and only when its address is opened.
+const ReaderScreen = lazy(() =>
+  import("./reader/ReaderScreen").then((module) => ({
+    default: module.ReaderScreen,
+  })),
+);
+/** What shows while the reader's chunk loads. */
+function ReaderLoading() {
+  const { t } = useI18n();
+  return (
+    <div
+      role="status"
+      aria-label={t("common.loading")}
+      style={{ display: "grid", placeItems: "center", height: "100dvh" }}
+    >
+      <Spinner />
+    </div>
+  );
+}
 const navs = [
   ["dashboard", "最近", Clock],
   ["library", "我的文库", Library],
@@ -201,7 +224,9 @@ export function Workspace({
         (event.metaKey || event.ctrlKey) &&
         event.key.toLowerCase() === "k" &&
         user &&
-        !modal
+        !modal &&
+        // The new reader has no search here to open.
+        !routePath.startsWith("read/")
       ) {
         event.preventDefault();
         setSearchOpen((open) => !open);
@@ -209,7 +234,7 @@ export function Workspace({
     };
     window.addEventListener("keydown", shortcut);
     return () => window.removeEventListener("keydown", shortcut);
-  }, [user, modal]);
+  }, [user, modal, routePath]);
   const importing = useRef(false);
   const importPdfs = async (files: File[]) => {
     if (importing.current) {
@@ -380,6 +405,24 @@ export function Workspace({
   if (routePath === "library") lastLibrary.current = route;
   const section = route.split(/[/?]/)[0],
     paperId = route.startsWith("paper/") ? route.slice(6).split("?")[0] : "";
+  // The new reader has the whole window: none of the workspace's own sidebar,
+  // assistant, notifications or search around it. (An address it cannot read
+  // falls through to the workspace's "page not found".)
+  const reader = section === "read" ? parseReaderRoute(route) : null;
+  if (reader)
+    return (
+      <I18nProvider>
+        <Suspense fallback={<ReaderLoading />}>
+          <ReaderScreen
+            paperId={reader.paperId}
+            route={reader}
+            go={go}
+            owner={user.id}
+            papers={papers}
+          />
+        </Suspense>
+      </I18nProvider>
+    );
   return (
     <ContentTypesContext.Provider
       value={Object.fromEntries(graph.nodes.map((n) => [n.route, n.kind]))}

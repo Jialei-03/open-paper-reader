@@ -1,0 +1,40 @@
+/*
+ * The corner that broke. It takes the room of what it stands for (the box that
+ * uses it says how much, through its own class) and keeps the message in the middle.
+ */
+.region {
+  --error-card-width: 280px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: var(--ui-space-16);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-12);
+  width: min(100%, var(--error-card-width));
+  padding: var(--ui-space-20);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-1);
+  color: var(--ui-fg);
+  text-align: center;
+}
+
+.icon {
+  flex: none;
+  color: var(--ui-danger-text);
+}
+
+.message {
+  margin: 0;
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading);
+  overflow-wrap: anywhere;
+}

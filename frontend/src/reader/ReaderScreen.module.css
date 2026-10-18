@@ -1,0 +1,87 @@
+/*
+ * The reader does not load the interface's reset (the old screens have their own
+ * and would be changed by it), so what the reset would give the page, the root gives
+ * itself: the font, the colors, the window's height and the focus ring.
+ */
+.root {
+  height: 100dvh;
+  background: var(--ui-bg-1);
+  color: var(--ui-fg);
+  font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(.root) :focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+/* The sidebar that failed holds the room the sidebar would (220px, as its own stylesheet has it). */
+.sidebarFailure {
+  --reader-sidebar-width: 220px;
+  flex: none;
+  width: var(--reader-sidebar-width);
+}
+
+/* The paper's card takes the room the others leave. */
+.paper {
+  flex: 1;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+  /* The old stylesheets give every h1 a tight tracking; this is not that page. */
+  letter-spacing: normal;
+  line-height: var(--ui-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Under the header: what scrolls. */
+.body {
+  flex: 1;
+  min-height: 0;
+  /* In line with the title in the header above it. */
+  padding: var(--ui-space-8) var(--ui-space-16) var(--ui-space-24);
+  overflow-y: auto;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--ui-fg-2);
+}
+
+/* Loading, or the reason the paper is not here, in the middle of the card. */
+.state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-12);
+  min-height: 0;
+  padding: var(--ui-space-24);
+  color: var(--ui-fg-1);
+  text-align: center;
+}
+
+.message {
+  margin: 0;
+  max-width: 36ch;
+  line-height: var(--ui-leading);
+}
+
+.link {
+  border-radius: var(--ui-r-4);
+  color: var(--ui-accent-text);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}

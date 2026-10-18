@@ -28,6 +28,7 @@ import {
   Card,
   CardHeader,
   Dialog,
+  ErrorBoundary,
   IconButton,
   Kbd,
   Menu,
@@ -660,6 +661,49 @@ function ToastDemo() {
   );
 }
 
+/** A child that fails as it draws, the way a bug in a region would. */
+function Fragile({ broken }: { broken: boolean }) {
+  // Its own state, to show that trying again starts the child over.
+  const [count, setCount] = useState(0);
+  if (broken) throw new Error("The preview failed as it drew");
+  return (
+    <div className={styles.preview}>
+      <p>The preview is fine.</p>
+      <Button size="sm" onClick={() => setCount((value) => value + 1)}>
+        Count: {count}
+      </Button>
+    </div>
+  );
+}
+
+function ErrorBoundaryDemo() {
+  const { t } = useI18n();
+  const [broken, setBroken] = useState(false);
+  const [resets, setResets] = useState(0);
+  return (
+    <Section id="errorboundary" title="ErrorBoundary">
+      <div className={styles.row}>
+        <Button onClick={() => setBroken(true)}>Make the preview throw</Button>
+        <p>
+          Resets: <output>{resets}</output>
+        </p>
+      </div>
+      <div className={styles.boundary}>
+        <ErrorBoundary
+          label={t("kit.sample.region")}
+          onReset={() => {
+            setBroken(false);
+            setResets((count) => count + 1);
+          }}
+        >
+          <Fragile broken={broken} />
+        </ErrorBoundary>
+      </div>
+      <p>The rest of the page is outside the boundary and carries on.</p>
+    </Section>
+  );
+}
+
 const paperTitle = "Attention Is All You Need";
 const longTitle =
   "A Remarkably Long Paper Title That Will Not Fit In The Sidebar";
@@ -762,6 +806,7 @@ function Kit() {
             <DialogDemo />
             <SegmentedDemo />
             <ToastDemo />
+            <ErrorBoundaryDemo />
           </div>
         </Card>
         <Card as="aside" className={styles.side} aria-label="Assistant">

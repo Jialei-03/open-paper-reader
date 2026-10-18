@@ -1,0 +1,56 @@
+/*
+ * The card beside the paper. Docked it is 400px wide and as high as the window.
+ * Folded (a window narrower than the reader's breakpoint) it is not drawn;
+ * opened, it floats over the paper from the right edge, under the paper's
+ * header so that the button that opened it is not covered.
+ */
+.panel {
+  --panel-width: 400px;
+  --panel-gap: var(--ui-space-8);
+  /* The header strip of the paper's card (52px) and the gap under it. */
+  --panel-header-offset: 52px;
+  --panel-layer: 5;
+  flex: none;
+  width: var(--panel-width);
+}
+
+.panel.floating {
+  position: fixed;
+  top: calc(var(--panel-gap) * 2 + var(--panel-header-offset));
+  right: var(--panel-gap);
+  bottom: var(--panel-gap);
+  z-index: var(--panel-layer);
+  /* Never wider than the window, whatever it is. */
+  width: min(var(--panel-width), calc(100vw - 2 * var(--panel-gap)));
+  box-shadow: var(--ui-elev-2);
+  /* Comes in with a short move from the edge; going away is at once. */
+  transition:
+    opacity var(--ui-dur-2) var(--ui-ease-out),
+    transform var(--ui-dur-2) var(--ui-ease-out);
+}
+
+@starting-style {
+  .panel.floating {
+    opacity: 0;
+    transform: translateX(var(--ui-space-12));
+  }
+}
+
+.panel.folded {
+  display: none;
+}
+
+/* What is under the tabs: this is what scrolls. */
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--ui-space-8) var(--ui-space-16) var(--ui-space-24);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--ui-fg-2);
+  line-height: var(--ui-leading);
+}

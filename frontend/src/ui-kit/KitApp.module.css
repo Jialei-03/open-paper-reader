@@ -7,6 +7,7 @@
   --kit-narrow-width: 160px;
   --kit-field-width: 360px;
   --kit-corner-gap: 4px;
+  --kit-boundary-height: 160px;
 }
 
 .select {
@@ -157,4 +158,20 @@
 .stack {
   display: grid;
   gap: var(--ui-space-12);
+}
+
+/* A box for a boundary to fill, so that its message has room to sit in the middle. */
+.boundary {
+  display: flex;
+  flex-direction: column;
+  min-height: var(--kit-boundary-height);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-2);
+}
+
+.preview {
+  display: grid;
+  justify-items: start;
+  gap: var(--ui-space-12);
+  padding: var(--ui-space-16);
 }
