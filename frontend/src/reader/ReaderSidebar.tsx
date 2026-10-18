@@ -1,5 +1,5 @@
 import { FileText, Library, Settings } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { Sidebar, SidebarItem, SidebarSection } from "../ui";
@@ -15,12 +15,19 @@ const READING_LIMIT = 5;
  * paper being read is named from itself until the list has caught up with it.
  */
 export function ReaderSidebar({
+  floating,
   paperId,
   papers,
   current,
   visits,
   go,
 }: {
+  /**
+   * The window is too narrow for the sidebar beside the paper: it is a rail of
+   * icons whatever was chosen on a wide window, and opened it floats over the
+   * paper (closing again when something else is done).
+   */
+  floating: boolean;
   paperId: string;
   papers: Paper[];
   /** This paper, once it has loaded. */
@@ -31,7 +38,11 @@ export function ReaderSidebar({
   go: (hash: string) => void;
 }) {
   const { t } = useI18n();
+  // Two answers, one for each kind of window: what was chosen on a wide one is not lost on a narrow one.
   const [collapsed, setCollapsed] = useState(false);
+  const [opened, setOpened] = useState(false);
+  // Whichever way the window has changed, the sidebar floats shut (a wide one keeps what was chosen).
+  useEffect(() => setOpened(false), [floating]);
 
   const reading = useMemo(() => {
     const titles = new Map(papers.map((paper) => [paper.id, paper.title]));
@@ -50,8 +61,11 @@ export function ReaderSidebar({
   return (
     <Sidebar
       label={t("reader.region.sidebar")}
-      collapsed={collapsed}
-      onCollapsedChange={setCollapsed}
+      collapsed={floating ? !opened : collapsed}
+      onCollapsedChange={(shut) =>
+        floating ? setOpened(!shut) : setCollapsed(shut)
+      }
+      overlay={floating}
       footer={
         <SidebarItem
           icon={Settings}

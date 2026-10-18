@@ -1,9 +1,32 @@
-.sidebar {
+/*
+ * The sidebar's sizes are set here, one box out, where the nav and the room it
+ * keeps in the shell (below) both read them. The box has none of its own
+ * unless the sidebar floats.
+ */
+.slot {
   --sidebar-width: 220px;
   --sidebar-width-collapsed: 56px;
   --sidebar-top-height: 52px;
   /* From the edge to the items: a collapsed item (32px) is then a square, and its icon sits where it sat when open. */
   --sidebar-inset: var(--ui-space-12);
+  /* The shell's own inset: where a floating sidebar lies, over the rail it came from. */
+  --sidebar-edge: var(--ui-space-8);
+  /* Over the cards beside it, and over the side panel that floats on a narrow window (layer 10 there). */
+  --sidebar-layer: 20;
+  display: contents;
+}
+
+/*
+ * A sidebar that floats keeps the room of its rail in the shell, open or not:
+ * what is beside it never moves.
+ */
+.slot.reserved {
+  display: block;
+  flex: none;
+  width: var(--sidebar-width-collapsed);
+}
+
+.sidebar {
   display: flex;
   flex: none;
   flex-direction: column;
@@ -17,6 +40,31 @@
 
 .collapsed {
   width: var(--sidebar-width-collapsed);
+}
+
+/*
+ * Opened over the cards: a sheet of its own, as a card has, from the edge the
+ * rail was at, so that the icons stay where they were. It comes in with a short
+ * move and a fade (the width itself is still never animated); going away is at
+ * once.
+ */
+.floating {
+  position: fixed;
+  top: var(--sidebar-edge);
+  bottom: var(--sidebar-edge);
+  left: var(--sidebar-edge);
+  z-index: var(--sidebar-layer);
+  border-radius: var(--ui-r-16);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-elev-2);
+  animation: sidebar-in var(--ui-dur-2) var(--ui-ease-out);
+}
+
+@keyframes sidebar-in {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--ui-space-8)));
+  }
 }
 
 .top {

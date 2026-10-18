@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type KeyboardEvent,
   type ReactNode,
   type Ref,
@@ -50,6 +49,7 @@ import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
 import { linkTarget } from "./outline";
 import { followLink, type ReaderRoute } from "./route";
+import { useMediaQuery } from "./useMediaQuery";
 import { usePaper } from "./usePaper";
 import styles from "./ReaderScreen.module.css";
 
@@ -59,21 +59,14 @@ import styles from "./ReaderScreen.module.css";
  * done from here, not by a media query in the stylesheet, so that the button,
  * the keyboard and the panel always agree on whether it is folded.
  */
-const NARROW = "(max-width: 1099.98px)";
+const PANEL_FOLDS = "(max-width: 1099.98px)";
 
-function subscribeNarrow(notify: () => void) {
-  const query = window.matchMedia(NARROW);
-  query.addEventListener("change", notify);
-  return () => query.removeEventListener("change", notify);
-}
-
-function useNarrowWindow(): boolean {
-  return useSyncExternalStore(
-    subscribeNarrow,
-    () => window.matchMedia(NARROW).matches,
-    () => false,
-  );
-}
+/**
+ * Narrower than this, the sidebar no longer has its 220px to spare: it is the
+ * 56px rail of icons, and opened it floats over the paper's card, which keeps
+ * the rest of the width. Decided here for the same reason as the panel's fold.
+ */
+const SIDEBAR_FLOATS = "(max-width: 899.98px)";
 
 /** Megabytes with one decimal, as the download progress shows them. */
 const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
@@ -656,7 +649,8 @@ export function ReaderScreen({
   papers,
 }: ReaderScreenProps) {
   const { t } = useI18n();
-  const narrow = useNarrowWindow();
+  const narrow = useMediaQuery(PANEL_FOLDS);
+  const compact = useMediaQuery(SIDEBAR_FLOATS);
   const [panelOpen, setPanelOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const [loaded, setLoaded] = useState<Paper | null>(null);
@@ -702,6 +696,7 @@ export function ReaderScreen({
         sidebar={
           <RegionBoundary region="sidebar" className={styles.sidebarFailure}>
             <ReaderSidebar
+              floating={compact}
               paperId={paperId}
               papers={papers}
               current={loaded}

@@ -214,6 +214,100 @@ test("collapsed items show their name in a tooltip on the right", async ({
   expect(tip.left).toBeGreaterThanOrEqual(button.right);
 });
 
+test("a floating sidebar lies over the card instead of pushing it", async ({
+  page,
+}) => {
+  await openKit(page, { locale: "en" });
+  const nav = sidebar(page);
+  const navWidth = () => widthOf(nav);
+  const open = () => page.getByRole("button", { name: "Expand sidebar" });
+  await page.getByLabel("Kit sidebar").selectOption("floating");
+  // Open as it was, it is over the card at once: Esc closes it to the rail.
+  await expect.poll(navWidth).toBe(220);
+  await page.keyboard.press("Escape");
+  await expect.poll(navWidth).toBe(56);
+  const rail = await boxOf(middle(page));
+  // The rail keeps its 56px and the 8px gap in the shell: the card sits as it does beside a collapsed sidebar.
+  expect(rail.left).toBeCloseTo(8 + 56 + 8, 1);
+
+  await open().click();
+  await expect.poll(navWidth).toBe(220);
+  // The card did not move, and the sidebar is a sheet over it, from the shell's edge (once it has come in).
+  await nav.evaluate((element) =>
+    Promise.all(
+      element
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished),
+    ),
+  );
+  const over = await boxOf(middle(page));
+  expect(over.left).toBeCloseTo(rail.left, 1);
+  expect(over.width).toBeCloseTo(rail.width, 1);
+  const sheet = await boxOf(nav);
+  expect(sheet.left).toBeCloseTo(8, 1);
+  expect(sheet.top).toBeCloseTo(8, 1);
+  expect(sheet.right).toBeGreaterThan(over.left);
+  expect(sheet.bottom).toBeCloseTo(page.viewportSize()!.height - 8, 1);
+  await expect(nav).toHaveCSS("position", "fixed");
+  await expect(nav).toHaveCSS("border-radius", "16px");
+  expect(await cssOf(nav, "box-shadow")).not.toBe("none");
+  expect(await cssOf(nav, "background-color")).not.toBe("rgba(0, 0, 0, 0)");
+  // It is above the card, not under it.
+  expect(
+    await page.evaluate(() => {
+      const nav = document.querySelector("nav")!;
+      const { left, top } = nav.getBoundingClientRect();
+      return nav.contains(document.elementFromPoint(left + 100, top + 200));
+    }),
+  ).toBe(true);
+
+  // Esc, a click on the card, and choosing an item each close it.
+  await page.keyboard.press("Escape");
+  await expect.poll(navWidth).toBe(56);
+  await open().click();
+  await expect.poll(navWidth).toBe(220);
+  await page.mouse.click(900, 500);
+  await expect.poll(navWidth).toBe(56);
+  await open().click();
+  await expect.poll(navWidth).toBe(220);
+  await item(page, "Library").click();
+  await expect.poll(navWidth).toBe(56);
+  // The choice was made all the same.
+  await expect(item(page, "Library")).toHaveAttribute("aria-current", "page");
+
+  // The keyboard leaving it does too; its own button is not "elsewhere".
+  await open().click();
+  await expect.poll(navWidth).toBe(220);
+  await item(page, "Settings").focus();
+  await page.keyboard.press("Tab");
+  await expect.poll(navWidth).toBe(56);
+  await open().click();
+  await expect.poll(navWidth).toBe(220);
+  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  await expect.poll(navWidth).toBe(56);
+  expect((await boxOf(middle(page))).left).toBeCloseTo(rail.left, 1);
+});
+
+test("a docked sidebar pushes the card and leaves Esc and clicks alone", async ({
+  page,
+}) => {
+  await openKit(page, { locale: "en" });
+  const nav = sidebar(page);
+  expect(await widthOf(nav)).toBe(220);
+  const docked = await boxOf(middle(page));
+  expect(docked.left).toBeCloseTo(8 + 220 + 8, 1);
+  await expect(nav).not.toHaveCSS("position", "fixed");
+  await page.keyboard.press("Escape");
+  await page.mouse.click(900, 500);
+  await page.waitForTimeout(400);
+  expect(await widthOf(nav)).toBe(220);
+
+  // Collapsed it gives the room back: the card grows.
+  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  await expect.poll(() => widthOf(nav)).toBe(56);
+  expect((await boxOf(middle(page))).width).toBeGreaterThan(docked.width);
+});
+
 /**
  * The parts of an element's focus ring (it reaches 4px out) that an ancestor
  * which cuts overflow would hide, one entry per side.

@@ -739,6 +739,8 @@ function Kit() {
   const { mode, setMode } = useAppearance();
   const { locale, setLocale } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
+  // How a narrow window gives the sidebar: docked as it is, or as a rail with the open one floating over the card.
+  const [floating, setFloating] = useState(false);
   const [place, setPlace] = useState<Place>("reading");
   const [side, setSide] = useState<Panel>("guide");
   const idle = () => undefined;
@@ -750,6 +752,7 @@ function Kit() {
             label="Workspace"
             collapsed={collapsed}
             onCollapsedChange={setCollapsed}
+            overlay={floating}
             header="UI kit"
             footer={
               <SidebarItem icon={Settings} label="Settings" onClick={idle} />
@@ -798,6 +801,17 @@ function Kit() {
               <option value="system">System</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
+            </select>
+            <select
+              className={styles.select}
+              aria-label="Kit sidebar"
+              value={floating ? "floating" : "docked"}
+              onChange={(event) =>
+                setFloating(event.target.value === "floating")
+              }
+            >
+              <option value="docked">Docked sidebar</option>
+              <option value="floating">Floating sidebar</option>
             </select>
             <select
               className={styles.select}

@@ -713,8 +713,8 @@ test("in a narrow card zoom and find move into the more menu", async ({
     main(page).getByRole("button", { name: "查找论文", exact: true }),
   ).toBeVisible();
 
-  // The card is under 560px wide.
-  await page.setViewportSize({ width: 760, height: 900 });
+  // The card is under 560px wide (the sidebar is a 56px rail below 900px, so that takes a window under 640px).
+  await page.setViewportSize({ width: 600, height: 900 });
   await expect(zoomButton(page)).toHaveCount(0);
   await expect(
     main(page).getByRole("button", { name: "查找论文", exact: true }),

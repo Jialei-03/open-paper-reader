@@ -4,6 +4,8 @@
  */
 .bar {
   --header-control: 30px;
+  /* Its own width is what the container rule below asks about (inline size only: the height is the header's). */
+  container-type: inline-size;
   display: flex;
   flex: 1;
   align-items: center;
@@ -53,6 +55,13 @@
   font-size: var(--ui-text-13);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* A strip as narrow as a phone's (300px; a query cannot read a variable) has no room for the page count: the field and the steps say it. */
+@container (max-width: 300px) {
+  .total {
+    display: none;
+  }
 }
 
 /* The step that has nowhere to go: dimmed, but still a button, so the keyboard is not lost when it is the last one. */
