@@ -1,8 +1,11 @@
+import { noteExtensions } from "../lib/note-editor";
 import {
-  NoteBlockMath,
-  NoteInlineMath,
-  safeMathOptions,
-} from "../lib/note-math";
+  appendToNote,
+  getNoteDraft,
+  NOTE_STATUS,
+  noteDocument,
+  saveNote,
+} from "../lib/note-document";
 import {
   Dialog,
   DialogContent,
@@ -21,12 +24,6 @@ import type { KnowledgeNode } from "../lib/knowledge";
 import { useReferenceHighlight } from "../lib/reference";
 import { useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { Markdown } from "@tiptap/markdown";
-import { TableKit } from "@tiptap/extension-table";
-import TaskList from "@tiptap/extension-task-list";
-import TaskItem from "@tiptap/extension-task-item";
-import Image from "@tiptap/extension-image";
 import {
   Link as LinkIcon,
   Bold,
@@ -44,227 +41,9 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Alert, AlertDescription } from "./ui/alert";
-import { api, send, errorStatus, type Item } from "../api";
-import { safeNoteImage } from "../lib/note-images";
+import { api, type Item } from "../api";
 
-type Draft = { title: string; body: string };
-type State = Draft & { status: string; error: string };
-// A single write queue per note survives switching notes while a save is in flight.
-const documents = new Map<string, ReturnType<typeof documentState>>();
-export function getNoteDraft(note: Item): Draft {
-  return (
-    documents.get(note.id)?.state || { title: note.title, body: note.body }
-  );
-}
-function documentState(item: Item) {
-  let base = item;
-  let origin: Draft | null = { title: item.title, body: item.body };
-  let state: State = {
-    title: item.title,
-    body: item.body,
-    status: "已保存",
-    error: "",
-  };
-  const key = `paper-note-draft:${item.id}`;
-  const listeners = new Set<() => void>();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let pending: Promise<void> | null = null;
-  const dirty = () => state.body !== base.body || state.title !== base.title;
-  const emit = () => listeners.forEach((fn) => fn());
-  const persist = () => {
-    try {
-      if (dirty())
-        sessionStorage.setItem(
-          key,
-          JSON.stringify({ ...state, revision: base.revision, origin }),
-        );
-      else sessionStorage.removeItem(key);
-    } catch {}
-  };
-  try {
-    const draft = JSON.parse(sessionStorage.getItem(key) || "null");
-    if (
-      draft &&
-      typeof draft.body === "string" &&
-      typeof draft.title === "string"
-    ) {
-      origin =
-        draft.origin &&
-        typeof draft.origin.body === "string" &&
-        typeof draft.origin.title === "string"
-          ? draft.origin
-          : draft.revision === base.revision
-            ? origin
-            : null;
-      state = {
-        body: draft.body,
-        title: draft.title,
-        status: "待保存",
-        error:
-          draft.revision === base.revision
-            ? ""
-            : "服务器已有新版本，本地草稿已保留。",
-      };
-    }
-  } catch {}
-  const save = (): Promise<void> => {
-    clearTimeout(timer);
-    if (pending) return pending;
-    if (!dirty() || state.error) return Promise.resolve();
-    const sent = { title: state.title, body: state.body };
-    state = { ...state, status: "保存中…" };
-    emit();
-    pending = send(
-      `/items/${item.id}`,
-      {
-        kind: base.kind,
-        paper_id: base.paper_id,
-        ...sent,
-        status: base.status,
-        tags: base.tags,
-        paper_ids: base.paper_ids,
-        evidence_ids: base.evidence_ids,
-        locator: base.locator.file_id ? base.locator : null,
-      },
-      "PUT",
-      base.revision,
-    )
-      .then((updated: Item) => {
-        base = updated;
-        origin = { title: updated.title, body: updated.body };
-        if (state.body === sent.body && state.title === sent.title)
-          state = { ...state, body: updated.body, title: updated.title };
-        state = { ...state, status: dirty() ? "待保存" : "已保存" };
-        persist();
-        window.dispatchEvent(
-          new CustomEvent("note-saved", { detail: updated }),
-        );
-      })
-      .catch((e: Error) => {
-        state = {
-          ...state,
-          status: "未保存",
-          error: [409, 412].includes(errorStatus(e))
-            ? "笔记已有新版本，本地草稿已保留。请核对后继续。"
-            : `保存失败，草稿已保留：${e.message}`,
-        };
-        persist();
-      })
-      .finally(() => {
-        pending = null;
-        emit();
-        if (dirty() && !state.error) void save();
-      });
-    return pending;
-  };
-  return {
-    get state() {
-      return state;
-    },
-    listeners,
-    save,
-    async flush() {
-      while (dirty() || pending) {
-        await save();
-        if (state.error) throw new Error(state.error);
-      }
-      return base;
-    },
-    update(draft: Partial<Draft>) {
-      state = { ...state, ...draft, status: "待保存" };
-      persist();
-      emit();
-      clearTimeout(timer);
-      timer = setTimeout(save, 900);
-    },
-    accept(item: Item) {
-      if (item.revision <= base.revision || pending) return;
-      if (dirty()) {
-        state = {
-          ...state,
-          error: "笔记已有新版本，本地草稿已保留。请核对后继续。",
-        };
-      } else {
-        base = item;
-        origin = { title: item.title, body: item.body };
-        state = { ...state, title: item.title, body: item.body };
-      }
-      emit();
-    },
-    async reload() {
-      const latest = await api<Item>(`/items/${item.id}`);
-      base = latest;
-      origin = { title: latest.title, body: latest.body };
-      state = {
-        title: latest.title,
-        body: latest.body,
-        status: "已保存",
-        error: "",
-      };
-      persist();
-      emit();
-    },
-    async compare() {
-      if (pending) await pending;
-      const latest = await api<Item>(`/items/${item.id}`);
-      return {
-        origin,
-        local: { title: state.title, body: state.body },
-        latest,
-      };
-    },
-    async merge(latest: Item, draft: Draft, expected: Draft) {
-      if (pending) await pending;
-      if (state.body !== expected.body || state.title !== expected.title)
-        throw new Error("本地草稿也有新修改，请重新读取版本后合并。");
-      base = latest;
-      origin = { title: latest.title, body: latest.body };
-      state = { ...draft, status: "待保存", error: "" };
-      if (!dirty()) state.status = "已保存";
-      persist();
-      emit();
-      await save();
-      if (state.error) throw new Error(state.error);
-    },
-    retry() {
-      if (!state.error.includes("新版本")) {
-        state = { ...state, error: "" };
-        void save();
-      }
-    },
-  };
-}
-const SafeImage = Image.extend({
-  renderHTML({ node }) {
-    if (safeNoteImage(node.attrs.src))
-      return [
-        "img",
-        {
-          src: node.attrs.src,
-          alt: node.attrs.alt || "笔记图片",
-          title: node.attrs.title,
-          loading: "lazy",
-        },
-      ];
-    return [
-      "span",
-      { "data-image-placeholder": "" },
-      `[图片：${node.attrs.alt || "请通过附件查看"}]`,
-    ];
-  },
-});
-export function appendToNote(note: Item, text: string) {
-  let doc = documents.get(note.id);
-  if (!doc) {
-    doc = documentState(note);
-    documents.set(note.id, doc);
-  }
-  doc.update({ body: doc.state.body + text });
-  return doc.save();
-}
-export async function saveNote(note: Item): Promise<Item> {
-  return documents.get(note.id)?.flush() || note;
-}
+export { appendToNote, getNoteDraft, saveNote };
 export function LiveNote({
   note,
   nodes = [],
@@ -281,14 +60,7 @@ export function LiveNote({
     () => {},
   );
   const query = new URLSearchParams(location.hash.split("?")[1]);
-  const [doc] = useState(() => {
-    let d = documents.get(note.id);
-    if (!d) {
-      d = documentState(note);
-      documents.set(note.id, d);
-    }
-    return d;
-  });
+  const [doc] = useState(() => noteDocument(note));
   const [state, setState] = useState(doc.state);
   const update = useRef((body: string) => doc.update({ body }));
   const [formula, setFormula] = useState<{
@@ -297,33 +69,7 @@ export function LiveNote({
     block: boolean;
   } | null>(null);
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        link: {
-          openOnClick: false,
-          HTMLAttributes: { target: null, rel: "noopener noreferrer" },
-        },
-        underline: false,
-      }),
-      Markdown.configure({ markedOptions: { gfm: true } }),
-      NoteBlockMath.configure({
-        katexOptions: safeMathOptions,
-        onClick: (node, pos) =>
-          setFormula({ pos, latex: node.attrs.latex, block: true }),
-      }),
-      NoteInlineMath.configure({
-        katexOptions: safeMathOptions,
-        onClick: (node, pos) =>
-          setFormula({ pos, latex: node.attrs.latex, block: false }),
-      }),
-      TableKit,
-      TaskList,
-      TaskItem.configure({
-        nested: true,
-        HTMLAttributes: { "data-type": "taskItem" },
-      }),
-      SafeImage,
-    ],
+    extensions: noteExtensions(setFormula),
     content: state.body,
     contentType: "markdown",
     editorProps: {
@@ -439,7 +185,7 @@ export function LiveNote({
     doc.listeners.add(listener);
     void doc.save();
     const leave = (e: BeforeUnloadEvent) => {
-      if (doc.state.status !== "已保存") {
+      if (doc.state.status !== NOTE_STATUS.saved) {
         e.preventDefault();
         void doc.save();
       }
