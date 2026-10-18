@@ -49,6 +49,7 @@ import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
 import { SelectionMenu } from "./selection/SelectionMenu";
 import { Composer, useAssistant } from "./assistant";
+import { useNotes } from "./notes/useNotes";
 import type { AskRequest } from "./types";
 import { linkTarget } from "./outline";
 import { followLink, readerHash, type ReaderRoute } from "./route";
@@ -692,11 +693,12 @@ export function ReaderScreen({
   const [file, setFile] = useState<SourceFile | null>(null);
   const [visits, setVisits] = useState(() => recentPapers(owner));
   const actions = useRef<PaperActions>(null);
-  const assistant = useAssistant({
-    paper: loaded?.id === paperId ? loaded : null,
-    file,
-  });
+  // The paper and PDF the side panel is about: not the previous paper's, while the next is still loading.
+  const here = loaded?.id === paperId ? loaded : null;
+  const hereFile = file?.paper_id === paperId ? file : null;
+  const assistant = useAssistant({ paper: here, file: hereFile });
   const [pending, setPending] = useState<AskRequest | null>(null);
+  const notes = useNotes(here);
 
   // The panel only opens over the paper; a window that has grown wide shows it docked, and shut when narrowed again.
   useEffect(() => {
@@ -771,11 +773,21 @@ export function ReaderScreen({
         </Card>
         <RightPanel
           paperId={paperId}
-          paper={loaded?.id === paperId ? loaded : null}
-          file={file?.paper_id === paperId ? file : null}
+          paper={here}
+          file={hereFile}
           onJumpToPage={(page) => actions.current?.jump(page)}
           assistant={assistant}
           onCite={(target) => go(readerHash(target).slice(1))}
+          notes={
+            here
+              ? {
+                  paper: here,
+                  file: hereFile,
+                  notes,
+                  onJump: (target) => go(readerHash(target).slice(1)),
+                }
+              : undefined
+          }
           overlay={
             narrow
               ? {

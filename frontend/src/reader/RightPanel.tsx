@@ -4,6 +4,7 @@ import type { Paper, SourceFile } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
 import { GuideTab } from "./panel/GuideTab";
+import { NotesTab, type NotesTabProps } from "./panel/NotesTab";
 import { AssistantThread, type Assistant } from "./assistant";
 import type { ReaderRoute } from "./route";
 import { RegionBoundary } from "./RegionBoundary";
@@ -40,6 +41,7 @@ export function RightPanel({
   onJumpToPage,
   assistant,
   onCite,
+  notes,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
@@ -51,6 +53,8 @@ export function RightPanel({
   overlay?: PanelOverlay;
   assistant?: Assistant;
   onCite?: (route: ReaderRoute) => void;
+  /** What the notes tab is made from; until the paper is there, the tab says what it will hold. */
+  notes?: NotesTabProps;
 }) {
   const { t } = useI18n();
   const ids = useId();
@@ -131,6 +135,8 @@ export function RightPanel({
                 />
               ) : value === "assistant" && assistant && onCite ? (
                 <AssistantThread assistant={assistant} onCite={onCite} />
+              ) : value === "notes" && notes ? (
+                <NotesTab {...notes} />
               ) : (
                 <p className={styles.placeholder}>
                   {t(`reader.tab.${value}.empty`)}

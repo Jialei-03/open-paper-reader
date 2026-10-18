@@ -1,0 +1,246 @@
+/*
+ * The note as it is typed: the text of a paper being read, in the side panel.
+ * Everything inside the editor is drawn by its own elements (headings, lists,
+ * quotes, tables), so they are styled here by element, under the editor.
+ */
+.surface {
+  /* The empty note is still a field to click into. */
+  --note-min-height: 168px;
+  --note-rule: 2px;
+  min-width: 0;
+}
+
+.prose {
+  min-height: var(--note-min-height);
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading-loose);
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+/* The reader gives a focused control a ring; a field of running text does not need one around the page. */
+.prose:focus-visible {
+  box-shadow: none;
+}
+
+.prose > :first-child {
+  margin-top: 0;
+}
+
+.prose > :last-child {
+  margin-bottom: 0;
+}
+
+/* The hint of an empty note: drawn before its only paragraph, taking no room. */
+.surface[data-empty="true"] .prose > p:first-child::before {
+  content: var(--note-placeholder);
+  float: left;
+  height: 0;
+  color: var(--ui-fg-3);
+  pointer-events: none;
+}
+
+.prose p {
+  margin: 0 0 var(--ui-space-8);
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+  margin: var(--ui-space-16) 0 var(--ui-space-4);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.prose h1 {
+  font-size: var(--ui-text-18);
+}
+
+.prose h2 {
+  font-size: var(--ui-text-16);
+}
+
+.prose h3,
+.prose h4 {
+  font-size: var(--ui-text-14);
+}
+
+.prose strong {
+  font-weight: var(--ui-weight-strong);
+}
+
+.prose a {
+  color: var(--ui-accent-text);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, currentColor 40%, transparent);
+  text-underline-offset: 2px;
+  transition: text-decoration-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.prose a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* The page's reset takes the markers away; a list in a note has them. */
+.prose ul,
+.prose ol {
+  margin: 0 0 var(--ui-space-8);
+  padding-left: var(--ui-space-20);
+}
+
+.prose ul {
+  list-style: disc;
+}
+
+.prose ol {
+  list-style: decimal;
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-bottom: 0;
+}
+
+.prose li > p {
+  margin: 0;
+}
+
+.prose ul[data-type="taskList"] {
+  padding-left: 0;
+  list-style: none;
+}
+
+.prose li[data-type="taskItem"] {
+  display: flex;
+  gap: var(--ui-space-8);
+  align-items: baseline;
+}
+
+.prose li[data-type="taskItem"] > label {
+  flex: none;
+}
+
+.prose li[data-type="taskItem"] > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.prose li[data-type="taskItem"] input {
+  margin: 0;
+  accent-color: var(--ui-accent);
+}
+
+.prose li[data-checked="true"] > div {
+  color: var(--ui-fg-2);
+}
+
+.prose blockquote {
+  margin: 0 0 var(--ui-space-8);
+  padding-left: var(--ui-space-12);
+  border-left: var(--note-rule) solid var(--ui-accent);
+  color: var(--ui-fg-1);
+}
+
+.prose blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.prose code {
+  padding: 1px var(--ui-space-4);
+  border-radius: var(--ui-r-4);
+  background: var(--ui-fill);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-13);
+}
+
+.prose pre {
+  margin: 0 0 var(--ui-space-8);
+  padding: var(--ui-space-10) var(--ui-space-12);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
+  line-height: var(--ui-leading);
+  overflow-x: auto;
+}
+
+.prose pre code {
+  padding: 0;
+  background: none;
+}
+
+.prose hr {
+  margin: var(--ui-space-16) 0;
+  border: 0;
+  border-top: 1px solid var(--ui-edge);
+}
+
+.prose :global(.tableWrapper) {
+  margin: 0 0 var(--ui-space-8);
+  overflow-x: auto;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-text-13);
+}
+
+.prose th,
+.prose td {
+  min-width: 60px;
+  padding: var(--ui-space-6) var(--ui-space-8);
+  border: 1px solid var(--ui-edge);
+  text-align: left;
+  vertical-align: top;
+}
+
+.prose th {
+  background: var(--ui-bg-2);
+  font-weight: var(--ui-weight-strong);
+}
+
+.prose td > p,
+.prose th > p {
+  margin: 0;
+}
+
+.prose :global(.selectedCell) {
+  background: var(--ui-selected);
+}
+
+.prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--ui-space-8) 0;
+  border-radius: var(--ui-r-8);
+}
+
+.prose img:global(.ProseMirror-selectednode) {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+
+.prose :global(.tiptap-mathematics-render--editable) {
+  cursor: pointer;
+}
+
+.prose :global(.tiptap-mathematics-render--editable):hover {
+  background: var(--ui-hover);
+}
+
+.notice,
+.problem {
+  margin: var(--ui-space-8) 0 0;
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+}
+
+.notice {
+  color: var(--ui-fg-2);
+}
+
+.problem {
+  color: var(--ui-danger-text);
+}
