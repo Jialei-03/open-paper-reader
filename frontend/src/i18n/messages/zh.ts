@@ -525,7 +525,7 @@ export const zh: { [K in keyof typeof en]: string } = {
     "每一页右边是这一页的译文，鼠标放到一句译文上，原文里对应的那句会标出来。",
   "site.modes.translated.title": "译文",
   "site.modes.translated.body":
-    "保留版式的译文 PDF（本机按需安装 BabelDOC）。对有 LaTeX 源码的 arXiv 论文，直接翻译源码再重新编译成 PDF，正在加入，尚未发布。",
+    "保留版式的译文 PDF（本机按需安装 BabelDOC）。对有 LaTeX 源码的 arXiv 论文，直接翻译源码再重新编译成 PDF（本机按需安装 Tectonic）。",
   "site.modes.alt": "对照模式：左边是论文页，右边是这一页的中文译文。",
   "site.local.title": "本地优先，数据在你手里",
   "site.local.body": "主要装在自己的电脑上用。",

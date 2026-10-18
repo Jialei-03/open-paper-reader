@@ -574,7 +574,7 @@ export const en = {
     "Each page has its translation beside it. Hover a translated sentence and the matching sentence is marked in the original.",
   "site.modes.translated.title": "Translated",
   "site.modes.translated.body":
-    "A translated PDF that keeps the layout (BabelDOC, installed on demand on your machine). For arXiv papers with LaTeX source, translating the source and recompiling it into a PDF is being added and is not released yet.",
+    "A translated PDF that keeps the layout (BabelDOC, installed on demand on your machine). For arXiv papers with LaTeX source, it translates the source and recompiles it into a PDF (Tectonic, installed on demand).",
   "site.modes.alt":
     "Parallel mode: the paper page on the left, its Chinese translation on the right.",
   "site.local.title": "Local-first, your data stays with you",
