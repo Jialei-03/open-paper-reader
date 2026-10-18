@@ -39,6 +39,9 @@ export interface LayoutJob {
 export const isActive = (job: LayoutJob | null): boolean =>
   job !== null && (job.status === "queued" || job.status === "running");
 
+/** The two ways, in the order the reader lists them. */
+export const ENGINES: readonly Engine[] = ["latex", "pdf"];
+
 /** A job that has a translated PDF to show. */
 const isDone = (job: LayoutJob) =>
   job.status === "completed" && job.translated_file !== "";
@@ -56,11 +59,15 @@ export function pickJob(
   fileId: string,
   /** The paper's current version; without it LaTeX translations are left out. */
   versionId = "",
+  /** Only this method's jobs; each method keeps its own result, so the reader asks for them one by one. */
+  engine?: Engine,
 ): LayoutJob | null {
-  const mine = jobs.filter((job) =>
-    job.engine === "latex"
-      ? versionId !== "" && job.version_id === versionId
-      : job.engine === "pdf" && job.source_file === fileId,
+  const mine = jobs.filter(
+    (job) =>
+      (engine === undefined || job.engine === engine) &&
+      (job.engine === "latex"
+        ? versionId !== "" && job.version_id === versionId
+        : job.engine === "pdf" && job.source_file === fileId),
   );
   return (
     mine.find(isActive) ?? mine.find(isDone) ?? mine.find(() => true) ?? null
@@ -98,3 +105,43 @@ export const lacksSource = (job: LayoutJob | null): boolean =>
   job.engine === "latex" &&
   job.status === "failed" &&
   job.no_source === true;
+
+const choiceKey = (paperId: string) => `paper-translation-engine:${paperId}`;
+
+/** The method the person last chose to read for this paper, if any (the browser may not keep it). */
+export function readChoice(paperId: string): Engine | null {
+  try {
+    const value = localStorage.getItem(choiceKey(paperId));
+    return value === "latex" || value === "pdf" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeChoice(paperId: string, engine: Engine): void {
+  try {
+    localStorage.setItem(choiceKey(paperId), engine);
+  } catch {
+    // Not kept; the choice still holds for this visit.
+  }
+}
+
+/**
+ * Which method's result the reader shows. The person's own choice for the paper
+ * if it can be made; else the one that has completed (LaTeX first), else the one
+ * running; else LaTeX for an arXiv paper and the PDF way for the rest.
+ */
+export function defaultEngine(
+  states: Record<Engine, LayoutState>,
+  arxiv: boolean,
+  chosen: Engine | null,
+): Engine {
+  const usable = (engine: Engine) =>
+    engine === "pdf" || arxiv || states[engine] !== "idle";
+  if (chosen && usable(chosen)) return chosen;
+  for (const wanted of ["done", "running"] as const) {
+    const found = ENGINES.find((engine) => states[engine] === wanted);
+    if (found) return found;
+  }
+  return arxiv ? "latex" : "pdf";
+}

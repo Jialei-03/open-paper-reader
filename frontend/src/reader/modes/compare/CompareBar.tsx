@@ -1,4 +1,5 @@
 import { ArrowLeftRight, Link2 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { IconButton, SegmentedControl } from "../../../ui";
 import styles from "./CompareBar.module.css";
@@ -8,6 +9,8 @@ import type { TranslatedView } from "./view-preference";
 export type Side = "original" | "translated";
 
 export interface CompareBarProps {
+  /** Before the view choice: which method's translation is read. */
+  lead?: ReactNode;
   /** Room for two pages: the choice is between the translation alone and the two side by side. */
   wide: boolean;
   view: TranslatedView;
@@ -30,6 +33,7 @@ export interface CompareBarProps {
  * two panes. Where the card has no room for two pages, a switch between them.
  */
 export function CompareBar({
+  lead,
   wide,
   view,
   onView,
@@ -45,6 +49,7 @@ export function CompareBar({
   const together = wide && view === "compare";
   return (
     <div className={styles.bar} data-testid="compare-bar">
+      {lead}
       {wide ? (
         <SegmentedControl
           kind="radio"

@@ -61,7 +61,7 @@ async function serve(page: Page, start: Partial<Install> = {}) {
 
 const main = (page: Page) => page.getByRole("main");
 const panel = (page: Page) =>
-  main(page).getByRole("region", { name: "版面翻译", exact: true });
+  main(page).getByRole("region", { name: "全文翻译", exact: true });
 
 async function openTranslated(page: Page, start: Partial<Install> = {}) {
   await signIn(page);
@@ -73,7 +73,7 @@ async function openTranslated(page: Page, start: Partial<Install> = {}) {
     .getByRole("radio", { name: "译文", exact: true })
     .click();
   await expect(
-    panel(page).getByRole("heading", { name: "版面翻译未开启" }),
+    panel(page).getByText("这台服务还没有配置版面翻译"),
   ).toBeVisible();
   return service;
 }

@@ -24,7 +24,7 @@
   align-items: center;
   gap: var(--ui-space-12);
   width: 100%;
-  max-width: var(--layout-column);
+  max-width: calc(var(--layout-column) + 14ch);
   text-align: center;
 }
 
@@ -139,4 +139,57 @@
   background: var(--ui-accent);
   transform-origin: left center;
   transition: transform var(--ui-dur-3) var(--ui-ease-out);
+}
+
+/* The two ways, one under the other: each a quiet bordered block; the one being read has a firmer edge. */
+.methods {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  width: 100%;
+  margin-top: var(--ui-space-4);
+}
+
+.method {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-8);
+  text-align: left;
+}
+
+.method[data-selected] {
+  border-color: var(--ui-edge);
+}
+
+.method .about {
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+}
+
+.method .actions {
+  margin-top: 0;
+}
+
+.methodHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-12);
+  width: 100%;
+}
+
+.methodName {
+  margin: 0;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+}
+
+.status {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
 }

@@ -142,6 +142,8 @@ def test_layout_migration_preserves_existing_latex_job(env):
         "backend.migrations.versions.0020_pdf_layout_translation"
     )
     with app.state.engine.begin() as connection:
+        # The active-job index names the column; the old shape had none.
+        connection.execute(text("DROP INDEX uq_active_translation"))
         connection.execute(text("ALTER TABLE translation_jobs DROP COLUMN engine"))
         with Operations.context(MigrationContext.configure(connection)):
             migration.upgrade()

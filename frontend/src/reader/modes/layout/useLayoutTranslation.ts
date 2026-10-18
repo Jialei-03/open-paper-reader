@@ -6,33 +6,53 @@ import {
   useTranslationSettings,
 } from "../useTranslationSettings";
 import {
+  defaultEngine,
+  ENGINES,
   isActive,
   isArxivVersion,
   layoutState,
+  lacksSource,
   pickJob,
+  readChoice,
+  writeChoice,
   type Engine,
   type LayoutJob,
+  type LayoutState,
 } from "./job";
 
-/** The layout translation of a paper's PDF, as the reader's parts share it. */
-export interface Layout {
-  /** The job that matters for this PDF (see `pickJob`); `null` when none was ever made. */
+/** One of the two ways to translate the whole paper, as the reader shows it. */
+export interface EngineView {
+  engine: Engine;
+  /** The job that matters for this method (see `pickJob`); `null` when none was ever made. */
   job: LayoutJob | null;
-  /** The translated PDF, once a job has completed. */
+  state: LayoutState;
+  /** The translated PDF this method made, once its job has completed. */
+  file: SourceFile | null;
+  /** The paper can be translated this way at all (LaTeX needs an arXiv paper of a fixed version). */
+  supported: boolean;
+  /** The service can do it now (the TeX engine, or BabelDOC, is there). */
+  available: boolean;
+  /** arXiv has no LaTeX source for this version: trying again cannot help. */
+  noSource: boolean;
+}
+
+/** The translation of a paper's PDF by either method, as the reader's parts share it. */
+export interface Layout {
+  /** Both methods; they run and keep their results apart. */
+  engines: Record<Engine, EngineView>;
+  /** The method whose result the reader shows (the person's choice, else the sensible default). */
+  selected: Engine;
+  /** Shows another method's result, and remembers the choice for this paper. */
+  select(engine: Engine): void;
+  /** The selected method's job. */
+  job: LayoutJob | null;
+  /** The selected method's translated PDF; `null` while it has none. */
   translatedFile: SourceFile | null;
-  /**
-   * How it is made: from the arXiv LaTeX source where the paper has one and the
-   * service can compile it, else on the original PDF. A job already made says
-   * its own way, except a LaTeX one that found no source (the PDF way is offered).
-   */
-  method: Engine;
   /** The paper is an arXiv paper of a fixed version: its LaTeX source can be asked for. */
   arxiv: boolean;
   /** The local build can install the TeX engine that LaTeX translation needs. */
   latexInstallable: boolean;
-  /** The service can make one the way `method` says. */
-  available: boolean;
-  /** The service can re-typeset the PDF (the fallback when there is no LaTeX source). */
+  /** The service can re-typeset the PDF. */
   layoutAvailable: boolean;
   /** There is a model to translate with. */
   hasModel: boolean;
@@ -42,21 +62,25 @@ export interface Layout {
   busy: boolean;
   /** Why the last thing asked of the service did not happen, in its words; empty when it did. */
   error: string;
-  /** Translates the paper the way `method` says, or the way asked; a failed attempt is made again. */
-  start(engine?: Engine): void;
-  /** Stops the running translation. */
-  cancel(): void;
+  /** Translates the paper the way asked; a failed attempt is made again. Never started by itself. */
+  start(engine: Engine): void;
+  /** Stops the running translation of a method. */
+  cancel(engine: Engine): void;
 }
+
+const NONE = { latex: null, pdf: null };
 
 /** How often the jobs are read: often while one runs, seldom otherwise, and after a failed read a little sooner. */
 const ACTIVE_POLL = 1500;
 const IDLE_POLL = 15000;
 const RETRY_POLL = 5000;
 
+type PerEngine<T> = Record<Engine, T>;
+
 interface Read {
   key: string;
-  job: LayoutJob | null;
-  translated: SourceFile | null;
+  jobs: PerEngine<LayoutJob | null>;
+  translated: PerEngine<SourceFile | null>;
   /** Why the last read failed; empty when it did not. */
   failure: string;
 }
@@ -100,8 +124,8 @@ export function useLayoutTranslation({
     let timer: number | undefined;
     let reading = false;
     let again = false;
-    // The translated PDF is looked up once, not at every tick.
-    let known: SourceFile | null = null;
+    // Each method's translated PDF is looked up once, not at every tick.
+    const known: PerEngine<SourceFile | null> = { latex: null, pdf: null };
 
     const reasonOf = (reason: unknown) =>
       reason instanceof ApiError && reason.message
@@ -122,33 +146,41 @@ export function useLayoutTranslation({
         const rows = await api<LayoutJob[]>(`/papers/${id}/translations`, {
           signal,
         });
-        const job = pickJob(rows, fileId, versionId);
-        let translated: SourceFile | null = null;
-        if (job && layoutState(job) === "done") {
-          if (known?.id !== job.translated_file) {
+        const jobs: PerEngine<LayoutJob | null> = {
+          latex: pickJob(rows, fileId, versionId, "latex"),
+          pdf: pickJob(rows, fileId, versionId, "pdf"),
+        };
+        const translated: PerEngine<SourceFile | null> = {
+          latex: null,
+          pdf: null,
+        };
+        for (const engine of ENGINES) {
+          const job = jobs[engine];
+          if (!job || layoutState(job) !== "done") continue;
+          if (known[engine]?.id !== job.translated_file) {
             const files = await api<SourceFile[]>(`/papers/${id}/files`, {
               signal,
             });
-            known =
+            known[engine] =
               files.find(
                 (row) =>
                   row.id === job.translated_file &&
                   row.mime === "application/pdf",
               ) ?? null;
           }
-          translated = known;
+          translated[engine] = known[engine];
         }
         if (signal.aborted) return;
-        setRead({ key, job, translated, failure: "" });
-        if (isActive(job)) next = ACTIVE_POLL;
+        setRead({ key, jobs, translated, failure: "" });
+        if (isActive(jobs.latex) || isActive(jobs.pdf)) next = ACTIVE_POLL;
       } catch (reason) {
         if (signal.aborted) return;
         next = RETRY_POLL;
         const message = reasonOf(reason);
         setRead((old) => ({
           key,
-          job: old?.key === key ? old.job : null,
-          translated: old?.key === key ? old.translated : null,
+          jobs: old?.key === key ? old.jobs : NONE,
+          translated: old?.key === key ? old.translated : NONE,
           failure: message,
         }));
       } finally {
@@ -189,17 +221,45 @@ export function useLayoutTranslation({
     });
 
   const arxiv = isArxivVersion(paper?.external_id);
-  const shown = current?.job ?? null;
-  const preferred: Engine = arxiv && settings.latexAvailable ? "latex" : "pdf";
-  const method: Engine =
-    shown?.engine === "pdf" || shown?.engine === "latex"
-      ? shown.engine
-      : preferred;
+  const jobs = current?.jobs ?? NONE;
+  const files = current?.translated ?? NONE;
+  const states: PerEngine<LayoutState> = {
+    latex: layoutState(jobs.latex),
+    pdf: layoutState(jobs.pdf),
+  };
+  // The person's own choice (kept per paper); re-read when the paper changes, set at once when they choose.
+  const [choice, setChoice] = useState<{
+    paper: string;
+    engine: Engine | null;
+  }>({ paper: "", engine: null });
+  const chosen = choice.paper === paperId ? choice.engine : readChoice(paperId);
+  const selected = defaultEngine(states, arxiv, chosen);
+  const select = (engine: Engine) => {
+    if (!paperId) return;
+    writeChoice(paperId, engine);
+    setChoice({ paper: paperId, engine });
+  };
 
-  const start = (engine: Engine = method) => {
+  const engines = {} as PerEngine<EngineView>;
+  for (const engine of ENGINES)
+    engines[engine] = {
+      engine,
+      job: jobs[engine],
+      state: states[engine],
+      file: files[engine],
+      // A job that exists shows whatever it did, even for a paper that could not start one now.
+      supported: engine === "pdf" || arxiv || states[engine] !== "idle",
+      available:
+        engine === "latex" ? settings.latexAvailable : settings.layoutEnabled,
+      noSource: engine === "latex" && lacksSource(jobs.latex),
+    };
+
+  const start = (engine: Engine) => {
     if (busy || !paperId || !fileId || !model) return;
     setBusy(true);
     setFailure({ key, message: "" });
+    // What the person starts is what they will want to see.
+    select(engine);
     send(
       `/papers/${encodeURIComponent(paperId)}/translations`,
       engine === "latex"
@@ -208,7 +268,15 @@ export function useLayoutTranslation({
     ).then(
       (job: LayoutJob) => {
         // Shown at once; the next read says how it goes.
-        setRead({ key, job, translated: null, failure: "" });
+        setRead((old) => {
+          const same = old?.key === key ? old : null;
+          return {
+            key,
+            jobs: { ...(same?.jobs ?? NONE), [engine]: job },
+            translated: { ...(same?.translated ?? NONE), [engine]: null },
+            failure: "",
+          };
+        });
         setBusy(false);
         kick.current();
       },
@@ -219,8 +287,8 @@ export function useLayoutTranslation({
     );
   };
 
-  const cancel = () => {
-    const job = current?.job;
+  const cancel = (engine: Engine) => {
+    const job = jobs[engine];
     if (busy || !job || !isActive(job)) return;
     setBusy(true);
     setFailure({ key, message: "" });
@@ -239,13 +307,13 @@ export function useLayoutTranslation({
 
   const ours = failure.key === key ? failure.message : "";
   return {
-    job: current?.job ?? null,
-    translatedFile: current?.translated ?? null,
-    method,
+    engines,
+    selected,
+    select,
+    job: jobs[selected],
+    translatedFile: files[selected],
     arxiv,
     latexInstallable: settings.latexInstallable,
-    available:
-      method === "latex" ? settings.latexAvailable : settings.layoutEnabled,
     layoutAvailable: settings.layoutEnabled,
     hasModel: model !== "",
     loading:

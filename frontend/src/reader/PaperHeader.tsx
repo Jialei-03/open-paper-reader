@@ -48,6 +48,7 @@ import {
 import type { PdfController } from "./engine/PdfPages";
 import { DownloadDialog, type DownloadKind } from "./DownloadDialog";
 import { OutlinePanel } from "./OutlinePanel";
+import type { Engine } from "./modes/layout/job";
 import styles from "./PaperHeader.module.css";
 
 /**
@@ -224,7 +225,8 @@ export interface PaperHeaderProps {
   /** The paper's PDF, once it is known. */
   file: SourceFile | null;
   /** The full translation, once a job has completed: it can be downloaded. */
-  translatedFile?: SourceFile | null;
+  /** The completed full translations, one per method: the download offers each. */
+  translations?: { engine: Engine; file: SourceFile }[];
   /** The open PDF, once it has loaded. */
   doc: PDFDocumentProxy | null;
   /** The page being read. */
@@ -265,7 +267,7 @@ export interface PaperHeaderProps {
 export function PaperHeader({
   paper,
   file,
-  translatedFile = null,
+  translations = [],
   doc,
   page,
   pages,
@@ -317,12 +319,23 @@ export function PaperHeader({
 
   const download = (kind: DownloadKind) => {
     const base = (paper?.title || file!.name).replace(/\.pdf$/i, "");
-    if (kind === "translated" && translatedFile)
-      return save(
-        translatedFile,
-        "content?download=true",
-        paperFileName(base, t("reader.download.translatedSuffix")),
+    if (kind.startsWith("translated:")) {
+      const done = translations.find(
+        (row) => `translated:${row.engine}` === kind,
       );
+      if (done)
+        return save(
+          done.file,
+          "content?download=true",
+          paperFileName(
+            base,
+            t("reader.download.translatedSuffix") +
+              (translations.length > 1
+                ? "-" + t(`reader.engine.${done.engine}.name`)
+                : ""),
+          ),
+        );
+    }
     if (kind === "annotated")
       return save(
         file!,
@@ -560,7 +573,7 @@ export function PaperHeader({
           <DownloadDialog
             open={downloadOpen && file !== null}
             onClose={() => setDownloadOpen(false)}
-            translated={translatedFile !== null}
+            translated={translations.map((row) => row.engine)}
             onDownload={download}
           />
           <PaperDetails
