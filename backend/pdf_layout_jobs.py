@@ -71,7 +71,7 @@ def process_layout(settings, maker, job_id, config, work, progress):
             completed = max(completed, min(99, int(event.get("overall_progress") or 0)))
             progress(completed, 100, stage)
 
-    translated, _ = translate_pdf(
+    translated, finished = translate_pdf(
         layout_runtime(settings),
         source_path,
         work / "layout",
@@ -108,7 +108,11 @@ def process_layout(settings, maker, job_id, config, work, progress):
                     status="completed",
                     completed=100,
                     total=100,
-                    stage="翻译完成",
+                    stage=(
+                        f"翻译完成（{kept} 段保留原文）"
+                        if (kept := int((finished or {}).get("kept_original") or 0))
+                        else "翻译完成"
+                    ),
                     error="",
                     updated_at=now(),
                 )

@@ -36,6 +36,38 @@ OUTPUT = protocol_output() if __name__ == "__main__" else sys.stdout
 WRITE_LOCK = threading.Lock()
 PENDING_LOCK = threading.Lock()
 PENDING = {}
+# Paragraphs whose translation never came back and were set in the original instead.
+KEPT = {"count": 0}
+KEPT_LOCK = threading.Lock()
+
+
+def kept_original(paragraph):
+    """A paragraph left in English rather than blank: BabelDOC draws an untranslated one as nothing."""
+    with KEPT_LOCK:
+        KEPT["count"] += 1
+    return paragraph
+
+
+def single_paragraph(text, attempts=2):
+    """One paragraph's translation, with its formula and style placeholders all there.
+
+    BabelDOC throws away a translation that lost a placeholder and then draws the
+    paragraph as nothing, so a damaged answer is asked for again, and in the end
+    the original stands in rather than a blank.
+    """
+    for _ in range(attempts):
+        try:
+            answer = model_request(text, False)
+        except ValueError:
+            continue
+        if placeholder_counts(answer) == placeholder_counts(text):
+            return answer
+    return kept_original(text)
+
+
+def kept_allowance(total):
+    """At most 1% of the paragraphs (never more than 3) may stay in English."""
+    return min(3, max(1, total // 100))
 
 
 def cpu_layout_model():
@@ -123,6 +155,9 @@ def verify_tracking(path):
                         damaged += 1
     if not total or missing:
         raise ValueError(f"版面译文不完整：{missing}/{total} 个段落未返回译文")
+    kept = KEPT["count"]
+    if kept > kept_allowance(total):
+        raise ValueError(f"版面译文不完整：{kept}/{total} 个段落的模型翻译多次失败")
     if damaged:
         raise ValueError(
             f"版面译文不完整：{damaged}/{total} 个段落的公式或样式标记不一致"
@@ -220,7 +255,7 @@ def llm_model_request(prompt):
         # Legacy fallback expects plain translated text, not a JSON array.
         paragraph = prompt.split(fallback_marker, 1)[1]
         if paragraph.strip():
-            return model_request(paragraph, False)
+            return single_paragraph(paragraph)
     elif batch_index >= 0:
         # Keep the batch prompt: the parent validates and extracts its schema.
         return model_request(prompt, True)
@@ -290,7 +325,7 @@ async def run(config):
             return self.do_llm_translate(text, rate_limit_params)
 
         def do_translate(self, text, rate_limit_params=None):
-            return model_request(text, False)
+            return single_paragraph(text)
 
         def get_formular_placeholder(self, identifier):
             # Distinct formula tokens avoid models "closing" standalone <bN>
@@ -349,6 +384,7 @@ async def run(config):
                     "seconds": getattr(result, "total_seconds", None),
                     "memory_mb": getattr(result, "peak_memory_usage", None),
                     "translated_paragraphs": paragraphs,
+                    "kept_original": KEPT["count"],
                 }
             )
             # 0.6.4's event iterator can remain open after its terminal event.

@@ -14,7 +14,8 @@ def test_layout_llm_protocol_supports_plain_fallback_without_translating_prompt(
     monkeypatch.setattr(
         worker,
         "model_request",
-        lambda text, structured: calls.append((text, structured)) or "已翻译",
+        lambda text, structured: calls.append((text, structured))
+        or ("已翻译" if structured else "带有 {v1} 和 <b2>重要文字</b2> 的段落。"),
     )
     paragraph = "A real paragraph with {v1} and <b2>important text</b2>."
     batch = 'Rules\n## Here is the input:\n[{"id": 0, "input": "Hello"}]'
@@ -23,7 +24,7 @@ def test_layout_llm_protocol_supports_plain_fallback_without_translating_prompt(
         worker.llm_model_request(
             "Rules\nNow translate the following text:\n\n" + paragraph
         )
-        == "已翻译"
+        == "带有 {v1} 和 <b2>重要文字</b2> 的段落。"
     )
     assert calls == [(batch, True), (paragraph, False)]
     assert worker.llm_model_request(None) is None
@@ -507,3 +508,51 @@ def test_layout_bridge_gives_up_on_a_flood_of_unreadable_output(tmp_path):
         layout_translation.translate_pdf(
             runtime, source, tmp_path / "out", {}, lambda _: None, lambda: False
         )
+
+
+def test_a_paragraph_call_that_fails_once_is_tried_again(monkeypatch, tmp_path):
+    answers = iter([ValueError("connection reset"), "", "你好"])
+
+    def complete(config, system, content, **kwargs):
+        value = next(answers)
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    monkeypatch.setattr(layout_translation, "complete", complete)
+    monkeypatch.setattr(layout_translation, "PARAGRAPH_BACKOFF", (0, 0))
+    pdf, _ = layout_translation.translate_pdf(
+        fake_runtime(tmp_path), tmp_path / "input.pdf", tmp_path / "out", {}, lambda e: None, lambda: False
+    )
+    assert pdf.parent == tmp_path / "out"
+
+
+def test_a_few_paragraphs_may_stay_in_english_but_not_many():
+    import importlib.util
+    import pathlib
+
+    spec = importlib.util.spec_from_file_location(
+        "worker_under_test", pathlib.Path(layout_translation.__file__).with_name("layout_translation_worker.py")
+    )
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)
+    assert worker.kept_original("Original words.") == "Original words."
+    assert worker.KEPT["count"] == 1
+    assert [worker.kept_allowance(n) for n in (10, 99, 250, 697, 5000)] == [1, 1, 2, 3, 3]
+
+
+def test_a_translation_that_lost_a_placeholder_is_asked_again_then_the_original_stands(monkeypatch):
+    import importlib.util
+    import pathlib
+
+    spec = importlib.util.spec_from_file_location(
+        "worker_placeholders", pathlib.Path(layout_translation.__file__).with_name("layout_translation_worker.py")
+    )
+    worker = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(worker)
+    replies = iter(["公式丢了", "公式 {v1} 在这里"])
+    monkeypatch.setattr(worker, "model_request", lambda text, structured: next(replies))
+    assert worker.single_paragraph("The formula {v1} is here.") == "公式 {v1} 在这里"
+    monkeypatch.setattr(worker, "model_request", lambda text, structured: "公式丢了")
+    assert worker.single_paragraph("The formula {v1} is here.") == "The formula {v1} is here."
+    assert worker.KEPT["count"] == 1
