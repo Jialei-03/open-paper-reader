@@ -273,6 +273,8 @@ export async function createPaperWithPdf(
     citations?: Citation[];
     /** Links to web addresses, in lines of text. */
     webLinks?: WebLink[];
+    /** The file as it is, instead of one made from the options above. */
+    buffer?: Buffer;
   } = {},
 ): Promise<{ paperId: string; fileId: string; title: string }> {
   const title =
@@ -288,14 +290,15 @@ export async function createPaperWithPdf(
   });
   expect(response.ok()).toBeTruthy();
   const paper = await response.json();
-  const buffer =
-    options.pages === undefined &&
-    !options.links &&
-    !options.outline &&
-    !options.words &&
-    !options.size &&
-    !options.citations &&
-    !options.webLinks
+  const buffer = options.buffer
+    ? options.buffer
+    : options.pages === undefined &&
+        !options.links &&
+        !options.outline &&
+        !options.words &&
+        !options.size &&
+        !options.citations &&
+        !options.webLinks
       ? testPdf()
       : pdfWithPages(options.pages ?? 2, options.links, {
           outline: options.outline,
@@ -364,4 +367,32 @@ export async function saveStroke(
   );
   expect(response.ok()).toBeTruthy();
   return response.json();
+}
+
+/**
+ * These tests have no worker to finish the tasks they start. Stop whatever an
+ * earlier test left, so it is not still queued when the next test looks at the
+ * account's tasks (and so a limit that is switched back on cannot refuse it).
+ */
+export async function cancelActiveRuns(page: Page) {
+  const csrf = (await page.context().cookies()).find(
+    (cookie) => cookie.name === "paper_csrf",
+  )!.value;
+  const sessions = await (
+    await page.request.get("/api/v1/agent/sessions")
+  ).json();
+  for (const session of sessions) {
+    const runs = await (
+      await page.request.get(`/api/v1/agent/sessions/${session.id}/runs`)
+    ).json();
+    for (const run of runs)
+      if (["queued", "running"].includes(run.status))
+        await page.request.post(`/api/v1/agent/runs/${run.id}/cancel`, {
+          headers: {
+            "X-CSRF-Token": csrf,
+            "Idempotency-Key": crypto.randomUUID(),
+          },
+          data: {},
+        });
+  }
 }

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { cancelActiveRuns } from "../helpers";
 import {
+  cancelActiveRuns,
   createPaperWithPdf,
   openReader,
   saveHighlight,
