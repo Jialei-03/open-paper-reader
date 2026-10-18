@@ -29,7 +29,7 @@ ModelErrorCode = Literal[
 
 CONNECTION = "连不上模型服务，请检查地址和网络后重试"
 INTERRUPTED = "模型的回答中途断开了，请重试"
-MALFORMED = "模型服务返回的内容无法识别，请确认地址是 OpenAI 兼容接口后重试"
+MALFORMED = "模型服务返回的内容无法识别，请确认地址和接口协议设置正确后重试"
 STREAM_FAILED = "模型流式响应失败，请重试"
 TRUNCATED = "模型输出被截断，请换用支持更长输出的模型"
 EMPTY = "模型返回空内容，请重试或换一个模型"
@@ -53,6 +53,9 @@ def from_status(status: int) -> ModelError:
         return ModelError(
             "not_found", f"{head}：找不到这个模型或地址，请在设置里检查模型名称和地址"
         )
+    if status == 408:
+        # direct_runs.TRANSIENT retries "HTTP 408", so the words must stay.
+        return ModelError("timeout", f"{head}：请求超时，请稍后重试")
     if status >= 500:
         return ModelError("server_error", f"{head}：服务暂时出错，请稍后重试")
     return ModelError("bad_request", f"{head}：请求被拒绝，请检查模型配置后重试")

@@ -12,7 +12,7 @@ import pytest
 
 from backend import agent_worker, direct_runs, translation_settings
 from backend.devtools.fake_model import FakeModel
-from backend.model_errors import ModelError
+from backend.model_errors import MALFORMED, ModelError, from_status
 from backend.models import AgentRun
 from backend.tests.test_acceptance import env as env  # noqa: PLC0414
 from backend.tests.test_direct_runs import no_wait as no_wait  # noqa: PLC0414
@@ -119,6 +119,25 @@ def test_a_healthy_model_still_answers(fake, streamed):
         assert "".join(deltas) == REPLY
     else:
         assert deltas == []
+
+
+def test_a_request_timeout_status_is_a_timeout_and_is_still_retried():
+    error = from_status(408)
+    assert error.code == "timeout"
+    assert str(error) == "模型服务返回 HTTP 408：请求超时，请稍后重试"
+    assert direct_runs.TRANSIENT.search(str(error))
+
+
+@pytest.mark.parametrize("status", [400, 402, 405, 409, 413, 422, 451, 301])
+def test_other_refusals_stay_bad_requests(status):
+    error = from_status(status)
+    assert error.code == "bad_request"
+    assert f"HTTP {status}" in str(error)
+
+
+def test_an_unrecognised_answer_does_not_assume_the_openai_protocol():
+    assert MALFORMED == "模型服务返回的内容无法识别，请确认地址和接口协议设置正确后重试"
+    assert "OpenAI" not in MALFORMED
 
 
 # -- what a reader sees when translating a selection goes wrong ---------------
