@@ -71,7 +71,7 @@ test('a model call records the provider status and explains its failure', async 
   assert.equal(models.failure(), undefined);
 });
 test('a silent model is aborted after the limit; a talking one is not', async () => {
-  const models = modelCalls(async () => ({status:200}), 0.1);
+  const models = modelCalls(async () => ({status:200}), 0.2);
   let seen;
   const silent = models.watch(signal => {
     seen = signal;
@@ -82,9 +82,10 @@ test('a silent model is aborted after the limit; a talking one is not', async ()
   });
   for await (const e of silent) void e;
   assert.equal(seen.aborted, true);
-  assert.equal(models.failure(), '模型服务超过 0.1 秒没有回应，已停止；请稍后重试或换一个模型');
-  // Events every 50 ms keep a 100 ms limit from firing over 300 ms in all.
-  const talking = models.watch(signal => { seen = signal; return stream(Array(6).fill({type:'text_delta'}).concat({type:'done'}), 50); });
+  assert.equal(models.failure(), '模型服务超过 0.2 秒没有回应，已停止；请稍后重试或换一个模型');
+  // Events every 40 ms (a fifth of the 200 ms limit, so a loaded runner has
+  // room) keep it from firing over 320 ms in all.
+  const talking = models.watch(signal => { seen = signal; return stream(Array(7).fill({type:'text_delta'}).concat({type:'done'}), 40); });
   for await (const e of talking) void e;
   assert.equal(seen.aborted, false);
   assert.equal(models.failure(), undefined);
