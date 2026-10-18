@@ -26,6 +26,7 @@ from fastapi import (
     UploadFile,
     File as Upload,
     Form,
+    BackgroundTasks,
 )
 from fastapi.responses import (
     JSONResponse,
@@ -42,6 +43,7 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from .asset_cache import static_cache_control
 from .file_delivery import file_response
+from . import thumbnails
 from .config import Settings, database
 from .storage_budget import StorageBudgetExceeded, lock_owner, require_space, usage, write_blob
 from .models import (
@@ -800,6 +802,7 @@ def create_app(settings=None):
         d.commit()
         for f in files:
             (storage / f.id).unlink(missing_ok=True)
+            thumbnails.remove(settings, f.id)
         return {"ok": True}
 
     @app.get("/api/v1/papers/{id}/versions")
@@ -855,6 +858,7 @@ def create_app(settings=None):
         file: UploadFile = Upload(...),
         version_id: str = Form(...),
         source_path: str = Form(""),
+        background: BackgroundTasks = None,
         a=Depends(auth),
         d=Depends(db),
     ):
@@ -909,7 +913,11 @@ def create_app(settings=None):
         try:
             d.add(f)
             d.flush()
-            return save(d, a, key, fp, public(f))
+            result = save(d, a, key, fp, public(f))
+            if mime == "application/pdf":
+                # Draw the cover after the response, so the first view is instant.
+                background.add_task(thumbnails.ensure_later, settings, f.id)
+            return result
         except Exception:
             target.unlink(missing_ok=True)
             raise
@@ -926,6 +934,26 @@ def create_app(settings=None):
             fail(415, "Preview unsupported; download this file instead")
         # PDF.js can request only the pages it needs instead of buffering the full PDF.
         return file_response(settings, f, request, download)
+
+    @app.get("/api/v1/files/{id}/thumbnail")
+    def thumbnail(id: str, request: Request, a=Depends(auth), d=Depends(db)):
+        f = owned(d, File, id, a)
+        headers = {
+            "ETag": thumbnails.etag(f),
+            # The picture of a file id never changes.
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "Vary": "Cookie, Authorization",
+        }
+        stored = thumbnails.thumb_path(settings, f.id)
+        if stored.is_file() and any(
+            v.strip().removeprefix("W/") in (headers["ETag"], "*")
+            for v in request.headers.get("if-none-match", "").split(",")
+        ):
+            return Response(status_code=304, headers=headers)
+        path = thumbnails.ensure(settings, f)
+        if path is None:
+            fail(404, "No cover for this file")
+        return Response(path.read_bytes(), media_type="image/jpeg", headers=headers)
 
     @app.get("/api/v1/items")
     def items(kind: str = "", paper_id: str = "", a=Depends(auth), d=Depends(db)):

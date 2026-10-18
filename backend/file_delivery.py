@@ -25,8 +25,9 @@ def file_response(settings, record, request, download=False):
     headers = {
         "ETag": etag,
         "Accept-Ranges": "bytes",
-        # Always reauthorize cached bytes, including after logout/revocation.
-        "Cache-Control": "private, no-cache",
+        # A file id never changes its bytes, so the browser may keep them (private
+        # only: never a shared cache); the owner check runs on every uncached request.
+        "Cache-Control": "private, max-age=31536000, immutable",
         "Vary": "Cookie, Authorization",
         "Content-Disposition": f"{'attachment' if download else 'inline'}; filename=\"attachment\"; filename*=UTF-8''{quote(record.name, safe='')}",
     }

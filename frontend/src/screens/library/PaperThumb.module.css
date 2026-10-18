@@ -8,13 +8,21 @@
 }
 
 .image {
+  position: absolute;
+  inset: 0;
   display: block;
+  opacity: 0;
+  transition: opacity var(--ui-dur-1) var(--ui-ease-out);
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: top center;
   /* A dark theme dims the page as the reader does, not as a photograph. */
   filter: var(--ui-page-filter);
+}
+
+.loaded {
+  opacity: 1;
 }
 
 .placeholder {

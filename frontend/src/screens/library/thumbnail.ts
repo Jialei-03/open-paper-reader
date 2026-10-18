@@ -4,14 +4,15 @@ import { api, type Paper, type SourceFile } from "../../api";
 /** What is known about a paper's PDF once it has been looked up. */
 export interface PaperPdf {
   file: SourceFile | null;
-  /** A small picture of the first page; empty when it could not be drawn. */
+  /**
+   * Where the small picture of the first page is served from (the server draws
+   * it once and the browser keeps it); empty when the paper has no PDF.
+   */
   thumb: string;
 }
 
-/** The picture's width in CSS pixels times 2, for sharp edges on dense screens. */
-const WIDTH = 360;
-/** How many first pages are drawn at once. */
-const PARALLEL = 2;
+/** How many file lists are fetched at once. */
+const PARALLEL = 4;
 
 const known = new Map<string, PaperPdf>();
 const running = new Map<string, Promise<PaperPdf>>();
@@ -35,40 +36,7 @@ function slot<T>(job: () => Promise<T>): Promise<T> {
   });
 }
 
-async function draw(fileId: string): Promise<string> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
-    import.meta.url,
-  ).toString();
-  const task = pdfjs.getDocument({
-    url: "/api/v1/files/" + fileId + "/content",
-    withCredentials: true,
-    isEvalSupported: false,
-    disableAutoFetch: true,
-    disableStream: true,
-    rangeChunkSize: 256 * 1024,
-    cMapUrl: "/assets/pdfjs/cmaps/",
-    cMapPacked: true,
-    standardFontDataUrl: "/assets/pdfjs/standard_fonts/",
-    wasmUrl: "/assets/pdfjs/wasm/",
-  });
-  try {
-    const doc = await task.promise;
-    const page = await doc.getPage(1);
-    const base = page.getViewport({ scale: 1 });
-    const viewport = page.getViewport({ scale: WIDTH / base.width });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    await page.render({ canvas, viewport }).promise;
-    return canvas.toDataURL("image/jpeg", 0.82);
-  } finally {
-    void task.destroy();
-  }
-}
-
-/** Finds a paper's PDF and draws its first page, once per file (a later call gets the first answer). */
+/** Finds a paper's PDF, once per session (a later call gets the first answer). */
 export function loadPaperPdf(paper: Paper): Promise<PaperPdf> {
   const key = paper.id + ":" + paper.current_version;
   const hit = known.get(key);
@@ -85,15 +53,10 @@ export function loadPaperPdf(paper: Paper): Promise<PaperPdf> {
       ) ??
       files.find((f) => f.mime === "application/pdf") ??
       null;
-    let thumb = "";
-    if (file) {
-      try {
-        thumb = await draw(file.id);
-      } catch {
-        /* The placeholder stands in. */
-      }
-    }
-    const answer = { file, thumb };
+    const answer = {
+      file,
+      thumb: file ? "/api/v1/files/" + file.id + "/thumbnail" : "",
+    };
     known.set(key, answer);
     return answer;
   });

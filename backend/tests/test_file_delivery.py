@@ -11,7 +11,7 @@ def test_file_ranges_cache_and_authorization(env):
     url = f"/api/v1/files/{record['id']}/content"
     response = alice.get(url)
     assert response.content == data
-    assert response.headers["cache-control"] == "private, no-cache"
+    assert response.headers["cache-control"] == "private, max-age=31536000, immutable"
     assert response.headers["accept-ranges"] == "bytes"
     etag = response.headers["etag"]
     partial = alice.get(url, headers={"Range": "bytes=2-6"})
