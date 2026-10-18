@@ -6,6 +6,7 @@ import { recentPapers } from "../lib/recent-papers";
 import { lastPage } from "../reader/engine/page-memory";
 import { followLink, readerHash } from "../reader/route";
 import { Card, CardHeader } from "../ui";
+import { HomeRecommend } from "./home/HomeRecommend";
 import { HomePaper } from "./home/HomePaper";
 import { ImportDrop, useFileDrop } from "./home/ImportDrop";
 import styles from "./home/HomeScreen.module.css";
@@ -109,6 +110,7 @@ export function HomeScreen({ owner, papers, go, reload }: HomeScreenProps) {
               </section>
             )}
             <ImportDrop imports={imports} over={over} compact />
+            <HomeRecommend go={go} />
             <section aria-labelledby="home-recent">
               <div className={styles.sectionHead}>
                 <h2 id="home-recent" className={styles.sectionTitle}>

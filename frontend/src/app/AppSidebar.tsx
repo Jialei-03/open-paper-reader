@@ -1,4 +1,5 @@
 import {
+  Compass,
   FileText,
   House,
   Library,
@@ -166,6 +167,13 @@ export function AppSidebar({
           href="#library"
           active={screen === "library"}
           onClick={followLink(go, "library")}
+        />
+        <SidebarItem
+          icon={Compass}
+          label={t("app.discover")}
+          href="#discover"
+          active={screen === "discover"}
+          onClick={followLink(go, "discover")}
         />
       </SidebarSection>
       {reading.length > 0 && (

@@ -475,6 +475,9 @@ def create_app(settings=None):
     from .paper_metadata import PaperMetadata, install_metadata_routes
 
     install_metadata_routes(app, settings, db, auth, owned)
+    from .recommendations import install_recommendation_routes
+
+    install_recommendation_routes(app, settings, db, auth, owned)
     from .figure_catalog import install_figure_routes
 
     install_figure_routes(app, settings, db, auth, owned)

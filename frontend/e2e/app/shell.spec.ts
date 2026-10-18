@@ -48,6 +48,7 @@ test("the sidebar goes to each screen and marks where it is", async ({
 
   for (const [name, hash] of [
     ["文库", "library"],
+    ["发现", "discover"],
     ["设置", "settings"],
     ["首页", "home"],
   ]) {
@@ -66,7 +67,6 @@ test("the addresses of what was taken out go home", async ({ page }) => {
   for (const old of [
     "dashboard",
     "knowledge",
-    "discover",
     "directions",
     "collections/abc",
     "tokens",
