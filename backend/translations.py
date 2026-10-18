@@ -11,8 +11,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .arxiv_import import NO_PDF, ArxivNotFound, download, identifier, metadata
+from .arxiv_import import NO_PDF, NO_SOURCE, ArxivNotFound, download, identifier, metadata
 from .import_progress import read as read_import_progress
+from .latex_install import latex_available, latex_installable
 from .layout_install import layout_available
 from .import_progress import report, tracking
 from .model_options import task_options
@@ -205,6 +206,8 @@ def install_translation_routes(
         return {
             **public_config(settings, a["id"]),
             "pdf_layout_enabled": layout_available(settings),
+            "latex_translation_available": latex_available(settings),
+            "latex_installable": latex_installable(settings),
         }
 
     @app.put("/api/v1/translation-settings")
@@ -360,7 +363,13 @@ def install_translation_routes(
     def list_jobs(id: str, a=Depends(auth), d=Depends(db)):
         owned(d, Paper, id, a)
         return [
-            public(j)
+            {
+                **public(j),
+                # arXiv has no LaTeX source for this version: the reader offers the PDF way.
+                "no_source": j.engine == "latex"
+                and j.status == "failed"
+                and j.error == NO_SOURCE,
+            }
             for j in d.scalars(
                 select(TranslationJob)
                 .where(TranslationJob.paper_id == id, TranslationJob.owner == a["id"])
@@ -392,6 +401,8 @@ def install_translation_routes(
                 raise HTTPException(422, "版面翻译需要 PDF 文件")
             source_id = source.id
         else:
+            if not latex_available(settings):
+                raise HTTPException(409, "本机还没有安装 LaTeX 编译器（Tectonic）")
             try:
                 arxiv = identifier(p.external_id)
             except ValueError:

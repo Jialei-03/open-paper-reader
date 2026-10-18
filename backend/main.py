@@ -507,6 +507,9 @@ def create_app(settings=None):
     from .layout_install import install_layout_install_routes
 
     install_layout_install_routes(app, settings, auth, human)
+    from .latex_install import install_latex_install_routes
+
+    install_latex_install_routes(app, settings, auth, human)
 
     @app.get("/api/v1/model-usage")
     def model_usage_summary(a=Depends(auth), d=Depends(db)):

@@ -676,13 +676,55 @@ def prepare_compile_source(main):
     main.write_text(tex)
 
 
-def compile_project(directory):
+def tectonic_command(tectonic, main, directory):
+    """The local build's compile: Tectonic (XeTeX) with no shell escape, into build/."""
+    # ctex's choice of CJK fonts would follow the computer it runs on; the
+    # hosted image (Linux) uses Fandol, which Tectonic's bundle carries too.
+    tex = main.read_text()
+    if "paper-workspace Fandol fonts" not in tex:
+        main.write_text(
+            "% paper-workspace Fandol fonts\n"
+            + r"\PassOptionsToPackage{fontset=fandol}{ctex}"
+            + "\n"
+            + tex
+        )
+    return [
+        tectonic,
+        "-X",
+        "compile",
+        "--untrusted",
+        "--keep-logs",
+        "--outdir",
+        str(Path(directory).resolve() / "build"),
+        main.name,
+    ]
+
+
+def run_tectonic(command, cwd, env):
+    try:
+        return subprocess.run(
+            command, cwd=cwd, env=env, capture_output=True, timeout=600, check=False
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        raise ValueError("论文编译超时或本机的 LaTeX 编译器不可用") from None
+
+
+MISSING_FONT = re.compile(r'fontspec Error:\s*The font "([^"]+)" cannot be found')
+
+
+def compile_project(directory, tectonic=None, tex_env=None):
     main = Path(find_main_tex_file(str(directory)) or "")
     if not main.is_file() or not main.resolve().is_relative_to(
         Path(directory).resolve()
     ):
         raise ValueError("未找到安全的 LaTeX 主文件")
     prepare_compile_source(main)
+    if tectonic:
+        (Path(directory) / "build").mkdir(exist_ok=True)
+        result = run_tectonic(
+            tectonic_command(tectonic, main, directory), main.parent, tex_env
+        )
+        return compiled(directory, main, result)
     relative = main.relative_to(directory).as_posix()
     image = os.getenv("TRANSLATION_TEX_IMAGE", "paper-tex:2026-09")
     # Project code gets no network, host secrets or shell escape. TeX resources are bounded.
@@ -743,10 +785,18 @@ def compile_project(directory):
             )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
+    return compiled(directory, main, result)
+
+
+def compiled(directory, main, result):
+    """The PDF the compile made, or the first error in its log."""
     log = result.stdout.decode(errors="replace") + result.stderr.decode(
         errors="replace"
     )
     (Path(directory) / "compile.log").write_text(log)
+    font = MISSING_FONT.search(log)
+    if font:
+        raise ValueError(f"中文 PDF 编译失败：fontspec 找不到字体 {font[1]}，请安装该字体后重试")
     target = Path(directory) / "build" / (main.stem + ".pdf")
     if result.returncode or not target.exists():
         errors = re.findall(
