@@ -124,15 +124,23 @@ function PageControls({
 }) {
   const { t } = useI18n();
   const mac = currentPlatformIsMac();
-  // What is being typed; null while the field just shows the page.
-  const [draft, setDraft] = useState<string | null>(null);
+  // What is being typed; null while the field just shows the page. Kept in a ref as well as in state:
+  // handing the keyboard back to the paper (below) ends the field's focus at once, and the blur that
+  // follows must find the draft already used or given up, not the one of the render before.
+  const [draft, setShown] = useState<string | null>(null);
+  const typed = useRef<string | null>(null);
+  const setDraft = (value: string | null) => {
+    typed.current = value;
+    setShown(value);
+  };
 
   const commit = () => {
-    if (draft === null) return;
+    const value = typed.current;
+    if (value === null) return;
     setDraft(null);
-    const typed = Number.parseInt(draft, 10);
+    const number = Number.parseInt(value, 10);
     // Past either end is the nearest page; what is not a number is let go.
-    if (!Number.isNaN(typed)) onNavigate(clamp(typed, 1, pages));
+    if (!Number.isNaN(number)) onNavigate(clamp(number, 1, pages));
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {

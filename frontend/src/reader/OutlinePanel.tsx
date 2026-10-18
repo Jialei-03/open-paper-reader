@@ -183,8 +183,11 @@ function Thumbnails({
   const grid = useRef<HTMLDivElement>(null);
   const queue = useMemo(() => new RenderQueue(CONCURRENT_DRAWS), []);
   const watcher = useWatcher(root);
-  // Every cell holds the place of the first page's shape until its own picture says otherwise.
-  const [shape, setShape] = useState("612 / 792");
+  // Every cell holds the place of the first page's shape. Nothing is laid out before it is known: a list
+  // that was laid out in a guessed shape, and scrolled to the current page, would be left off that page
+  // when the real shape changes the height of every row above it.
+  const [shape, setShape] = useState<string | null>(null);
+  const shaped = shape !== null;
 
   useEffect(() => {
     let live = true;
@@ -193,14 +196,17 @@ function Thumbnails({
         const { width, height } = first.getViewport({ scale: 1 });
         if (live) setShape(`${width} / ${height}`);
       },
-      () => undefined,
+      // A page that cannot be read gives no shape; the sheet of a letter page will do.
+      () => {
+        if (live) setShape("612 / 792");
+      },
     );
     return () => {
       live = false;
     };
   }, [doc]);
 
-  // Opens at the page being read.
+  // Opens at the page being read, once the cells have their shape and the scroller is there.
   useLayoutEffect(() => {
     const here = grid.current?.querySelector<HTMLElement>(
       '[aria-current="page"]',
@@ -208,9 +214,10 @@ function Thumbnails({
     if (root && here)
       root.scrollTop =
         here.offsetTop - (root.clientHeight - here.offsetHeight) / 2;
-    // Once, when the scroller is there: reading on does not move the list under the pointer.
-  }, [root]);
+    // Not again as the reading goes on: the list does not move under the pointer.
+  }, [root, shaped]);
 
+  if (shape === null) return null;
   return (
     <div
       ref={grid}

@@ -39,13 +39,19 @@ export type OutlineItem = {
  * A PDF of `pages` pages, each saying which one it is. `links` are internal
  * links: a box near the top of page `from` that jumps to page `to`. `outline` is
  * the PDF's own table of contents; `words` puts a word on a page (a second line
- * under the one that says which page it is), to search for.
+ * under the one that says which page it is), to search for; `size` is a page's
+ * width and height in points (a letter page, 612 × 792, unless given).
  */
 export function pdfWithPages(
   pages: number,
   links: { from: number; to: number }[] = [],
-  options: { outline?: OutlineItem[]; words?: Record<number, string> } = {},
+  options: {
+    outline?: OutlineItem[];
+    words?: Record<number, string>;
+    size?: [number, number];
+  } = {},
 ): Buffer {
+  const [width, height] = options.size ?? [612, 792];
   // 1 catalog, 2 page tree, 3 font; then a page and its content per page; then the links; then the outline.
   const pageObject = (page: number) => 4 + 2 * (page - 1);
   const linkObject = (index: number) => 4 + 2 * pages + index;
@@ -71,14 +77,14 @@ export function pdfWithPages(
   ];
   for (let page = 1; page <= pages; page++) {
     const word = options.words?.[page];
-    const stream = `BT /F1 20 Tf 40 720 Td (Page ${page} of ${pages}) Tj${word ? ` 0 -40 Td (${word}) Tj` : ""} ET`;
+    const stream = `BT /F1 20 Tf 40 ${height - 72} Td (Page ${page} of ${pages}) Tj${word ? ` 0 -40 Td (${word}) Tj` : ""} ET`;
     const annots = links
       .map((link, index) => (link.from === page ? linkObject(index) : 0))
       .filter(Boolean)
       .map((object) => `${object} 0 R`)
       .join(" ");
     objects.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageObject(page) + 1} 0 R${annots ? ` /Annots [${annots}]` : ""} >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${pageObject(page) + 1} 0 R${annots ? ` /Annots [${annots}]` : ""} >>`,
       `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
     );
   }
@@ -146,6 +152,8 @@ export async function createPaperWithPdf(
     outline?: OutlineItem[];
     /** Words to find: a word on a page, by page number. */
     words?: Record<number, string>;
+    /** The pages' width and height in points; letter-sized if left out. */
+    size?: [number, number];
   } = {},
 ): Promise<{ paperId: string; fileId: string; title: string }> {
   const title =
@@ -165,11 +173,13 @@ export async function createPaperWithPdf(
     options.pages === undefined &&
     !options.links &&
     !options.outline &&
-    !options.words
+    !options.words &&
+    !options.size
       ? testPdf()
       : pdfWithPages(options.pages ?? 2, options.links, {
           outline: options.outline,
           words: options.words,
+          size: options.size,
         });
   const upload = await page.request.post(`/api/v1/papers/${paper.id}/files`, {
     headers: await writeHeaders(page),

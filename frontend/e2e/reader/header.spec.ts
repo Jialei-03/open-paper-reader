@@ -158,6 +158,55 @@ test("the page field jumps, takes the nearest page, and the buttons and [ ] step
   await expect(announcement(page)).toHaveText("第 2 页 / 共 40 页");
 });
 
+test("Esc in the page field takes the typing back, and Enter goes there once", async ({
+  page,
+}) => {
+  await open(page);
+  // Counts what sets the desk's scroll position: a jump to a page is one set.
+  await page.evaluate(() => {
+    const desk = document.querySelector<HTMLElement>(
+      '[role="region"][data-file]',
+    )!;
+    const own = Object.getOwnPropertyDescriptor(
+      Element.prototype,
+      "scrollTop",
+    )!;
+    const counted = window as unknown as { deskSets: number };
+    counted.deskSets = 0;
+    Object.defineProperty(desk, "scrollTop", {
+      configurable: true,
+      get() {
+        return own.get!.call(this);
+      },
+      set(value: number) {
+        counted.deskSets++;
+        own.set!.call(this, value);
+      },
+    });
+  });
+  const sets = () =>
+    page.evaluate(() => (window as unknown as { deskSets: number }).deskSets);
+
+  // Typed, then given up: the field shows the page again and the paper did not move.
+  await pageInput(page).fill("25");
+  await pageInput(page).press("Escape");
+  await expect(pageInput(page)).toHaveValue("1");
+  await expect(scroller(page)).toBeFocused();
+  await page.waitForTimeout(400);
+  await expect(pageInput(page)).toHaveValue("1");
+  await expect(announcement(page)).toHaveText("第 1 页 / 共 40 页");
+  expect(await sets()).toBe(0);
+
+  // Typed, then Enter: one jump, not one for Enter and another for the field losing the keyboard.
+  await pageInput(page).fill("25");
+  await pageInput(page).press("Enter");
+  await expect(pageInput(page)).toHaveValue("25");
+  await expectAtTop(page, 25);
+  await page.waitForTimeout(400);
+  expect(await sets()).toBe(1);
+  await expect(scroller(page)).toBeFocused();
+});
+
 test("the zoom menu sets the zoom and shows it; mod+0 fits the width again", async ({
   page,
 }) => {
@@ -510,6 +559,46 @@ test("without an outline the panel shows the pages, as thumbnails, two to a row"
   await expect(panel).toHaveCount(0);
   await expect(pageInput(page)).toHaveValue("40");
   await expect(scroller(page)).toBeFocused();
+});
+
+test("the thumbnails open at the current page of a PDF that is not letter-sized", async ({
+  page,
+}) => {
+  // A4: its cells are not the shape the list guesses before it has read the first page.
+  await open(page, { size: [595, 842] });
+  // Chromium and Firefox anchor the scroll when cells change height; Safari does not, and must come out right too.
+  await page.addStyleTag({
+    content: "* { overflow-anchor: none !important; }",
+  });
+  await jumpTo(page, 30);
+
+  await outlineButton(page).click();
+  const panel = page.getByRole("dialog", { name: "目录与页面", exact: true });
+  await expect(
+    panel.getByRole("tab", { name: "页面", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  const current = panel.getByRole("button", {
+    name: "转到第 30 页",
+    exact: true,
+  });
+  await expect(current).toHaveAttribute("aria-current", "page");
+  // In the middle of what the panel shows, and drawn.
+  await expect
+    .poll(async () => {
+      const [cell, area] = await Promise.all([
+        current.boundingBox(),
+        panel.getByRole("tabpanel").evaluate((element) => {
+          const { y, height } = element.parentElement!.getBoundingClientRect();
+          return { y, height };
+        }),
+      ]);
+      return Math.abs(cell!.y + cell!.height / 2 - (area.y + area.height / 2));
+    })
+    .toBeLessThan(40);
+  await expect(current).toHaveAttribute("data-rendered", "true");
+  // The cells are A4-shaped.
+  const sheet = (await current.locator("canvas").boundingBox())!;
+  expect(Math.abs(sheet.width / sheet.height - 595 / 842)).toBeLessThan(0.02);
 });
 
 test("the panel is 320px wide, at most 70% of the window high, and shows the thumbnails of a long PDF", async ({
