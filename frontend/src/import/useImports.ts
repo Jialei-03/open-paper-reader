@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Paper } from "../api";
-import { importArxiv, type ImportProgress } from "../lib/arxiv-import";
+import {
+  importArxiv,
+  importUrl,
+  type ImportProgress,
+} from "../lib/arxiv-import";
 import {
   importPdf,
   isPdf,
@@ -14,7 +18,7 @@ import {
  */
 export type ImportJob = {
   id: string;
-  kind: "pdf" | "arxiv";
+  kind: "pdf" | "arxiv" | "url";
   /** What is being imported: the file's name or the address as typed. */
   label: string;
   status: "running" | "failed";
@@ -37,6 +41,11 @@ export function looksLikeArxiv(text: string): boolean {
     /^arxiv:\s*\S+$/i.test(value) ||
     /^\d{4}\.\d{4,5}(v\d+)?$/.test(value)
   );
+}
+
+/** Text that is a web address, which the service reads as an arXiv or a publisher page or a PDF link. */
+export function looksLikeUrl(text: string): boolean {
+  return /^https?:\/\/\S+$/i.test(text.trim());
 }
 
 /** The reason a file is refused before anything is sent, or null if it can be imported. */
@@ -100,7 +109,7 @@ export function useImports(onImported: (paper: Paper, only: boolean) => void) {
   );
 
   const runArxiv = useCallback(
-    (id: string, url: string) => {
+    (id: string, url: string, kind: "arxiv" | "url") => {
       patch(id, {
         status: "running",
         stage: "metadata",
@@ -110,7 +119,7 @@ export function useImports(onImported: (paper: Paper, only: boolean) => void) {
         waitingSeconds: undefined,
         error: null,
       });
-      importArxiv(url, (value: ImportProgress) =>
+      (kind === "url" ? importUrl : importArxiv)(url, (value: ImportProgress) =>
         patch(id, {
           stage: value.stage,
           received: value.received,
@@ -157,12 +166,14 @@ export function useImports(onImported: (paper: Paper, only: boolean) => void) {
     [runPdf],
   );
 
-  const importUrl = useCallback(
+  const importAddress = useCallback(
     (url: string) => {
-      const job = blank("arxiv", url.trim());
+      // arXiv ids and `arXiv:` forms go the arXiv way; any other address to the general import.
+      const kind = looksLikeArxiv(url) || !looksLikeUrl(url) ? "arxiv" : "url";
+      const job = blank(kind, url.trim());
       setJobs((all) => [...all, job]);
-      retries.current.set(job.id, () => runArxiv(job.id, job.label));
-      runArxiv(job.id, job.label);
+      retries.current.set(job.id, () => runArxiv(job.id, job.label, kind));
+      runArxiv(job.id, job.label, kind);
     },
     [runArxiv],
   );
@@ -170,7 +181,7 @@ export function useImports(onImported: (paper: Paper, only: boolean) => void) {
   const retry = useCallback((id: string) => retries.current.get(id)?.(), []);
   const dismiss = useCallback((id: string) => finish(id), [finish]);
 
-  return { jobs, importFiles, importUrl, retry, dismiss };
+  return { jobs, importFiles, importUrl: importAddress, retry, dismiss };
 }
 
 export type Imports = ReturnType<typeof useImports>;

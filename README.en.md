@@ -54,6 +54,12 @@ Open <http://localhost:8765>, register the first account, then add a model in Se
 
 For safety, a Docker or cloud deployment only calls model services that are HTTPS, public and on an allow-list (see [Configuration](docs/CONFIGURATION.md#模型)). Connecting to a local model is a feature of the local version.
 
+### Browser extension
+
+The home import box takes any paper address (arXiv, a publisher page, a direct PDF link). The Chrome / Edge
+extension in [`extension/`](extension/README.md) ("Load unpacked") opens the current page or a PDF link in
+open-paper-reader from the toolbar or the right-click menu, and sends only the address.
+
 ## Development
 
 ```bash

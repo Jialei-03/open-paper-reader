@@ -22,6 +22,7 @@ import { useMediaQuery } from "../reader/useMediaQuery";
 import { useModel } from "../reader/useModel";
 import { HomeScreen } from "../screens/HomeScreen";
 import { LibraryScreen } from "../screens/LibraryScreen";
+import { OpenScreen } from "../screens/open/OpenScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { SetupScreen } from "../screens/SetupScreen";
 import {
@@ -217,6 +218,14 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
         </div>
         {quick}
       </AppActions.Provider>
+    );
+
+  if (route.screen === "open")
+    return (
+      <div data-app-screen="open">
+        <OpenScreen url={route.url} go={go} reload={reload} />
+        <Toaster />
+      </div>
     );
 
   const screen = (

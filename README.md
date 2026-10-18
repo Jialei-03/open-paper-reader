@@ -54,6 +54,11 @@ docker compose up -d --build
 
 出于安全，Docker/云端部署的服务器只向 HTTPS、公网、且在名单里的模型服务发请求（见 [配置](docs/CONFIGURATION.md#模型)）；连本机模型是本机版的能力。
 
+### 浏览器扩展
+
+首页的导入框可以粘贴任意论文网址（arXiv、出版社页面、PDF 直链）。[`extension/`](extension/README.md)
+里有一个 Chrome / Edge 扩展（「加载已解压的扩展程序」安装）：在网页或 PDF 链接上点工具栏按钮或右键，即在 open-paper-reader 中打开，只发送网址。
+
 ## 本地开发
 
 ```bash

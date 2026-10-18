@@ -456,6 +456,9 @@ def create_app(settings=None):
     install_translation_routes(
         app, settings, db, auth, human, owned, snapshot, idem, save
     )
+    from .url_import import install_url_routes
+
+    install_url_routes(app, settings, db, auth, snapshot, idem, save)
 
     from .agents import install_agent_routes
 
