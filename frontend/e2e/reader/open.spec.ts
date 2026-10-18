@@ -296,6 +296,197 @@ test("the right panel folds away on a narrow window", async ({ page }) => {
   await expect(panelTabs(page)).toBeHidden();
 });
 
+// Continue reading: each paper opens at the page it was last read at, on this device.
+const scroller = (page: Page) =>
+  page.getByRole("region", { name: "论文页面", exact: true });
+const pdfPage = (page: Page, number: number) =>
+  page.locator(`[data-page="${number}"]`);
+const pageInput = (page: Page) =>
+  page.getByRole("main").getByRole("textbox", { name: "页码", exact: true });
+
+/** The pages the reader has written down on this device, by paper (whoever they are for). */
+const remembered = (page: Page) =>
+  page.evaluate(() => {
+    const pages: Record<string, number> = {};
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index)!;
+      if (key.startsWith("paper-last-page:"))
+        Object.assign(pages, JSON.parse(localStorage.getItem(key)!));
+    }
+    return pages;
+  });
+/** Waits until the page written down for the paper is `number`. */
+const expectRemembered = (page: Page, paperId: string, number: number) =>
+  expect.poll(async () => (await remembered(page))[paperId]).toBe(number);
+/** Writes a page down for the paper, as if it had been read there (a page was written for it before). */
+const remember = (page: Page, paperId: string, number: number) =>
+  page.evaluate(
+    ([id, value]) => {
+      const key = Object.keys(localStorage).find((name) =>
+        name.startsWith("paper-last-page:"),
+      )!;
+      const pages = JSON.parse(localStorage.getItem(key)!);
+      pages[id] = value;
+      localStorage.setItem(key, JSON.stringify(pages));
+    },
+    [paperId, number] as const,
+  );
+
+/** Through the page field, as a person does; resolves once the page is at the top of the desk. */
+async function jumpTo(page: Page, number: number) {
+  await pageInput(page).fill(String(number));
+  await pageInput(page).press("Enter");
+  await expect(pageInput(page)).toHaveValue(String(number));
+  await expectAtTop(page, number);
+}
+
+/** The page's top is just under the top of the desk (the desk pads the first page by 20px). */
+async function expectAtTop(page: Page, number: number) {
+  await expect
+    .poll(async () => {
+      const [sheet, desk] = await Promise.all([
+        pdfPage(page, number).boundingBox(),
+        scroller(page).boundingBox(),
+      ]);
+      return Math.abs(sheet!.y - desk!.y - 20);
+    })
+    .toBeLessThan(6);
+}
+
+/** Opens the paper afresh (a full load, not a move inside the loaded page) and waits for its pages to be there. */
+async function openAnew(page: Page, route: Parameters<typeof openReader>[1]) {
+  await page.goto("about:blank");
+  await openReader(page, route);
+  await expect(scroller(page)).toBeVisible();
+}
+
+test("reopening continues where you left off", async ({ page }) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page, { pages: 12 });
+  await openReader(page, { paperId });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+
+  await jumpTo(page, 7);
+  await expectRemembered(page, paperId, 7);
+
+  // The address names no page: it is the one that was read last.
+  await page.reload();
+  await expect(pageInput(page)).toHaveValue("7");
+  await expectAtTop(page, 7);
+
+  // Another paper is not taken there.
+  const other = await createPaperWithPdf(page, { pages: 12 });
+  await openAnew(page, { paperId: other.paperId });
+  await expect(pageInput(page)).toHaveValue("1");
+  await expectAtTop(page, 1);
+});
+
+test("a page in the address, or a reference, wins over the page remembered", async ({
+  page,
+}) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page, { pages: 12 });
+  await openReader(page, { paperId });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  await jumpTo(page, 7);
+  await expectRemembered(page, paperId, 7);
+
+  await openAnew(page, { paperId, page: 2 });
+  await expect(pageInput(page)).toHaveValue("2");
+  await expectAtTop(page, 2);
+  // What is read now is what is remembered next.
+  await expectRemembered(page, paperId, 2);
+
+  // A quote carries its own page (the first, when the address names none).
+  await remember(page, paperId, 7);
+  await openAnew(page, { paperId, quote: "Page 3 of 12" });
+  await page.waitForTimeout(500);
+  await expect(pageInput(page)).toHaveValue("1");
+  await expectAtTop(page, 1);
+});
+
+test("a page past the end of the document opens at the last page", async ({
+  page,
+}) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page, { pages: 5 });
+  await openReader(page, { paperId });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  await jumpTo(page, 3);
+  await expectRemembered(page, paperId, 3);
+
+  // The file was replaced by a shorter one since.
+  await remember(page, paperId, 99);
+  await openAnew(page, { paperId });
+  await expect(pageInput(page)).toHaveValue("5");
+  await expect(pdfPage(page, 5)).toBeInViewport();
+});
+
+test("the page is written once the reading has stopped, not as it scrolls", async ({
+  page,
+}) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page, { pages: 30 });
+  await openReader(page, { paperId });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  // Opening it is a visit too.
+  await expectRemembered(page, paperId, 1);
+
+  await page.evaluate(() => {
+    const counted = window as unknown as { pageWrites: string[] };
+    counted.pageWrites = [];
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      if (key.startsWith("paper-last-page:")) counted.pageWrites.push(value);
+      return set.call(this, key, value);
+    };
+  });
+  const writes = () =>
+    page.evaluate(
+      () => (window as unknown as { pageWrites: string[] }).pageWrites,
+    );
+
+  // Many pages go by in well under the time it waits for.
+  await scroller(page).hover();
+  for (let step = 0; step < 12; step++) {
+    await page.mouse.wheel(0, 900);
+    await page.waitForTimeout(40);
+  }
+  await page.waitForTimeout(300);
+  const shown = Number(await pageInput(page).inputValue());
+  expect(shown).toBeGreaterThan(6);
+  expect(await writes()).toEqual([]);
+
+  await expectRemembered(page, paperId, shown);
+  await page.waitForTimeout(1300);
+  expect(await writes()).toHaveLength(1);
+});
+
+test("leaving the paper, or the page, writes the page that has not been written yet", async ({
+  page,
+}) => {
+  await signIn(page);
+  const { paperId } = await createPaperWithPdf(page, { pages: 20 });
+  await openReader(page, { paperId });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+
+  // To another screen straight after: well inside the second the page is waited on for.
+  await jumpTo(page, 9);
+  await page.goto("/#library");
+  await expect(scroller(page)).toHaveCount(0);
+  await expect
+    .poll(async () => (await remembered(page))[paperId], { timeout: 600 })
+    .toBe(9);
+
+  // It opens there again; and closing or reloading the page straight after a change writes that one.
+  await openReader(page, { paperId });
+  await expect(pageInput(page)).toHaveValue("9");
+  await jumpTo(page, 14);
+  await page.reload();
+  await expect(pageInput(page)).toHaveValue("14");
+  await expectAtTop(page, 14);
+});
+
 test.describe("in English", () => {
   test.use({ locale: "en-US" });
 

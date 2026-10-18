@@ -826,6 +826,38 @@ test("a link to a quote gives the paper the keyboard once it is there, and where
   await page.unroute(slow);
 });
 
+test("a paper opened from the sidebar takes the keyboard too, so the zoom keys work at once", async ({
+  page,
+}) => {
+  await signIn(page);
+  const first = await createPaperWithPdf(page, { pages: 3 });
+  const second = await createPaperWithPdf(page, { pages: 3 });
+  await openReader(page, { paperId: first.paperId });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  await openReader(page, { paperId: second.paperId });
+  await expect(
+    main(page).getByRole("heading", { level: 1, name: second.title }),
+  ).toBeVisible();
+
+  // The sidebar stays mounted when the paper changes: the link that was clicked keeps the keyboard
+  // until the next paper's PDF is in, and the paper must still take it from there.
+  await page
+    .getByRole("navigation")
+    .getByRole("group", { name: "正在读" })
+    .getByRole("link", { name: first.title })
+    .click();
+  await expect(
+    main(page).getByRole("heading", { level: 1, name: first.title }),
+  ).toBeVisible();
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  await expect(scroller(page)).toBeFocused();
+  await expect(zoomButton(page)).toHaveText("100%");
+  await page.keyboard.press("ControlOrMeta+=");
+  await expect
+    .poll(async () => parseInt(await zoomButton(page).innerText()))
+    .toBeGreaterThan(100);
+});
+
 test.describe("in English", () => {
   test.use({ locale: "en-US" });
 

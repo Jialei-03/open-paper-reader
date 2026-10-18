@@ -34,6 +34,7 @@ import { AnnotationLayer, pageBox } from "./engine/layers/AnnotationLayer";
 import { InkLayer } from "./engine/layers/InkLayer";
 import { PageLinkLayer } from "./engine/layers/LinkLayer";
 import { useLinkPreview, type LinkPreview } from "./engine/LinkPreview";
+import { lastPage, rememberPage } from "./engine/page-memory";
 import {
   PdfPages,
   zoomShortcut,
@@ -282,13 +283,56 @@ interface PaperActions {
 }
 
 /**
- * Whether nobody has the keyboard (it is on the page itself): then the paper
- * may take it. Once the person has put it somewhere (a field, the side panel, a
- * button), a PDF that finishes loading later does not take it from there.
+ * Whether nobody has the keyboard: it is on the page itself, or still where it
+ * was when the paper was opened (`openedFrom`: the link in the sidebar that was
+ * clicked to open it keeps the keyboard, as the sidebar stays when the paper
+ * changes). Then the paper may take it. Once the person has put it somewhere
+ * else (a field, the side panel, a button), a PDF that finishes loading later
+ * does not take it from there.
  */
-function keyboardFree(): boolean {
+function keyboardFree(openedFrom: Element | null): boolean {
   const active = document.activeElement;
-  return !active || active === document.body;
+  return !active || active === document.body || active === openedFrom;
+}
+
+/** How long the page being read has to stay the same before it is written down. */
+const REMEMBER_AFTER = 1000;
+
+/**
+ * Writes down the page being read, for the paper to open there next time: once
+ * it has stayed the same for a second (not at every frame of a scroll), and at
+ * once, if a change is still waiting, when the page is left or the card goes.
+ * Only while the paper is open (`reading`).
+ */
+function useRememberedPage(
+  owner: string,
+  paperId: string,
+  page: number,
+  reading: boolean,
+) {
+  const waiting = useRef<{ page: number; timer: number } | null>(null);
+  const flush = useCallback(() => {
+    const change = waiting.current;
+    if (!change) return;
+    window.clearTimeout(change.timer);
+    waiting.current = null;
+    rememberPage(owner, paperId, change.page);
+  }, [owner, paperId]);
+  useEffect(() => {
+    if (!reading) return;
+    if (waiting.current) window.clearTimeout(waiting.current.timer);
+    waiting.current = {
+      page,
+      timer: window.setTimeout(flush, REMEMBER_AFTER),
+    };
+  }, [page, reading, flush]);
+  useEffect(() => {
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [flush]);
 }
 
 /** Whether the keyboard is in a field that takes text, where letters are for typing. */
@@ -310,18 +354,30 @@ function typing(target: EventTarget | null): boolean {
 function PaperCard({
   route,
   go,
+  owner,
   panelToggle,
   onPaper,
   actions,
 }: {
   route: ReaderRoute;
   go: (hash: string) => void;
+  owner: string;
   panelToggle: ReactNode;
   onPaper: (paper: Paper) => void;
   actions: RefObject<PaperActions | null>;
 }) {
   const [paper, setPaper] = useState<Paper | null>(null);
-  const [page, setPage] = useState(route.page ?? 1);
+  // A reference in the address (a sentence or a region) carries its own page.
+  const reference =
+    route.quote !== undefined ||
+    route.prefix !== undefined ||
+    route.rect !== undefined;
+  // The page of the address, else the one this device last read the paper at, else the first. A page
+  // past the end (the file has changed since) is brought back to the last by the pages once they are there.
+  const [page, setPage] = useState(
+    () =>
+      route.page ?? (reference ? null : lastPage(owner, route.paperId)) ?? 1,
+  );
   const [source, setSource] = useState<Source | null>(null);
   const [controller, setController] = useState<PdfController | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
@@ -333,6 +389,9 @@ function PaperCard({
   controllerNow.current = controller;
   const docNow = useRef(doc);
   docNow.current = doc;
+  useRememberedPage(owner, route.paperId, page, doc !== null);
+  // Where the keyboard was when the paper was opened: not somebody's choice, if it is still there.
+  const [openedFrom] = useState(() => document.activeElement);
 
   // An address that names a page (a link into the paper) goes there.
   useEffect(() => {
@@ -357,15 +416,11 @@ function PaperCard({
   // from the start, unless the person has already put it somewhere (typing, the side panel), or an
   // address with a quote (which goes to the quote, and gives the paper the keyboard once it is there, below).
   const focused = useRef<PDFDocumentProxy | null>(null);
-  const reference =
-    route.quote !== undefined ||
-    route.prefix !== undefined ||
-    route.rect !== undefined;
   useEffect(() => {
     const desk = controller?.root;
     if (!doc || !desk || focused.current === doc) return;
     focused.current = doc;
-    if (reference || !keyboardFree()) return;
+    if (reference || !keyboardFree(openedFrom)) return;
     desk.focus({ preventScroll: true });
   }, [doc, controller, reference]);
 
@@ -491,7 +546,7 @@ function PaperCard({
           inline: "nearest",
           behavior: "instant",
         });
-    if (keyboardFree())
+    if (keyboardFree(openedFrom))
       controllerNow.current?.root?.focus({ preventScroll: true });
   }, [reference, referenceLayer, referenceKey, visits]);
 
@@ -666,6 +721,7 @@ export function ReaderScreen({
             key={paperId}
             route={route}
             go={go}
+            owner={owner}
             panelToggle={panelToggle}
             onPaper={setLoaded}
             actions={actions}
