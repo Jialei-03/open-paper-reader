@@ -38,6 +38,20 @@ Optional:
   folder (`babeldoc-venv`), downloads about 1 GB, shows its progress and can be
   cancelled. Installing uses [uv](https://docs.astral.sh/uv/) when it is
   available, otherwise the Python running the app (3.10–3.13).
+- **LaTeX translation.** For an arXiv paper, the translated view translates
+  the paper's LaTeX source and compiles it into a new PDF (other papers use
+  layout translation). Compiling needs a TeX engine: press **Install the LaTeX
+  compiler** in the translated view, or in Settings → Data. It downloads the
+  single [Tectonic](https://tectonic-typesetting.github.io) program from its
+  official GitHub release for your system into `tools/tectonic/` in the data
+  folder, shows its progress and can be cancelled, then compiles a small
+  Chinese test page once so the LaTeX packages and the Chinese fonts (ctex's
+  Fandol set, the same as the hosted site) are fetched. Papers fetch any further
+  packages they need the first time they compile, so the first translation
+  needs a network connection. Compiling runs `tectonic -X compile --untrusted`
+  (XeTeX, no shell escape). If a font is missing, the translation fails and
+  says which one. When arXiv has no LaTeX source for a version, the translated
+  view offers layout translation instead.
 - **Docker** is only used by the assistant's code sandbox (running code,
   terminal tools). Without it those tools say they are unavailable; everything
   else works.
@@ -51,7 +65,8 @@ Optional:
 
 Inside: `workspace.db` (SQLite), `files/` (your PDFs and attachments),
 `translation-credentials/` (model keys, readable only by you), and once
-installed `agent-runtime/` and `babeldoc-venv/`. Back it up by copying the
+installed `agent-runtime/`, `babeldoc-venv/` and `tools/tectonic/` (with its
+package cache in `tools/tectonic-cache/`). Back it up by copying the
 folder while the app is stopped. Settings → Data also exports the whole
 workspace. Use another folder with `--data PATH` (or `OPR_HOME`).
 
@@ -87,7 +102,7 @@ uvx --from dist/open_paper_reader-*.whl open-paper-reader
 ```
 
 The wheel carries the built web app and the assistant runtime's sources under
-`backend/_bundle/`; `node_modules` and BabelDOC are installed on demand. From a
+`backend/_bundle/`; `node_modules`, BabelDOC and Tectonic are installed on demand. From a
 source checkout, `python -m backend.local` runs the same command against the
 checkout (build the frontend first).
 
@@ -99,6 +114,6 @@ checkout (build the frontend first).
 需要 Node.js 20+（助手、导读和翻译用；缺了启动时会说明怎么装）。模型可以填 API
 密钥，也可以用本机的 Ollama / LM Studio（只有本机版允许 `http://127.0.0.1` 地址，
 不需要密钥）。版面翻译按需安装：译文模式或设置里点「安装版面翻译」，装在数据目录
-的 `babeldoc-venv`，可看进度、可取消。没有 Docker 时，代码沙箱类工具明确提示不可用。
+的 `babeldoc-venv`，可看进度、可取消。arXiv 论文的译文从 LaTeX 源码翻译再编译：译文模式或设置里点「安装 LaTeX 编译器」，从 Tectonic 官方 GitHub 发布页下载到数据目录的 `tools/tectonic`，装完会先编译一页中文小样，取回宏包和 Fandol 中文字体；没有源码的版本可以改用版面翻译。没有 Docker 时，代码沙箱类工具明确提示不可用。
 免登录只在本机模式、只监听 127.0.0.1、请求来自本机且 Host 是本机时生效，其他情况一律按
 正常登录处理。

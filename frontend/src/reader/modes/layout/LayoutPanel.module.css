@@ -57,6 +57,26 @@
   color: var(--ui-fg-1);
 }
 
+/* How the translation is made: one quiet line under what it does. */
+.method {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+/* The local build's offer to install the TeX engine, set apart from the button above it. */
+.offer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-8);
+  width: 100%;
+  margin-top: var(--ui-space-12);
+  padding-top: var(--ui-space-12);
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+
 .error {
   color: var(--ui-danger-text);
 }

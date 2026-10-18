@@ -4,6 +4,7 @@ import { api } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button } from "../../ui";
 import { failure } from "../setup/model-api";
+import { LatexInstall } from "./LatexInstall";
 import { LayoutInstall } from "./LayoutInstall";
 import { Section, formatBytes } from "./Section";
 import styles from "./Settings.module.css";
@@ -111,6 +112,7 @@ export function DataSection() {
         </Button>
       </div>
       <LayoutInstall />
+      <LatexInstall />
     </Section>
   );
 }

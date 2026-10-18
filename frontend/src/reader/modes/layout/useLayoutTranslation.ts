@@ -5,7 +5,14 @@ import {
   resolveModel,
   useTranslationSettings,
 } from "../useTranslationSettings";
-import { isActive, layoutState, pickJob, type LayoutJob } from "./job";
+import {
+  isActive,
+  isArxivVersion,
+  layoutState,
+  pickJob,
+  type Engine,
+  type LayoutJob,
+} from "./job";
 
 /** The layout translation of a paper's PDF, as the reader's parts share it. */
 export interface Layout {
@@ -13,8 +20,20 @@ export interface Layout {
   job: LayoutJob | null;
   /** The translated PDF, once a job has completed. */
   translatedFile: SourceFile | null;
-  /** The service can make one (it is switched on). */
+  /**
+   * How it is made: from the arXiv LaTeX source where the paper has one and the
+   * service can compile it, else on the original PDF. A job already made says
+   * its own way, except a LaTeX one that found no source (the PDF way is offered).
+   */
+  method: Engine;
+  /** The paper is an arXiv paper of a fixed version: its LaTeX source can be asked for. */
+  arxiv: boolean;
+  /** The local build can install the TeX engine that LaTeX translation needs. */
+  latexInstallable: boolean;
+  /** The service can make one the way `method` says. */
   available: boolean;
+  /** The service can re-typeset the PDF (the fallback when there is no LaTeX source). */
+  layoutAvailable: boolean;
   /** There is a model to translate with. */
   hasModel: boolean;
   /** Until the jobs and the settings have been heard. */
@@ -23,8 +42,8 @@ export interface Layout {
   busy: boolean;
   /** Why the last thing asked of the service did not happen, in its words; empty when it did. */
   error: string;
-  /** Translates the PDF; a failed attempt is made again. */
-  start(): void;
+  /** Translates the paper the way `method` says, or the way asked; a failed attempt is made again. */
+  start(engine?: Engine): void;
   /** Stops the running translation. */
   cancel(): void;
 }
@@ -62,7 +81,8 @@ export function useLayoutTranslation({
   const settings = useTranslationSettings();
   const paperId = paper?.id ?? "";
   const fileId = file?.id ?? "";
-  const key = `${paperId}:${fileId}`;
+  const versionId = paper?.current_version ?? "";
+  const key = `${paperId}:${fileId}:${versionId}`;
   const [read, setRead] = useState<Read | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ key: string; message: string }>({
@@ -102,7 +122,7 @@ export function useLayoutTranslation({
         const rows = await api<LayoutJob[]>(`/papers/${id}/translations`, {
           signal,
         });
-        const job = pickJob(rows, fileId);
+        const job = pickJob(rows, fileId, versionId);
         let translated: SourceFile | null = null;
         if (job && layoutState(job) === "done") {
           if (known?.id !== job.translated_file) {
@@ -168,15 +188,24 @@ export function useLayoutTranslation({
           : fallback,
     });
 
-  const start = () => {
+  const arxiv = isArxivVersion(paper?.external_id);
+  const shown = current?.job ?? null;
+  const preferred: Engine = arxiv && settings.latexAvailable ? "latex" : "pdf";
+  const method: Engine =
+    shown?.engine === "pdf" || shown?.engine === "latex"
+      ? shown.engine
+      : preferred;
+
+  const start = (engine: Engine = method) => {
     if (busy || !paperId || !fileId || !model) return;
     setBusy(true);
     setFailure({ key, message: "" });
-    send(`/papers/${encodeURIComponent(paperId)}/translations`, {
-      model_config_id: model,
-      engine: "pdf",
-      source_file_id: fileId,
-    }).then(
+    send(
+      `/papers/${encodeURIComponent(paperId)}/translations`,
+      engine === "latex"
+        ? { model_config_id: model, engine: "latex" }
+        : { model_config_id: model, engine: "pdf", source_file_id: fileId },
+    ).then(
       (job: LayoutJob) => {
         // Shown at once; the next read says how it goes.
         setRead({ key, job, translated: null, failure: "" });
@@ -212,7 +241,12 @@ export function useLayoutTranslation({
   return {
     job: current?.job ?? null,
     translatedFile: current?.translated ?? null,
-    available: settings.layoutEnabled,
+    method,
+    arxiv,
+    latexInstallable: settings.latexInstallable,
+    available:
+      method === "latex" ? settings.latexAvailable : settings.layoutEnabled,
+    layoutAvailable: settings.layoutEnabled,
     hasModel: model !== "",
     loading:
       Boolean(paperId && fileId) && (current === null || !settings.loaded),

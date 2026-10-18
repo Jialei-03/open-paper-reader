@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { layoutState, percentOf, pickJob, type LayoutJob } from "./job";
+import {
+  isArxivVersion,
+  lacksSource,
+  layoutState,
+  percentOf,
+  pickJob,
+  type LayoutJob,
+} from "./job";
 
 const job = (change: Partial<LayoutJob>): LayoutJob => ({
   id: "j",
@@ -56,5 +63,41 @@ describe("percentOf", () => {
     expect(percentOf(job({ completed: 1, total: 3 }))).toBe(33);
     expect(percentOf(job({ completed: 150, total: 100 }))).toBe(100);
     expect(percentOf(job({ completed: 0, total: 0 }))).toBeNull();
+  });
+});
+
+describe("LaTeX translations", () => {
+  it("count for the paper's current version, whatever PDF they started from", () => {
+    const latex = job({
+      id: "latex",
+      engine: "latex",
+      version_id: "v1",
+      source_file: "",
+      translated_file: "t",
+    });
+    expect(pickJob([latex], "f1", "v1")?.id).toBe("latex");
+    expect(pickJob([latex], "f1", "v2")).toBeNull();
+    // A layout translation started after it, still running, is the one that matters.
+    const pdf = job({ id: "pdf", status: "running" });
+    expect(pickJob([pdf, latex], "f1", "v1")?.id).toBe("pdf");
+  });
+
+  it("knows a version without LaTeX source from other failures", () => {
+    const failed = (fields: Partial<LayoutJob>) =>
+      job({ engine: "latex", status: "failed", error: "x", ...fields });
+    expect(lacksSource(failed({ no_source: true }))).toBe(true);
+    expect(lacksSource(failed({ no_source: false }))).toBe(false);
+    expect(lacksSource(failed({}))).toBe(false);
+    expect(lacksSource(failed({ engine: "pdf", no_source: true }))).toBe(false);
+    expect(lacksSource(failed({ status: "running", no_source: true }))).toBe(
+      false,
+    );
+  });
+
+  it("are offered for arXiv papers of a fixed version", () => {
+    expect(isArxivVersion("arxiv:2504.19413v1")).toBe(true);
+    expect(isArxivVersion("arxiv:2504.19413")).toBe(false);
+    expect(isArxivVersion("doi:10.1000/x")).toBe(false);
+    expect(isArxivVersion("")).toBe(false);
   });
 });
