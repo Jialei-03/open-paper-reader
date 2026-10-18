@@ -1,0 +1,302 @@
+/* ---- Card ---- */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+  min-width: 0;
+  padding: var(--ui-space-8) var(--ui-space-8) var(--ui-space-12);
+  border-radius: var(--ui-r-16);
+  background: var(--ui-bg-1);
+  transition:
+    background-color var(--ui-dur-2) var(--ui-ease-out),
+    box-shadow var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.card:hover,
+.card:focus-within {
+  background: var(--ui-bg-2);
+  box-shadow: var(--ui-elev-1);
+}
+
+.cover {
+  aspect-ratio: 5 / 4;
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  padding: 0 var(--ui-space-6);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-15);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.link {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--ui-fg);
+  text-decoration: none;
+}
+
+/* The whole card opens the paper; the buttons sit above this. */
+.link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--ui-r-16);
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.link:focus-visible::after {
+  box-shadow: var(--ui-focus-ring);
+}
+
+.byline,
+.source {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.byline {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.source {
+  color: var(--ui-fg-3);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-11);
+}
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+  margin-top: auto;
+  padding-top: var(--ui-space-8);
+}
+
+.bar,
+.rowBar {
+  display: block;
+  overflow: hidden;
+  height: 3px;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-edge-subtle);
+}
+
+.bar i,
+.rowBar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-fg-2);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.progress {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  color: var(--ui-fg-2);
+  white-space: nowrap;
+}
+
+/* Orange is the "being read" dot and nothing else. */
+.status[data-status="reading"]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-accent);
+}
+
+.actions {
+  display: flex;
+  gap: var(--ui-space-2);
+}
+
+.card > .actions {
+  position: absolute;
+  z-index: 1;
+  top: var(--ui-space-12);
+  right: var(--ui-space-12);
+  padding: var(--ui-space-2);
+  border-radius: var(--ui-r-10);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-1);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity var(--ui-dur-1) var(--ui-ease-out),
+    transform var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.card:hover > .actions,
+.card:focus-within > .actions {
+  opacity: 1;
+  transform: none;
+}
+
+/* A touch screen has no hover: the actions are always there. */
+@media (hover: none) {
+  .card > .actions {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.starred {
+  color: var(--ui-accent-text);
+}
+
+.starred svg {
+  fill: currentcolor;
+}
+
+/* ---- Row ---- */
+.row td {
+  padding: var(--ui-space-2) var(--ui-space-8);
+  border-top: 1px solid var(--ui-edge-subtle);
+  vertical-align: middle;
+}
+
+.row {
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.row:hover,
+.row:focus-within {
+  background: var(--ui-hover);
+}
+
+.cellMain {
+  width: auto;
+}
+
+.cellProgress {
+  width: 150px;
+  color: var(--ui-fg-2);
+}
+
+.cellProgress .rowBar {
+  margin-bottom: var(--ui-space-4);
+}
+
+.cellProgress .progress {
+  font-size: var(--ui-text-12);
+}
+
+.cellStatus {
+  width: 88px;
+  font-size: var(--ui-text-12);
+}
+
+.cellDate {
+  width: 120px;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  white-space: nowrap;
+}
+
+.cellActions {
+  width: 112px;
+}
+
+.cellActions .actions {
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.row:hover .actions,
+.row:focus-within .actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .cellActions .actions {
+    opacity: 1;
+  }
+}
+
+.rowLink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  padding: var(--ui-space-8) 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.rowTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  min-width: 0;
+}
+
+.rowName {
+  overflow: hidden;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowLink:hover .rowName {
+  text-decoration: underline;
+  text-decoration-color: var(--ui-edge);
+}
+
+.rowStar {
+  flex: none;
+  color: var(--ui-accent-text);
+  fill: currentcolor;
+}
+
+.rowBy {
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .cellProgress,
+  .cellDate {
+    display: none;
+  }
+}

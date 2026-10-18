@@ -44,7 +44,7 @@ test("the library searches, filters by reading status and deletes", async ({
   await page.goto(LIBRARY);
   const library = page.getByRole("main");
   await expect(library.getByRole("heading", { name: "文库" })).toBeVisible();
-  const rows = library.getByRole("row");
+  const rows = library.locator("[data-paper]");
   const link = (title: string) =>
     library.getByRole("link", { name: new RegExp(title) });
   await expect(link(first.title)).toBeVisible();
@@ -68,7 +68,7 @@ test("the library searches, filters by reading status and deletes", async ({
   await expect(link(first.title)).toBeVisible();
   await expect(link(second.title)).toHaveCount(0);
   await status.getByRole("radio", { name: "全部" }).click();
-  await expect(rows).toHaveCount(3);
+  await expect(rows).toHaveCount(2);
 
   // Delete asks first; cancelling keeps it.
   await library

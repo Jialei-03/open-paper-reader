@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { FileText, Library } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import type { Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
@@ -72,6 +72,13 @@ export function QuickOpen({
   }, [open]);
   useEffect(() => setChosen(0), [query, open]);
 
+  // With something typed, one more choice after the papers: the same words searched in the library.
+  const asked = query.trim();
+  const total = matches.length + (asked ? 1 : 0);
+  const openLibrary = () => {
+    onClose();
+    go("library?q=" + encodeURIComponent(asked));
+  };
   const openPaper = (paper: Paper) => {
     onClose();
     go(readerHash({ paperId: paper.id }).slice(1));
@@ -80,12 +87,17 @@ export function QuickOpen({
     if (event.nativeEvent.isComposing) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      if (!matches.length) return;
+      if (!total) return;
       const step = event.key === "ArrowDown" ? 1 : -1;
-      setChosen((at) => (at + step + matches.length) % matches.length);
-    } else if (event.key === "Enter" && matches[chosen]) {
-      event.preventDefault();
-      openPaper(matches[chosen]);
+      setChosen((at) => (at + step + total) % total);
+    } else if (event.key === "Enter") {
+      if (matches[chosen]) {
+        event.preventDefault();
+        openPaper(matches[chosen]);
+      } else if (asked) {
+        event.preventDefault();
+        openLibrary();
+      }
     }
   };
 
@@ -100,15 +112,20 @@ export function QuickOpen({
         onChange={(event) => setQuery(event.target.value)}
         onKeyDown={onKeyDown}
         role="combobox"
-        aria-expanded={matches.length > 0}
+        aria-expanded={total > 0}
         aria-controls={list}
         aria-autocomplete="list"
-        aria-activedescendant={matches[chosen] ? optionId(chosen) : undefined}
+        aria-activedescendant={chosen < total ? optionId(chosen) : undefined}
         autoComplete="off"
         spellCheck={false}
         data-autofocus
       />
-      {matches.length > 0 ? (
+      {matches.length === 0 && (
+        <p className={styles.empty} role="status">
+          {t(papers.length ? "app.quickOpen.none" : "app.quickOpen.noPapers")}
+        </p>
+      )}
+      {total > 0 && (
         <ul
           id={list}
           role="listbox"
@@ -136,11 +153,24 @@ export function QuickOpen({
               </span>
             </li>
           ))}
+          {asked && (
+            <li
+              id={optionId(matches.length)}
+              role="option"
+              aria-selected={chosen === matches.length}
+              className={styles.option}
+              onPointerMove={() => setChosen(matches.length)}
+              onClick={openLibrary}
+            >
+              <Library size={16} aria-hidden="true" />
+              <span className={styles.text}>
+                <span className={styles.title}>
+                  {t("app.quickOpen.library", { query: asked })}
+                </span>
+              </span>
+            </li>
+          )}
         </ul>
-      ) : (
-        <p className={styles.empty} role="status">
-          {t(papers.length ? "app.quickOpen.none" : "app.quickOpen.noPapers")}
-        </p>
       )}
     </Dialog>
   );

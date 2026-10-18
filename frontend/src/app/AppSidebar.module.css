@@ -1,0 +1,44 @@
+/* The search entry at the top of the sidebar: it looks like a field and opens quick open. */
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  width: 100%;
+  height: var(--ui-control-md);
+  margin-bottom: var(--ui-space-6);
+  padding: 0 var(--ui-space-8);
+  border: 0;
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg);
+  box-shadow: 0 0 0 1px var(--ui-edge-subtle);
+  color: var(--ui-fg-2);
+  font: inherit;
+  font-size: var(--ui-text-13);
+  text-align: left;
+  cursor: text;
+  transition:
+    background-color var(--ui-dur-1) var(--ui-ease-out),
+    box-shadow var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.search:hover {
+  background: var(--ui-bg-2);
+  box-shadow: 0 0 0 1px var(--ui-edge);
+}
+
+.search:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.search svg {
+  flex: none;
+}
+
+.placeholder {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

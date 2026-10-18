@@ -25,6 +25,8 @@ export interface DialogProps {
   /** The buttons, at the bottom right. */
   footer?: ReactNode;
   size?: "sm" | "md" | "lg";
+  /** A sheet that slides in at the right edge, full height, instead of a box in the middle (`size` is then ignored). */
+  side?: boolean;
   /**
    * Whether Escape, the backdrop and the close button may close it. A dialog that
    * is not dismissible has no close button: only its own buttons close it.
@@ -126,6 +128,7 @@ export function Dialog({
   children,
   footer,
   size = "md",
+  side = false,
   dismissible = true,
   initialFocus,
 }: DialogProps) {
@@ -217,7 +220,7 @@ export function Dialog({
   return (
     <dialog
       ref={element}
-      className={clsx(styles.dialog, styles[size])}
+      className={clsx(styles.dialog, side ? styles.side : styles[size])}
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
       onKeyDown={onKeyDown}

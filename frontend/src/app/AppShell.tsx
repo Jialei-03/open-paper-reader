@@ -78,7 +78,19 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
   const [tick, setTick] = useState(0);
   const [quickOpen, setQuickOpen] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
+  // This machine's own server (`mode: "local"`) has one person and no session to end.
+  const [local, setLocal] = useState(false);
   const floating = useMediaQuery(SIDEBAR_FLOATS);
+  useEffect(() => {
+    const controller = new AbortController();
+    api<{ mode?: string }>("/health", { signal: controller.signal }).then(
+      (health) => setLocal(health.mode === "local"),
+      () => {
+        /* Without an answer the sign-out stays: it is the safer way to be wrong. */
+      },
+    );
+    return () => controller.abort();
+  }, []);
   const reload = useCallback(() => setTick((n) => n + 1), []);
   const go = useCallback((hash: string) => {
     location.hash = hash;
@@ -167,10 +179,11 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
 
   const actions = useMemo(
     () => ({
+      owner: user.id,
       quickOpen: () => setQuickOpen(true),
-      signOut: () => void signOut(),
+      signOut: local ? undefined : () => void signOut(),
     }),
-    [signOut],
+    [signOut, local, user.id],
   );
   const visits = useMemo(
     () => recentPapers(user.id),
