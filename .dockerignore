@@ -21,6 +21,7 @@ secrets
 docs/*
 !docs/licenses
 backend/tests
+backend/devtools
 examples
 scripts
 deploy/*

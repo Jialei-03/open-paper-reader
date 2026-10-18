@@ -4,6 +4,8 @@ import json
 
 import httpx
 
+from .model_errors import INTERRUPTED, MALFORMED, STREAM_FAILED, TOO_LONG, ModelError
+
 
 async def streamed_post(client, url, headers, body, on_delta):
     body = {**body, "stream": True, "stream_options": {"include_usage": True}}
@@ -24,9 +26,14 @@ async def streamed_post(client, url, headers, body, on_delta):
                 break
             if not payload:
                 continue
-            value = json.loads(payload)
+            try:
+                value = json.loads(payload)
+            except json.JSONDecodeError:
+                raise ModelError("malformed", MALFORMED) from None
+            if not isinstance(value, dict):
+                raise ModelError("malformed", MALFORMED)
             if value.get("error"):
-                raise ValueError("模型流式响应失败，请重试")
+                raise ModelError("server_error", STREAM_FAILED)
             usage = value.get("usage") or usage
             choices = value.get("choices") or []
             if not choices:
@@ -37,11 +44,11 @@ async def streamed_post(client, url, headers, body, on_delta):
             if isinstance(text, str) and text:
                 size += len(text)
                 if size > 2_000_000:
-                    raise ValueError("模型返回内容过长")
+                    raise ModelError("too_long", TOO_LONG)
                 parts.append(text)
                 on_delta(text)
         if finish is None:
-            raise ValueError("模型响应中断，请重试")
+            raise ModelError("interrupted", INTERRUPTED)
         return httpx.Response(
             200,
             json={

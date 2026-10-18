@@ -1,0 +1,94 @@
+/* The surface of a list of actions. The layer it floats in has none of its own. */
+.list {
+  --menu-min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  min-width: var(--menu-min-width);
+  padding: var(--ui-space-4);
+  border-radius: var(--ui-r-16);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  outline: none;
+}
+
+/* The list itself can hold the focus (empty, or pressed on its padding): it keeps its shadow, not the ring. */
+.list:focus-visible {
+  box-shadow: var(--ui-elev-2);
+}
+
+/* A row of actions, such as over a selection of text: as wide as its items. */
+.horizontal {
+  flex-direction: row;
+  align-items: center;
+  min-width: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  height: var(--ui-control-md);
+  padding: 0 var(--ui-space-10);
+  border-radius: var(--ui-r-10);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading-tight);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  /* Colors only; the current item changes with the pointer and the arrows, so it must be quick. */
+  transition:
+    background-color var(--ui-dur-1) var(--ui-ease-out),
+    color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.item svg {
+  flex-shrink: 0;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The current item (under the pointer or on the arrows) is lit; that is its focus indicator, so no ring. */
+.item:focus,
+.item:focus-visible {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+  box-shadow: none;
+  outline: none;
+}
+
+/* After the rule above: a dangerous action keeps its color when it is current. */
+.danger,
+.danger:focus,
+.danger:focus-visible {
+  color: var(--ui-danger-text);
+}
+
+.item[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* The shortcut sits on the lit background too, where fg-3 would be too faint. */
+.item kbd {
+  color: var(--ui-fg-2);
+}
+
+.separator {
+  flex-shrink: 0;
+  height: 1px;
+  margin: var(--ui-space-4) 0;
+  background: var(--ui-edge-subtle);
+}
+
+.horizontal .separator {
+  align-self: stretch;
+  width: 1px;
+  height: auto;
+  margin: var(--ui-space-4);
+}

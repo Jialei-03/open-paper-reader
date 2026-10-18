@@ -14,9 +14,9 @@ from pathlib import Path
 
 from sqlalchemy import func, select, update
 
-from . import agent_limits
+from . import agent_budget, agent_limits, translation_settings
 from .agent_attachments import attachments as chat_attachments
-from .agent_budget import WALL_SECONDS, RunBudget
+from .agent_budget import RunBudget
 from .agent_checkpoint import fingerprint, previous_write
 from .agent_prefetch import selection_context
 from .agent_reading import read_region
@@ -32,6 +32,11 @@ from .reading_artifacts import finish_artifact, record_reading_evidence
 from .translation_settings import read_config, validate_endpoint
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def duration(seconds):
+    """600 -> "10 分钟", 45 -> "45 秒"."""
+    return f"{seconds // 60} 分钟" if seconds % 60 == 0 else f"{seconds:g} 秒"
 
 
 def process(app, job_id):
@@ -218,7 +223,11 @@ def _process(app, job_id, cfg):
                 else ""
             ),
             "tools": [t for t in TOOLS if writable or not t["write"]],
-            "limits": agent_limits.runtime_limits(cfg),
+            "limits": {
+                **agent_limits.runtime_limits(cfg),
+                # A silent model is given up on as soon as on the direct path.
+                "model_timeout_seconds": translation_settings.MODEL_TIMEOUT_SECONDS,
+            },
         }
     payload["context"] += selection_context(app, owner, session_id, job_id, snapshot)
     if resume_from:
@@ -244,7 +253,8 @@ def _process(app, job_id, cfg):
     done = False
     calls = 0
     image_count = 0
-    budget = RunBudget()
+    # Read when the run starts, so the budget is one setting, also in tests.
+    budget = RunBudget(agent_budget.EXECUTION_SECONDS, agent_budget.WAIT_SECONDS)
 
     def phase(value):
         with maker() as d:
@@ -504,7 +514,10 @@ def _process(app, job_id, cfg):
                     store()
                     last = time.monotonic()
             if not budget.remaining():
-                failed = "任务超过 10 分钟，已停止；已完成操作保留"
+                failed = (
+                    f"任务超过 {duration(agent_budget.EXECUTION_SECONDS)}，"
+                    "已停止；已完成操作保留"
+                )
         finally:
             poll.close()
             if child.poll() is None:
@@ -669,7 +682,10 @@ def main():
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
-                children[job_id] = (child, time.monotonic() + WALL_SECONDS)
+                children[job_id] = (
+                    child,
+                    time.monotonic() + agent_budget.WALL_SECONDS,
+                )
             time.sleep(0.3)
 
 

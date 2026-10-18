@@ -4,6 +4,7 @@ import json
 import httpx
 import pytest
 
+from backend.model_errors import ModelError
 from backend.model_stream import streamed_post
 
 
@@ -56,5 +57,6 @@ def test_truncated_stream_cannot_become_successful_translation():
                 client, "https://example.test", {}, {}, lambda text: None
             )
 
-    with pytest.raises(ValueError, match="中断"):
+    with pytest.raises(ModelError, match="中途断开") as caught:
         asyncio.run(run())
+    assert caught.value.code == "interrupted"

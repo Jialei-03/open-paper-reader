@@ -27,8 +27,8 @@ from .pdf_text import extract_pdf_pages
 from .reading_artifacts import RESULT_LIMIT, artifact_prompt, check_result
 from .storage_budget import lock_owner, require_space
 from .translation_dispatch import TaskExecutor
-from .translation_memory import SentenceMemory
-from .translation_settings import complete, read_config
+from .translation_memory import SentenceMemory, request
+from .translation_settings import read_config
 
 LOG = logging.getLogger(__name__)
 
@@ -65,7 +65,10 @@ def artifact_key(row, file, config, kind, parameters):
     ).hexdigest()
 
 
-def save_artifact(settings, maker, row, file, config, kind, parameters, result):
+def save_artifact(
+    settings, maker, row, file, config, kind, parameters, result, pages=None
+):
+    """Publish one artifact; ``pages`` are the pages it was made from."""
     key = artifact_key(row, file, config, kind, parameters)
     with maker() as d:
         lock_owner(d, row.owner)
@@ -108,7 +111,9 @@ def save_artifact(settings, maker, row, file, config, kind, parameters, result):
         value.size = size
         value.updated_at = now()
         value.evidence_pages = (
-            [parameters["page"]]
+            sorted(pages)
+            if pages is not None
+            else [parameters["page"]]
             if kind == "page_translation"
             else list(range(1, (file.pages or 0) + 1))
         )
@@ -167,9 +172,18 @@ def process(settings, maker, identifier):
             or hashlib.sha256(path.read_bytes()).hexdigest() != file.sha256
         ):
             raise ValueError("原文文件缺失或已变更")
-        texts = {n + 1: text for n, text in enumerate(extract_pdf_pages(path))}
-        if any(not text.strip() for text in texts.values()):
-            raise ValueError("存在无文字层页面，自动准备需要 OCR；原文仍可阅读")
+        # Keyed by the real page number. A page without a text layer (a scanned
+        # figure, a signature page) is left out of page translation and the
+        # guide; the rest of the paper is prepared as usual.
+        texts = {
+            n + 1: text
+            for n, text in enumerate(extract_pdf_pages(path))
+            if text.strip()
+        }
+        if not texts:
+            raise ValueError(
+                "这篇论文没有文字层（可能是扫描版），自动导读需要 OCR；原文仍可阅读"
+            )
         progress(stage="准备导读与共用译文", total=len(texts), error="")
         translated = bind(
             {**config, **task_options(config, "translate")},
@@ -216,7 +230,7 @@ def process(settings, maker, identifier):
                 # layout-aware fallback as an explicit reader translation.
                 result = json.loads(
                     memory.page(
-                        lambda s, c: complete(translated, s, c, cancelled=stop),
+                        lambda s, c: request(translated, s, c, stop),
                         texts[number], number,
                     )
                 )
@@ -276,13 +290,19 @@ def process(settings, maker, identifier):
                     evidence_text={str(n): t for n, t in texts.items()},
                 )
 
+            # Like page translations, a rate limit or a server error is tried
+            # again in place rather than failing the whole preparation.
             raw = whole_paper(
-                lambda s, c: complete(guide_cfg, s, c, cancelled=stop),
+                lambda s, c: request(guide_cfg, s, c, stop),
                 check,
                 artifact_prompt(file, body, direct=True),
                 texts,
             )
-            save_artifact(settings, maker, row, file, config, "guide", {}, check(raw))
+            # The guide is made from the pages with text; a scanned page is not
+            # evidence for it.
+            save_artifact(
+                settings, maker, row, file, config, "guide", {}, check(raw), texts
+            )
             progress(guide_status="completed")
 
         errors = []

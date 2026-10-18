@@ -1,0 +1,31 @@
+.root {
+  /* No box of its own: the child lays out as if the wrapper were not there. */
+  display: contents;
+}
+
+.tip {
+  --tooltip-max-width: 280px;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  max-width: min(var(--tooltip-max-width), calc(100vw - 2 * var(--ui-space-8)));
+  padding: var(--ui-space-4) var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-fg);
+  color: var(--ui-bg);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: break-word;
+  /* Only a hint: the pointer goes through it, so it never gets in the way of what it describes. */
+  pointer-events: none;
+  user-select: none;
+}
+
+/*
+ * The shortcut sits on the chip, not on a surface, so it needs a color of its
+ * own, fainter than the name. 70% keeps it above 4.5:1 in both themes (60%
+ * falls to 4.3:1 in dark).
+ */
+.tip kbd {
+  color: color-mix(in oklab, var(--ui-bg) 70%, transparent);
+}

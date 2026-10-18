@@ -1,0 +1,33 @@
+/*
+ * The turn lasts a multiple of --ui-dur-3. Under reduced motion that token is
+ * zero, which would spin the ring in a blur, so the ring stops and breathes
+ * instead, on a duration of its own.
+ */
+.spinner {
+  --spinner-turn: calc(var(--ui-dur-3) * 3);
+  --spinner-breathe: 1.6s;
+  flex-shrink: 0;
+  animation: turn var(--spinner-turn) linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: breathe var(--spinner-breathe) var(--ui-ease-in-out) infinite;
+  }
+}

@@ -1,0 +1,135 @@
+/*
+ * A native <dialog> shown as a modal. The browser puts it in the top layer, shuts
+ * the page behind it and keeps the focus inside; this is its look and its motion.
+ * The element is always in the page, closed it is display: none, so that leaving
+ * can be a transition too: `display` and `overlay` change only when it is over.
+ */
+.dialog {
+  --dialog-width-sm: 400px;
+  --dialog-width-md: 520px;
+  --dialog-width-lg: 720px;
+  --dialog-width: var(--dialog-width-md);
+  --dialog-scale-from: 0.98;
+  /* The reset takes the browser's `margin: auto` away, which is what centers a modal. */
+  margin: auto;
+  width: var(--dialog-width);
+  max-width: calc(100vw - 2 * var(--ui-space-16));
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-20);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  color: var(--ui-fg);
+  /* Out: quick, and the way it comes in, backwards. */
+  opacity: 0;
+  transform: scale(var(--dialog-scale-from));
+  transition:
+    opacity var(--ui-dur-1) var(--ui-ease-out),
+    transform var(--ui-dur-1) var(--ui-ease-out),
+    display var(--ui-dur-1) var(--ui-ease-out),
+    overlay var(--ui-dur-1) var(--ui-ease-out);
+  transition-behavior: allow-discrete;
+}
+
+.sm {
+  --dialog-width: var(--dialog-width-sm);
+}
+
+.md {
+  --dialog-width: var(--dialog-width-md);
+}
+
+.lg {
+  --dialog-width: var(--dialog-width-lg);
+}
+
+.dialog[open] {
+  /* Header and footer keep their place; the body is what scrolls in a window that is too short. */
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+  transform: scale(1);
+  transition-duration: var(--ui-dur-2);
+}
+
+@starting-style {
+  .dialog[open] {
+    opacity: 0;
+    transform: scale(var(--dialog-scale-from));
+  }
+}
+
+/* The dialog itself holds the focus when there is nothing in it to take it: it keeps its shadow, not the ring. */
+.dialog:focus-visible {
+  box-shadow: var(--ui-elev-2);
+}
+
+.dialog::backdrop {
+  background: rgb(var(--ui-shade) / calc(0.18 * var(--ui-shadow-k)));
+  opacity: 0;
+  transition:
+    opacity var(--ui-dur-1) var(--ui-ease-out),
+    display var(--ui-dur-1) var(--ui-ease-out),
+    overlay var(--ui-dur-1) var(--ui-ease-out);
+  transition-behavior: allow-discrete;
+}
+
+.dialog[open]::backdrop {
+  opacity: 1;
+  transition-duration: var(--ui-dur-2);
+}
+
+@starting-style {
+  .dialog[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  gap: var(--ui-space-12);
+  padding: var(--ui-space-20) var(--ui-space-20) var(--ui-space-8);
+}
+
+.heading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--ui-text-16);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.description {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+/* Level with the title's first line, and its glyph in line with the dialog's padding. */
+.close {
+  margin: calc(-1 * var(--ui-space-2)) calc(-1 * var(--ui-space-4)) 0 0;
+}
+
+.body {
+  min-height: 0;
+  overflow: auto;
+  padding: var(--ui-space-8) var(--ui-space-20);
+}
+
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-16) var(--ui-space-20) var(--ui-space-20);
+}

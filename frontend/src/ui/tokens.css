@@ -1,0 +1,186 @@
+/*
+ * Design tokens for the new interface. Their structure and values are adapted
+ * from claude-web (MIT), see NOTICE.md.
+ *
+ * Each theme sets only its primaries; everything else is derived with
+ * color-mix(), so a theme stays a short list. `:root` holds the light primaries,
+ * every derived value and every scale that does not change with the theme;
+ * `:root[data-theme="dark"]` overrides the primaries. Because the derived values
+ * are declared on the same element, they follow the overrides.
+ */
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --ui-bg: #fefdfc; /* cards */
+  --ui-bg-1: #f7f6f2; /* window background (the shell) */
+  --ui-bg-2: #f0eeea; /* inset blocks, user bubbles */
+  --ui-bg-3: #e6e4df; /* deeper inset */
+  --ui-elev: #ffffff; /* menus, inputs, dialogs */
+  --ui-desk: #f0eeea; /* the desk behind the PDF paper */
+
+  /* Text */
+  --ui-fg: #1c1917; /* body */
+  --ui-fg-1: #47433f; /* secondary */
+  --ui-fg-2: #67625f; /* captions */
+  --ui-fg-3: #726e6a; /* placeholders, meta */
+  --ui-accent: #eb7f3b; /* fills and touches only, never text */
+  --ui-accent-text: #a94900; /* orange text: citation pages, context labels */
+  --ui-primary: #1c1917; /* primary button background */
+  --ui-primary-fg: #fefdfc; /* primary button text */
+  --ui-danger: #d93036; /* destructive fills */
+  --ui-danger-text: #b42318; /* error text */
+  --ui-success-text: #12773d; /* success, finished ticks */
+  --ui-warning-text: #8a5a00; /* warnings */
+
+  /* The paper being read */
+  --ui-highlight: rgba(235, 127, 59, 0.24);
+  --ui-selection: rgba(28, 99, 191, 0.18);
+  --ui-page-filter: none; /* dims the PDF paper in dark */
+
+  /* Knobs the derived values below are built from */
+  --ui-shade: 40 30 20; /* shadow color, an rgb triplet */
+  --ui-shadow-k: 1; /* shadow strength */
+  --ui-edge-k1: 6%; /* mix of the two hairline strengths */
+  --ui-edge-k2: 10%;
+
+  /* Derived from the primaries */
+  --ui-edge-subtle: color-mix(
+    in oklab,
+    var(--ui-fg) var(--ui-edge-k1),
+    transparent
+  );
+  --ui-edge: color-mix(in oklab, var(--ui-fg) var(--ui-edge-k2), transparent);
+  --ui-hover: color-mix(in oklab, var(--ui-fg) 5%, transparent);
+  --ui-selected: color-mix(in oklab, var(--ui-fg) 8%, transparent);
+  --ui-fill: color-mix(in oklab, var(--ui-fg) 4%, transparent);
+  --ui-accent-soft: color-mix(in oklab, var(--ui-accent) 16%, transparent);
+  --ui-danger-soft: color-mix(in oklab, var(--ui-danger) 14%, transparent);
+  --ui-focus-ring:
+    0 0 0 2px var(--ui-bg),
+    0 0 0 4px color-mix(in oklab, var(--ui-accent) 70%, transparent);
+  --ui-elev-1:
+    0 0 0 1px var(--ui-edge-subtle),
+    0 1px 2px rgb(var(--ui-shade) / calc(0.05 * var(--ui-shadow-k)));
+  --ui-elev-2:
+    0 0 0 1px var(--ui-edge),
+    0 4px 12px -2px rgb(var(--ui-shade) / calc(0.09 * var(--ui-shadow-k))),
+    0 14px 36px -10px rgb(var(--ui-shade) / calc(0.14 * var(--ui-shadow-k)));
+  --ui-elev-composer:
+    0 0 0 1px var(--ui-edge),
+    0 2px 4px rgb(var(--ui-shade) / calc(0.04 * var(--ui-shadow-k))),
+    0 12px 28px -12px rgb(var(--ui-shade) / calc(0.16 * var(--ui-shadow-k)));
+
+  /* Radii: the value is the number in the name */
+  --ui-r-4: 4px;
+  --ui-r-6: 6px;
+  --ui-r-8: 8px;
+  --ui-r-10: 10px;
+  --ui-r-12: 12px;
+  --ui-r-16: 16px;
+  --ui-r-20: 20px;
+  --ui-r-24: 24px;
+  --ui-r-pill: 999px;
+
+  /* Spacing */
+  --ui-space-2: 2px;
+  --ui-space-4: 4px;
+  --ui-space-6: 6px;
+  --ui-space-8: 8px;
+  --ui-space-10: 10px;
+  --ui-space-12: 12px;
+  --ui-space-16: 16px;
+  --ui-space-20: 20px;
+  --ui-space-24: 24px;
+  --ui-space-32: 32px;
+  --ui-space-40: 40px;
+  --ui-space-48: 48px;
+
+  /* Type: whole-pixel sizes only, and two weights (there is no 500) */
+  --ui-text-11: 11px;
+  --ui-text-12: 12px;
+  --ui-text-13: 13px;
+  --ui-text-14: 14px;
+  --ui-text-15: 15px;
+  --ui-text-16: 16px;
+  --ui-text-18: 18px;
+  --ui-text-20: 20px;
+  --ui-text-24: 24px;
+  --ui-text-30: 30px;
+  --ui-leading-tight: 1.3;
+  --ui-leading: 1.55;
+  --ui-leading-loose: 1.7; /* papers and long answers */
+  --ui-weight-regular: 400;
+  --ui-weight-strong: 600;
+  --ui-font-sans:
+    "Inter Variable", -apple-system, BlinkMacSystemFont, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC Variable", sans-serif;
+  --ui-font-mono:
+    "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+  /* Songti is not shipped; this stack only names system fonts. */
+  --ui-font-display:
+    "Songti SC", STSong, "Source Han Serif SC", "Noto Serif CJK SC",
+    "Noto Serif SC", SimSun, Georgia, serif;
+
+  /* Control heights */
+  --ui-control-sm: 28px;
+  --ui-control-md: 32px;
+  --ui-control-lg: 36px;
+
+  /* Motion */
+  --ui-dur-1: 120ms;
+  --ui-dur-2: 180ms;
+  --ui-dur-3: 260ms;
+  --ui-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ui-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ui-bg: #1b1a18;
+  --ui-bg-1: #12110f;
+  --ui-bg-2: #252321;
+  --ui-bg-3: #302f2c;
+  --ui-elev: #272623;
+  --ui-desk: #161513;
+
+  --ui-fg: #eeedea;
+  --ui-fg-1: #c4c2be;
+  --ui-fg-2: #a5a39e;
+  --ui-fg-3: #93918c;
+  --ui-accent: #f5914f;
+  --ui-accent-text: #f9a56e;
+  --ui-primary: #eeedea;
+  --ui-primary-fg: #1b1a18;
+  --ui-danger: #e5484d;
+  --ui-danger-text: #ff8b8b;
+  --ui-success-text: #69d98d;
+  --ui-warning-text: #f0b450;
+
+  --ui-highlight: rgba(245, 145, 79, 0.3);
+  --ui-selection: rgba(128, 182, 251, 0.32);
+  --ui-page-filter: brightness(0.86) contrast(0.97);
+
+  --ui-shade: 0 0 0;
+  --ui-shadow-k: 3;
+  --ui-edge-k1: 7%;
+  --ui-edge-k2: 11%;
+}
+
+/* Without the script that sets data-theme: only keeps the first paint from flashing white. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    background: #12110f;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ui-dur-1: 0.01ms;
+    --ui-dur-2: 0.01ms;
+    --ui-dur-3: 0.01ms;
+  }
+}

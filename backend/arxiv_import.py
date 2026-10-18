@@ -47,6 +47,18 @@ def identifier(value):
     return value.lower()
 
 
+# A paper that exists can still lack one of its files on arXiv.
+NO_PDF = "arXiv 没有提供这篇论文的 PDF，可能还在生成或只有网页版"
+NO_SOURCE = "该版本未提供可用的 LaTeX 源码；本阶段不支持纯 PDF 翻译"
+
+
+class ArxivNotFound(ValueError):
+    """arXiv has no such paper, version or file; asking again will not change that."""
+
+    def __init__(self, message="arXiv 上找不到这篇论文（或这个版本），请检查编号"):
+        super().__init__(message)
+
+
 def download(path, limit=50 * 1024**2):
     for attempt in range(3):
         report(attempt=attempt + 1, received=0, total=None)
@@ -54,6 +66,8 @@ def download(path, limit=50 * 1024**2):
             return _download_once(path, limit)
         except httpx.HTTPStatusError as error:
             status = error.response.status_code
+            if status in {404, 410}:
+                raise ArxivNotFound() from None
             if status not in {408, 429, 500, 502, 503, 504} or attempt == 2:
                 raise ValueError(
                     f"arXiv 下载失败（HTTP {status}），请稍后重试"
@@ -178,7 +192,7 @@ def extract_source(data, destination):
                 with archive.extractfile(m) as src:
                     target.write_bytes(src.read())
     if not list(destination.rglob("*.tex")):
-        raise ValueError("该版本未提供可用的 LaTeX 源码；本阶段不支持纯 PDF 翻译")
+        raise ValueError(NO_SOURCE)
 
 
 class CitationMetadata(HTMLParser):

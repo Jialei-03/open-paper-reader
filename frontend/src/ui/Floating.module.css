@@ -1,0 +1,40 @@
+/*
+ * A popover element brings its own look (a bordered Canvas box with padding and
+ * auto margins) and hides itself with display: none. All of that is reset here
+ * with :where(), at no specificity, so the component that uses Floating can set
+ * its own surface, padding and size in one class whatever the load order.
+ */
+:where(.floating) {
+  position: fixed;
+  inset: auto;
+  /* The origin until positioned: the size is measured here, not where it would fall in the flow. */
+  top: 0;
+  left: 0;
+  /* The width of its content, not squeezed by how near the right edge it sits. */
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--ui-space-8));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: inherit;
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--ui-dur-1) var(--ui-ease-out),
+    transform var(--ui-dur-1) var(--ui-ease-out);
+}
+
+/* A class that sets display (flex, grid) would otherwise make a closed layer show. */
+.floating:not(:popover-open) {
+  display: none;
+}
+
+/* In: it fades and settles up 4px. Out: nothing, it is gone at once. */
+@starting-style {
+  :where(.floating) {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}

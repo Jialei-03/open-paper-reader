@@ -1,11 +1,18 @@
-"""Fixed PDF serialization worker. No network, shell commands or document scripts."""
+"""Fixed PDF serialization worker. No network, shell commands or document scripts.
+
+When a source cannot be exported for a reason the reader can act on, the last
+line of stderr is that reason: ``encrypted`` (it needs a password to open) or
+``protection`` (its owner protection could not be carried over).
+"""
 
 import io
 import json
 import resource
+import secrets
 import sys
 
-from pypdf import PdfReader, PdfWriter
+from pypdf import PasswordType, PdfReader, PdfWriter
+from pypdf.errors import DependencyError
 from pypdf.generic import (
     ArrayObject,
     DictionaryObject,
@@ -14,6 +21,61 @@ from pypdf.generic import (
     NumberObject,
     TextStringObject,
 )
+
+
+class Refused(Exception):
+    def __init__(self, reason):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def open_source(raw):
+    """A reader for a source PDF, and its owner protection (``None`` if it has none).
+
+    A publisher PDF often has only an owner password: it opens with the empty
+    user password, as in any viewer. One that needs a password is refused.
+    """
+    try:
+        reader = PdfReader(io.BytesIO(raw))
+        if not reader.is_encrypted:
+            return reader, None
+        if reader.decrypt("") == PasswordType.NOT_DECRYPTED:
+            raise Refused("encrypted")
+    except DependencyError:
+        raise Refused("protection") from None
+    except NotImplementedError:
+        # A security handler other than a password (a certificate, DRM).
+        raise Refused("encrypted") from None
+    entry = reader.trailer["/Encrypt"].get_object()
+    return reader, (int(entry["/P"]) & 0xFFFFFFFF, int(entry.get("/V", 0)))
+
+
+def finish(writer, protections):
+    """Serialize; an export of protected sources keeps their protection.
+
+    The output opens with an empty password like its source, has a new random
+    owner password, and allows only what every protected source allowed.
+    """
+    output = io.BytesIO()
+    if not protections:
+        writer.write(output)
+        return output.getvalue()
+    allowed = 0xFFFFFFFF
+    for flags, _version in protections:
+        allowed &= flags
+    # AES-256 for a source that used it; otherwise AES-128, which every viewer reads.
+    strongest = max(version for _flags, version in protections)
+    try:
+        writer.encrypt(
+            user_password="",
+            owner_password=secrets.token_hex(16),
+            algorithm="AES-256" if strongest >= 5 else "AES-128",
+            permissions_flag=allowed,
+        )
+        writer.write(output)
+    except DependencyError:
+        raise Refused("protection") from None
+    return output.getvalue()
 
 
 def numbers(values):
@@ -52,8 +114,8 @@ def annotation(kind, color, points, content=""):
 
 
 def render(raw, metadata):
-    reader = PdfReader(io.BytesIO(raw))
-    if reader.is_encrypted or len(reader.pages) > 3000:
+    reader, protection = open_source(raw)
+    if len(reader.pages) > 3000:
         raise ValueError("Unsupported PDF")
     writer = PdfWriter(clone_from=reader)
     for row in metadata["highlights"]:
@@ -94,28 +156,23 @@ def render(raw, metadata):
             }
         )
         writer.add_annotation(row["page"] - 1, obj)
-    output = io.BytesIO()
-    writer.write(output)
-    return output.getvalue()
+    return finish(writer, [protection] if protection else [])
 
 
 def merge(raws):
     writer = PdfWriter()
+    protections = []
     for raw in raws:
-        reader = PdfReader(io.BytesIO(raw))
-        if (
-            reader.is_encrypted
-            or not len(reader.pages)
-            or len(writer.pages) + len(reader.pages) > 3000
-        ):
+        reader, protection = open_source(raw)
+        if not len(reader.pages) or len(writer.pages) + len(reader.pages) > 3000:
             raise ValueError("Unsupported PDF")
+        if protection:
+            protections.append(protection)
         for page in reader.pages:
             # Export page content only, without executable document/page actions
             # or embedded attachments from either input.
             writer.add_page(page, excluded_keys=("/AA", "/Annots"))
-    output = io.BytesIO()
-    writer.write(output)
-    return output.getvalue()
+    return finish(writer, protections)
 
 
 def main():
@@ -150,4 +207,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Refused as error:
+        print(error.reason, file=sys.stderr)
+        sys.exit(1)

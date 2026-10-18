@@ -1,0 +1,160 @@
+.kit {
+  /* No box of its own: the shell is the window. The sizes below are inherited by everything in it. */
+  display: contents;
+  --kit-side-width: 400px;
+  --kit-swatch-width: 132px;
+  --kit-swatch-height: 56px;
+  --kit-narrow-width: 160px;
+  --kit-field-width: 360px;
+  --kit-corner-gap: 4px;
+}
+
+.select {
+  height: var(--ui-control-md);
+  padding: 0 var(--ui-space-8);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-elev);
+}
+
+/* The paper being read: the card in the middle takes the room the others leave. */
+.paper {
+  flex: 1;
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The assistant's card is as wide as it is meant to be, and gives way when the window is narrow. */
+.side {
+  flex: none;
+  width: var(--kit-side-width);
+}
+
+@media (max-width: 960px) {
+  .side {
+    display: none;
+  }
+}
+
+/* What is inside a card, under its header: this is what scrolls. */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  padding: var(--ui-space-24);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sideText {
+  color: var(--ui-fg-1);
+}
+
+.section {
+  margin-bottom: var(--ui-space-40);
+}
+
+.sectionTitle {
+  margin-bottom: var(--ui-space-16);
+  font-size: var(--ui-text-20);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.groupTitle {
+  margin: var(--ui-space-20) 0 var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--kit-swatch-width));
+  gap: var(--ui-space-12);
+}
+
+.swatch {
+  display: grid;
+  gap: var(--ui-space-6);
+  color: var(--ui-fg-2);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-11);
+}
+
+.swatchColor {
+  height: var(--kit-swatch-height);
+  background: var(--ui-bg-3);
+  box-shadow: var(--ui-elev-1);
+  border-radius: var(--ui-r-8);
+}
+
+.elevation {
+  height: var(--kit-swatch-height);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-elev);
+}
+
+.texts {
+  display: grid;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-elev-1);
+}
+
+.texts code {
+  margin-left: var(--ui-space-8);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-11);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin-bottom: var(--ui-space-8);
+}
+
+.narrow {
+  width: var(--kit-narrow-width);
+  padding: var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-elev-1);
+}
+
+/* A list that is as wide as its items, with room for its shadow. */
+.fit {
+  width: fit-content;
+  padding: var(--ui-space-4);
+}
+
+.fields {
+  display: grid;
+  gap: var(--ui-space-16);
+  max-width: var(--kit-field-width);
+}
+
+/* Pinned to the window's bottom-right corner, to test a floating layer near an edge. */
+.corner {
+  position: fixed;
+  right: var(--kit-corner-gap);
+  bottom: var(--kit-corner-gap);
+}
+
+/* The content of a dialog: its parts one under another. */
+.stack {
+  display: grid;
+  gap: var(--ui-space-12);
+}

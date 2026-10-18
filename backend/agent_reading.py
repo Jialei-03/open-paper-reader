@@ -40,11 +40,13 @@ def _page_texts(app, file):
     if key in _texts:
         _texts.move_to_end(key)
         return _texts[key]
-    from pypdf import PdfReader
+    from pypdf import PasswordType, PdfReader
 
     try:
         pdf = PdfReader(path, strict=False)
-        if pdf.is_encrypted:
+        # A publisher PDF often has only an owner password; it opens with the
+        # empty user password, as in any viewer.
+        if pdf.is_encrypted and pdf.decrypt("") == PasswordType.NOT_DECRYPTED:
             raise ValueError("PDF 已加密，暂不支持读取")
         pages = [" ".join((page.extract_text() or "").split()) for page in pdf.pages]
     except ValueError:

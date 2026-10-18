@@ -9,6 +9,7 @@ python-multipart==0.0.32
 pydantic==2.11.7
 pillow==12.3.0
 pypdf==6.18.1
+cryptography==50.0.2
 fonttools==4.66.0
 httpx==0.28.1
 regex==2024.11.6

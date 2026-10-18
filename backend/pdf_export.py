@@ -14,6 +14,35 @@ from sqlalchemy import select
 from .models import File, InkStroke, Paper, TextAnnotation, TranslationJob, Version
 
 _EXPORT_SLOTS = threading.BoundedSemaphore(2)
+# The worker's reason for refusing a source (the last line of its stderr).
+EXPORT_REFUSALS = {
+    "encrypted": "这份 PDF 设有密码，无法导出带批注的版本",
+    "protection": "这份 PDF 的加密保护无法在导出时保留，未导出带批注的版本",
+}
+MERGE_REFUSALS = {
+    "encrypted": "原文或译文 PDF 设有密码，无法合并下载",
+    "protection": "原文或译文 PDF 的加密保护无法在合并时保留，未合并下载",
+}
+
+
+def run_worker(payload, failure, refusals):
+    """Run the isolated serializer; a refusal says why, anything else is ``failure``."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "backend.pdf_export_worker"],
+            input=payload,
+            capture_output=True,
+            timeout=45,
+            check=False,
+        )
+    except (subprocess.SubprocessError, OSError):
+        raise HTTPException(422, failure) from None
+    if result.returncode:
+        lines = result.stderr.decode("utf-8", "replace").strip().splitlines()
+        raise HTTPException(
+            422, refusals.get(lines[-1].strip() if lines else "", failure)
+        )
+    return result
 
 
 def install_pdf_export_routes(app, settings, db, auth, owned):
@@ -64,21 +93,18 @@ def install_pdf_export_routes(app, settings, db, auth, owned):
             metadata = json.dumps(
                 {"operation": "merge", "lengths": [len(r) for r in raws]}
             ).encode()
-            result = subprocess.run(
-                [sys.executable, "-m", "backend.pdf_export_worker"],
-                input=len(metadata).to_bytes(4, "big") + metadata + b"".join(raws),
-                capture_output=True,
-                timeout=45,
-                check=True,
+            result = run_worker(
+                len(metadata).to_bytes(4, "big") + metadata + b"".join(raws),
+                "PDF 合并失败；原文与译文未被修改",
+                MERGE_REFUSALS,
             )
         except HTTPException as exc:
+            # safe_blob's 404: a source changed or vanished since it was made.
             if exc.status_code == 404:
                 raise HTTPException(
                     404, "原文或译文文件缺失或已变更，请重新生成翻译"
                 ) from None
             raise
-        except (subprocess.SubprocessError, OSError):
-            raise HTTPException(422, "PDF 合并失败；原文与译文未被修改") from None
         finally:
             _EXPORT_SLOTS.release()
         if not result.stdout.startswith(b"%PDF-") or len(result.stdout) > 100 * 1024**2:
@@ -135,17 +161,9 @@ def install_pdf_export_routes(app, settings, db, auth, owned):
             payload = (
                 len(metadata).to_bytes(4, "big") + metadata + file_bytes(settings, file)
             )
-            result = subprocess.run(
-                [sys.executable, "-m", "backend.pdf_export_worker"],
-                input=payload,
-                capture_output=True,
-                timeout=45,
-                check=True,
+            result = run_worker(
+                payload, "批注 PDF 导出失败；原文件与批注仍已保留", EXPORT_REFUSALS
             )
-        except (subprocess.SubprocessError, OSError):
-            raise HTTPException(
-                422, "批注 PDF 导出失败；原文件与批注仍已保留"
-            ) from None
         finally:
             _EXPORT_SLOTS.release()
         if not result.stdout.startswith(b"%PDF-") or len(result.stdout) > 100 * 1024**2:

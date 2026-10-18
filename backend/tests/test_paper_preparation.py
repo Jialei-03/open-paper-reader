@@ -155,7 +155,6 @@ def test_existing_guide_and_pages_do_not_create_chat_or_repeat_models(env, monke
             return json.dumps({"paragraphs": [{"original": "Hello world.", "translation": "你好世界。", "kind": "text"}]})
         return json.dumps(guide, ensure_ascii=False)
 
-    monkeypatch.setattr("backend.preparation_worker.complete", complete)
     monkeypatch.setattr("backend.translation_memory.complete", complete)
     settings.pdf_layout_image = "test-image"
     reconcile(settings, app.state.maker)

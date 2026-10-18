@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from .arxiv_import import download, identifier, metadata
+from .arxiv_import import NO_PDF, ArxivNotFound, download, identifier, metadata
 from .import_progress import read as read_import_progress
 from .import_progress import report, tracking
 from .model_options import task_options
@@ -98,6 +98,13 @@ def import_arxiv_paper(d, settings, actor, url, snapshot, *, existing=None, tags
     report("metadata")
     try:
         meta = metadata(url)
+    except ValueError as error:
+        # The reason is already written for the reader (no such paper, no
+        # connection after three tries, ...); an internal one is not passed on.
+        reason = str(error)
+        if not re.search(r"[\u3400-\u9fff]", reason):
+            reason = "无法获取 arXiv 论文，请检查链接或稍后重试"
+        raise HTTPException(422, reason) from None
     except Exception:  # noqa: BLE001
         raise HTTPException(422, "无法获取 arXiv 论文，请检查链接或稍后重试") from None
     from .storage_budget import lock_owner
@@ -153,14 +160,20 @@ def import_arxiv_paper(d, settings, actor, url, snapshot, *, existing=None, tags
         d.flush()
     try:
         report("pdf")
-        raw = download("/pdf/" + meta["arxiv_id"])
+        try:
+            raw = download("/pdf/" + meta["arxiv_id"])
+        except ArxivNotFound:
+            raise HTTPException(422, NO_PDF) from None
         if not raw.startswith(b"%PDF-"):
+            # A page instead of the file is a transient answer; try again.
             raise ValueError("Invalid PDF")
         report("saving")
         f = store_file(
             d, settings, p, v.id, meta["arxiv_id"].replace("/", "-") + ".pdf", raw
         )
-    except StorageBudgetExceeded:
+    except (HTTPException, StorageBudgetExceeded):
+        # The inspector's reason (an encrypted or unreadable PDF), the missing
+        # PDF above, and the storage limit are told as they are.
         raise
     except Exception:  # noqa: BLE001
         raise HTTPException(502, "原版 PDF 下载失败，请重试；未保存本次导入") from None

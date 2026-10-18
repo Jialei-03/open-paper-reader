@@ -500,7 +500,7 @@ async def execute(
                 if not path.is_file():
                     raise ValueError("附件记录存在，但文件缺失，请重新上传附件")
             if meta["mime"] == "application/pdf":
-                from pypdf import PdfReader
+                from pypdf import PasswordType, PdfReader
 
                 start = max(1, int(args.get("page", 1)))
                 count = max(
@@ -508,7 +508,11 @@ async def execute(
                 )
                 try:
                     pdf = PdfReader(path, strict=False)
-                    if pdf.is_encrypted:
+                    # An owner password alone opens with the empty user password.
+                    if (
+                        pdf.is_encrypted
+                        and pdf.decrypt("") == PasswordType.NOT_DECRYPTED
+                    ):
                         raise ValueError("PDF 已加密，暂不支持读取")
                     total = len(pdf.pages)
                     if start > total:
