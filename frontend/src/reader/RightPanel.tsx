@@ -1,5 +1,12 @@
 import clsx from "clsx";
-import { useEffect, useId, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import type { Paper, SourceFile } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
@@ -28,6 +35,16 @@ export interface PanelOverlay {
   returnFocus: RefObject<HTMLElement | null>;
 }
 
+/** The foot of the panel, where the assistant's question box docks (under every view). */
+export interface PanelDock {
+  /** The foot's element: where the screen tells the panel from the paper when the box is dragged. */
+  footRef: RefObject<HTMLDivElement | null>;
+  /** The box, when it is docked; nothing while it floats over the paper. */
+  children: ReactNode;
+  /** The box is being dragged: the panel shows where it would land, and says so when the pointer is over it. */
+  drop?: "away" | "over";
+}
+
 /**
  * The card beside the paper: a guide to it, the assistant, and the notes, one at
  * a time (until the paper is there, each says what it will hold). Docked it is
@@ -45,6 +62,7 @@ export function RightPanel({
   notes,
   tab,
   onTabChange,
+  dock,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
@@ -62,6 +80,8 @@ export function RightPanel({
   tab?: PanelView;
   /** A tab was chosen. */
   onTabChange?: (tab: PanelView) => void;
+  /** The question box's place under the views. */
+  dock?: PanelDock;
 }) {
   const { t } = useI18n();
   const ids = useId();
@@ -157,6 +177,16 @@ export function RightPanel({
             </div>
           ))}
         </div>
+        {dock && (
+          <div ref={dock.footRef} className={styles.dock}>
+            {dock.children}
+          </div>
+        )}
+        {dock?.drop && (
+          <div className={styles.drop} data-over={dock.drop === "over"}>
+            {t("reader.assistant.dock.drop")}
+          </div>
+        )}
       </RegionBoundary>
     </Card>
   );
