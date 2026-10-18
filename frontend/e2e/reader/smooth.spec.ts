@@ -65,7 +65,7 @@ async function sample(page: Page) {
     const w = window as unknown as { __lengths: number[] };
     w.__lengths = [];
     const tick = () => {
-      const answer = document.querySelector('[class*="answer"]');
+      const answer = document.querySelector('[class*="_answer_"]');
       w.__lengths.push(answer?.textContent?.length ?? 0);
       requestAnimationFrame(tick);
     };
@@ -136,7 +136,7 @@ test.describe("streamed text", () => {
 
     server.runs[0].response = full;
     server.runs[0].status = "completed";
-    await expect(page.locator('[class*="answer"]')).toHaveText(full, {
+    await expect(page.locator('[class*="_answer_"]')).toHaveText(full, {
       timeout: 4000,
     });
 
@@ -167,7 +167,7 @@ test.describe("streamed text", () => {
 
     const first = chunk(0, 8);
     server.runs[0].response = first;
-    await expect(page.locator('[class*="answer"]')).toHaveText(first, {
+    await expect(page.locator('[class*="_answer_"]')).toHaveText(first, {
       timeout: 4000,
     });
     const seen = (await lengths(page)).filter((n) => n > 0);
