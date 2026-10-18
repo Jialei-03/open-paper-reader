@@ -1,17 +1,9 @@
 /*
- * The question box at the bottom of the paper's card. It hangs from a line of
- * no height at the foot of the card (as the find bar hangs from its top), so
- * the pages do not move for it, and floats over the paper: 70% of the card,
- * at most 720px, never wider than the card leaves room for.
+ * The question box: in the foot of the right panel by default, or floating over
+ * the paper. Floating, it hangs from a line of no height at the foot of the
+ * card (as the find bar hangs from its top), so the pages do not move for it.
  */
 .anchor {
-  --composer-share: 70%;
-  --composer-max-width: 720px;
-  --composer-min-width: 320px;
-  --composer-send-size: 32px;
-  --composer-stop-icon: 12px;
-  --composer-chip-height: 24px;
-  --composer-chip-remove: 18px;
   /* Over the pages' layers (no higher than 1) and the find bar (2), inside the card. */
   --composer-layer: 3;
   position: relative;
@@ -20,25 +12,100 @@
   height: 0;
 }
 
+/* One box in both places; what it is made of does not change, only where it sits. */
 .composer {
-  position: absolute;
-  bottom: var(--ui-space-20);
-  left: 50%;
+  --composer-share: 70%;
+  --composer-max-width: 720px;
+  --composer-min-width: 320px;
+  --composer-send-size: 32px;
+  --composer-stop-icon: 12px;
+  --composer-chip-height: 24px;
+  --composer-chip-remove: 18px;
+  --composer-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --composer-lift: 1.012;
+  --composer-grip-width: 32px;
+  --composer-grip-height: 4px;
+  --composer-grip-zone: 16px;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--ui-space-8);
   box-sizing: border-box;
-  width: min(
-    var(--composer-max-width),
-    max(var(--composer-share), var(--composer-min-width)),
-    calc(100% - 2 * var(--ui-space-16))
-  );
   padding: var(--ui-space-12) var(--ui-space-12) var(--ui-space-10)
     var(--ui-space-16);
   border-radius: var(--ui-r-24);
   background: var(--ui-elev);
   box-shadow: var(--ui-elev-composer);
+  transition:
+    transform var(--ui-dur-2) var(--composer-spring),
+    box-shadow var(--ui-dur-2) var(--ui-ease-out);
+}
+
+/*
+ * Floating over the paper: 70% of the card, at most 720px. It rests where the
+ * card's foot is by default, or where it was put (--composer-x: its middle as a
+ * share of the card's width, --composer-y: how far its foot is above the card's
+ * foot), and never past the card's sides.
+ */
+.floating {
+  --composer-w: min(
+    var(--composer-max-width),
+    max(var(--composer-share), var(--composer-min-width)),
+    calc(100% - 2 * var(--ui-space-16))
+  );
+  position: absolute;
+  bottom: var(--composer-y, var(--ui-space-20));
+  left: clamp(
+    var(--ui-space-8),
+    calc(var(--composer-x, 0.5) * 100% - var(--composer-w) / 2),
+    calc(100% - var(--composer-w) - var(--ui-space-8))
+  );
+  width: var(--composer-w);
+}
+
+/* In the panel's foot: the panel's width, less its margin. */
+.docked {
+  flex: none;
+  margin: 0 var(--ui-space-12) var(--ui-space-12);
+  border-radius: var(--ui-r-20);
+}
+
+/* Held by the pointer: raised a little off the paper. */
+.lifted {
+  transform: scale(var(--composer-lift));
+  box-shadow: var(--ui-elev-2);
+  cursor: grabbing;
+}
+
+/* The handle on the top edge: a quiet bar that grows darker under the pointer. */
+.grip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--composer-grip-width) + 2 * var(--ui-space-16));
+  height: var(--composer-grip-zone);
   transform: translateX(-50%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.grip::after {
+  content: "";
+  position: absolute;
+  top: calc((var(--composer-grip-zone) - var(--composer-grip-height)) / 2);
+  left: 50%;
+  width: var(--composer-grip-width);
+  height: var(--composer-grip-height);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-fg-3);
+  opacity: 0.35;
+  transform: translateX(-50%);
+  transition: opacity var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.grip:hover::after,
+.lifted .grip::after {
+  opacity: 0.8;
 }
 
 /* Typing in it draws the edge a little stronger, in place of a ring around the field. */
@@ -144,11 +211,22 @@
 }
 
 /* Send and stop: round, in ink, at the right end. */
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-4);
+  margin-left: auto;
+}
+
+.dockToggle {
+  color: var(--ui-fg-2);
+}
+
 .tools .round {
   flex: none;
   width: var(--composer-send-size);
   height: var(--composer-send-size);
-  margin-left: auto;
   padding: 0;
   border-radius: var(--ui-r-pill);
 }

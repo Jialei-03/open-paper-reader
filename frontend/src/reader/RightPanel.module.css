@@ -15,6 +15,7 @@
    * whose layers go no higher than 1), so this only has to clear the shell.
    */
   --panel-layer: 10;
+  position: relative;
   flex: none;
   width: var(--panel-width);
 }
@@ -58,4 +59,52 @@
   margin: 0;
   color: var(--ui-fg-2);
   line-height: var(--ui-leading);
+}
+
+/* The foot under the views: the question box docks here. Empty, it takes no room. */
+.dock {
+  flex: none;
+}
+
+.dock:empty {
+  display: none;
+}
+
+/*
+ * Where a dragged box would land: a quiet dashed shape over the foot, which firms
+ * up when the pointer is over the panel. It lies over the views, so they do not move.
+ */
+.drop {
+  --drop-height: 88px;
+  position: absolute;
+  right: var(--ui-space-12);
+  bottom: var(--ui-space-12);
+  left: var(--ui-space-12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--drop-height);
+  border: 1.5px dashed var(--ui-edge);
+  border-radius: var(--ui-r-20);
+  background: transparent;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-13);
+  pointer-events: none;
+  transition:
+    background-color var(--ui-dur-2) var(--ui-ease-out),
+    border-color var(--ui-dur-2) var(--ui-ease-out),
+    color var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.drop[data-over="true"] {
+  border-color: var(--ui-fg-3);
+  background: var(--ui-selected);
+  color: var(--ui-fg-1);
+}
+
+@starting-style {
+  .drop {
+    opacity: 0;
+  }
 }

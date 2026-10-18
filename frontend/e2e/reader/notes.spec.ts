@@ -12,7 +12,8 @@ test.use({ locale: "zh-CN" });
 // The side panel is the page's only complementary landmark, whatever the language.
 const panel = (page: Page) => page.getByRole("complementary");
 // The note's text is the only text field in the panel.
-const editor = (page: Page) => panel(page).getByRole("textbox");
+const editor = (page: Page) =>
+  panel(page).getByRole("textbox", { name: /^(笔记正文|Note text)$/ });
 const saveStatus = (page: Page) =>
   panel(page)
     .getByRole("status")

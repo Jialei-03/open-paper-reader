@@ -175,15 +175,15 @@ test("a question sent with Enter is asked of the paper's discussion, and its ans
   await server.install(page);
   await openReader(page, { paperId });
 
-  // The composer floats over the foot of the paper's card: 70% of it, in the middle.
+  // The composer is docked in the foot of the panel: its width, at the bottom.
   const box = questionBox(page);
   await expect(box).toBeEnabled();
   await expect(box).toHaveAttribute(
     "placeholder",
     "问这一页、这段，或整篇论文…",
   );
-  const [card, composer] = await Promise.all([
-    page.getByRole("main").boundingBox(),
+  const [side, composer] = await Promise.all([
+    page.getByRole("complementary").boundingBox(),
     box.evaluate((element) => {
       const { x, y, width, height } = element
         .closest('[class*="composer"]')!
@@ -191,13 +191,12 @@ test("a question sent with Enter is asked of the paper's discussion, and its ans
       return { x, y, width, height };
     }),
   ]);
-  expect(Math.abs(composer.width - 0.7 * card!.width)).toBeLessThan(2);
-  expect(
-    Math.abs(composer.x + composer.width / 2 - (card!.x + card!.width / 2)),
-  ).toBeLessThan(2);
-  const below = card!.y + card!.height - (composer.y + composer.height);
+  expect(composer.x).toBeGreaterThan(side!.x);
+  expect(composer.x + composer.width).toBeLessThan(side!.x + side!.width);
+  expect(side!.width - composer.width).toBeLessThan(40);
+  const below = side!.y + side!.height - (composer.y + composer.height);
   expect(below).toBeGreaterThan(8);
-  expect(below).toBeLessThan(40);
+  expect(below).toBeLessThan(24);
 
   await assistantTab(page).click();
   await expect(page.getByRole("tabpanel")).toContainText(
@@ -404,7 +403,9 @@ test("a question that could not be sent says so, and 重试 sends it", async ({
   const box = questionBox(page);
   await box.fill("第三页的图说明了什么？");
   await box.press("Enter");
-  const main = page.getByRole("main");
+  const main = page
+    .locator('[class*="composer"]')
+    .filter({ has: questionBox(page) });
   await expect(main.getByRole("alert")).toHaveText("连接中断，问题没有发出。");
   await expect(box).toHaveValue("第三页的图说明了什么？");
   expect(server.created).toEqual([]);
@@ -561,9 +562,12 @@ test("a service that refuses the question keeps its reason, and the question", a
   const box = questionBox(page);
   await box.fill("这篇论文的结论可靠吗？");
   await box.press("Enter");
-  await expect(page.getByRole("main").getByRole("alert")).toHaveText(
-    "今天的助手次数已用完，明天再试",
-  );
+  await expect(
+    page
+      .locator('[class*="composer"]')
+      .filter({ has: questionBox(page) })
+      .getByRole("alert"),
+  ).toHaveText("今天的助手次数已用完，明天再试");
   await expect(box).toHaveValue("这篇论文的结论可靠吗？");
 });
 
@@ -620,7 +624,9 @@ test("without a model the composer says where to add one", async ({ page }) => {
   await server.install(page, []);
   await openReader(page, { paperId });
 
-  const main = page.getByRole("main");
+  const main = page
+    .locator('[class*="composer"]')
+    .filter({ has: questionBox(page) });
   await expect(main).toContainText("先在设置里添加模型，助手才能回答。");
   await expect(questionBox(page)).toBeDisabled();
   await expect(sendButton(page)).toBeDisabled();

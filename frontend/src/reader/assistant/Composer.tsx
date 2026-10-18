@@ -1,10 +1,25 @@
-import { ArrowUp, RotateCcw, Square, X } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  ArrowUp,
+  PanelRight,
+  PictureInPicture2,
+  RotateCcw,
+  Square,
+  X,
+} from "lucide-react";
+import clsx from "clsx";
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { useI18n } from "../../i18n/I18nProvider";
-import { Button, TextArea, Tooltip } from "../../ui";
+import { Button, IconButton, TextArea, Tooltip } from "../../ui";
 import type { AskRequest } from "../types";
 import { conversation, isActive, shorten } from "./runs";
 import type { Assistant } from "./useAssistant";
+import type { ComposerDraft, Place } from "./useComposerDock";
 import styles from "./Composer.module.css";
 
 /** How much of a selected sentence the context label shows. */
@@ -21,6 +36,22 @@ export interface ComposerProps {
    * leave that much room under the last one, so it never covers the paper's end.
    */
   onCover?(height: number): void;
+  /** The question typed so far, kept by the screen so it survives the box moving. */
+  draft: ComposerDraft;
+  /** In the panel's foot, or floating over the paper. */
+  placement: "docked" | "floating";
+  /** Where the floating box rests (null: the middle of the card's foot). */
+  place?: Place | null;
+  /** Lifted: it is being dragged. */
+  lifted?: boolean;
+  /** Receives the box's element (the screen glides it into place and puts the keyboard back in it). */
+  boxRef(element: HTMLDivElement | null): void;
+  /** A press on the grip starts a drag; without it (a window too narrow to float it) there is no grip. */
+  onGrip?(event: PointerEvent): void;
+  /** The button that moves the box out of the panel or back; absent where it cannot move. */
+  onToggleDock?(): void;
+  /** A question is being sent: the panel shows the thread then. */
+  onAsk?(): void;
 }
 
 /**
@@ -34,13 +65,25 @@ export function Composer({
   pending,
   onClearPending,
   onCover,
+  draft: kept,
+  placement,
+  place,
+  lifted = false,
+  boxRef,
+  onGrip,
+  onToggleDock,
+  onAsk,
 }: ComposerProps) {
   const { t } = useI18n();
-  const [draft, setDraft] = useState("");
-  // The question in the box is one that was not sent: trying again sends it from here.
-  const [unsent, setUnsent] = useState(false);
+  const { text: draft, setText: setDraft, unsent, setUnsent } = kept;
+  const floating = placement === "floating";
   const field = useRef<HTMLTextAreaElement>(null);
-  const box = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement | null>(null);
+  const anchor = useRef<HTMLDivElement>(null);
+  const hold = (element: HTMLDivElement | null) => {
+    box.current = element;
+    boxRef(element);
+  };
   const onCoverNow = useRef(onCover);
   onCoverNow.current = onCover;
   const shown = assistant.paperId !== "";
@@ -53,13 +96,20 @@ export function Composer({
     if (pending) field.current?.focus();
   }, [pending]);
 
-  // Its height and the gap under it, measured whenever it changes size.
+  // How far up the card's foot it reaches, measured whenever it changes size or place: the pages
+  // leave that room under the last one. Docked it covers nothing; dragged up out of the foot, nothing at the end.
   useEffect(() => {
     const element = box.current;
-    if (!shown || !element) return;
+    const line = anchor.current;
+    if (!floating || !shown || !element || !line) return;
     const measure = () => {
-      const below = parseFloat(getComputedStyle(element).bottom) || 0;
-      onCoverNow.current?.(Math.ceil(element.offsetHeight + below));
+      const reach =
+        line.getBoundingClientRect().bottom -
+        element.getBoundingClientRect().top;
+      const card = line.parentElement?.clientHeight ?? 0;
+      onCoverNow.current?.(
+        reach > 0 && reach < card / 3 ? Math.ceil(reach) : 0,
+      );
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -68,7 +118,7 @@ export function Composer({
       observer.disconnect();
       onCoverNow.current?.(0);
     };
-  }, [shown]);
+  }, [floating, shown, place]);
 
   if (!shown) return null;
 
@@ -76,6 +126,7 @@ export function Composer({
     const prompt = draft.trim();
     if (!prompt || unavailable || assistant.sending || answering) return;
     const request = pending ? { ...pending, question: prompt } : undefined;
+    onAsk?.();
     setDraft("");
     if (await assistant.send({ prompt, request })) {
       setUnsent(false);
@@ -112,65 +163,101 @@ export function Composer({
         : t("reader.assistant.context.page", { page: pending.page })
     : "";
 
-  return (
-    <div className={styles.anchor}>
-      <div ref={box} className={styles.composer}>
-        <TextArea
-          ref={field}
-          label={t("reader.assistant.input")}
-          hideLabel
-          autoGrow
-          maxRows={8}
-          className={styles.input}
-          placeholder={t("reader.assistant.placeholder")}
-          value={draft}
-          disabled={unavailable}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={onKeyDown}
+  const body = (
+    <div
+      ref={hold}
+      className={clsx(
+        styles.composer,
+        floating ? styles.floating : styles.docked,
+        lifted && styles.lifted,
+      )}
+      style={
+        floating && place
+          ? ({
+              "--composer-x": place.x,
+              "--composer-y": `${place.y}px`,
+            } as CSSProperties)
+          : undefined
+      }
+    >
+      {onGrip && (
+        <div
+          className={styles.grip}
+          data-composer-grip=""
+          aria-hidden="true"
+          onPointerDown={onGrip}
         />
-        <div className={styles.tools}>
-          {pending && (
-            <span className={styles.chip}>
-              <span className={styles.chipText}>{context}</span>
-              <button
-                type="button"
-                className={styles.chipRemove}
-                aria-label={t("reader.assistant.context.remove")}
-                onClick={() => {
-                  onClearPending();
-                  field.current?.focus();
-                }}
-              >
-                <X size={12} aria-hidden="true" />
-              </button>
-            </span>
-          )}
-          {unavailable && !assistant.loading ? (
-            <p className={styles.hint}>
-              {t("reader.assistant.noModel")}{" "}
-              <a className={styles.settings} href="#settings">
-                {t("reader.assistant.toSettings")}
-              </a>
-            </p>
-          ) : (
-            assistant.error && (
-              <>
-                <p className={styles.error} role="alert">
-                  {assistant.error}
-                </p>
-                {again && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    icon={RotateCcw}
-                    className={styles.retry}
-                    onClick={again}
-                  >
-                    {t("common.retry")}
-                  </Button>
-                )}
-              </>
-            )
+      )}
+      <TextArea
+        ref={field}
+        label={t("reader.assistant.input")}
+        hideLabel
+        autoGrow
+        maxRows={8}
+        className={styles.input}
+        placeholder={t("reader.assistant.placeholder")}
+        value={draft}
+        disabled={unavailable}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={onKeyDown}
+      />
+      <div className={styles.tools}>
+        {pending && (
+          <span className={styles.chip}>
+            <span className={styles.chipText}>{context}</span>
+            <button
+              type="button"
+              className={styles.chipRemove}
+              aria-label={t("reader.assistant.context.remove")}
+              onClick={() => {
+                onClearPending();
+                field.current?.focus();
+              }}
+            >
+              <X size={12} aria-hidden="true" />
+            </button>
+          </span>
+        )}
+        {unavailable && !assistant.loading ? (
+          <p className={styles.hint}>
+            {t("reader.assistant.noModel")}{" "}
+            <a className={styles.settings} href="#settings">
+              {t("reader.assistant.toSettings")}
+            </a>
+          </p>
+        ) : (
+          assistant.error && (
+            <>
+              <p className={styles.error} role="alert">
+                {assistant.error}
+              </p>
+              {again && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={RotateCcw}
+                  className={styles.retry}
+                  onClick={again}
+                >
+                  {t("common.retry")}
+                </Button>
+              )}
+            </>
+          )
+        )}
+        <div className={styles.actions}>
+          {onToggleDock && (
+            <IconButton
+              icon={floating ? PanelRight : PictureInPicture2}
+              label={t(
+                floating
+                  ? "reader.assistant.dock.attach"
+                  : "reader.assistant.dock.detach",
+              )}
+              size="sm"
+              className={styles.dockToggle}
+              onClick={onToggleDock}
+            />
           )}
           {answering ? (
             <Tooltip content={t("reader.assistant.stop")}>
@@ -198,5 +285,12 @@ export function Composer({
         </div>
       </div>
     </div>
+  );
+  return floating ? (
+    <div ref={anchor} className={styles.anchor}>
+      {body}
+    </div>
+  ) : (
+    body
   );
 }

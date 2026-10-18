@@ -99,11 +99,18 @@ async function openPaper(page: Page, pages = 3) {
   const created = await fakeAssistant(page);
   await openReader(page, { paperId: paper.paperId });
   await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
-  await expect(questionBox(page)).toBeEnabled();
+  // In a window too narrow for the panel it is folded away, out of the accessibility tree.
+  await expect(
+    page.getByRole("textbox", {
+      name: "向助手提问",
+      exact: true,
+      includeHidden: true,
+    }),
+  ).toBeEnabled();
   return { ...paper, created };
 }
 
-/** The top edge of the floating question box, in the window. */
+/** The top edge of the question box (floating over the paper), in the window. */
 const composerTop = (page: Page) =>
   questionBox(page).evaluate(
     (element) =>
@@ -152,7 +159,7 @@ test("↵ hands the selection to the question box, which takes the keyboard", as
   await selectLine(page, line(page, 1, WORDS));
   await page.keyboard.press("Enter");
   await expect(menu(page)).toBeHidden();
-  const composer = page.getByRole("main");
+  const composer = page.getByRole("complementary");
   await expect(composer.getByText(/^选中的一句：“Evidence/)).toBeVisible();
   await expect(questionBox(page)).toBeFocused();
   expect(created).toEqual([]);
@@ -209,6 +216,10 @@ test("the end of the paper scrolls clear of the question box", async ({
   page,
 }) => {
   await openPaper(page, 2);
+  // Floating over the paper (docked in the panel it covers nothing).
+  await page
+    .getByRole("button", { name: "移出面板，浮在论文上", exact: true })
+    .click();
   const last = pdfPage(page, 2);
   const toEnd = () =>
     scroller(page).evaluate((element) => {
@@ -376,7 +387,14 @@ test("E asks the real service, which takes the reader's question; stop cancels i
     });
     await openReader(page, { paperId: paper.paperId });
     await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
-    await expect(questionBox(page)).toBeEnabled();
+    // In a window too narrow for the panel it is folded away, out of the accessibility tree.
+    await expect(
+      page.getByRole("textbox", {
+        name: "向助手提问",
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toBeEnabled();
     await selectLine(page, line(page, 1, WORDS));
     const answered = page.waitForResponse(
       (response) =>

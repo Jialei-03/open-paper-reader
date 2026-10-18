@@ -57,6 +57,7 @@ import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel, type PanelView } from "./RightPanel";
 import { SelectionMenu, type SelectionNote } from "./selection/SelectionMenu";
 import { Composer, useAssistant } from "./assistant";
+import { useComposerDock, useComposerDraft } from "./assistant/useComposerDock";
 import { excerptMarkdown } from "./notes/excerpt";
 import { useNotes } from "./notes/useNotes";
 import { KeypointLayer, useKeypoints, type Keypoint } from "./keypoints";
@@ -1006,6 +1007,16 @@ export function ReaderScreen({
   const [tab, setTab] = useState<PanelView>("guide");
   // How far up the question box reaches over the foot of the paper's card: the pages leave that room under the last.
   const [cover, setCover] = useState(0);
+  // The question box: docked in the panel's foot, or floating over the paper. Its draft is kept here, out of the box.
+  const draft = useComposerDraft();
+  const rootEl = useRef<HTMLDivElement>(null);
+  const footEl = useRef<HTMLDivElement>(null);
+  const composerDock = useComposerDock({
+    owner,
+    narrow,
+    root: rootEl,
+    dock: footEl,
+  });
   const narrowNow = useRef(narrow);
   narrowNow.current = narrow;
 
@@ -1041,7 +1052,11 @@ export function ReaderScreen({
         prompt: t("reader.assistant.explainPrompt"),
         request,
       });
-    } else setPending(request);
+    } else {
+      setPending(request);
+      // Docked, the box is in the panel: the panel opens on the assistant, where the answer will be.
+      if (composerDock.mode === "docked") show("assistant");
+    }
   };
 
   // Kept in the note: the words, their translation if they come with one, and the way back to them.
@@ -1095,8 +1110,26 @@ export function ReaderScreen({
     />
   ) : null;
 
+  const composer = (
+    <Composer
+      assistant={assistant}
+      pending={pending}
+      onClearPending={() => setPending(null)}
+      onCover={setCover}
+      draft={draft}
+      placement={composerDock.mode}
+      place={composerDock.place}
+      lifted={composerDock.dragging}
+      boxRef={composerDock.attach}
+      onGrip={composerDock.canDetach ? composerDock.grip : undefined}
+      onToggleDock={composerDock.canDetach ? composerDock.toggle : undefined}
+      onAsk={() => show("assistant")}
+    />
+  );
+
   return (
     <div
+      ref={rootEl}
       className={styles.root}
       onKeyDown={(event) => {
         // mod+f is the paper's find wherever the keyboard is on this screen, instead of the browser's.
@@ -1142,12 +1175,7 @@ export function ReaderScreen({
             keypoints={keypoints.visible}
             actions={actions}
           />
-          <Composer
-            assistant={assistant}
-            pending={pending}
-            onClearPending={() => setPending(null)}
-            onCover={setCover}
-          />
+          {composerDock.mode === "floating" && composer}
         </Card>
         <RightPanel
           paperId={paperId}
@@ -1166,6 +1194,16 @@ export function ReaderScreen({
           }
           tab={tab}
           onTabChange={setTab}
+          dock={{
+            footRef: footEl,
+            children: composerDock.mode === "docked" ? composer : null,
+            drop:
+              composerDock.mode === "floating" && composerDock.dragging
+                ? composerDock.over
+                  ? "over"
+                  : "away"
+                : undefined,
+          }}
           overlay={
             narrow
               ? {

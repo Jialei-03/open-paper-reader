@@ -219,7 +219,9 @@ test("E explains, ↵ asks and N keeps the selection; Esc closes the menu", asyn
   await selectLine(page, words);
   await page.keyboard.press("Enter");
   await expect(menu(page)).toBeHidden();
-  await expect(main(page).getByText(/^选中的一句：“Evidence/)).toBeVisible();
+  await expect(
+    page.getByRole("complementary").getByText(/^选中的一句：“Evidence/),
+  ).toBeVisible();
   expect(created).toHaveLength(1);
 
   await selectLine(page, words);
