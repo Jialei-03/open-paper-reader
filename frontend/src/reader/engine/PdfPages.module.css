@@ -35,6 +35,8 @@
 }
 
 .pages {
+  /* Between a page and the column beside it (the engine reads it to share out the room). */
+  --aside-gap: var(--ui-space-24);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -53,6 +55,30 @@
     var(--ui-space-20),
     calc(var(--composer-clearance, 0px) + var(--ui-space-12))
   );
+}
+
+/*
+ * With a column beside each page (the 对照 reading): the page and its column
+ * side by side, their tops level, the row as tall as the taller of the two. In
+ * a room too narrow for that, the column goes under its page. The engine gives
+ * the column its width.
+ */
+.row {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  gap: var(--aside-gap);
+}
+
+.pages[data-aside="under"] .row {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-12);
+}
+
+.aside {
+  flex: none;
+  min-width: 0;
 }
 
 /* A sheet of the paper: white before it is drawn, as pdf.js draws it; dimmed in the dark. */

@@ -68,6 +68,17 @@ export interface PdfPagesProps {
   ) => void;
   /** A page has been drawn: its canvas and its text. */
   onPageRendered?: (page: number) => void;
+  /**
+   * A column beside each page (the translation, in the 对照 reading). With it
+   * the pages take `PAGE_SHARE` of the room and the column the rest; in a room
+   * narrower than `STACK_BELOW` the column goes under its page instead.
+   */
+  pageAside?: (page: number) => ReactNode;
+  /**
+   * The pages in view and one either side of them, whenever they change: the
+   * current page first, then the others, nearest first.
+   */
+  onVisiblePages?: (pages: number[]) => void;
 }
 
 /** The pages inside the scroller, for the zoom (`lib/use-pdf-zoom`) to find. */
@@ -76,6 +87,10 @@ const PAGE = "[data-page]";
 const KEEP = 3;
 /** The narrowest the pages are laid out for, however narrow the card. */
 const MIN_WIDTH = 160;
+/** With a column beside the pages, the share of the room the pages take, as in the old reader's 对照. */
+const PAGE_SHARE = 0.56;
+/** A room narrower than this has no space for a column beside a page: it goes under the page. */
+const STACK_BELOW = 620;
 
 const ZOOM_IN = ["mod+=", "mod++", "mod+shift++"];
 const ZOOM_OUT = ["mod+-"];
@@ -131,6 +146,8 @@ export function PdfPages({
   pageOverlays,
   textLayerRef,
   onPageRendered,
+  pageAside,
+  onVisiblePages,
 }: PdfPagesProps) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
@@ -140,6 +157,8 @@ export function PdfPages({
   const widthNow = useRef(0);
   /** Room above the first page: a page scrolled to stands this far below the top. */
   const inset = useRef(0);
+  /** Between a page and the column beside it (the stylesheet's `--aside-gap`). */
+  const [asideGap, setAsideGap] = useState(0);
   /** The first page's size: the guess for every page whose own size is not known yet. */
   const [first, setFirst] = useState<PageSize | null>(null);
   const sizes = useRef<(PageSize | undefined)[]>([]);
@@ -168,9 +187,18 @@ export function PdfPages({
   }, []);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
+  // With a column beside the pages, the pages are laid out for their share of the room.
+  const aside = pageAside !== undefined;
+  const columns = aside && width >= STACK_BELOW;
+  const basis = columns
+    ? Math.max(MIN_WIDTH, (width - asideGap) * PAGE_SHARE)
+    : width;
+  /** The column's width: the rest of the room beside the page, or all of it under the page. */
+  const asideWidth = columns ? Math.max(0, width - asideGap - basis) : width;
+
   const zoom = usePdfZoom(
     root,
-    width,
+    basis,
     // Any zoom (the menu, the keys, a wheel or a pinch) is the person moving
     // the view: a page scrolled to before it no longer holds the place.
     () => {
@@ -193,6 +221,12 @@ export function PdfPages({
   textLayerNow.current = textLayerRef;
   const renderedNow = useRef(onPageRendered);
   renderedNow.current = onPageRendered;
+  const visibleNow = useRef(onVisiblePages);
+  visibleNow.current = onVisiblePages;
+  const asideNow = useRef(aside);
+  asideNow.current = aside;
+  /** The pages last reported through `onVisiblePages`, joined. */
+  const visibleReported = useRef("");
 
   const metrics = (): Row[] => {
     if (rows.current) return rows.current;
@@ -287,12 +321,41 @@ export function PdfPages({
       kept.current = position();
   };
 
+  /** The pages in view and one either side, the current one first, to `onVisiblePages` when they change. */
+  const reportVisible = (current: number) => {
+    const callback = visibleNow.current;
+    const scroller = root.current;
+    if (!callback || !scroller) return;
+    const all = metrics();
+    if (!all.length) return;
+    const top = scroller.scrollTop;
+    const first = rowAt(all, top);
+    const last = rowAt(all, top + Math.max(0, scroller.clientHeight - 1));
+    const pages: number[] = [];
+    const end = Math.min(all.length - 1, last + 1);
+    for (let index = Math.max(0, first - 1); index <= end; index++)
+      pages.push(index + 1);
+    // Nearest the current page first; of two as near, the one after it (where the reading goes).
+    pages.sort(
+      (a, b) =>
+        Math.abs(a - current) - Math.abs(b - current) ||
+        Number(a < current) - Number(b < current),
+    );
+    const key = pages.join(",");
+    if (key === visibleReported.current) return;
+    visibleReported.current = key;
+    callback(pages);
+  };
+
   const track = () => {
     const scroller = root.current;
     if (!scroller || zoom.zooming.current) return;
     const held = hold.current;
     if (held) {
-      if (Math.abs(scroller.scrollTop - held.top) <= 2) return;
+      if (Math.abs(scroller.scrollTop - held.top) <= 2) {
+        reportVisible(held.page);
+        return;
+      }
       hold.current = null;
     }
     const all = metrics();
@@ -307,6 +370,7 @@ export function PdfPages({
       else low = index + 1;
     }
     report(low + 1);
+    reportVisible(low + 1);
   };
   trackNow.current = track;
 
@@ -317,6 +381,7 @@ export function PdfPages({
     const measure = () => {
       const style = getComputedStyle(pages);
       inset.current = parseFloat(style.paddingTop) || 0;
+      setAsideGap(parseFloat(style.getPropertyValue("--aside-gap")) || 0);
       const room = Math.max(
         MIN_WIDTH,
         scroller.clientWidth -
@@ -356,6 +421,14 @@ export function PdfPages({
   firstNow.current = first;
   const keepNow = useRef(keep);
   keepNow.current = keep;
+
+  // The column beside the pages comes or goes: the pages are about to change their size. Where the
+  // reading is is read now, from the layout still on screen, to come back to once the new one is drawn.
+  const asideWas = useRef(aside);
+  if (asideWas.current !== aside) {
+    asideWas.current = aside;
+    if (widthNow.current) keep();
+  }
   const onSize = useCallback((number: number, size: PageSize) => {
     const guess = sizes.current[number - 1] ?? firstNow.current;
     sizes.current[number - 1] = size;
@@ -375,30 +448,51 @@ export function PdfPages({
     return () => watcher.disconnect();
   }, [watcher]);
 
-  // Any change in the pages' sizes moves them: measure again, and see which page is under the view.
-  useEffect(() => {
-    const observer = new ResizeObserver(() => {
-      rows.current = null;
-      scheduleTrack();
-    });
-    observer.observe(list.current!);
-    return () => observer.disconnect();
-  }, [scheduleTrack]);
-
-  const ready = width > 0 && first !== null;
-
-  // After a new width or a page's real size: stay on what was being read.
-  useLayoutEffect(() => {
-    rows.current = null;
-    if (!ready || zoom.zooming.current) return;
+  /** Back to the page scrolled to, or to the position kept before a change of layout. */
+  const follow = () => {
     const held = hold.current;
     if (held) {
       const top = place(held.page, held.offset);
       if (top !== null) held.top = top;
     } else if (kept.current !== null) move(kept.current);
     kept.current = null;
+  };
+  const followNow = useRef(follow);
+  followNow.current = follow;
+  const zooming = zoom.zooming;
+
+  // Any change in the pages' sizes moves them: measure again, and see which page is under the view.
+  // With columns beside the pages, a column that grows (a translation coming in) moves the pages
+  // under it too: the position is read from the rows as they were, and kept in the new ones.
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      if (
+        asideNow.current &&
+        rows.current &&
+        widthNow.current &&
+        !zooming.current
+      ) {
+        keepNow.current();
+        rows.current = null;
+        followNow.current();
+      }
+      rows.current = null;
+      scheduleTrack();
+    });
+    observer.observe(list.current!);
+    return () => observer.disconnect();
+  }, [scheduleTrack, zooming]);
+
+  const ready = width > 0 && first !== null;
+
+  // After a new width (or a column beside the pages, come or gone) or a page's real size: stay on
+  // what was being read.
+  useLayoutEffect(() => {
+    rows.current = null;
+    if (!ready || zoom.zooming.current) return;
+    follow();
     // `place` and `move` read the layout of this render.
-  }, [ready, width, measured]);
+  }, [ready, width, measured, basis, aside]);
 
   // A page asked for from outside (an address, a link, the page field) is scrolled to.
   useLayoutEffect(() => {
@@ -455,13 +549,14 @@ export function PdfPages({
   if (ready)
     for (let number = 1; number <= doc.numPages; number++) {
       const native = sizes.current[number - 1] ?? first;
+      // Beside a column the page fills its share, as in the old reader's 对照.
       const scale =
-        zoomValue === "auto"
-          ? Math.min(1, width / native.width)
-          : zoomValue === "fit"
-            ? width / native.width
+        zoomValue === "auto" && !columns
+          ? Math.min(1, basis / native.width)
+          : zoomValue === "fit" || zoomValue === "auto"
+            ? basis / native.width
             : zoomValue;
-      pages.push(
+      const view = (
         <PdfPageView
           key={number}
           doc={doc}
@@ -476,7 +571,19 @@ export function PdfPages({
           overlays={pageOverlays}
           onText={onText}
           onRendered={onRendered}
-        />,
+        />
+      );
+      pages.push(
+        pageAside ? (
+          <div key={number} className={styles.row}>
+            {view}
+            <div className={styles.aside} style={{ width: asideWidth }}>
+              {pageAside(number)}
+            </div>
+          </div>
+        ) : (
+          view
+        ),
       );
     }
 
@@ -492,7 +599,12 @@ export function PdfPages({
       onScroll={scheduleTrack}
     >
       {/* During a pinch the pages are scaled as they are; they are drawn anew once it ends. */}
-      <div ref={list} className={styles.pages} style={{ zoom: zoom.preview }}>
+      <div
+        ref={list}
+        className={styles.pages}
+        data-aside={aside ? (columns ? "beside" : "under") : undefined}
+        style={{ zoom: zoom.preview }}
+      >
         {pages}
       </div>
     </div>

@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   IconButton,
+  SegmentedControl,
   Spinner,
   Toaster,
   Shell,
@@ -45,6 +46,12 @@ import {
 } from "./engine/PdfPages";
 import { usePdfDocument } from "./engine/usePdfDocument";
 import { FindBar, useFind, type Find } from "./FindBar";
+import {
+  ParallelPage,
+  useParallelTranslation,
+  useQuoteHighlight,
+  type HoverQuote,
+} from "./modes/parallel";
 import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
@@ -175,7 +182,9 @@ function PaperBody({
   controllerRef,
   textLayerRef,
   overlays,
-}: {
+  pageAside,
+  onVisiblePages,
+}: Pick<PdfPagesProps, "pageAside" | "onVisiblePages"> & {
   route: ReaderRoute;
   go: (hash: string) => void;
   onPaper: (paper: Paper) => void;
@@ -272,6 +281,8 @@ function PaperBody({
       controllerRef={controllerRef}
       textLayerRef={textLayerRef}
       overlays={overlays}
+      pageAside={pageAside}
+      onVisiblePages={onVisiblePages}
     />
   );
 }
@@ -397,7 +408,13 @@ function PaperCard({
   onNote: Overlays["onNote"];
   actions: RefObject<PaperActions | null>;
 }) {
+  const { t, locale } = useI18n();
   const [paper, setPaper] = useState<Paper | null>(null);
+  // TEMPORARY (E1): the 对照 reading, until E2's reading-mode switch replaces this state and the control below.
+  const [mode, setMode] = useState<"original" | "parallel">("original");
+  const [visiblePages, setVisiblePages] = useState<number[]>([]);
+  const [hoverQuote, setHoverQuote] = useState<HoverQuote | null>(null);
+  const modeFits = !useMediaQuery("(max-width: 699.98px)");
   // A reference in the address (a sentence or a region) carries its own page.
   const reference =
     route.quote !== undefined ||
@@ -416,6 +433,13 @@ function PaperCard({
   const pages = doc?.numPages ?? 0;
   const file = source?.file ?? null;
   useEffect(() => onFile(file), [file, onFile]);
+  const parallel = useParallelTranslation({
+    paper,
+    file,
+    language: locale,
+    modelId: null,
+    visiblePages: mode === "parallel" ? visiblePages : [],
+  });
   const find = useFind(doc, controller);
   const preview = useLinkPreview(route.paperId, doc);
   const controllerNow = useRef(controller);
@@ -563,6 +587,13 @@ function PaperCard({
     undefined,
     "fill",
   );
+  // The sentence hovered in the translation beside a page, marked on the page.
+  useQuoteHighlight(
+    mode === "parallel" && hoverQuote
+      ? (textLayers.current.get(hoverQuote.page) ?? null)
+      : null,
+    hoverQuote?.quote ?? "",
+  );
   // Once the reference's page is drawn: the region to the middle if the sentence was not found there,
   // and the keyboard to the paper if nobody has it (as on any opening), once for each time the address is entered.
   const landed = useRef<string | null>(null);
@@ -648,7 +679,30 @@ function PaperCard({
         onOutline={() => setOutlineOpen((open) => !open)}
         onPaperChange={found}
         onBack={trail.length ? back : undefined}
-        panelToggle={panelToggle}
+        panelToggle={
+          <>
+            {modeFits && (
+              <SegmentedControl
+                kind="radio"
+                size="sm"
+                label={t("reader.parallel.mode")}
+                value={mode}
+                onChange={setMode}
+                options={[
+                  {
+                    value: "original",
+                    label: t("reader.parallel.mode.original"),
+                  },
+                  {
+                    value: "parallel",
+                    label: t("reader.parallel.mode.parallel"),
+                  },
+                ]}
+              />
+            )}
+            {panelToggle}
+          </>
+        }
       />
       {/* No height of its own: the bar floats over the top of the paper, and the pages do not move for it. */}
       {find.open && (
@@ -667,6 +721,18 @@ function PaperCard({
           controllerRef={setController}
           textLayerRef={onTextLayer}
           overlays={overlays}
+          pageAside={
+            mode === "parallel"
+              ? (number) => (
+                  <ParallelPage
+                    parallel={parallel}
+                    page={number}
+                    onHoverQuote={setHoverQuote}
+                  />
+                )
+              : undefined
+          }
+          onVisiblePages={setVisiblePages}
         />
       </RegionBoundary>
       {preview.element}
