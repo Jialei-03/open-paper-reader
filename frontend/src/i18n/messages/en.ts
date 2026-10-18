@@ -79,6 +79,12 @@ export const en = {
   "reader.pdf.password":
     "This PDF is protected by a password and can't be opened here.",
   "reader.pdf.pageFailed": "Page {page} could not be shown.",
+  "reader.link.internal": "Go to the linked place",
+  "reader.link.citation": "Go to the cited reference",
+  "reader.link.external": "Open {url} in a new tab",
+  "reader.link.back": "Back to where you were",
+  "reader.link.looking": "Looking up the reference…",
+  "reader.link.etAl": "{authors} et al.",
   "reader.panel.show": "Show side panel",
   "reader.panel.hide": "Hide side panel",
   "reader.panel.tabs": "Side panel views",

@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from "react";
 import { Floating } from "./Floating";
 import { Kbd } from "./Kbd";
 import type { Placement } from "./position";
@@ -17,6 +23,13 @@ export interface TooltipProps {
   placement?: Placement;
   /** Off: nothing is shown. For a name that is worth a tooltip only some of the time (a label that is cut short). */
   disabled?: boolean;
+  /**
+   * Shown while true and gone while false, whatever the pointer and the focus do
+   * (Esc still puts it away until it is next opened). For a hint about something
+   * the pointer rests on without it being the element under the pointer, such as
+   * a mark drawn beneath a page's text: its owner tells when, delay and all.
+   */
+  open?: boolean;
   /** One element, which the tooltip is placed against. It must name itself (an `aria-label`, say). */
   children: ReactElement;
 }
@@ -32,8 +45,10 @@ export function Tooltip({
   shortcut,
   placement = defaultPlacement,
   disabled = false,
+  open,
   children,
 }: TooltipProps) {
+  const controlled = open !== undefined;
   const wrapper = useRef<HTMLSpanElement>(null);
   const timer = useRef(0);
   // Set by a press: the pointer is still over the control, but it has been used,
@@ -65,6 +80,10 @@ export function Tooltip({
   useEffect(() => {
     if (disabled) hide();
   }, [disabled]);
+  // Told to show or to go: the child is there to be placed against once it is laid out.
+  useLayoutEffect(() => {
+    if (controlled) setAnchor(open && !disabled ? anchorOf() : null);
+  }, [controlled, open, disabled]);
 
   return (
     <span
@@ -72,7 +91,12 @@ export function Tooltip({
       className={styles.root}
       onPointerOver={(event) => {
         // A finger has no hover; and moving between parts of the control is not arriving.
-        if (event.pointerType === "touch" || timer.current || pressed.current)
+        if (
+          controlled ||
+          event.pointerType === "touch" ||
+          timer.current ||
+          pressed.current
+        )
           return;
         if (!inside(event.target) || inside(event.relatedTarget)) return;
         timer.current = window.setTimeout(show, HOVER_DELAY_MS);
@@ -80,20 +104,23 @@ export function Tooltip({
       onPointerDown={(event) => {
         // Pressed before the delay is over, or after: either way the tooltip is done,
         // or it would open late over whatever the press opened (a menu, say).
-        if (!inside(event.target)) return;
+        if (controlled || !inside(event.target)) return;
         pressed.current = true;
         hide();
       }}
       onPointerOut={(event) => {
-        if (!inside(event.target) || inside(event.relatedTarget)) return;
+        if (controlled || !inside(event.target) || inside(event.relatedTarget))
+          return;
         pressed.current = false;
         hide();
       }}
       onFocus={(event) => {
         // Only focus that came by keyboard: a click focuses too, and must not pop one up.
-        if (event.target.matches(":focus-visible")) show();
+        if (!controlled && event.target.matches(":focus-visible")) show();
       }}
-      onBlur={hide}
+      onBlur={() => {
+        if (!controlled) hide();
+      }}
     >
       {children}
       {anchor && (

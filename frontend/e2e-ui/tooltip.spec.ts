@@ -274,3 +274,40 @@ for (const theme of ["light", "dark"] as const) {
     expect(key).not.toBe(text);
   });
 }
+
+test("a tooltip on command shows and goes with its owner, not with the pointer", async ({
+  page,
+}) => {
+  await openKit(page);
+  const group = page.getByRole("group", { name: "Tooltip on command" });
+  const mark = group.getByRole("img", { name: "Marked passage" });
+  const toggle = group.getByRole("button", { name: "Show the note" });
+
+  // Resting on the mark does nothing by itself.
+  await mark.hover();
+  await page.waitForTimeout(700);
+  await expect(tooltip(page)).toHaveCount(0);
+
+  await toggle.click();
+  await expect(tooltip(page)).toBeVisible();
+  await expect(tooltip(page)).toHaveText("A note on this passage");
+  await settled(page);
+  // Against the mark (below it, centered), not against the button that opened it.
+  const [tip, box] = await Promise.all([boxOf(tooltip(page)), boxOf(mark)]);
+  expect(tip.top).toBeGreaterThanOrEqual(box.bottom);
+  expect(
+    Math.abs((tip.left + tip.right) / 2 - (box.left + box.right) / 2),
+  ).toBeLessThanOrEqual(1);
+  // Leaving the mark, or the button, does not take it away; its owner does.
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(200);
+  await expect(tooltip(page)).toBeVisible();
+  await toggle.click();
+  await expect(tooltip(page)).toHaveCount(0);
+
+  // Esc puts it away while it is shown.
+  await toggle.click();
+  await expect(tooltip(page)).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(tooltip(page)).toHaveCount(0);
+});

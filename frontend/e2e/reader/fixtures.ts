@@ -36,11 +36,20 @@ export type OutlineItem = {
 };
 
 /**
+ * A citation, as a paper typeset with hyperref has one: a link on page `from`
+ * (under the page's lines, at 40–200 × 560–590 points) to the destination named
+ * `cite.<key>`, which is the start of `entry`, a line of the reference list on
+ * page `to` (at 40, 390).
+ */
+export type Citation = { from: number; to: number; key: string; entry: string };
+
+/**
  * A PDF of `pages` pages, each saying which one it is. `links` are internal
  * links: a box near the top of page `from` that jumps to page `to`. `outline` is
  * the PDF's own table of contents; `words` puts a word on a page (a second line
  * under the one that says which page it is), to search for; `size` is a page's
- * width and height in points (a letter page, 612 × 792, unless given).
+ * width and height in points (a letter page, 612 × 792, unless given);
+ * `citations` are links to entries of a reference list, by name.
  */
 export function pdfWithPages(
   pages: number,
@@ -49,10 +58,13 @@ export function pdfWithPages(
     outline?: OutlineItem[];
     words?: Record<number, string>;
     size?: [number, number];
+    citations?: Citation[];
   } = {},
 ): Buffer {
   const [width, height] = options.size ?? [612, 792];
-  // 1 catalog, 2 page tree, 3 font; then a page and its content per page; then the links; then the outline.
+  const citations = options.citations ?? [];
+  // 1 catalog, 2 page tree, 3 font; then a page and its content per page; then the links; then the
+  // outline; then the citations' links, and the name tree of their destinations.
   const pageObject = (page: number) => 4 + 2 * (page - 1);
   const linkObject = (index: number) => 4 + 2 * pages + index;
   const outlineRoot = 4 + 2 * pages + links.length;
@@ -69,17 +81,30 @@ export function pdfWithPages(
     });
   const top = walk(options.outline ?? [], null);
   const objectOf = (index: number) => outlineRoot + 1 + index;
+  const citationObject = (index: number) =>
+    outlineRoot + (top.length ? 1 + flat.length : 0) + index;
+  const namesObject = citationObject(citations.length);
 
   const objects: string[] = [
-    `<< /Type /Catalog /Pages 2 0 R${top.length ? ` /Outlines ${outlineRoot} 0 R` : ""} >>`,
+    `<< /Type /Catalog /Pages 2 0 R${top.length ? ` /Outlines ${outlineRoot} 0 R` : ""}${citations.length ? ` /Names << /Dests ${namesObject} 0 R >>` : ""} >>`,
     `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => `${pageObject(i + 1)} 0 R`).join(" ")}] /Count ${pages} >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
   ];
   for (let page = 1; page <= pages; page++) {
     const word = options.words?.[page];
-    const stream = `BT /F1 20 Tf 40 ${height - 72} Td (Page ${page} of ${pages}) Tj${word ? ` 0 -40 Td (${word}) Tj` : ""} ET`;
-    const annots = links
-      .map((link, index) => (link.from === page ? linkObject(index) : 0))
+    const entries = citations
+      .filter((citation) => citation.to === page)
+      .map(({ entry }) => ` BT /F1 12 Tf 40 390 Td (${entry}) Tj ET`)
+      .join("");
+    const stream = `BT /F1 20 Tf 40 ${height - 72} Td (Page ${page} of ${pages}) Tj${word ? ` 0 -40 Td (${word}) Tj` : ""} ET${entries}`;
+    const annots = [
+      ...links.map((link, index) =>
+        link.from === page ? linkObject(index) : 0,
+      ),
+      ...citations.map((citation, index) =>
+        citation.from === page ? citationObject(index) : 0,
+      ),
+    ]
       .filter(Boolean)
       .map((object) => `${object} 0 R`)
       .join(" ");
@@ -111,6 +136,20 @@ export function pdfWithPages(
           ` /Dest ${item.dest ?? `[${pageObject(item.page)} 0 R /XYZ 40 720 null]`} >>`,
       );
     });
+  }
+  for (const citation of citations)
+    objects.push(
+      `<< /Type /Annot /Subtype /Link /Rect [40 560 200 590] /Border [0 0 0] /Dest (cite.${citation.key}) >>`,
+    );
+  if (citations.length) {
+    // A name tree lists its names in order.
+    const named = [...citations]
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
+      .map(
+        (citation) =>
+          `(cite.${citation.key}) [${pageObject(citation.to)} 0 R /XYZ 40 404 null]`,
+      );
+    objects.push(`<< /Names [${named.join(" ")}] >>`);
   }
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [];
@@ -154,6 +193,8 @@ export async function createPaperWithPdf(
     words?: Record<number, string>;
     /** The pages' width and height in points; letter-sized if left out. */
     size?: [number, number];
+    /** Links to entries of a reference list. */
+    citations?: Citation[];
   } = {},
 ): Promise<{ paperId: string; fileId: string; title: string }> {
   const title =
@@ -174,12 +215,14 @@ export async function createPaperWithPdf(
     !options.links &&
     !options.outline &&
     !options.words &&
-    !options.size
+    !options.size &&
+    !options.citations
       ? testPdf()
       : pdfWithPages(options.pages ?? 2, options.links, {
           outline: options.outline,
           words: options.words,
           size: options.size,
+          citations: options.citations,
         });
   const upload = await page.request.post(`/api/v1/papers/${paper.id}/files`, {
     headers: await writeHeaders(page),
@@ -196,4 +239,49 @@ export async function createPaperWithPdf(
 /** Go to the new reader at a route (the page must already be signed in). */
 export async function openReader(page: Page, route: ReaderRoute) {
   await page.goto("/" + readerHash(route));
+}
+
+/** A rectangle on a page, in fractions of the page's width and height from its top left. */
+export type PageRect = { x: number; y: number; w: number; h: number };
+
+/** A highlight saved through the API, as the old reader saves one (`PUT /files/{id}/annotations/{uuid}`). */
+export async function saveHighlight(
+  page: Page,
+  fileId: string,
+  highlight: {
+    page: number;
+    quote: string;
+    rects: PageRect[];
+    color: string;
+    comment?: string;
+  },
+): Promise<{ id: string }> {
+  const response = await page.request.put(
+    `/api/v1/files/${fileId}/annotations/${crypto.randomUUID()}`,
+    {
+      headers: await writeHeaders(page),
+      data: { prefix: "", comment: "", ...highlight },
+    },
+  );
+  expect(response.ok()).toBeTruthy();
+  return response.json();
+}
+
+/** A stroke of handwriting saved through the API (`PUT /files/{id}/ink/{uuid}`); points are x, y (fractions) and pressure. */
+export async function saveStroke(
+  page: Page,
+  fileId: string,
+  stroke: {
+    page: number;
+    color: string;
+    width: number;
+    points: [number, number, number][];
+  },
+): Promise<{ id: string }> {
+  const response = await page.request.put(
+    `/api/v1/files/${fileId}/ink/${crypto.randomUUID()}`,
+    { headers: await writeHeaders(page), data: stroke },
+  );
+  expect(response.ok()).toBeTruthy();
+  return response.json();
 }

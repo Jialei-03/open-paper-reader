@@ -788,12 +788,13 @@ test("the paper takes the keyboard on opening, so the zoom keys work at once", a
   expect(ring.shadow).toContain("inset");
 });
 
-test("a link to a quote leaves the keyboard alone, and so does a field being typed in", async ({
+test("a link to a quote gives the paper the keyboard once it is there, and a field being typed in keeps it", async ({
   page,
 }) => {
+  // The address names no page, so the quote is looked for on page 1 (layers.spec.ts has the rest).
   await open(page, {}, { quote: "Page 3 of 40" });
-  await page.waitForTimeout(500);
-  await expect(scroller(page)).not.toBeFocused();
+  await expect(scroller(page)).toBeFocused();
+  await expectAtTop(page, 1);
 
   // Typing somewhere else while the PDF is still coming in: the PDF waits.
   const slow = "**/api/v1/files/*/content";

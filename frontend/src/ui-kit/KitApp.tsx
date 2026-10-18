@@ -41,6 +41,7 @@ import {
   TextArea,
   TextField,
   Toaster,
+  Tooltip,
   parseAppearance,
   toast,
   useAppearance,
@@ -309,6 +310,7 @@ function FieldDemo() {
 }
 
 function TooltipDemo() {
+  const [marked, setMarked] = useState(false);
   return (
     <Section id="tooltip" title="Tooltip">
       <div role="group" aria-label="Tooltips" className={styles.row}>
@@ -317,6 +319,19 @@ function TooltipDemo() {
       </div>
       {/* Hard against the corner: the tooltip has to flip up and slide in. */}
       <IconButton className={styles.corner} icon={Info} label="Corner" />
+      {/* After the corner button, which the keyboard reaches from Find. Shown by its owner (as the reader does for a highlight under the page's text), not by hovering the mark. */}
+      <div role="group" aria-label="Tooltip on command" className={styles.row}>
+        <Button aria-pressed={marked} onClick={() => setMarked(!marked)}>
+          Show the note
+        </Button>
+        <Tooltip content="A note on this passage" open={marked}>
+          <span
+            className={styles.mark}
+            role="img"
+            aria-label="Marked passage"
+          />
+        </Tooltip>
+      </div>
     </Section>
   );
 }

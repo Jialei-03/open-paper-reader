@@ -26,16 +26,23 @@ export type OutlineSource = Pick<
 const MAX_DEPTH = 8;
 const MAX_ENTRIES = 3000;
 
+/** What a destination is looked up in. */
+export type DestinationSource = Pick<
+  OutlineSource,
+  "getDestination" | "getPageIndex" | "numPages"
+>;
+
 /**
- * The page a destination points at, from 1. A destination is an array whose
- * first item is the page (a number, or a reference to look up), or the name of
- * one the document defines. `null` for whatever does not lead to a page of this
- * document: a name nothing defines, a reference that is not a page, a failure.
+ * A destination looked up: the page it points at, from 1, and the array that
+ * says where on it. A destination is such an array, whose first item is the page
+ * (a number, or a reference to look up), or the name of one the document defines.
+ * `null` for whatever does not lead to a page of this document: a name nothing
+ * defines, a reference that is not a page, a failure.
  */
-export async function destinationPage(
-  doc: Pick<OutlineSource, "getDestination" | "getPageIndex" | "numPages">,
+export async function resolveDestination(
+  doc: DestinationSource,
   dest: unknown,
-): Promise<number | null> {
+): Promise<{ page: number; target: unknown[] } | null> {
   try {
     const target =
       typeof dest === "string" ? await doc.getDestination(dest) : dest;
@@ -47,10 +54,79 @@ export async function destinationPage(
         : await doc.getPageIndex(ref as { num: number; gen: number });
     const page = index + 1;
     return Number.isInteger(page) && page >= 1 && page <= doc.numPages
-      ? page
+      ? { page, target }
       : null;
   } catch {
     return null;
+  }
+}
+
+/** The page a destination points at, from 1; `null` as for `resolveDestination`. */
+export async function destinationPage(
+  doc: DestinationSource,
+  dest: unknown,
+): Promise<number | null> {
+  return (await resolveDestination(doc, dest))?.page ?? null;
+}
+
+/**
+ * The point on the page a destination's array names, in the PDF's units (from
+ * the page's bottom left), as far as it names one: `[page, /XYZ, left, top,
+ * zoom]`, `[page, /FitH, top]`, `[page, /FitBH, top]`, `[page, /FitR, left,
+ * bottom, right, top]`. Anything else (`/Fit`, a `null` left as "unchanged") is
+ * `null` there.
+ */
+export function destinationPoint(target: readonly unknown[]): {
+  left: number | null;
+  top: number | null;
+} {
+  const kind = (target[1] as { name?: unknown } | null | undefined)?.name;
+  const number = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) ? value : null;
+  switch (kind) {
+    case "XYZ":
+      return { left: number(target[2]), top: number(target[3]) };
+    case "FitH":
+    case "FitBH":
+      return { left: null, top: number(target[2]) };
+    case "FitR":
+      return { left: number(target[2]), top: number(target[5]) };
+    default:
+      return { left: null, top: null };
+  }
+}
+
+/** What a link is followed in: looking up its destination, and the page it lands on. */
+export type LinkSource = DestinationSource & Pick<PDFDocumentProxy, "getPage">;
+
+/**
+ * Where following a link inside the PDF goes: the page, from 1, and how far down
+ * it the destination is, as a fraction of the page's height (0, the top, when the
+ * destination does not say), `lead` units of the PDF above it so that the line
+ * it names is not hard against the edge. `null` for a destination that leads nowhere.
+ */
+export async function linkTarget(
+  doc: LinkSource,
+  dest: unknown,
+  lead = 0,
+): Promise<{ page: number; offset: number } | null> {
+  const resolved = await resolveDestination(doc, dest);
+  if (!resolved) return null;
+  const { top } = destinationPoint(resolved.target);
+  if (top === null) return { page: resolved.page, offset: 0 };
+  try {
+    const viewport = (await doc.getPage(resolved.page)).getViewport({
+      scale: 1,
+    });
+    // The PDF counts up from the page's foot: room above the point is a larger y.
+    const [, y] = viewport.convertToViewportPoint(0, top + lead);
+    const offset = y / viewport.height;
+    return {
+      page: resolved.page,
+      offset: Number.isFinite(offset) ? Math.max(0, Math.min(1, offset)) : 0,
+    };
+  } catch {
+    return { page: resolved.page, offset: 0 };
   }
 }
 

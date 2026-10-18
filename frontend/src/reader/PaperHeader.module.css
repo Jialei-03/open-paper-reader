@@ -61,6 +61,24 @@
   cursor: default;
 }
 
+/* The way back after a link is followed: it comes in, faded and from the side, beside the page it left. */
+.back {
+  flex: none;
+  /* The button's own transitions, and its opacity. */
+  transition:
+    background-color var(--ui-dur-1) var(--ui-ease-out),
+    color var(--ui-dur-1) var(--ui-ease-out),
+    transform var(--ui-dur-2) var(--ui-ease-out),
+    opacity var(--ui-dur-2) var(--ui-ease-out);
+}
+
+@starting-style {
+  .back {
+    opacity: 0;
+    transform: translateX(4px);
+  }
+}
+
 /* The percentage keeps its room while it changes. */
 .zoom {
   min-width: 56px;

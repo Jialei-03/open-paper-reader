@@ -8,6 +8,7 @@ import {
   List,
   Search,
   Star,
+  Undo2,
 } from "lucide-react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
@@ -228,6 +229,8 @@ export interface PaperHeaderProps {
   onOutline: () => void;
   /** The paper changed here (favorited): the new state of it. */
   onPaperChange: (paper: Paper) => void;
+  /** Back to where the reading was before a link inside the paper was followed; only while there is such a place. */
+  onBack?: () => void;
   /** The button that opens the side panel, in a window too narrow to show it beside the paper. */
   panelToggle?: ReactNode;
 }
@@ -250,6 +253,7 @@ export function PaperHeader({
   outlineOpen,
   onOutline,
   onPaperChange,
+  onBack,
   panelToggle,
 }: PaperHeaderProps) {
   const { t } = useI18n();
@@ -425,6 +429,14 @@ export function PaperHeader({
           <span className={styles.announcement} aria-live="polite">
             {t("reader.page.status", { page: announced, pages })}
           </span>
+        )}
+        {reading && onBack && (
+          <IconButton
+            icon={Undo2}
+            label={t("reader.link.back")}
+            className={styles.back}
+            onClick={onBack}
+          />
         )}
         {reading && (
           <PageControls

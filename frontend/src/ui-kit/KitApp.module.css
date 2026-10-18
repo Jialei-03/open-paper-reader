@@ -7,6 +7,7 @@
   --kit-narrow-width: 160px;
   --kit-field-width: 360px;
   --kit-corner-gap: 4px;
+  --kit-mark-width: 120px;
   --kit-boundary-height: 160px;
 }
 
@@ -145,6 +146,15 @@
   display: grid;
   gap: var(--ui-space-16);
   max-width: var(--kit-field-width);
+}
+
+/* A passage marked on a page, for the tooltip shown on command. */
+.mark {
+  display: inline-block;
+  width: var(--kit-mark-width);
+  height: var(--ui-text-16);
+  border-radius: var(--ui-r-4);
+  background: var(--ui-highlight);
 }
 
 /* Pinned to the window's bottom-right corner, to test a floating layer near an edge. */

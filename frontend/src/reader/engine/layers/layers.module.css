@@ -1,0 +1,108 @@
+/*
+ * What is laid over a page of the PDF. Everything is placed in fractions of the
+ * page (percentages), so a zoom moves it with the page and lays nothing out
+ * again. Inside the page, from the bottom: the canvas; the highlights; the
+ * handwriting; the text layer (z-index 1, above both, so the text can still be
+ * selected through them); the links (z-index 2, catching the pointer only where
+ * there is a link); the find's match and the reference (pdf-engine.css).
+ *
+ * The paper is white in both themes (the dark one dims the whole page with a
+ * filter), so what is laid on it is dark on light either way.
+ */
+
+.annotations {
+  /* How much of a highlight's color shows over the paper; the dark theme's filter takes some away. */
+  --highlight-mix: 30%;
+  --highlight-mix-active: 45%;
+  /* The dot that says a highlight has a comment. */
+  --comment-dot: 6px;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+:global(:root[data-theme="dark"]) .annotations {
+  --highlight-mix: 40%;
+  --highlight-mix-active: 55%;
+}
+
+/* A box of the highlight: its color, thinned, multiplied into the paper so the print stays black. */
+.rect {
+  position: absolute;
+  background: color-mix(
+    in oklab,
+    var(--annotation-color) var(--highlight-mix),
+    transparent
+  );
+  mix-blend-mode: multiply;
+  transition: background-color var(--ui-dur-2) var(--ui-ease-out);
+}
+
+/* The highlight whose comment is showing. */
+.annotation[data-active] .rect {
+  background: color-mix(
+    in oklab,
+    var(--annotation-color) var(--highlight-mix-active),
+    transparent
+  );
+}
+
+/* Centered on the highlight's top right corner, in its own color made deep enough to see on white. */
+.dot {
+  position: absolute;
+  width: var(--comment-dot);
+  height: var(--comment-dot);
+  margin: calc(var(--comment-dot) / -2) 0 0 calc(var(--comment-dot) / -2);
+  border-radius: var(--ui-r-pill);
+  background: var(--annotation-color);
+  filter: brightness(0.7);
+}
+
+/* Handwriting, in the PDF's own units: it scales with the page. Only shown here, never written. */
+.ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.ink path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.links {
+  /* A link is tinted under the pointer. --ui-hover is a light tint in the dark theme, which white paper would not show. */
+  --link-hover: var(--ui-hover);
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+:global(:root[data-theme="dark"]) .links {
+  --link-hover: rgb(var(--ui-shade) / 0.08);
+}
+
+/* Clear until the pointer is on it: the PDF draws the link (blue text, a box) itself, or not. */
+.link {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-4);
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.link:hover {
+  background: var(--link-hover);
+}

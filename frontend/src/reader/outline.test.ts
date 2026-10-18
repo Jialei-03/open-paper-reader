@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { destinationPage, loadOutline, type OutlineSource } from "./outline";
+import {
+  destinationPage,
+  destinationPoint,
+  linkTarget,
+  loadOutline,
+  resolveDestination,
+  type LinkSource,
+  type OutlineSource,
+} from "./outline";
 
 /** A document of `numPages` pages whose page objects are `{ num: 10 + index, gen: 0 }`. */
 function document(
@@ -125,5 +133,93 @@ describe("loadOutline", () => {
       items: [],
     }));
     expect((await loadOutline(document(wide))).length).toBe(3000);
+  });
+});
+
+describe("resolveDestination", () => {
+  it("gives the page and the array that says where on it", async () => {
+    const at = [ref(6), { name: "XYZ" }, 40, 700, null];
+    const doc = document(null, { named: { "cite.a": at } });
+    expect(await resolveDestination(doc, "cite.a")).toEqual({
+      page: 7,
+      target: at,
+    });
+    expect(await resolveDestination(doc, "nothing")).toBeNull();
+  });
+});
+
+describe("destinationPoint", () => {
+  it("reads the point each kind of destination names", () => {
+    const page = ref(0);
+    expect(destinationPoint([page, { name: "XYZ" }, 40, 700, 0])).toEqual({
+      left: 40,
+      top: 700,
+    });
+    expect(destinationPoint([page, { name: "FitH" }, 500])).toEqual({
+      left: null,
+      top: 500,
+    });
+    expect(destinationPoint([page, { name: "FitBH" }, 320])).toEqual({
+      left: null,
+      top: 320,
+    });
+    expect(
+      destinationPoint([page, { name: "FitR" }, 10, 100, 300, 600]),
+    ).toEqual({ left: 10, top: 600 });
+  });
+
+  it("is null where the destination leaves the place as it is, or names none", () => {
+    const page = ref(0);
+    expect(destinationPoint([page, { name: "XYZ" }, null, null, 0])).toEqual({
+      left: null,
+      top: null,
+    });
+    expect(destinationPoint([page, { name: "Fit" }])).toEqual({
+      left: null,
+      top: null,
+    });
+    expect(destinationPoint([page])).toEqual({ left: null, top: null });
+    expect(
+      destinationPoint([page, { name: "XYZ" }, Number.NaN, Infinity]),
+    ).toEqual({ left: null, top: null });
+  });
+});
+
+describe("linkTarget", () => {
+  /** Pages of 600 × 800 units; the PDF counts up from the bottom, the screen down from the top. */
+  function linked(named: Record<string, unknown[]>, pageFails = false) {
+    return {
+      ...document(null, { named }),
+      getPage: async () => {
+        if (pageFails) throw new Error("unreadable page");
+        return {
+          getViewport: () => ({
+            width: 600,
+            height: 800,
+            convertToViewportPoint: (x: number, y: number) => [x, 800 - y],
+          }),
+        };
+      },
+    } as unknown as LinkSource;
+  }
+
+  it("lands on the page, as far down it as the destination says", async () => {
+    const doc = linked({
+      high: [ref(4), { name: "XYZ" }, 0, 600, null],
+      whole: [ref(2), { name: "Fit" }],
+      above: [ref(1), { name: "FitH" }, 900],
+    });
+    expect(await linkTarget(doc, "high")).toEqual({ page: 5, offset: 0.25 });
+    expect(await linkTarget(doc, "whole")).toEqual({ page: 3, offset: 0 });
+    // A point above the page is its top.
+    expect(await linkTarget(doc, "above")).toEqual({ page: 2, offset: 0 });
+    expect(await linkTarget(doc, "missing")).toBeNull();
+    // With room above the line it names.
+    expect(await linkTarget(doc, "high", 40)).toEqual({ page: 5, offset: 0.2 });
+  });
+
+  it("still lands on the page when the page cannot be read", async () => {
+    const doc = linked({ high: [ref(4), { name: "XYZ" }, 0, 600] }, true);
+    expect(await linkTarget(doc, "high")).toEqual({ page: 5, offset: 0 });
   });
 });

@@ -272,8 +272,17 @@ export function PdfPages({
     place(index + 1, value - index);
   };
 
-  /** Called before a change that moves the pages under the view, so the view can follow. */
+  /**
+   * Called before a change that moves the pages under the view, so the view can
+   * follow. A page scrolled to is held, unless the view has moved since (by
+   * something scrolled into view, say a quote, before the scroll was heard):
+   * then it is where the view is now that is kept.
+   */
   const keep = () => {
+    const held = hold.current;
+    const scroller = root.current;
+    if (held && scroller && Math.abs(scroller.scrollTop - held.top) > 2)
+      hold.current = null;
     if (kept.current === null && !hold.current && !zoom.zooming.current)
       kept.current = position();
   };

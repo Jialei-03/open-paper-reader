@@ -81,6 +81,49 @@
 }
 
 /*
+ * Where the address points (a link into the paper). A sentence: lib/reference's
+ * highlight lays a layer over the page with a box for each line of it, which is
+ * underlined and tinted in the accent. A region (`rect`): its box, ringed in the
+ * accent. Both over the text, and in the way of nothing the pointer does. The
+ * rules of the old reader's stylesheet for the same names are for its pages;
+ * these are more specific.
+ */
+.opr-pdf .pdf-reference-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  animation: opr-reference-in var(--ui-dur-3) var(--ui-ease-out) both;
+}
+
+.opr-pdf .pdf-reference-underline {
+  position: absolute;
+  height: 2px;
+  background: var(--ui-accent);
+}
+
+.opr-pdf .pdf-reference-fill .pdf-reference-underline {
+  border-radius: var(--ui-r-4) var(--ui-r-4) 0 0;
+  background: color-mix(in oklab, var(--ui-accent) 14%, transparent);
+  box-shadow: inset 0 -2px 0 var(--ui-accent);
+}
+
+.opr-pdf .pdf-reference-region {
+  position: absolute;
+  z-index: 4;
+  border-radius: var(--ui-r-4);
+  box-shadow: 0 0 0 2px var(--ui-accent);
+  pointer-events: none;
+  animation: opr-reference-in var(--ui-dur-3) var(--ui-ease-out) both;
+}
+
+@keyframes opr-reference-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/*
  * pdf.js measures text with a canvas it adds to the end of <body>. Left showing
  * it would add a line under the reader, and the window would scroll. Only while
  * the engine is on screen, so the old pages stay exactly as they were.

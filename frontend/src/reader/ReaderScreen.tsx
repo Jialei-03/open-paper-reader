@@ -3,6 +3,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -12,7 +13,12 @@ import {
   type RefObject,
 } from "react";
 import type { Paper, SourceFile } from "../api";
+import { usePdfAnnotations, type PdfRect } from "../features/PdfAnnotations";
+import { usePdfInk } from "../features/PdfInk";
+import type { PdfDestination } from "../features/PdfLinks";
 import { useI18n } from "../i18n/I18nProvider";
+import { pdfRegion } from "../lib/pdf-region";
+import { useReferenceHighlight } from "../lib/reference";
 import {
   Button,
   Card,
@@ -24,13 +30,24 @@ import {
   matchesShortcut,
 } from "../ui";
 import { recentPapers, rememberPaper } from "../lib/recent-papers";
-import { PdfPages, zoomShortcut, type PdfController } from "./engine/PdfPages";
+import { AnnotationLayer, pageBox } from "./engine/layers/AnnotationLayer";
+import { InkLayer } from "./engine/layers/InkLayer";
+import { PageLinkLayer } from "./engine/layers/LinkLayer";
+import { useLinkPreview, type LinkPreview } from "./engine/LinkPreview";
+import {
+  PdfPages,
+  zoomShortcut,
+  type PageGeometry,
+  type PdfController,
+  type PdfPagesProps,
+} from "./engine/PdfPages";
 import { usePdfDocument } from "./engine/usePdfDocument";
 import { FindBar, useFind, type Find } from "./FindBar";
 import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
+import { linkTarget } from "./outline";
 import { followLink, type ReaderRoute } from "./route";
 import { usePaper } from "./usePaper";
 import styles from "./ReaderScreen.module.css";
@@ -60,6 +77,67 @@ function useNarrowWindow(): boolean {
 /** Megabytes with one decimal, as the download progress shows them. */
 const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
 
+/** What the card lays over the pages, besides what is saved with the PDF. */
+interface Overlays {
+  /** A link inside the PDF was clicked. */
+  onLink(dest: PdfDestination): void;
+  preview: LinkPreview;
+  /** The region of a page the address points at. */
+  region: { page: number; rect: PdfRect } | null;
+}
+
+/**
+ * The pages, with what is laid over each one: the highlights and handwriting
+ * saved on the PDF (shown, not edited, here), its links, and the region the
+ * address points at.
+ */
+function PaperPages({
+  overlays: { onLink, preview, region },
+  ...props
+}: Omit<PdfPagesProps, "pageOverlays"> & { overlays: Overlays }) {
+  const { doc, file } = props;
+  const annotations = usePdfAnnotations(file.id).rows;
+  const strokes = usePdfInk(file.id).strokes;
+  const { hover, close, describedBy } = preview;
+  const pageOverlays = useCallback(
+    (page: number, geometry: PageGeometry) => (
+      <>
+        <AnnotationLayer
+          annotations={annotations}
+          page={page}
+          rotation={geometry.rotation}
+        />
+        <InkLayer
+          strokes={strokes}
+          page={page}
+          rotation={geometry.rotation}
+          size={{
+            width: geometry.width / geometry.scale,
+            height: geometry.height / geometry.scale,
+          }}
+        />
+        <PageLinkLayer
+          doc={doc}
+          page={page}
+          onInternal={onLink}
+          onExternal={close}
+          onPreview={hover}
+          describedBy={describedBy}
+        />
+        {region?.page === page && (
+          <div
+            className="pdf-reference-region"
+            style={pageBox(region.rect)}
+            aria-hidden="true"
+          />
+        )}
+      </>
+    ),
+    [annotations, strokes, doc, onLink, hover, close, describedBy, region],
+  );
+  return <PdfPages {...props} pageOverlays={pageOverlays} />;
+}
+
 /**
  * Under the card's header: the paper's PDF, or why it is not there (loading,
  * not found, refused, no PDF, a PDF that would not open). What breaks while it
@@ -74,6 +152,7 @@ function PaperBody({
   onPageChange,
   controllerRef,
   textLayerRef,
+  overlays,
 }: {
   route: ReaderRoute;
   go: (hash: string) => void;
@@ -84,6 +163,7 @@ function PaperBody({
   onPageChange: (page: number) => void;
   controllerRef: Ref<PdfController>;
   textLayerRef: Find["onTextLayer"];
+  overlays: Overlays;
 }) {
   const { t } = useI18n();
   const { paper, pdf, error, missing, loading, retry } = usePaper(
@@ -161,7 +241,7 @@ function PaperBody({
     );
   }
   return (
-    <PdfPages
+    <PaperPages
       key={pdf.id}
       doc={pdfDocument.doc}
       file={pdf}
@@ -169,9 +249,25 @@ function PaperBody({
       onPageChange={onPageChange}
       controllerRef={controllerRef}
       textLayerRef={textLayerRef}
+      overlays={overlays}
     />
   );
 }
+
+/** Where the reading was when a link was followed, to come back to. */
+interface Spot {
+  /** The desk's scroll position. */
+  top: number;
+  left: number;
+  /** And the same as a position in the pages, for a zoom that has changed since. */
+  position: number;
+  percent: number;
+}
+
+/** How many links followed one after another can be come back from. */
+const TRAIL = 50;
+/** Room left above the line a link leads to, in the PDF's units (a third of an inch). */
+const LINK_LEAD = 24;
 
 /** The paper's PDF, and the document once it has opened. */
 interface Source {
@@ -222,6 +318,11 @@ function PaperCard({
   const doc = source?.doc ?? null;
   const pages = doc?.numPages ?? 0;
   const find = useFind(doc, controller);
+  const preview = useLinkPreview(route.paperId, doc);
+  const controllerNow = useRef(controller);
+  controllerNow.current = controller;
+  const docNow = useRef(doc);
+  docNow.current = doc;
 
   // An address that names a page (a link into the paper) goes there.
   useEffect(() => {
@@ -243,7 +344,8 @@ function PaperCard({
   };
 
   // The keys of the paper work from wherever the keyboard is in the card, so the paper has the keyboard
-  // from the start, unless somebody is typing, or an address with a quote (which goes to the quote).
+  // from the start, unless somebody is typing, or an address with a quote (which goes to the quote,
+  // and gives the paper the keyboard once it is there, below).
   const focused = useRef<PDFDocumentProxy | null>(null);
   const reference =
     route.quote !== undefined ||
@@ -256,6 +358,134 @@ function PaperCard({
     if (reference || typing(document.activeElement)) return;
     desk.focus({ preventScroll: true });
   }, [doc, controller, reference]);
+
+  // Following a link inside the PDF leaves a way back to where the reading was; the page field,
+  // the steps and the contents do not.
+  const [trail, setTrail] = useState<Spot[]>([]);
+  useEffect(() => setTrail([]), [doc]);
+  const followLinkInPaper = useCallback(
+    async (dest: PdfDestination) => {
+      preview.close();
+      const opened = docNow.current;
+      if (!opened) return;
+      const target = await linkTarget(opened, dest, LINK_LEAD);
+      const pages = controllerNow.current;
+      const desk = pages?.root;
+      // A link that leads nowhere is not followed; nor one whose paper has gone meanwhile.
+      if (!target || !pages || !desk || docNow.current !== opened) return;
+      const spot: Spot = {
+        top: desk.scrollTop,
+        left: desk.scrollLeft,
+        position: pages.position(),
+        percent: pages.percent,
+      };
+      setTrail((trail) => [...trail.slice(1 - TRAIL), spot]);
+      pages.scrollToPage(target.page, target.offset);
+    },
+    [preview.close],
+  );
+  const back = () => {
+    const spot = trail.at(-1);
+    const desk = controller?.root;
+    if (!spot || !controller || !desk) return;
+    setTrail(trail.slice(0, -1));
+    if (Math.abs(controller.percent - spot.percent) < 0.01) {
+      desk.scrollTop = spot.top;
+      desk.scrollLeft = spot.left;
+    } else {
+      // The pages are another size now: the same place in them.
+      const index = Math.floor(spot.position);
+      controller.scrollToPage(index + 1, spot.position - index);
+    }
+    // The button goes with the last way back: the keyboard goes to the paper rather than nowhere.
+    if (trail.length === 1) desk.focus({ preventScroll: true });
+  };
+
+  // The reference of the address: the sentence (`quote`, after `prefix`) is marked on its page and
+  // brought to the middle of the view, else the region (`rect`) is; else the page's top is shown.
+  const referencePage = route.page ?? 1;
+  const quote = route.quote ?? "";
+  const prefix = route.prefix ?? "";
+  const region = useMemo(() => {
+    const rect = route.rect ? pdfRegion(route.rect) : null;
+    return rect ? { page: referencePage, rect } : null;
+  }, [route.rect, referencePage]);
+  // The text layers that are drawn, by page: the reference's is where the sentence is looked for.
+  const textLayers = useRef(new Map<number, HTMLDivElement>());
+  const referencePageNow = useRef(referencePage);
+  referencePageNow.current = referencePage;
+  const [referenceLayer, setReferenceLayer] = useState<HTMLDivElement | null>(
+    null,
+  );
+  useEffect(() => {
+    setReferenceLayer(textLayers.current.get(referencePage) ?? null);
+  }, [referencePage]);
+  const findOnTextLayer = find.onTextLayer;
+  const onTextLayer = useCallback(
+    (number: number, element: HTMLDivElement | null, rendered: boolean) => {
+      findOnTextLayer(number, element, rendered);
+      if (rendered && element) textLayers.current.set(number, element);
+      else textLayers.current.delete(number);
+      if (number === referencePageNow.current)
+        setReferenceLayer(rendered ? element : null);
+    },
+    [findOnTextLayer],
+  );
+  // The same address entered again (a link to where the reader already is): to its page again, and
+  // the highlight marks the sentence anew. Before the highlight below, which then centres it.
+  const [visits, setVisits] = useState(0);
+  useEffect(() => {
+    const again = () => setVisits((count) => count + 1);
+    window.addEventListener("reference-navigate", again);
+    return () => window.removeEventListener("reference-navigate", again);
+  }, []);
+  // So does a new reference in the address, on a page the paper may have scrolled away from.
+  const referenceKey = JSON.stringify([
+    referencePage,
+    quote,
+    prefix,
+    route.rect ?? "",
+  ]);
+  const sought = useRef({ key: referenceKey, visits });
+  useEffect(() => {
+    const before = sought.current;
+    sought.current = { key: referenceKey, visits };
+    if (!reference || (before.key === referenceKey && before.visits === visits))
+      return;
+    controllerNow.current?.scrollToPage(referencePage);
+  }, [referenceKey, visits]);
+  const referenceRoot = useRef<HTMLDivElement | null>(null);
+  referenceRoot.current = referenceLayer;
+  useReferenceHighlight(
+    referenceRoot,
+    referenceLayer ? quote : "",
+    prefix,
+    referenceLayer,
+    false,
+    undefined,
+    "fill",
+  );
+  // Once the reference's page is drawn: the region to the middle if the sentence was not found there,
+  // and the keyboard to the paper (as on any opening), once for each time the address is entered.
+  const landed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!reference || !referenceLayer) return;
+    const key = `${referenceKey}\n${visits}`;
+    if (landed.current === key) return;
+    landed.current = key;
+    if (referenceLayer.dataset.referenceFound !== "true")
+      referenceLayer.parentElement
+        ?.querySelector(".pdf-reference-region")
+        ?.scrollIntoView({
+          block: "center",
+          inline: "nearest",
+          behavior: "instant",
+        });
+    if (!typing(document.activeElement))
+      controllerNow.current?.root?.focus({ preventScroll: true });
+  }, [reference, referenceLayer, referenceKey, visits]);
+
+  const overlays: Overlays = { onLink: followLinkInPaper, preview, region };
 
   // The screen's mod+f reaches the find bar through this.
   useEffect(() => {
@@ -310,6 +540,7 @@ function PaperCard({
         outlineOpen={outlineOpen}
         onOutline={() => setOutlineOpen((open) => !open)}
         onPaperChange={found}
+        onBack={trail.length ? back : undefined}
         panelToggle={panelToggle}
       />
       {/* No height of its own: the bar floats over the top of the paper, and the pages do not move for it. */}
@@ -327,9 +558,11 @@ function PaperCard({
           page={page}
           onPageChange={setPage}
           controllerRef={setController}
-          textLayerRef={find.onTextLayer}
+          textLayerRef={onTextLayer}
+          overlays={overlays}
         />
       </RegionBoundary>
+      {preview.element}
     </div>
   );
 }
