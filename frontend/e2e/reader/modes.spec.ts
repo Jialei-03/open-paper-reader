@@ -27,6 +27,8 @@ type Service = {
   /** The bodies of the requests that started a translation, and the ids of the jobs asked to stop. */
   started: Row[];
   cancelled: string[];
+  /** The bodies of the requests for a page's translation (对照), in the order they came. */
+  pageAsks: Row[];
 };
 
 /** A layout translation job of this PDF, running unless the fields say otherwise. */
@@ -57,8 +59,37 @@ async function serve(
     jobs: [],
     started: [],
     cancelled: [],
+    pageAsks: [],
     ...start,
   };
+  // 对照: each page asked for is being translated, and stays so (what the column shows of it is parallel.spec's).
+  const pageRows = new Map<string, Row>();
+  await page.route(`**/api/v1/papers/${paperId}/reading-artifacts`, (route) => {
+    if (route.request().method() === "GET")
+      return route.fulfill({ json: [...pageRows.values()].reverse() });
+    const body = route.request().postDataJSON() as Row;
+    if (body.kind !== "page_translation") return route.fallback();
+    service.pageAsks.push(body);
+    const row: Row = {
+      id: `pt-${service.pageAsks.length}`,
+      file_id: body.file_id,
+      kind: "page_translation",
+      status: "running",
+      model_config_id: body.model_config_id,
+      error: "",
+      parameters: { page: body.page, language: body.language },
+      result: null,
+    };
+    pageRows.set(row.id as string, row);
+    return route.fulfill({ json: row });
+  });
+  await page.route("**/api/v1/reading-artifacts/*", (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").at(-1)!;
+    const row = pageRows.get(id);
+    return row
+      ? route.fulfill({ json: row })
+      : route.fulfill({ status: 404, json: { detail: "not found" } });
+  });
   await page.route("**/api/v1/translation-settings", (route) =>
     route.fulfill({
       json: {
@@ -109,6 +140,27 @@ const layoutPanel = (page: Page) =>
   main(page).getByRole("region", { name: "版面翻译", exact: true });
 const progressBar = (page: Page) =>
   layoutPanel(page).getByRole("progressbar", { name: "翻译进度" });
+const column = (page: Page, number: number) =>
+  page.getByRole("group", { name: `第 ${number} 页的译文`, exact: true });
+const selectionMenu = (page: Page) =>
+  page.getByRole("menu", { name: "划选的文字", exact: true });
+
+/** Drag across a line of a page's text, in whole pixels (Chromium starts no selection at a fraction of one). */
+async function selectLine(page: Page, line: Locator) {
+  const from = (await line.boundingBox())!;
+  await page.mouse.move(
+    Math.round(from.x + 2),
+    Math.round(from.y + from.height / 2),
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    Math.round(from.x + from.width - 2),
+    Math.round(from.y + from.height / 2),
+    { steps: 12 },
+  );
+  await page.mouse.up();
+  await expect(selectionMenu(page)).toBeVisible();
+}
 
 /** Sign in and open a paper of eight pages with the service mocked; wait for the first page to be drawn. */
 async function open(
@@ -375,7 +427,9 @@ test("the side by side view keeps the page and the original while it is built", 
 
   await mode(page, "对照").click();
   await expect(mode(page, "对照")).toHaveAttribute("aria-checked", "true");
+  await expect(column(page, 4)).toBeVisible();
   await expect(pageInput(page)).toHaveValue("4");
+  await expectAtTop(page, 4);
   await expect(layoutPanel(page)).toHaveCount(0);
 
   // Translating the page again is offered here, and only here.
@@ -386,11 +440,134 @@ test("the side by side view keeps the page and the original while it is built", 
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await mode(page, "原文").click();
+  await expect(column(page, 4)).toHaveCount(0);
   await expect(pageInput(page)).toHaveValue("4");
+  await expectAtTop(page, 4);
   await menuButton(page).click();
   await expect(
     items.getByRole("menuitem", { name: "重新翻译这一页" }),
   ).toHaveCount(0);
+});
+
+test("对照 through the switch puts a column beside the page, translated as the menu says", async ({
+  page,
+}) => {
+  const { fileId, service } = await open(page);
+  const items = page.getByRole("menu", { name: "翻译设置" });
+  await menuButton(page).click();
+  await items.getByRole("menuitem", { name: /译为 English/ }).click();
+  await expect(items).toBeHidden();
+  await menuButton(page).click();
+  await items.getByRole("menuitem", { name: /Second model/ }).click();
+  await expect(items).toBeHidden();
+  // Nothing is translated page by page until 对照 is chosen.
+  await page.waitForTimeout(500);
+  expect(service.pageAsks).toEqual([]);
+
+  await mode(page, "对照").click();
+  await expect(column(page, 1)).toBeVisible();
+  const [sheet, side] = await Promise.all([
+    pdfPage(page, 1).boundingBox(),
+    column(page, 1).boundingBox(),
+  ]);
+  expect(side!.x).toBeGreaterThan(sheet!.x + sheet!.width);
+  expect(Math.abs(side!.y - sheet!.y)).toBeLessThan(2);
+  await expect
+    .poll(() => service.pageAsks[0])
+    .toMatchObject({
+      file_id: fileId,
+      kind: "page_translation",
+      page: 1,
+      language: "en",
+      model_config_id: "model-2",
+    });
+  expect(service.pageAsks.every((body) => body.language === "en")).toBe(true);
+});
+
+test("重新翻译这一页 asks for the page being read anew", async ({ page }) => {
+  const { service } = await open(page);
+  await jumpTo(page, 3);
+  await mode(page, "对照").click();
+  await expect(column(page, 3)).toBeVisible();
+  await expect
+    .poll(() => service.pageAsks.map((body) => body.page))
+    .toContain(3);
+  expect(service.pageAsks.some((body) => body.regenerate)).toBe(false);
+  await expect(pageInput(page)).toHaveValue("3");
+
+  await menuButton(page).click();
+  await page
+    .getByRole("menu", { name: "翻译设置" })
+    .getByRole("menuitem", { name: "重新翻译这一页" })
+    .click();
+  await expect
+    .poll(() => service.pageAsks.at(-1))
+    .toMatchObject({ page: 3, regenerate: true, language: "zh" });
+  expect(service.pageAsks.filter((body) => body.regenerate)).toHaveLength(1);
+});
+
+test("in 译文 the translated PDF's text is selected as ever, but not highlighted", async ({
+  page,
+}) => {
+  await signIn(page);
+  const paper = await createPaperWithPdf(page, { pages: PAGES });
+  const translatedId = await addTranslatedPdf(page, paper.paperId);
+  await serve(page, paper.paperId, paper.fileId, {
+    jobs: [
+      job(paper.fileId, {
+        status: "completed",
+        completed: 100,
+        stage: "翻译完成",
+        translated_file: translatedId,
+      }),
+    ],
+  });
+  await openReader(page, { paperId: paper.paperId });
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() !== "GET" && request.url().includes("/annotations"))
+      writes.push(request.url());
+  });
+
+  await mode(page, "译文").click();
+  await expect(scroller(page)).toHaveAttribute("data-file", translatedId);
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  await selectLine(
+    page,
+    pdfPage(page, 1).locator(".textLayer span", { hasText: "Translated copy" }),
+  );
+  const highlight = selectionMenu(page).getByRole("menuitem", {
+    name: "高亮",
+    exact: true,
+  });
+  await expect(highlight).toHaveAttribute("aria-disabled", "true");
+  await expect(highlight).toHaveAccessibleDescription("译文 PDF 上不能高亮");
+  await highlight.hover();
+  await expect(page.locator('[role="tooltip"]')).toHaveText(
+    "译文 PDF 上不能高亮",
+  );
+  // Its key says so too; the row stays, the rest of it as it was.
+  await page.keyboard.press("h");
+  await expect(
+    page.getByRole("status").filter({ hasText: "译文 PDF 上不能高亮" }),
+  ).toBeVisible();
+  await expect(selectionMenu(page)).toBeVisible();
+  await expect(
+    selectionMenu(page).getByRole("menuitem", { name: "解释", exact: true }),
+  ).not.toHaveAttribute("aria-disabled");
+  expect(writes).toEqual([]);
+
+  // On the paper's own PDF it highlights as ever.
+  await page.keyboard.press("Escape");
+  await mode(page, "原文").click();
+  await expect(scroller(page)).toHaveAttribute("data-file", paper.fileId);
+  await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
+  await selectLine(
+    page,
+    pdfPage(page, 1).locator(".textLayer span", { hasText: "Page 1 of" }),
+  );
+  await expect(highlight).not.toHaveAttribute("aria-disabled");
 });
 
 test("the language chosen in the menu is kept for the next visit", async ({

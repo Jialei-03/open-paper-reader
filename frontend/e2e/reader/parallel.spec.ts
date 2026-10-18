@@ -121,6 +121,17 @@ const mode = (page: Page, name: "原文" | "对照") =>
   page
     .getByRole("radiogroup", { name: "阅读方式" })
     .getByRole("radio", { name, exact: true });
+/** Where the strip has no room for the switch, the reading modes are in one menu, its button saying the chosen one. */
+async function chooseInMenu(page: Page, name: "原文" | "对照") {
+  await page
+    .getByRole("main")
+    .getByRole("button", { name: /^阅读方式：/ })
+    .click();
+  await page
+    .getByRole("menu", { name: "翻译设置" })
+    .getByRole("menuitem", { name: new RegExp(`${name}$`) })
+    .click();
+}
 const pageInput = (page: Page) =>
   page.getByRole("main").getByRole("textbox", { name: "页码", exact: true });
 const menu = (page: Page) =>
@@ -408,7 +419,7 @@ test("in a card too narrow for a column beside the page, the translation goes un
     ]),
   }));
   const before = await box(pdfPage(page, 1));
-  await mode(page, "对照").click();
+  await chooseInMenu(page, "对照");
   await expect(status(page, 1)).toHaveText("已翻译");
 
   const sheet = await box(pdfPage(page, 1));

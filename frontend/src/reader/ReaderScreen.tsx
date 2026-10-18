@@ -114,8 +114,14 @@ interface Overlays {
  */
 function PaperPages({
   overlays: { onLink, preview, region, paper, scroller, onAsk, onNote },
+  translated,
   ...props
-}: Omit<PdfPagesProps, "pageOverlays"> & { overlays: Overlays }) {
+}: Omit<PdfPagesProps, "pageOverlays"> & {
+  overlays: Overlays;
+  /** The pages are the paper's translated PDF, not its own: what is selected there is not highlighted. */
+  translated: boolean;
+}) {
+  const { t } = useI18n();
   const { doc, file } = props;
   const store = usePdfAnnotations(file.id);
   const annotations = store.rows;
@@ -168,6 +174,9 @@ function PaperPages({
           annotations={store}
           onAsk={onAsk}
           onNote={onNote}
+          noHighlight={
+            translated ? t("reader.selection.highlightTranslated") : undefined
+          }
         />
       )}
     </>
@@ -296,6 +305,7 @@ function PaperBody({
       controllerRef={controllerRef}
       textLayerRef={textLayerRef}
       overlays={overlays}
+      translated={drawn!.id !== pdf.id}
       pageAside={pageAside}
       onVisiblePages={onVisiblePages}
     />
@@ -307,9 +317,11 @@ interface Spot {
   /** The desk's scroll position. */
   top: number;
   left: number;
-  /** And the same as a position in the pages, for a zoom that has changed since. */
+  /** And the same as a position in the pages, for a zoom (or a reading mode) that has changed since. */
   position: number;
   percent: number;
+  /** The pages are laid out otherwise in another reading mode (a column beside each one). */
+  mode: ReadingMode;
 }
 
 /** How many links followed one after another can be come back from. */
@@ -423,7 +435,6 @@ function PaperCard({
   onNote: Overlays["onNote"];
   actions: RefObject<PaperActions | null>;
 }) {
-  const { locale } = useI18n();
   const [paper, setPaper] = useState<Paper | null>(null);
   const [visiblePages, setVisiblePages] = useState<number[]>([]);
   const [hoverQuote, setHoverQuote] = useState<HoverQuote | null>(null);
@@ -450,6 +461,19 @@ function PaperCard({
   const [language, setLanguage] = useTranslationLanguage();
   const [modelId, setModelId] = useState<string | null>(null);
   const layout = useLayoutTranslation({ paper, file, modelId });
+  // 对照: each page's translation beside it, made in the language and with the model of the menu, for the
+  // pages near the view (nothing is asked for in the other modes).
+  const parallel = useParallelTranslation({
+    paper,
+    file,
+    language,
+    modelId,
+    visiblePages: mode === "parallel" ? visiblePages : [],
+  });
+  // 译文 with no translated PDF yet: the card says how to make one, and there are no pages to move about in.
+  const waiting = mode === "translated" && !layout.translatedFile;
+  const shownDoc = waiting ? null : doc;
+  const shownPages = waiting ? 0 : pages;
   const modeControls = {
     mode,
     onMode: setMode,
@@ -457,24 +481,20 @@ function PaperCard({
     onLanguage: setLanguage,
     modelId,
     onModel: setModelId,
-    // PLACEHOLDER (对照): side by side is not built into this screen yet. The controller connects this
-    // to translating the current page again (sub-agent E1's hook).
-    onRetranslatePage: mode === "parallel" ? () => undefined : undefined,
+    onRetranslatePage:
+      mode === "parallel" && !parallel.noModel
+        ? () => parallel.retry(page)
+        : undefined,
   };
   const foldedModes = useFoldedModeEntries(modeControls);
-  const parallel = useParallelTranslation({
-    paper,
-    file,
-    language: locale,
-    modelId: null,
-    visiblePages: mode === "parallel" ? visiblePages : [],
-  });
-  const find = useFind(doc, controller);
+  const find = useFind(shownDoc, controller);
   const preview = useLinkPreview(route.paperId, doc);
   const controllerNow = useRef(controller);
   controllerNow.current = controller;
   const docNow = useRef(doc);
   docNow.current = doc;
+  const modeNow = useRef(mode);
+  modeNow.current = mode;
   useRememberedPage(owner, route.paperId, page, doc !== null);
   // Where the keyboard was when the paper was opened: not somebody's choice, if it is still there.
   const [openedFrom] = useState(() => document.activeElement);
@@ -529,6 +549,7 @@ function PaperCard({
         left: desk.scrollLeft,
         position: pages.position(),
         percent: pages.percent,
+        mode: modeNow.current,
       };
       setTrail((trail) => [...trail.slice(1 - TRAIL), spot]);
       pages.scrollToPage(target.page, target.offset);
@@ -540,11 +561,14 @@ function PaperCard({
     const desk = controller?.root;
     if (!spot || !controller || !desk) return;
     setTrail(trail.slice(0, -1));
-    if (Math.abs(controller.percent - spot.percent) < 0.01) {
+    if (
+      spot.mode === mode &&
+      Math.abs(controller.percent - spot.percent) < 0.01
+    ) {
       desk.scrollTop = spot.top;
       desk.scrollLeft = spot.left;
     } else {
-      // The pages are another size now: the same place in them.
+      // The pages are another size now, or laid out otherwise: the same place in them.
       const index = Math.floor(spot.position);
       controller.scrollToPage(index + 1, spot.position - index);
     }
@@ -657,7 +681,7 @@ function PaperCard({
   useEffect(() => {
     actions.current = {
       find() {
-        if (!doc) return false;
+        if (!shownDoc) return false;
         find.show();
         return true;
       },
@@ -683,11 +707,11 @@ function PaperCard({
       return;
     }
     // [ and ] turn the pages, but are letters while a field is being typed in.
-    if (!pages || typing(event.target)) return;
+    if (!shownPages || typing(event.target)) return;
     const mac = currentPlatformIsMac();
     if (matchesShortcut(key, "[", mac)) navigate(Math.max(1, page - 1));
     else if (matchesShortcut(key, "]", mac))
-      navigate(Math.min(pages, page + 1));
+      navigate(Math.min(shownPages, page + 1));
     else return;
     event.preventDefault();
   };
@@ -697,9 +721,9 @@ function PaperCard({
       <PaperHeader
         paper={paper}
         file={source?.file ?? null}
-        doc={doc}
+        doc={shownDoc}
         page={page}
-        pages={pages}
+        pages={shownPages}
         controller={controller}
         onNavigate={navigate}
         findOpen={find.open}
@@ -731,12 +755,9 @@ function PaperCard({
           controllerRef={setController}
           textLayerRef={onTextLayer}
           overlays={overlays}
+          // 译文: the translated PDF in the engine once there is one, else how to make it.
           shown={mode === "translated" ? layout.translatedFile : null}
-          instead={
-            mode === "translated" && !layout.translatedFile ? (
-              <LayoutPanel layout={layout} />
-            ) : null
-          }
+          instead={waiting ? <LayoutPanel layout={layout} /> : null}
           pageAside={
             mode === "parallel"
               ? (number) => (

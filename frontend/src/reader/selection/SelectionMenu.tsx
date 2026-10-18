@@ -34,6 +34,12 @@ export interface SelectionMenuProps {
   /** Explain (`action: "explain"`) or ask about (`action: "ask"`) the selection. */
   onAsk(request: AskRequest): void;
   onNote(request: SelectionNote): void;
+  /**
+   * Why text cannot be highlighted here (the translated PDF: a highlight would
+   * not be on the paper's own file). The action is shown unavailable, with this
+   * as its hint, and its key says it.
+   */
+  noHighlight?: string;
 }
 
 /** The backend takes the boxes of at most this many lines with a selection. */
@@ -78,6 +84,7 @@ export function SelectionMenu({
   annotations,
   onAsk,
   onNote,
+  noHighlight,
 }: SelectionMenuProps) {
   const i18n = useI18n();
   const { t } = i18n;
@@ -267,6 +274,10 @@ export function SelectionMenu({
     const where = spot;
     const rect = anchor;
     if (!value || !where || !rect) return;
+    if (action === "highlight" && noHighlight) {
+      toast.show({ message: noHighlight });
+      return;
+    }
     close();
     if (action === "highlight") {
       // The service keeps the lines of at most 64 per page: said before asking, and the selection stays to be cut.
@@ -342,6 +353,9 @@ export function SelectionMenu({
     id: action,
     label: labels[action],
     shortcut,
+    ...(action === "highlight" && noHighlight
+      ? { disabled: true, hint: noHighlight }
+      : {}),
     onSelect: () => run(action),
   }));
 

@@ -138,6 +138,8 @@ export const en = {
   "reader.selection.ask": "Ask the assistant",
   "reader.selection.highlighted": "Highlighted",
   "reader.selection.highlightFailed": "Couldn't save the highlight. Try again.",
+  "reader.selection.highlightTranslated":
+    "Highlights can't be added to the translated PDF",
   "reader.selection.tooManyLines":
     "That's more than 64 lines. Highlight it in parts.",
   "reader.translate.region": "Translation",

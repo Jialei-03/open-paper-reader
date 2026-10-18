@@ -127,6 +127,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.selection.ask": "问助手",
   "reader.selection.highlighted": "已高亮",
   "reader.selection.highlightFailed": "没能保存高亮，请重试。",
+  "reader.selection.highlightTranslated": "译文 PDF 上不能高亮",
   "reader.selection.tooManyLines": "所选内容超过 64 行，请分段高亮。",
   "reader.translate.region": "译文",
   "reader.translate.working": "正在翻译…",

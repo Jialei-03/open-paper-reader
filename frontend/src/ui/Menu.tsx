@@ -6,12 +6,14 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactElement,
   type ReactNode,
   type RefCallback,
 } from "react";
 import { Floating } from "./Floating";
 import { Kbd } from "./Kbd";
 import styles from "./Menu.module.css";
+import { Tooltip } from "./Tooltip";
 import type { Placement } from "./position";
 import { ariaKeyShortcuts, currentPlatformIsMac } from "./shortcut";
 
@@ -29,6 +31,8 @@ export type MenuEntry =
       danger?: boolean;
       /** Seen, but never current: the keyboard goes past it and a click does nothing. */
       disabled?: boolean;
+      /** A word more about the item (why it is unavailable, say): a tooltip under the pointer, and its description. */
+      hint?: string;
       onSelect: () => void;
     }
   | { kind: "separator"; id: string };
@@ -53,6 +57,17 @@ export interface MenuListProps {
   /** The axis the arrow keys move along. */
   orientation?: "vertical" | "horizontal";
   id?: string;
+}
+
+/** An item with a hint has it as a tooltip; one without is as it is. */
+function Hinted({
+  hint,
+  children,
+}: {
+  hint: string | undefined;
+  children: ReactElement;
+}) {
+  return hint ? <Tooltip content={hint}>{children}</Tooltip> : children;
 }
 
 /**
@@ -187,36 +202,40 @@ export function MenuList({
     >
       {items.map((entry, index) =>
         isItem(entry) ? (
-          <div
-            key={entry.id}
-            ref={(element) => {
-              elements.current[index] = element;
-            }}
-            role="menuitem"
-            tabIndex={-1}
-            aria-disabled={entry.disabled ? true : undefined}
-            aria-keyshortcuts={
-              entry.shortcut ? ariaKeyShortcuts(entry.shortcut, mac) : undefined
-            }
-            className={clsx(styles.item, entry.danger && styles.danger)}
-            onClick={() => choose(index)}
-            // The pointer makes an item current just as the arrows do, so only one is ever lit.
-            onPointerMove={(event) => {
-              if (
-                !entry.disabled &&
-                document.activeElement !== event.currentTarget
-              )
-                event.currentTarget.focus();
-            }}
-            // A press on an unavailable item must not take the focus from the current one.
-            onMouseDown={(event) => {
-              if (entry.disabled) event.preventDefault();
-            }}
-          >
-            {entry.icon && <entry.icon size={16} aria-hidden="true" />}
-            <span className={styles.label}>{entry.label}</span>
-            {entry.shortcut && <Kbd shortcut={entry.shortcut} />}
-          </div>
+          <Hinted key={entry.id} hint={entry.hint}>
+            <div
+              ref={(element) => {
+                elements.current[index] = element;
+              }}
+              role="menuitem"
+              tabIndex={-1}
+              aria-disabled={entry.disabled ? true : undefined}
+              aria-description={entry.hint}
+              aria-keyshortcuts={
+                entry.shortcut
+                  ? ariaKeyShortcuts(entry.shortcut, mac)
+                  : undefined
+              }
+              className={clsx(styles.item, entry.danger && styles.danger)}
+              onClick={() => choose(index)}
+              // The pointer makes an item current just as the arrows do, so only one is ever lit.
+              onPointerMove={(event) => {
+                if (
+                  !entry.disabled &&
+                  document.activeElement !== event.currentTarget
+                )
+                  event.currentTarget.focus();
+              }}
+              // A press on an unavailable item must not take the focus from the current one.
+              onMouseDown={(event) => {
+                if (entry.disabled) event.preventDefault();
+              }}
+            >
+              {entry.icon && <entry.icon size={16} aria-hidden="true" />}
+              <span className={styles.label}>{entry.label}</span>
+              {entry.shortcut && <Kbd shortcut={entry.shortcut} />}
+            </div>
+          </Hinted>
         ) : (
           <div
             key={entry.id}

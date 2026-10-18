@@ -432,6 +432,25 @@ test("a horizontal list moves with the left and right arrows", async ({
   expect(Math.abs(a.top - b.top)).toBeLessThanOrEqual(1);
 });
 
+test("an item with a hint says it under the pointer, and to assistive technology", async ({
+  page,
+}) => {
+  await openKit(page);
+  const list = page.getByRole("menu", { name: "Selection actions" });
+  const translate = list.getByRole("menuitem", { name: "Translate" });
+  await expect(translate).toHaveAttribute("aria-disabled", "true");
+  await expect(translate).toHaveAccessibleDescription(
+    "Not available for this text",
+  );
+  const tip = page.locator('[role="tooltip"]');
+  await expect(tip).toHaveCount(0);
+  await translate.hover();
+  await expect(tip).toHaveText("Not available for this text");
+  // An item without one has no tooltip.
+  await list.getByRole("menuitem", { name: "Copy" }).hover();
+  await expect(tip).toHaveCount(0);
+});
+
 test("menu inside dialog: Escape closes the menu first", async ({ page }) => {
   await openKit(page);
   await page

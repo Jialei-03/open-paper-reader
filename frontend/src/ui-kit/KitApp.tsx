@@ -387,6 +387,7 @@ function MenuDemo() {
       label: "Translate",
       icon: Languages,
       disabled: true,
+      hint: "Not available for this text",
       onSelect: pick("Translate"),
     },
     { id: "copy", label: "Copy", icon: Copy, onSelect: pick("Copy") },

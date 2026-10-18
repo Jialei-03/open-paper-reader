@@ -12,6 +12,8 @@
   justify-content: center;
   min-height: 0;
   padding: var(--ui-space-24);
+  /* The question box floats over the foot of the card (--composer-clearance on it): the column stays clear of it. */
+  padding-bottom: calc(var(--composer-clearance, 0px) + var(--ui-space-24));
   overflow: auto;
   color: var(--ui-fg-1);
 }
