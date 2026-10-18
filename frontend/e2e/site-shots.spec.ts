@@ -6,7 +6,9 @@ import { zh } from "../src/i18n/messages/zh";
 import { openReader, saveHighlight, signIn } from "./reader/fixtures";
 
 /*
- * Takes the pictures of the reader that the public page and the README show.
+ * Takes the pictures of the reader that the public page and the README show:
+ * the guide, a selection with its menu, the assistant's answer with citations,
+ * and 对照 mode, each in light and dark, in both languages.
  * It is not part of the suite: `SITE_SHOTS=1 npx playwright test e2e/site-shots.spec.ts`
  * rewrites frontend/public/assets/site/ and docs/assets/reader.png.
  */
@@ -219,6 +221,31 @@ const COPY = {
     answer: (link: string) =>
       `因为长上下文里真正被反复查找的内容很集中。论文发现，检索头占全部注意力头不到 5%，却承担了大部分查找${link}。只让它们看完整上下文，其余的头只看短窗口，质量下降不到一个点，显存降到四分之一。`,
     cite: "p.1",
+    guide: {
+      keywords: ["长上下文", "检索头", "稀疏注意力"],
+      summary: [
+        "长文档阅读里，真正被反复查找的内容很集中。",
+        "不到 5% 的注意力头承担了大部分查找，称为检索头。",
+        "只让检索头看完整上下文，质量下降不到一个点，显存降到四分之一。",
+      ],
+      sections: [
+        {
+          title: "研究问题",
+          body: "长上下文的大部分开销花在查找**从未用到**的文字上。",
+          pages: [1],
+        },
+        {
+          title: "方法",
+          body: "按“是否复制远处的内容”给每个头打分，高分的头组成检索集。",
+          pages: [2],
+        },
+        {
+          title: "适用边界",
+          body: "只在英文文本上验证；需要整篇聚合的任务可能要保留更多头。",
+          pages: [3],
+        },
+      ],
+    },
   },
   en: {
     words: en,
@@ -226,12 +253,86 @@ const COPY = {
     answer: (link: string) =>
       `Because the lookups that long context needs are concentrated. The paper finds that retrieval heads are under 5% of all heads but carry most of the lookups ${link}. Letting only those see the full context, while the rest see a short window, costs under one point of quality and cuts memory fourfold.`,
     cite: "p.1",
+    guide: {
+      keywords: ["long context", "retrieval heads", "sparse attention"],
+      summary: [
+        "In long documents, the text that gets looked up again and again is concentrated.",
+        "Under 5% of attention heads do most of the lookups: the retrieval heads.",
+        "Letting only them see the full context costs under one point of quality and cuts memory fourfold.",
+      ],
+      sections: [
+        {
+          title: "The question",
+          body: "Most of the cost of long context goes to looking up text that is **never used**.",
+          pages: [1],
+        },
+        {
+          title: "Method",
+          body: "Score each head by how often it copies from far away; the top scorers form the retrieval set.",
+          pages: [2],
+        },
+        {
+          title: "Limits",
+          body: "Tested on English only; tasks that aggregate the whole document may need more heads.",
+          pages: [3],
+        },
+      ],
+    },
   },
 } as const;
 
+/** What 对照 shows beside page 1 and 2 (in Chinese, whichever language the interface is in). */
+const TRANSLATED: Record<
+  number,
+  { kind: string; original: string; translation: string }[]
+> = {
+  1: [
+    {
+      kind: "heading",
+      original: "Sparse Retrieval Heads for Long-Context Reading",
+      translation: "面向长上下文阅读的稀疏检索头",
+    },
+    {
+      kind: "text",
+      original:
+        "Long documents are read by models that must decide which earlier passages matter.",
+      translation:
+        "模型阅读长文档时，必须判断前文中哪些段落重要。我们发现，一小部分注意力头承担了这项工作的大部分，只通过这些头来路由查询，就能让阅读更快、更忠实。",
+    },
+    {
+      kind: "heading",
+      original: "1 Introduction",
+      translation: "1 引言",
+    },
+    {
+      kind: "text",
+      original: "Reading a paper means moving back and forth.",
+      translation:
+        "读论文意味着来回翻看：讨论里的一个结论会把读者带到某张表，而这张表又指向三页之前的一个定义。语言模型在每个词上都面临同样的问题。",
+    },
+    {
+      kind: "text",
+      original:
+        "Retrieval heads account for under 5% of attention heads but carry most of the lookups.",
+      translation: "检索头占全部注意力头不到 5%，却承担了大部分查找。",
+    },
+  ],
+  2: [
+    { kind: "heading", original: "3 Method", translation: "3 方法" },
+    {
+      kind: "text",
+      original:
+        "We score a head by running the model on passages with a repeated needle.",
+      translation:
+        "我们让模型阅读带有重复片段的文字，统计某个头有多频繁地关注更早的那一份，来给它打分；高于阈值的头组成检索集。",
+    },
+  ],
+};
+
 for (const language of ["zh", "en"] as const) {
   for (const theme of ["light", "dark"] as const) {
-    test(`reader picture: ${theme}, ${language}`, async ({ browser }) => {
+    test(`reader pictures: ${theme}, ${language}`, async ({ browser }) => {
+      test.setTimeout(120_000);
       const context = await browser.newContext({
         viewport: { width: 1440, height: 900 },
         deviceScaleFactor: 1.5,
@@ -243,10 +344,12 @@ for (const language of ["zh", "en"] as const) {
         ([lang, mode]) => {
           localStorage.setItem("paper-locale", lang);
           localStorage.setItem("paper-appearance", mode);
+          localStorage.setItem("paper-translation-language", "zh");
         },
         [language, theme],
       );
       const copy = COPY[language];
+      const words = copy.words;
       await signIn(page);
       const { paperId, fileId } = await makePaper(page);
       await saveHighlight(page, fileId, {
@@ -276,6 +379,27 @@ for (const language of ["zh", "en"] as const) {
           runtime: {},
         },
       ];
+      const row = (kind: string, fields: object) => ({
+        file_id: fileId,
+        kind,
+        status: "completed",
+        run_id: "run-x",
+        session_id: "session-x",
+        model_config_id: MODEL.id,
+        error: "",
+        ...fields,
+      });
+      const guide = row("guide", {
+        id: "guide-1",
+        parameters: {},
+        result: copy.guide,
+      });
+      const translation = (n: number) =>
+        row("page_translation", {
+          id: `pt-${n}`,
+          parameters: { page: n, language: "zh" },
+          result: { paragraphs: TRANSLATED[n] ?? [] },
+        });
       await page.route("**/api/v1/translation-settings", (route) =>
         route.fulfill({
           json: { active_id: MODEL.id, configured: true, models: [MODEL] },
@@ -304,24 +428,91 @@ for (const language of ["zh", "en"] as const) {
       );
       await page.route(
         `**/api/v1/papers/${paperId}/reading-artifacts`,
-        (route) => route.fulfill({ json: [] }),
+        (route) => {
+          if (route.request().method() === "GET")
+            return route.fulfill({
+              json: [guide, translation(1), translation(2)],
+            });
+          const body = route.request().postDataJSON() as {
+            kind: string;
+            page?: number;
+          };
+          return route.fulfill({
+            json: body.kind === "guide" ? guide : translation(body.page ?? 1),
+          });
+        },
       );
-      await openReader(page, { paperId, fileId, page: 1, quote: CLAIM });
-      await expect(page.locator('[data-page="1"]')).toHaveAttribute(
-        "data-rendered",
-        "true",
-      );
-      await page
-        .getByRole("tablist")
-        .getByRole("tab", { name: copy.words["reader.tab.assistant"] })
-        .click();
-      await expect(page.getByText(copy.ask)).toBeVisible();
-      await page.waitForTimeout(900);
+      await page.route("**/api/v1/reading-artifacts/*", (route) => {
+        const id = new URL(route.request().url()).pathname.split("/").at(-1)!;
+        return route.fulfill({
+          json: id === "guide-1" ? guide : translation(Number(id.slice(3))),
+        });
+      });
       mkdirSync(OUT, { recursive: true });
-      const name = `reader-${theme}${language === "en" ? "-en" : ""}.png`;
-      await page.screenshot({ path: resolve(OUT, name) });
-      if (language === "en" && theme === "light")
-        copyFileSync(resolve(OUT, name), README);
+      const suffix = `-${theme}${language === "en" ? "-en" : ""}.png`;
+      const shoot = async (view: string) => {
+        await page.waitForTimeout(900);
+        const file = resolve(OUT, view + suffix);
+        await page.screenshot({ path: file });
+        return file;
+      };
+      const pageOne = page.locator('[data-page="1"]');
+      const tab = (key: "guide" | "assistant") =>
+        page
+          .getByRole("tablist")
+          .getByRole("tab", { name: words[`reader.tab.${key}`] });
+
+      // 1. The guide, written for the paper.
+      await openReader(page, { paperId, fileId, page: 1 });
+      await expect(pageOne).toHaveAttribute("data-rendered", "true");
+      await tab("guide").click();
+      await expect(page.getByText(copy.guide.summary[0])).toBeVisible();
+      await shoot("guide");
+
+      // 2. A sentence selected, with its menu.
+      const line = pageOne
+        .locator(".textLayer span", { hasText: "Retrieval heads account" })
+        .first();
+      const at = (await line.boundingBox())!;
+      await page.mouse.move(
+        Math.round(at.x + 2),
+        Math.round(at.y + at.height / 2),
+      );
+      await page.mouse.down();
+      await page.mouse.move(
+        Math.round(at.x + at.width - 2),
+        Math.round(at.y + at.height / 2),
+        { steps: 12 },
+      );
+      await page.mouse.up();
+      await expect(
+        page.getByRole("menu", { name: words["reader.selection.menu"] }),
+      ).toBeVisible();
+      await shoot("select");
+      await page.keyboard.press("Escape");
+
+      // 3. The assistant's answer, its citation leading to the sentence.
+      await openReader(page, { paperId, fileId, page: 1, quote: CLAIM });
+      await expect(pageOne).toHaveAttribute("data-rendered", "true");
+      await tab("assistant").click();
+      await expect(page.getByText(copy.ask)).toBeVisible();
+      const hero = await shoot("reader");
+      if (language === "en" && theme === "light") copyFileSync(hero, README);
+
+      // 4. 对照: the translation beside each page.
+      await openReader(page, { paperId, fileId, page: 1 });
+      await expect(pageOne).toHaveAttribute("data-rendered", "true");
+      await page
+        .getByRole("radiogroup", { name: words["reader.mode.label"] })
+        .getByRole("radio", {
+          name: words["reader.mode.parallel"],
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByText("检索头占全部注意力头不到 5%，却承担了大部分查找。"),
+      ).toBeVisible();
+      await shoot("parallel");
       await context.close();
     });
   }

@@ -137,7 +137,6 @@
   line-height: 1.15;
   letter-spacing: -0.02em;
   text-wrap: balance;
-  animation: rise 480ms var(--ui-ease-out, ease-out) both;
 }
 
 .lead {
@@ -147,7 +146,6 @@
   font-size: var(--ui-text-18);
   line-height: var(--ui-leading);
   text-wrap: pretty;
-  animation: rise 480ms 80ms var(--ui-ease-out, ease-out) both;
 }
 
 .actions {
@@ -156,7 +154,6 @@
   justify-content: center;
   gap: var(--ui-space-10);
   margin-top: var(--ui-space-24);
-  animation: rise 480ms 140ms var(--ui-ease-out, ease-out) both;
 }
 
 .shot {
@@ -167,7 +164,6 @@
   border-radius: var(--ui-r-20);
   background: var(--ui-bg-2);
   box-shadow: var(--ui-elev-2);
-  animation: rise 600ms 200ms var(--ui-ease-out, ease-out) both;
 }
 
 .shot img {
@@ -202,16 +198,23 @@
 
 .steps {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--ui-space-24);
+  gap: var(--ui-space-48, 48px);
   margin: var(--ui-space-32) 0 0;
   padding: 0;
   list-style: none;
 }
 
 .step {
-  padding-top: var(--ui-space-16);
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: center;
+  gap: var(--ui-space-32);
+  padding-top: var(--ui-space-24);
   box-shadow: 0 -1px 0 var(--ui-edge);
+}
+
+.step:not(:has(figure)) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .number {
@@ -220,17 +223,124 @@
   font-size: var(--ui-text-12);
 }
 
-.step h3 {
+.step h3,
+.mode h3,
+.fact h3 {
   margin: var(--ui-space-8) 0 var(--ui-space-6);
   font-size: var(--ui-text-16);
   font-weight: var(--ui-weight-strong);
 }
 
-.step p {
+.step p,
+.mode p,
+.fact p {
   margin: 0;
   color: var(--ui-fg-1);
   font-size: var(--ui-text-14);
   line-height: var(--ui-leading);
+  text-wrap: pretty;
+}
+
+.figure {
+  margin: 0;
+  padding: var(--ui-space-6);
+  border-radius: var(--ui-r-16, 16px);
+  background: var(--ui-bg-2);
+  box-shadow: var(--ui-elev-1);
+}
+
+.figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--ui-r-10);
+  box-shadow: 0 0 0 1px var(--ui-edge-subtle);
+}
+
+.modes,
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ui-space-24);
+  margin: var(--ui-space-24) 0 var(--ui-space-32);
+  padding: 0;
+  list-style: none;
+}
+
+.facts {
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 0;
+}
+
+.mode,
+.fact {
+  padding-top: var(--ui-space-12);
+  box-shadow: 0 -1px 0 var(--ui-edge);
+}
+
+.install {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin-top: var(--ui-space-32);
+  max-width: 100%;
+}
+
+.installLabel {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+}
+
+.command {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-12);
+  max-width: 100%;
+  padding: var(--ui-space-6) var(--ui-space-6) var(--ui-space-6)
+    var(--ui-space-16);
+  border-radius: var(--ui-r-10);
+  background: var(--ui-bg-2);
+  box-shadow: 0 0 0 1px var(--ui-edge-subtle);
+}
+
+.command code {
+  overflow: hidden;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-14);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  height: 28px;
+  padding: 0 var(--ui-space-10);
+  border: 0;
+  border-radius: var(--ui-r-8);
+  background: var(--ui-elev);
+  color: var(--ui-fg-1);
+  font: inherit;
+  font-size: var(--ui-text-12);
+  cursor: pointer;
+  box-shadow: var(--ui-elev-1);
+}
+
+.copy:hover {
+  color: var(--ui-fg);
+}
+
+.copy:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.note {
+  margin: 0;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
 }
 
 .open {
@@ -248,10 +358,6 @@
 
 .open .body {
   margin-inline: auto;
-}
-
-.open .actions {
-  animation: none;
 }
 
 .footer {
@@ -279,22 +385,9 @@
   transform: none;
 }
 
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .site {
     scroll-behavior: auto;
-  }
-  .title,
-  .lead,
-  .actions,
-  .shot {
-    animation: none;
   }
   [data-reveal] {
     opacity: 1;
@@ -304,7 +397,12 @@
 }
 
 @media (max-width: 860px) {
-  .steps {
+  .step {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ui-space-16);
+  }
+  .modes,
+  .facts {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -339,8 +437,13 @@
   .section {
     padding-top: 72px;
   }
-  .steps {
+  .modes,
+  .facts {
     grid-template-columns: 1fr;
+  }
+  .figure {
+    padding: var(--ui-space-4);
+    border-radius: var(--ui-r-10);
   }
   .open {
     margin: 72px var(--ui-space-16) 0;

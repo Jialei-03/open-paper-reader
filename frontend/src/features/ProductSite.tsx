@@ -1,5 +1,5 @@
-import { ArrowRight, Github } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { ArrowRight, Check, Copy, Github } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import type { MessageKey } from "../i18n/i18n";
 import { useAppearance } from "../ui/theme";
@@ -8,12 +8,57 @@ import styles from "./product-site.module.css";
 
 export const REPOSITORY = "https://github.com/Jialei-03/zhijian";
 
+export const INSTALL = "uvx open-paper-reader";
+
 const steps = [
-  ["import", "01"],
-  ["guide", "02"],
-  ["select", "03"],
-  ["ask", "04"],
+  ["import", "01", null],
+  ["guide", "02", "guide"],
+  ["select", "03", "select"],
+  ["ask", "04", "reader"],
 ] as const;
+
+const modes = ["original", "parallel", "translated"] as const;
+const local = ["data", "account", "models", "planned"] as const;
+
+function InstallCommand() {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1800);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(INSTALL);
+      setCopied(true);
+    } catch {
+      /* The command is on screen to select. */
+    }
+  };
+  return (
+    <div className={styles.install}>
+      <span className={styles.installLabel}>{t("site.hero.install")}</span>
+      <div className={styles.command}>
+        <code>{INSTALL}</code>
+        <button
+          type="button"
+          className={styles.copy}
+          onClick={copy}
+          aria-label={t("site.hero.copy")}
+        >
+          {copied ? (
+            <Check size={14} aria-hidden="true" />
+          ) : (
+            <Copy size={14} aria-hidden="true" />
+          )}
+          <span role="status">{copied ? t("site.hero.copied") : ""}</span>
+        </button>
+      </div>
+      <p className={styles.note}>{t("site.hero.note")}</p>
+    </div>
+  );
+}
 
 /** Fade a block in once as it scrolls into view; blocks already in view just show. */
 function useReveal() {
@@ -48,6 +93,17 @@ export function ProductSite({ path }: { path: string }) {
     document.getElementById("how")?.scrollIntoView();
   }, [path]);
   const key = (name: string) => `site.how.${name}` as MessageKey;
+  const picture = (view: string, alt: string, lazy = true) => (
+    <img
+      src={`/assets/site/${view}-${theme}${locale === "en" ? "-en" : ""}.png`}
+      width={1440}
+      height={900}
+      alt={alt}
+      loading={lazy ? "lazy" : undefined}
+      decoding="async"
+      fetchPriority={lazy ? undefined : "high"}
+    />
+  );
   return (
     <div className={styles.site} ref={root}>
       <header className={styles.header}>
@@ -62,6 +118,9 @@ export function ProductSite({ path }: { path: string }) {
         <nav aria-label={t("site.nav")} className={styles.nav}>
           <a href="#how" className={styles.navLink}>
             {t("site.nav.how")}
+          </a>
+          <a href="#local" className={styles.navLink}>
+            {t("site.nav.local")}
           </a>
           <a
             className={styles.navLink}
@@ -81,6 +140,7 @@ export function ProductSite({ path }: { path: string }) {
         <section className={styles.hero}>
           <h1 className={styles.title}>{t("site.hero.title")}</h1>
           <p className={styles.lead}>{t("site.hero.lead")}</p>
+          <InstallCommand />
           <div className={styles.actions}>
             <a href="#dashboard" className={styles.primary}>
               {t("site.hero.start")}
@@ -97,13 +157,7 @@ export function ProductSite({ path }: { path: string }) {
             </a>
           </div>
           <figure className={styles.shot}>
-            <img
-              src={`/assets/site/reader-${theme}${locale === "en" ? "-en" : ""}.png`}
-              width={1440}
-              height={900}
-              alt={t("site.shot.alt")}
-              fetchPriority="high"
-            />
+            {picture("reader", t("site.shot.alt"), false)}
           </figure>
         </section>
         <section
@@ -115,28 +169,78 @@ export function ProductSite({ path }: { path: string }) {
             {t("site.how.title")}
           </h2>
           <ol className={styles.steps}>
-            {steps.map(([name, number], index) => (
-              <li
-                key={name}
-                className={styles.step}
-                data-reveal
-                style={{ transitionDelay: `${index * 60}ms` }}
-              >
-                <span className={styles.number}>{number}</span>
-                <h3>{t(key(`${name}.title`))}</h3>
-                <p>{t(key(`${name}.body`))}</p>
+            {steps.map(([name, number, view]) => (
+              <li key={name} className={styles.step} data-reveal>
+                <div className={styles.stepText}>
+                  <span className={styles.number}>{number}</span>
+                  <h3>{t(key(`${name}.title`))}</h3>
+                  <p>{t(key(`${name}.body`))}</p>
+                </div>
+                {view && (
+                  <figure className={styles.figure}>
+                    {picture(view, t(key(`${name}.alt`)))}
+                  </figure>
+                )}
               </li>
             ))}
           </ol>
         </section>
-        <section className={styles.section} data-reveal>
-          <h2 className={styles.heading}>{t("site.modes.title")}</h2>
-          <p className={styles.body}>{t("site.modes.body")}</p>
+        <section
+          id="modes"
+          className={styles.section}
+          aria-labelledby="modes-title"
+        >
+          <h2 id="modes-title" className={styles.heading} data-reveal>
+            {t("site.modes.title")}
+          </h2>
+          <p className={styles.body} data-reveal>
+            {t("site.modes.body")}
+          </p>
+          <div className={styles.modes} data-reveal>
+            {modes.map((name) => (
+              <div key={name} className={styles.mode}>
+                <h3>{t(`site.modes.${name}.title` as MessageKey)}</h3>
+                <p>{t(`site.modes.${name}.body` as MessageKey)}</p>
+              </div>
+            ))}
+          </div>
+          <figure className={styles.figure} data-reveal>
+            {picture("parallel", t("site.modes.alt"))}
+          </figure>
+        </section>
+        <section
+          id="local"
+          className={styles.section}
+          aria-labelledby="local-title"
+        >
+          <h2 id="local-title" className={styles.heading} data-reveal>
+            {t("site.local.title")}
+          </h2>
+          <p className={styles.body} data-reveal>
+            {t("site.local.body")}
+          </p>
+          <ul className={styles.facts} data-reveal>
+            {local.map((name) => (
+              <li key={name} className={styles.fact}>
+                <h3>{t(`site.local.${name}.title` as MessageKey)}</h3>
+                <p>{t(`site.local.${name}.body` as MessageKey)}</p>
+              </li>
+            ))}
+          </ul>
         </section>
         <section className={styles.open} data-reveal>
           <h2 className={styles.heading}>{t("site.open.title")}</h2>
           <p className={styles.body}>{t("site.open.body")}</p>
           <div className={styles.actions}>
+            <a
+              className={styles.secondary}
+              href={REPOSITORY}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Github size={16} aria-hidden="true" />
+              {t("site.open.source")}
+            </a>
             <a href="#dashboard" className={styles.primary}>
               {t("site.hero.start")}
               <ArrowRight size={16} aria-hidden="true" />
