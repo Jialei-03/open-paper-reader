@@ -11,7 +11,8 @@ export async function signIn(page: Page) {
     .getByLabel(/^(密码|Password)$/)
     .fill(process.env.E2E_TEST_PASSWORD!);
   await page.getByRole("button", { name: /^(登录空间|Sign in)$/ }).click();
-  await expect(username).toBeHidden();
+  // Signed in: the app's first screen (home, or the setup while there is no model).
+  await expect(page.locator("[data-app-screen]")).toBeVisible();
 }
 
 /** The headers a write to the API needs: the session's CSRF token and a fresh idempotency key. */

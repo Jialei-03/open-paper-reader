@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "../reader/fixtures";
 
-// TEMP S3: the address of the setup screen until the shell mounts it on its own.
-const SETUP = "/#setup2";
+// Home, while there is no model: the app sets one up first.
+const SETUP = "/#home";
 
 // Not a real key: the service is never reached, its answers are mocked.
 const FAKE_KEY = "sk-test-not-a-real-key";
@@ -113,8 +113,12 @@ test("a model is kept only once its connection test passes", async ({
   expect(settings.active_id).toBe(saved[0].id);
   expect(settings.configured).toBe(true);
 
+  // On to home.
   await next.click();
-  await expect(page).toHaveURL(/#settings2$/);
+  await expect(page.locator("[data-app-screen]")).toHaveAttribute(
+    "data-app-screen",
+    "home",
+  );
 });
 
 test("the local edition offers Ollama and LM Studio at their addresses", async ({
@@ -129,6 +133,8 @@ test("the local edition offers Ollama and LM Studio at their addresses", async (
     });
   });
   await page.goto(SETUP);
+  // Signing in has shown the setup already: read anew, with the local edition's answer.
+  await page.reload();
   await page.getByRole("radio", { name: "本机模型" }).click();
   await expect(page.getByLabel("服务地址", { exact: true })).toHaveValue(
     "http://127.0.0.1:11434/v1",

@@ -1,8 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createPaperWithPdf, signIn } from "../reader/fixtures";
 
-// TEMP S3: the address of the new settings until the shell mounts them on #settings.
-const SETTINGS = "/#settings2";
+const SETTINGS = "/#settings";
 
 // Not a real key: the service is never reached, its answers are mocked.
 const FAKE_KEY = "sk-test-not-a-real-key";

@@ -1,11 +1,6 @@
 import { closeFileDownload } from "./lib/file-download";
 import "./styles";
 import { FileDownloadDialog } from "./components/FileDownloadDialog";
-import {
-  downloadUnsyncedNotes,
-  forgetOfflineCopy,
-  retireOfflineReading,
-} from "./lib/offline-retirement";
 import React, { Suspense, lazy, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ProductSite } from "./features/ProductSite";
@@ -17,14 +12,14 @@ import { api, errorStatus } from "./api";
 
 /*
  * The entry carries only what a visitor needs before signing in: the public
- * site, sign-in and account recovery. The workspace (reader, editor, math,
- * graph…) is most of the code, so it loads once there is a session, and the
+ * site, sign-in and account recovery. The app (home, library, settings and the
+ * reader) is most of the code, so it loads once there is a session, and the
  * shared-paper viewer loads only for a share link.
  */
-const Workspace = lazy(() =>
-  import("./Workspace").then((module) => ({ default: module.Workspace })),
+const AppShell = lazy(() =>
+  import("./app/AppShell").then((module) => ({ default: module.AppShell })),
 );
-// A device that was signed in a moment ago starts fetching the workspace while
+// A device that was signed in a moment ago starts fetching the app while
 // it asks who you are, instead of after the answer arrives.
 const hint = "paper-signed-in";
 const mayBeSignedIn = () => {
@@ -39,10 +34,10 @@ const remember = (signedIn: boolean) => {
     if (signedIn) localStorage.setItem(hint, "1");
     else localStorage.removeItem(hint);
   } catch {
-    /* Private browsing: the workspace simply loads after the session check. */
+    /* Private browsing: the app simply loads after the session check. */
   }
 };
-const loadWorkspace = () => import("./Workspace");
+const loadApp = () => import("./app/AppShell");
 const SharedPaper = lazy(() =>
   import("./features/PaperSharing").then((module) => ({
     default: module.SharedPaper,
@@ -100,7 +95,12 @@ function Boot() {
   );
 }
 
-function AuthGate() {
+/**
+ * Sign-in and the signed-in app. With `publicHome` (the site's own address, on
+ * a device that was signed in a moment ago) a visitor who turns out not to be
+ * signed in sees the public site there, not the sign-in form.
+ */
+function AuthGate({ publicHome = false }: { publicHome?: boolean }) {
   useAppearance();
   const [user, setSignedUser] = useState<any>(null),
     [boot, setBoot] = useState(true),
@@ -109,10 +109,10 @@ function AuthGate() {
     remember(!!value);
     setSignedUser(value);
   };
-  const [route, setRoute] = useState(location.hash.slice(1) || "dashboard");
+  const [route, setRoute] = useState(location.hash.slice(1) || "home");
   const routePath = route.split("?")[0];
   useEffect(() => {
-    if (mayBeSignedIn()) void loadWorkspace();
+    if (mayBeSignedIn()) void loadApp();
     api("/auth/me")
       .then((x) => setUser(x.user))
       .catch((e) => {
@@ -120,47 +120,16 @@ function AuthGate() {
         else setError(e.message);
       })
       .finally(() => setBoot(false));
-    const f = () => setRoute(location.hash.slice(1) || "dashboard");
+    const f = () => setRoute(location.hash.slice(1) || "home");
     window.addEventListener("hashchange", f);
     return () => window.removeEventListener("hashchange", f);
   }, []);
-  const signedIn = !!user;
-  useEffect(() => {
-    if (!signedIn) return;
-    void retireOfflineReading().then(async (unsynced) => {
-      if (!unsynced.length) return;
-      // The toaster lives in the workspace; show this once it is on screen.
-      const [{ toast }] = await Promise.all([
-        import("sonner"),
-        loadWorkspace(),
-      ]);
-      setTimeout(
-        () =>
-          toast(
-            `这台设备上有 ${unsynced.length} 篇离线时写下、尚未同步的笔记`,
-            {
-              description:
-                "离线阅读已下线。请下载这些笔记的备份，再粘贴回对应论文。",
-              duration: Infinity,
-              action: {
-                label: "下载备份",
-                onClick: () => {
-                  downloadUnsyncedNotes(unsynced);
-                  forgetOfflineCopy();
-                },
-              },
-            },
-          ),
-        1500,
-      );
-    });
-  }, [signedIn]);
   const signedOut = !boot && !user;
   useEffect(() => {
     if (!signedOut) return;
-    // Someone at the sign-in form is about to need the workspace: fetch it as
+    // Someone at the sign-in form is about to need the app: fetch it as
     // soon as they touch the page, or after a few quiet seconds.
-    const fetchIt = () => void loadWorkspace();
+    const fetchIt = () => void loadApp();
     const timer = setTimeout(fetchIt, 3000);
     window.addEventListener("keydown", fetchIt, { once: true });
     window.addEventListener("pointerdown", fetchIt, { once: true });
@@ -185,17 +154,14 @@ function AuthGate() {
         }}
       />
     );
+  if (!user && publicHome && ["", "home"].includes(routePath))
+    return <ProductSite path="home" />;
   if (!user)
     return <Login error={error} setError={setError} onLogin={setUser} />;
   return (
     <StaleRelease>
       <Suspense fallback={<Boot />}>
-        <Workspace
-          user={user}
-          setUser={setUser}
-          error={error}
-          setError={setError}
-        />
+        <AppShell user={user} setUser={setUser} />
       </Suspense>
     </StaleRelease>
   );
@@ -208,7 +174,11 @@ function Root() {
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
-  return !hash || hash === "#home" || hash === "#how" ? (
+  // The site's own address is the app's home for someone signed in.
+  const home = !hash || hash === "#home";
+  return home && mayBeSignedIn() ? (
+    <AuthGate publicHome />
+  ) : home || hash === "#how" ? (
     <ProductSite path={hash.slice(1) || "home"} />
   ) : hash.startsWith("#shared/") ? (
     <StaleRelease>

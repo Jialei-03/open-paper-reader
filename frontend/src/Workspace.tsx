@@ -52,7 +52,6 @@ import { PaperForm, ItemForm } from "./features/forms";
 import { DropOverlay, useGlobalFileDrop } from "./features/PdfDropImport";
 import { clearPaperCovers } from "./features/PaperCover";
 import { importPdf, isPdf } from "./lib/pdf-import";
-import { Reader } from "./features/Reader";
 import { Dashboard } from "./features/Dashboard";
 import { Recommendations } from "./features/Recommendations";
 import { SettingsView } from "./features/SettingsView";
@@ -79,30 +78,6 @@ const ReaderScreen = lazy(() =>
     default: module.ReaderScreen,
   })),
 );
-const S2Screens = lazy(() => import("./screens/s2-temp")); // TEMP S2
-// TEMP S3: loads the new settings and setup screens with their kit, apart from the old interface.
-const TempScreens = lazy(async () => {
-  const [{ SettingsScreen }, { SetupScreen }, { Shell, Toaster }] =
-    await Promise.all([
-      import("./screens/SettingsScreen"),
-      import("./screens/SetupScreen"),
-      import("./ui"),
-    ]);
-  return {
-    default: ({ section, go }: { section: string; go(r: string): void }) => (
-      <>
-        {section === "settings2" ? (
-          <Shell>
-            <SettingsScreen go={go} />
-          </Shell>
-        ) : (
-          <SetupScreen onDone={() => go("settings2")} />
-        )}
-        <Toaster />
-      </>
-    ),
-  };
-});
 /** What shows while the reader's chunk loads. */
 function ReaderLoading() {
   const { t } = useI18n();
@@ -433,29 +408,6 @@ export function Workspace({
   // assistant, notifications or search around it. (An address it cannot read
   // falls through to the workspace's "page not found".)
   const reader = section === "read" ? parseReaderRoute(route) : null;
-  // TEMP S2 begin
-  if (section === "home2" || section === "library2")
-    return (
-      <Suspense fallback={null}>
-        <S2Screens
-          screen={section}
-          owner={user.id}
-          papers={papers}
-          go={go}
-          reload={refresh}
-        />
-      </Suspense>
-    );
-  // TEMP S2 end
-  // TEMP S3: the new settings and setup screens, until S1's shell mounts them.
-  if (section === "settings2" || section === "setup2")
-    return (
-      <I18nProvider>
-        <Suspense fallback={null}>
-          <TempScreens section={section} go={go} />
-        </Suspense>
-      </I18nProvider>
-    );
   if (reader)
     return (
       <I18nProvider>
@@ -602,25 +554,6 @@ export function Workspace({
                   tick={tick}
                   go={go}
                   add={() => paperForm()}
-                  onError={setError}
-                />
-              )}
-              {section === "paper" && (
-                <Reader
-                  key={paperId}
-                  id={paperId}
-                  route={route}
-                  tick={tick}
-                  run={run}
-                  go={go}
-                  setModal={setModal}
-                  close={close}
-                  editPaper={paperForm}
-                  editItem={editItem}
-                  history={history}
-                  deleteItem={deleteItem}
-                  allItems={allItems}
-                  nodes={graph.nodes}
                   onError={setError}
                 />
               )}

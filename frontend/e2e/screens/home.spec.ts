@@ -9,8 +9,20 @@ import {
 // The screens follow the browser's language; these specs read them in Chinese.
 test.use({ locale: "zh-CN" });
 
-// TEMP S2: the screens are mounted at #home2 until the new shell mounts them at #home.
-const HOME = "/#home2";
+const HOME = "/#home";
+
+// Home asks for a model first while there is none: these specs have one.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/v1/translation-settings", (route) =>
+    route.fulfill({
+      json: {
+        active_id: "model-1",
+        configured: true,
+        models: [{ id: "model-1" }],
+      },
+    }),
+  );
+});
 
 /** Sign in as `name` through the sign-in form. */
 async function signInAs(page: Page, name: string) {
@@ -20,7 +32,7 @@ async function signInAs(page: Page, name: string) {
     .getByLabel("密码", { exact: true })
     .fill(process.env.E2E_TEST_PASSWORD!);
   await page.getByRole("button", { name: "登录空间", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "最近" })).toBeVisible();
+  await expect(page.locator("[data-app-screen]")).toBeVisible();
 }
 
 /** Drops `files` on `target` as a person dragging them from the desktop does. */

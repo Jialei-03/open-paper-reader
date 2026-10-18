@@ -29,6 +29,22 @@ export const en = {
   "reader.sidebar.library": "Library",
   "reader.sidebar.reading": "Reading",
   "reader.sidebar.settings": "Settings",
+  "app.home": "Home",
+  "app.quickOpen": "Open a paper",
+  "app.quickOpen.field": "Search papers",
+  "app.quickOpen.placeholder": "A title or an author…",
+  "app.quickOpen.results": "Papers",
+  "app.quickOpen.none": "No paper matches.",
+  "app.quickOpen.noPapers": "There are no papers in the library yet.",
+  "app.signOut": "Sign out",
+  "app.signOutFailed": "Couldn't sign out. Try again.",
+  "app.offline.unsynced#one":
+    "{count} note written offline on this device has not been synced",
+  "app.offline.unsynced#other":
+    "{count} notes written offline on this device have not been synced",
+  "app.offline.description":
+    "Offline reading has been retired. Download a backup of these notes, then paste them back into their papers.",
+  "app.offline.download": "Download backup",
   "reader.untitled": "Untitled paper",
   "reader.notFound": "This paper can't be found. It may have been deleted.",
   "reader.loadFailed": "The paper could not be opened.",

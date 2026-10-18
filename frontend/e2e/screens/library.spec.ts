@@ -4,8 +4,7 @@ import { createPaperWithPdf, pdfWithPages, signIn } from "../reader/fixtures";
 // The screens follow the browser's language; these specs read them in Chinese.
 test.use({ locale: "zh-CN" });
 
-// TEMP S2: the screen is mounted at #library2 until the new shell mounts it at #library.
-const LIBRARY = "/#library2";
+const LIBRARY = "/#library";
 
 test("the library searches, filters by reading status and deletes", async ({
   page,
