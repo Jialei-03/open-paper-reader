@@ -196,3 +196,18 @@ def test_local_mode_takes_any_https_model_service(monkeypatch):
     ):
         with pytest.raises(ValueError):
             translation_settings.validate_endpoint(url)
+
+
+def test_local_pages_say_they_are_the_local_build(tmp_path, local_app):
+    from pathlib import Path
+
+    if not (Path(__file__).resolve().parents[2] / "frontend" / "dist" / "index.html").is_file():
+        pytest.skip("frontend not built")
+    with client(local_app) as c:
+        page = c.get("/")
+        assert '<meta name="opr-mode" content="local">' in page.text
+        assert page.headers["cache-control"] == "no-store"
+    cloud = make_app(tmp_path / "cloud")
+    with client(cloud) as c:
+        assert "opr-mode" not in c.get("/").text
+    cloud.state.engine.dispose()

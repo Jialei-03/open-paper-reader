@@ -29,6 +29,10 @@ const mayBeSignedIn = () => {
     return false;
   }
 };
+// The local build marks its page: there the address is the app, never the site.
+const localEdition = () =>
+  document.querySelector('meta[name="opr-mode"]')?.getAttribute("content") ===
+  "local";
 const remember = (signedIn: boolean) => {
   try {
     if (signedIn) localStorage.setItem(hint, "1");
@@ -154,7 +158,12 @@ function AuthGate({ publicHome = false }: { publicHome?: boolean }) {
         }}
       />
     );
-  if (!user && publicHome && ["", "home"].includes(routePath))
+  if (
+    !user &&
+    publicHome &&
+    !localEdition() &&
+    ["", "home"].includes(routePath)
+  )
     return <ProductSite path="home" />;
   if (!user)
     return <Login error={error} setError={setError} onLogin={setUser} />;
@@ -176,7 +185,7 @@ function Root() {
   }, []);
   // The site's own address is the app's home for someone signed in.
   const home = !hash || hash === "#home";
-  return home && mayBeSignedIn() ? (
+  return home && (mayBeSignedIn() || localEdition()) ? (
     <AuthGate publicHome />
   ) : home || hash === "#how" ? (
     <ProductSite path={hash.slice(1) || "home"} />

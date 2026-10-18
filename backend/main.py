@@ -1416,6 +1416,16 @@ def create_app(settings=None):
         def spa(path: str):
             if path.startswith("api/"):
                 fail(404, "Not found")
+            if settings.mode == "local":
+                # The local build is the app itself: the page says so, so a new
+                # browser opens the workspace rather than the public site.
+                page = (dist / "index.html").read_text(encoding="utf-8")
+                return HTMLResponse(
+                    page.replace(
+                        "<head>", '<head><meta name="opr-mode" content="local">', 1
+                    ),
+                    headers={"Cache-Control": "no-store"},
+                )
             return FileResponse(dist / "index.html")
 
     return app
