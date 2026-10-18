@@ -19,6 +19,7 @@ from sqlalchemy import select, update
 
 from .config import Settings, database
 from .direct_runs import page_units, whole_paper
+from .layout_install import layout_available
 from .model_options import task_of, task_options
 from .model_usage import bind
 from .models import File, Paper, PaperPreparation, ReadingArtifact, TranslationJob, now
@@ -374,7 +375,7 @@ def process(settings, maker, identifier):
                 and not pending
                 and not failed
                 and not another_active
-                and settings.pdf_layout_image
+                and layout_available(settings)
                 and len(done) == len(texts)
             ):
                 job = TranslationJob(
@@ -393,7 +394,7 @@ def process(settings, maker, identifier):
                 )
                 d.add(job)
                 current.layout_status = "queued"
-            elif not ready and not pending and not settings.pdf_layout_image:
+            elif not ready and not pending and not layout_available(settings):
                 errors.append(ValueError("布局引擎未配置，对照翻译和导读已单独保存"))
             if current.guide_status != "completed":
                 current.guide_status = "failed"

@@ -31,6 +31,8 @@ from .reader_context import evidence_text
 from .reading_artifacts import finish_artifact, record_reading_evidence
 from .translation_settings import read_config, validate_endpoint
 
+from .local.paths import agent_runtime_dir
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -293,8 +295,11 @@ def _process(app, job_id, cfg):
         }
         if app.state.settings.testing:
             env["NODE_ENV"] = "test"
+        if app.state.settings.mode == "local":
+            # The local build may talk to a model server on this machine.
+            env["OPR_LOCAL_MODELS"] = "1"
         child = subprocess.Popen(
-            [os.getenv("AGENT_NODE", "node"), str(ROOT / "agent-runtime/runner.mjs")],
+            [os.getenv("AGENT_NODE", "node"), str(agent_runtime_dir() / "runner.mjs")],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,

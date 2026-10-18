@@ -9,8 +9,10 @@ from urllib.parse import urlsplit
 from . import agent_sandbox, agent_web
 from .models import AgentAttachment, File
 
-ROOT = Path(__file__).resolve().parents[1]
-PI_TOOLS = json.loads((ROOT / "agent-runtime/pi-tools.json").read_text())
+from .local.paths import agent_runtime_dir
+
+RUNTIME = agent_runtime_dir()
+PI_TOOLS = json.loads((RUNTIME / "pi-tools.json").read_text())
 PI_NAMES = {t["name"] for t in PI_TOOLS}
 
 
@@ -59,7 +61,7 @@ async def execute(app, owner, name, args, run, client, key):
     if name == "read_skill":
         return {
             "content": (
-                ROOT / "agent-runtime/skills/paper-workspace/SKILL.md"
+                RUNTIME / "skills/paper-workspace/SKILL.md"
             ).read_text()
         }
     if name in PI_NAMES:

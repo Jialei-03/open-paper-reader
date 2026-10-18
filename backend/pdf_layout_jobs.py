@@ -5,6 +5,7 @@ from pathlib import Path
 
 from sqlalchemy import update
 
+from .layout_install import layout_available, layout_runtime
 from .layout_translation import translate_pdf
 from .models import File, Paper, TranslationJob, now
 from .translations import store_file
@@ -26,7 +27,7 @@ STAGES = {
 
 
 def process_layout(settings, maker, job_id, config, work, progress):
-    if not settings.pdf_layout_image:
+    if not layout_available(settings):
         raise ValueError("普通 PDF 版面翻译尚未启用")
     with maker() as d:
         job = d.get(TranslationJob, job_id)
@@ -71,7 +72,7 @@ def process_layout(settings, maker, job_id, config, work, progress):
             progress(completed, 100, stage)
 
     translated, _ = translate_pdf(
-        None,
+        layout_runtime(settings),
         source_path,
         work / "layout",
         config,

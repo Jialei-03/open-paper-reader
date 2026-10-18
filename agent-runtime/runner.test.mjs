@@ -9,6 +9,14 @@ test('block private, metadata, loopback and mapped local destinations', () => {
   assert.throws(() => f('https://127.0.0.1/secrets'));
   assert.throws(() => f('https://example.com/secrets'));
 });
+test('only the local build reaches a model server on this machine', () => {
+  assert.throws(() => providerFetch('http://127.0.0.1:11434/v1'));
+  assert.throws(() => providerFetch('http://localhost:1234/v1'));
+  const local = providerFetch('http://127.0.0.1:11434/v1', false, true);
+  assert.throws(() => local('http://127.0.0.1:8765/api/v1/items'));
+  assert.doesNotThrow(() => providerFetch('http://localhost:1234/v1', false, true));
+  assert.throws(() => providerFetch('http://192.168.1.5:11434/v1', false, true));
+});
 
 import {leasedStream} from './model-lease.mjs';
 test('model lease covers streaming and releases before subsequent tools', async () => {

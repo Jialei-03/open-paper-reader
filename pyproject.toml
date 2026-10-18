@@ -1,0 +1,87 @@
+# The local, one-command build: `uvx open-paper-reader` or `pipx install open-paper-reader`.
+# The hosted site keeps installing from backend/requirements.txt; this file only
+# describes the package. Build it with scripts/build-local.sh, which builds the
+# web app first (frontend/dist is bundled into the wheel). See docs/LOCAL.md.
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "open-paper-reader"
+version = "0.2.0"
+description = "Read papers with an AI assistant on your own computer: guides, explanations and citations that lead back to the sentence."
+readme = "docs/LOCAL.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE", "NOTICE.md"]
+keywords = ["papers", "pdf", "reader", "research", "assistant"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Environment :: Web Environment",
+  "Topic :: Scientific/Engineering",
+]
+# Same pins as backend/requirements.txt, without the PostgreSQL driver: the
+# local build always uses SQLite.
+dependencies = [
+  "fastapi==0.141.1",
+  "starlette==1.6.0",
+  "uvicorn==0.35.0",
+  "sqlalchemy==2.0.43",
+  "alembic==1.16.5",
+  "argon2-cffi==25.1.0",
+  "python-multipart==0.0.32",
+  "pydantic==2.11.7",
+  "pillow==12.3.0",
+  "pypdf==6.18.1",
+  "cryptography==50.0.2",
+  "fonttools==4.66.0",
+  "httpx==0.28.1",
+  "regex==2024.11.6",
+  "pylatexenc==2.10",
+  "pypdfium2==5.13.0",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]==3.2.10"]
+
+[project.scripts]
+open-paper-reader = "backend.local.cli:main"
+opr = "backend.local.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+exclude = ["backend/tests", "backend/devtools", "**/__pycache__", "**/*.pyc"]
+
+# Built web app, the assistant runtime's sources (its npm dependencies are
+# installed on first start, see backend/local/cli.py) and the pinned BabelDOC
+# patches used by the on-demand layout translation install.
+[tool.hatch.build.targets.wheel.force-include]
+"frontend/dist" = "backend/_bundle/frontend/dist"
+"agent-runtime/runner.mjs" = "backend/_bundle/agent-runtime/runner.mjs"
+"agent-runtime/model-call.mjs" = "backend/_bundle/agent-runtime/model-call.mjs"
+"agent-runtime/model-lease.mjs" = "backend/_bundle/agent-runtime/model-lease.mjs"
+"agent-runtime/network.mjs" = "backend/_bundle/agent-runtime/network.mjs"
+"agent-runtime/sandbox-tools.mjs" = "backend/_bundle/agent-runtime/sandbox-tools.mjs"
+"agent-runtime/pi-tools.json" = "backend/_bundle/agent-runtime/pi-tools.json"
+"agent-runtime/package.json" = "backend/_bundle/agent-runtime/package.json"
+"agent-runtime/package-lock.json" = "backend/_bundle/agent-runtime/package-lock.json"
+"agent-runtime/skills" = "backend/_bundle/agent-runtime/skills"
+"deploy/translation/patch_layout_fonts.py" = "backend/_bundle/layout/patch_layout_fonts.py"
+"deploy/translation/patch_layout_quality.py" = "backend/_bundle/layout/patch_layout_quality.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "backend",
+  "agent-runtime/*.mjs",
+  "agent-runtime/*.json",
+  "agent-runtime/skills",
+  "deploy/translation/patch_layout_*.py",
+  "frontend/dist",
+  "docs/LOCAL.md",
+  "LICENSE",
+  "NOTICE.md",
+]
+exclude = ["backend/tests", "**/__pycache__", "agent-runtime/node_modules"]

@@ -82,7 +82,12 @@ def translate_pdf(
             shutil.copyfileobj(original, staged)
         if not container:
             engine_source = staged_source
-    command = [str(runtime), "-m", "backend.layout_translation_worker"]
+    # A list is a full command (the local build's BabelDOC environment).
+    command = (
+        [str(part) for part in runtime]
+        if isinstance(runtime, (list, tuple))
+        else [str(runtime), "-m", "backend.layout_translation_worker"]
+    )
     if container:
         command = [
             "docker",

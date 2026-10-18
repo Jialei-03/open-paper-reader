@@ -5,6 +5,15 @@ from pathlib import Path
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
+# Names that only ever reach this machine. The local (no-login) mode refuses to
+# start on, or answer through, anything else.
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def is_loopback(host):
+    host = (host or "").strip().lower().removeprefix("[").removesuffix("]")
+    return host in LOOPBACK_HOSTS or host.startswith("127.")
+
 
 @dataclass
 class Settings:
@@ -34,6 +43,10 @@ class Settings:
     # "open": anyone can create an account. "invite": an account needs an
     # invitation code made by an administrator.
     registration: str = "open"
+    # "cloud": the hosted site, every user signs in. "local": the one-person
+    # desktop build (open-paper-reader), bound to loopback, signs in by itself.
+    mode: str = "cloud"
+    host: str = "127.0.0.1"
 
     @classmethod
     def env(cls):
@@ -51,6 +64,15 @@ class Settings:
         if registration not in {"open", "invite"}:
             raise ValueError("REGISTRATION must be open or invite")
 
+        mode = os.getenv("APP_MODE", "cloud").strip().lower() or "cloud"
+        if mode not in {"cloud", "local"}:
+            raise ValueError("APP_MODE must be cloud or local")
+        host = os.getenv("APP_HOST", "127.0.0.1").strip()
+        if mode == "local" and (production or not is_loopback(host)):
+            raise RuntimeError(
+                "APP_MODE=local only runs on a loopback address (127.0.0.1) outside production"
+            )
+
         def budget_value(name, default, minimum=0):
             value = int(os.getenv(name, str(default)))
             if not minimum <= value <= 10**12:
@@ -64,6 +86,8 @@ class Settings:
             origin,
             int(os.getenv("UPLOAD_LIMIT_MB", "50")) * 1024 * 1024,
             registration=registration,
+            mode=mode,
+            host=host,
             translation_cache_days=budget_value("TRANSLATION_CACHE_DAYS", 7),
             translation_orphan_days=budget_value("TRANSLATION_ORPHAN_DAYS", 30),
             pdf_layout_image=os.getenv("PDF_LAYOUT_IMAGE", ""),

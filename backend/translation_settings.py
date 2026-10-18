@@ -56,13 +56,42 @@ def config_path(settings, owner):
 
 
 def allowed_hosts():
+    # The local build may use a model server on this machine (local_endpoint).
+    local = (
+        {"127.0.0.1", "localhost"}
+        if os.getenv("APP_MODE", "").strip().lower() == "local"
+        else set()
+    )
     return sorted(
         KNOWN_HOSTS
+        | local
         | set(filter(None, os.getenv("TRANSLATION_ALLOWED_HOSTS", "").split(",")))
     )
 
 
+# Ollama and LM Studio ignore the key but the OpenAI protocol sends one.
+LOCAL_MODEL_KEY = "local"
+
+
+def local_endpoint(value):
+    """A model server on this machine, allowed only in the local build."""
+    if os.getenv("APP_MODE", "").strip().lower() != "local":
+        return False
+    u = urlparse(value.rstrip("/"))
+    try:
+        u.port
+    except ValueError:
+        return False
+    return (
+        u.scheme in {"http", "https"}
+        and u.hostname in {"127.0.0.1", "localhost", "::1"}
+        and not (u.username or u.password or u.query or u.fragment)
+    )
+
+
 def validate_endpoint(value):
+    if local_endpoint(value):
+        return value.rstrip("/")
     u = urlparse(value.rstrip("/"))
     if (
         u.scheme != "https"
@@ -149,6 +178,7 @@ def public_config(settings, owner):
             for row in rows
         ],
         "allowed_hosts": allowed_hosts(),
+        "local_models": os.getenv("APP_MODE", "").strip().lower() == "local",
     }
 
 
@@ -192,6 +222,8 @@ def write_config(settings, owner, values, create=False):
         if not same and not values.get("api_key"):
             raise ValueError("更换服务地址或协议时请重新输入对应的 API Key")
         key = values.get("api_key") or current.get("api_key", "")
+        if not key and local_endpoint(url):
+            key = LOCAL_MODEL_KEY
         if not key:
             raise ValueError("请填写 API Key")
         if current and (not same or current.get("model") != values["model"]):
@@ -291,6 +323,8 @@ def list_models(settings, owner, values):
         and protocol == current.get("protocol", "openai")
         else ""
     )
+    if not key and local_endpoint(base):
+        key = LOCAL_MODEL_KEY
     if not key:
         raise ValueError("请填写该服务的 API Key 后获取模型")
     try:

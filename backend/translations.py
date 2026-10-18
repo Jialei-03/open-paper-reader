@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 
 from .arxiv_import import NO_PDF, ArxivNotFound, download, identifier, metadata
 from .import_progress import read as read_import_progress
+from .layout_install import layout_available
 from .import_progress import report, tracking
 from .model_options import task_options
 from .model_usage import ModelBudgetExceeded, bind
@@ -203,7 +204,7 @@ def install_translation_routes(
         human(a)
         return {
             **public_config(settings, a["id"]),
-            "pdf_layout_enabled": bool(settings.pdf_layout_image),
+            "pdf_layout_enabled": layout_available(settings),
         }
 
     @app.put("/api/v1/translation-settings")
@@ -382,7 +383,7 @@ def install_translation_routes(
         source_id = ""
         arxiv = ""
         if engine == "pdf":
-            if not settings.pdf_layout_image:
+            if not layout_available(settings):
                 raise HTTPException(409, "普通 PDF 版面翻译尚未启用")
             source = owned(d, File, body.source_file_id, a)
             if source.paper_id != p.id or source.version_id != p.current_version:

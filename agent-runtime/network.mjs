@@ -4,9 +4,12 @@ import ipaddr from 'ipaddr.js';
 export function publicAddress(address) {
   try { return ipaddr.process(address).range() === 'unicast'; } catch { return false; }
 }
-export function providerFetch(baseUrl, testing = false) {
+// `localModels`: the local build (APP_MODE=local) may use a model server on this
+// machine, such as Ollama or LM Studio. Only loopback names qualify.
+export const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+export function providerFetch(baseUrl, testing = false, localModels = false) {
   const base = new URL(baseUrl);
-  const localTest = testing && base.hostname === '127.0.0.1';
+  const localTest = (testing && base.hostname === '127.0.0.1') || (localModels && LOOPBACK.has(base.hostname));
   if (base.protocol !== 'https:' && !localTest) throw Error('HTTPS required');
   const dispatcher = new Dispatcher({connect: {lookup(host, options, callback) {
     lookup(host, {all:true}, (error, addresses) => {

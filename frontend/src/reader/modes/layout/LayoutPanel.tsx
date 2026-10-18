@@ -1,4 +1,5 @@
 import { useI18n } from "../../../i18n/I18nProvider";
+import { LayoutInstall } from "../../../screens/settings/LayoutInstall";
 import { Button, Spinner } from "../../../ui";
 import { layoutState, percentOf } from "./job";
 import styles from "./LayoutPanel.module.css";
@@ -108,6 +109,8 @@ export function LayoutPanel({ layout }: { layout: Layout }) {
           <>
             <h2 className={styles.title}>{t("reader.layout.disabled")}</h2>
             <p className={styles.about}>{t("reader.layout.disabledNote")}</p>
+            {/* The local build installs it on demand; elsewhere this shows nothing. */}
+            <LayoutInstall compact />
           </>
         ) : !layout.hasModel ? (
           <>

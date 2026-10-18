@@ -449,6 +449,24 @@ export const en = {
   "settings.tokens.revokeBody":
     "The agent using “{name}” loses access right away.",
   "settings.tokens.revoked": "Credential revoked.",
+  "settings.layoutInstall.title": "Layout translation",
+  "settings.layoutInstall.about":
+    "Translates a PDF with its layout kept, figures and formulas where they were. It runs on this computer and needs a one-time install.",
+  "settings.layoutInstall.installed": "Installed",
+  "settings.layoutInstall.start": "Install layout translation",
+  "settings.layoutInstall.cancel": "Cancel install",
+  "settings.layoutInstall.cancelled":
+    "The install was cancelled. Nothing was left behind.",
+  "settings.layoutInstall.failed": "The install could not be finished.",
+  "settings.layoutInstall.sizeNote":
+    "Downloads about 1 GB (BabelDOC and its layout models) into its own folder.",
+  "settings.layoutInstall.progress": "Install progress",
+  "settings.layoutInstall.percent": "{percent}%",
+  "settings.layoutInstall.stage.environment":
+    "Preparing a separate Python environment…",
+  "settings.layoutInstall.stage.engine": "Installing BabelDOC…",
+  "settings.layoutInstall.stage.assets": "Downloading layout models and fonts…",
+  "settings.layoutInstall.stage.finish": "Finishing…",
   "kit.sample.pages#one": "Read {count} page",
   "kit.sample.pages#other": "Read {count} pages",
   "kit.sample.region": "Preview",

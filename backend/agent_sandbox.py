@@ -13,6 +13,10 @@ def call(run, name, args=None):
                 os.getenv("AGENT_SANDBOX_SOCKET", "/run/paper-sandbox/broker.sock")
             )
         except OSError:
+            if os.getenv("APP_MODE") == "local":
+                raise ValueError(
+                    "本机版没有代码沙箱（需要 Docker），运行代码和终端类工具不可用；请改用阅读、笔记等业务工具"
+                ) from None
             raise ValueError("隔离终端暂不可用，请使用业务工具或稍后重试") from None
         client.sendall(
             (

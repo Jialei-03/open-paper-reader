@@ -20,7 +20,7 @@ input.on('line', line => {
 async function run({config, history, prompt, context, tools, limits = {}}) {
   const outputTokens = limits.output_tokens || 8192, maxCalls = limits.tool_calls || 64, maxTurns = limits.model_turns || 32, maxContext = limits.context_chars || 240000;
   // A model that sends no byte for this long is given up on, like the backend's read timeout.
-  const models = modelCalls(providerFetch(config.base_url, process.env.NODE_ENV === 'test'), limits.model_timeout_seconds || 300);
+  const models = modelCalls(providerFetch(config.base_url, process.env.NODE_ENV === 'test', process.env.OPR_LOCAL_MODELS === '1'), limits.model_timeout_seconds || 300);
   globalThis.fetch = models.fetch;
   const protocol = config.protocol === 'anthropic' ? 'anthropic-messages' : 'openai-completions';
   const model = { id:config.model, name:config.model, api:protocol, provider:'workspace',

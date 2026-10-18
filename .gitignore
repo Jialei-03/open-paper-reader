@@ -38,3 +38,4 @@ secrets/
 .venv313/
 *.age
 *.agekey
+/dist/

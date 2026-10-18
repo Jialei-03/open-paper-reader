@@ -1,0 +1,122 @@
+/*
+ * Settings → layout translation (local build): a title, one line, one thing to
+ * do, and while it installs a thin bar like the reader's translation progress.
+ */
+.section {
+  --install-bar-height: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-1);
+}
+
+/* In the reader's translated view: under its title and note, centred like them. */
+.compact {
+  align-items: center;
+  width: 100%;
+  text-align: center;
+}
+
+.compact .stage {
+  text-align: left;
+}
+
+.compact .progress {
+  align-self: stretch;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ui-space-8);
+}
+
+.title {
+  margin: 0;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.badge {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+}
+
+.about,
+.note,
+.error {
+  margin: 0;
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+}
+
+.error {
+  color: var(--ui-danger-text);
+}
+
+.details {
+  max-height: 10em;
+  margin: 0;
+  padding: var(--ui-space-8);
+  border-radius: var(--ui-r-4);
+  background: var(--ui-fill);
+  color: var(--ui-fg-2);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-12);
+  white-space: pre-wrap;
+  overflow: auto;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  margin-top: var(--ui-space-4);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+}
+
+.stage {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ui-space-12);
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+}
+
+.track {
+  height: var(--install-bar-height);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-fill);
+  overflow: hidden;
+}
+
+/* Grows from the left by scaling, not by changing its width: only transforms move. */
+.fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-accent);
+  transform-origin: left center;
+  transition: transform var(--ui-dur-3) var(--ui-ease-out);
+}

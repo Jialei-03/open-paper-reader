@@ -221,6 +221,8 @@ def create_app(settings=None):
             allowed = {settings.origin}
             if not settings.secure_cookie:
                 allowed |= {"http://127.0.0.1:5173", "http://localhost:5173"}
+            if settings.mode == "local":
+                allowed.add(settings.origin.replace("//127.0.0.1", "//localhost"))
             if origin and origin not in allowed:
                 return JSONResponse({"detail": "Untrusted origin"}, 403)
         limit = (
@@ -502,6 +504,9 @@ def create_app(settings=None):
     from .storage_files import install_storage_routes
 
     install_storage_routes(app, settings, db, auth, human, owned)
+    from .layout_install import install_layout_install_routes
+
+    install_layout_install_routes(app, settings, auth, human)
 
     @app.get("/api/v1/model-usage")
     def model_usage_summary(a=Depends(auth), d=Depends(db)):
@@ -512,7 +517,7 @@ def create_app(settings=None):
     @app.get("/api/v1/health")
     def health(d=Depends(db)):
         d.execute(select(User.id).limit(1))
-        return {"status": "ok", "version": VERSION}
+        return {"status": "ok", "version": VERSION, "mode": settings.mode}
 
     @app.post("/api/v1/auth/login")
     def login(body: Credentials, request: Request, d=Depends(db)):
@@ -586,7 +591,16 @@ def create_app(settings=None):
         return {"registered": True}
 
     @app.get("/api/v1/auth/me")
-    def me(a=Depends(auth), d=Depends(db)):
+    def me(request: Request, d=Depends(db)):
+        if settings.mode == "local":
+            from .local import session as local
+
+            current = d.get(Session, digest(request.cookies.get("paper_session", "")))
+            if (not current or current.expires <= now()) and local.trusted(
+                request, settings
+            ):
+                return local.sign_in(d, PASSWORD, digest, expires)
+        a = auth(request, d)
         return {"user": public(d.get(User, a["id"])), "agent": a["agent"]}
 
     @app.post("/api/v1/auth/logout")
@@ -1354,7 +1368,9 @@ def create_app(settings=None):
         return spec
 
     app.openapi = openapi
-    frontend = Path(__file__).resolve().parent.parent / "frontend"
+    from .local.paths import frontend_dir
+
+    frontend = frontend_dir()
     swagger = frontend / "dist" / "swagger"
     if not swagger.is_dir():
         swagger = frontend / "node_modules" / "swagger-ui-dist"
