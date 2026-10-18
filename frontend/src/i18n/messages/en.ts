@@ -119,22 +119,16 @@ export const en = {
   "reader.translation.toEnglish": "Translate to English",
   "reader.translation.addModel": "Add a model…",
   "reader.translation.retranslate": "Translate this page again",
-  "reader.layout.region": "Layout translation",
-  "reader.layout.title": "Layout translation",
-  "reader.layout.about":
-    "Translates the whole paper into Chinese and keeps its pages as they are: figures, formulas and typesetting stay in place.",
-  "reader.layout.start": "Start layout translation",
+  "reader.layout.region": "Full translation",
   "reader.layout.timeNote":
     "It takes a few minutes. You can keep reading the original meanwhile.",
   "reader.layout.checking": "Checking for a translation…",
-  "reader.layout.disabled": "Layout translation is off",
   "reader.layout.disabledNote":
     "This installation has no layout translation set up. Switch to Parallel to read a translation page by page.",
   "reader.layout.noModel":
     "Add a model in Settings first, so the paper can be translated.",
   "reader.layout.toSettings": "Open Settings",
   "reader.layout.queued": "Waiting to start…",
-  "reader.layout.progress": "Translation progress",
   "reader.layout.percent": "{percent}%",
   "reader.layout.cancel": "Cancel translation",
   "reader.layout.failed": "The translation could not be finished.",
@@ -143,22 +137,31 @@ export const en = {
   "reader.layout.cancelFailed":
     "Couldn't cancel the translation. Try again in a moment.",
   "reader.layout.offline": "Couldn't reach the service. Trying again.",
-  "reader.layout.titleLatex": "Full translation",
-  "reader.layout.aboutLatex":
-    "Translates the whole paper into Chinese, with its formulas, figures and references kept.",
-  "reader.layout.methodLatex":
-    "Translated from the arXiv LaTeX source and recompiled",
-  "reader.layout.methodPdf": "Re-typeset on the original PDF",
-  "reader.layout.startLatex": "Translate the paper",
   "reader.layout.noSource": "arXiv has no LaTeX source for this version.",
-  "reader.layout.noSourceNote":
-    "It can still be translated by re-typesetting the original PDF.",
-  "reader.layout.usePdf": "Re-typeset the PDF instead",
-  "reader.layout.latexMissing": "The LaTeX compiler isn't installed",
   "reader.layout.latexMissingNote":
     "An arXiv paper is translated from its LaTeX source and compiled on this computer. Install the compiler once to do that.",
-  "reader.layout.latexOffer":
-    "Install the LaTeX compiler to translate arXiv papers from their source instead.",
+  "reader.engine.title": "Full translation",
+  "reader.engine.intro":
+    "You can run both: each keeps its own result and you can switch between them. Nothing starts until you ask.",
+  "reader.engine.switch": "Translation method",
+  "reader.engine.latex.name": "Source recompile",
+  "reader.engine.latex.about":
+    "Translates the arXiv LaTeX source and compiles it again: the best typography. Only for arXiv papers that have source.",
+  "reader.engine.latex.start": "Start source recompile",
+  "reader.engine.latex.unsupported":
+    "Needs an arXiv paper's LaTeX source; this paper isn't one.",
+  "reader.engine.pdf.name": "Layout translation",
+  "reader.engine.pdf.about":
+    "Translates the original PDF with BabelDOC and keeps its layout. Works for any PDF.",
+  "reader.engine.pdf.start": "Start layout translation",
+  "reader.engine.state.idle": "Not started",
+  "reader.engine.state.running": "Running",
+  "reader.engine.state.done": "Done",
+  "reader.engine.state.failed": "Failed",
+  "reader.engine.show": "View this translation",
+  "reader.engine.showing": "Viewing",
+  "reader.engine.progress": "{name} progress",
+  "reader.engine.download": "{kind} · {name}",
   "reader.toast.favorited": "Added to favorites",
   "reader.toast.unfavorited": "Removed from favorites",
   "reader.toast.favoriteFailed": "Could not update favorites. Try again.",

@@ -415,6 +415,7 @@ def install_translation_routes(
             select(TranslationJob).where(
                 TranslationJob.owner == a["id"],
                 TranslationJob.paper_id == id,
+                TranslationJob.engine == engine,
                 TranslationJob.status.in_(["queued", "running"]),
             )
         )
@@ -437,7 +438,11 @@ def install_translation_routes(
         )
         latest_id = d.scalar(
             select(TranslationJob.id)
-            .where(TranslationJob.owner == a["id"], TranslationJob.paper_id == id)
+            .where(
+                TranslationJob.owner == a["id"],
+                TranslationJob.paper_id == id,
+                TranslationJob.engine == engine,
+            )
             .order_by(TranslationJob.created_at.desc())
         )
         if failed and failed.id != latest_id:

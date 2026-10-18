@@ -1,16 +1,17 @@
 import { useId, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import { Button, Dialog } from "../ui";
+import type { Engine } from "./modes/layout/job";
 import styles from "./DownloadDialog.module.css";
 
 /** Which PDF of the paper is saved. */
-export type DownloadKind = "original" | "annotated" | "translated";
+export type DownloadKind = "original" | "annotated" | `translated:${Engine}`;
 
 export interface DownloadDialogProps {
   open: boolean;
   onClose(): void;
-  /** The translated PDF is offered only where a full translation has completed. */
-  translated: boolean;
+  /** The methods whose full translation has completed: each is offered as its own PDF. */
+  translated: Engine[];
   /** Saves the PDF (it says when it is done, whether it worked or not). */
   onDownload(kind: DownloadKind): Promise<void>;
 }
@@ -40,15 +41,18 @@ export function DownloadDialog({
       label: t("reader.download.annotated"),
       hint: t("reader.download.annotatedHint"),
     },
-    ...(translated
-      ? [
-          {
-            value: "translated" as const,
-            label: t("reader.download.translated"),
-            hint: t("reader.download.translatedHint"),
-          },
-        ]
-      : []),
+    ...translated.map((engine) => ({
+      value: `translated:${engine}` as const,
+      // With two to choose from, each says which method made it.
+      label:
+        translated.length > 1
+          ? t("reader.engine.download", {
+              kind: t("reader.download.translated"),
+              name: t(`reader.engine.${engine}.name`),
+            })
+          : t("reader.download.translated"),
+      hint: t("reader.download.translatedHint"),
+    })),
   ];
 
   const download = async () => {

@@ -141,7 +141,10 @@ async function serve(
 
 const main = (page: Page) => page.getByRole("main");
 const panel = (page: Page) =>
-  main(page).getByRole("region", { name: "版面翻译", exact: true });
+  main(page).getByRole("region", { name: "全文翻译", exact: true });
+/** One of the two ways, as its own block of the panel. */
+const way = (page: Page, name: "源码重编" | "版面翻译") =>
+  panel(page).getByRole("region", { name, exact: true });
 const translated = (page: Page) =>
   main(page)
     .getByRole("radiogroup", { name: "阅读方式", exact: true })
@@ -165,9 +168,14 @@ test("an arXiv paper is translated from its LaTeX source, and the job is followe
   const service = await serve(page, paper);
   await open(page, paper);
 
-  await expect(panel(page).getByText("从 arXiv 源码翻译并编译")).toBeVisible();
-  await expect(panel(page).getByText("在原 PDF 上重新排版")).toHaveCount(0);
-  await panel(page).getByRole("button", { name: "开始翻译" }).click();
+  // Both ways are there to choose; nothing has been started for the person.
+  await expect(way(page, "源码重编")).toContainText("翻译 arXiv 的 LaTeX 源码");
+  await expect(way(page, "版面翻译")).toContainText("保留原有版面");
+  await expect(way(page, "源码重编")).toContainText("未开始");
+  expect(service.started).toEqual([]);
+  await way(page, "源码重编")
+    .getByRole("button", { name: "开始源码重编" })
+    .click();
   await expect
     .poll(() => service.started)
     .toEqual([{ model_config_id: "model-1", engine: "latex" }]);
@@ -179,20 +187,21 @@ test("an arXiv paper is translated from its LaTeX source, and the job is followe
     completed: 3,
     total: 10,
   });
-  await expect(panel(page).getByText("翻译章节与公式")).toBeVisible();
+  await expect(way(page, "源码重编").getByText("翻译章节与公式")).toBeVisible();
   await expect(
-    panel(page).getByRole("progressbar", { name: "翻译进度" }),
+    way(page, "源码重编").getByRole("progressbar", { name: "源码重编进度" }),
   ).toHaveAttribute("aria-valuenow", "30");
-  await expect(panel(page).getByText("从 arXiv 源码翻译并编译")).toBeVisible();
+  // The other way is not touched by it.
+  await expect(way(page, "版面翻译")).toContainText("未开始");
 
-  await panel(page).getByRole("button", { name: "取消翻译" }).click();
+  await way(page, "源码重编").getByRole("button", { name: "取消翻译" }).click();
   await expect.poll(() => service.cancelled).toEqual(["job-1"]);
   await expect(
-    panel(page).getByRole("button", { name: "开始翻译" }),
+    way(page, "源码重编").getByRole("button", { name: "开始源码重编" }),
   ).toBeVisible();
 });
 
-test("a paper that is not from arXiv is re-typeset on its PDF", async ({
+test("a paper that is not from arXiv can only be translated on its PDF", async ({
   page,
 }) => {
   await signIn(page);
@@ -200,9 +209,13 @@ test("a paper that is not from arXiv is re-typeset on its PDF", async ({
   const service = await serve(page, paper);
   await open(page, paper);
 
-  await expect(panel(page).getByText("在原 PDF 上重新排版")).toBeVisible();
-  await expect(panel(page).getByText("从 arXiv 源码翻译并编译")).toHaveCount(0);
-  await panel(page).getByRole("button", { name: "开始版面翻译" }).click();
+  await expect(way(page, "源码重编")).toContainText("这篇论文不是");
+  await expect(
+    way(page, "源码重编").getByRole("button", { name: "开始源码重编" }),
+  ).toHaveCount(0);
+  await way(page, "版面翻译")
+    .getByRole("button", { name: "开始版面翻译" })
+    .click();
   await expect
     .poll(() => service.started)
     .toEqual([
@@ -214,7 +227,7 @@ test("a paper that is not from arXiv is re-typeset on its PDF", async ({
     ]);
 });
 
-test("an arXiv version without LaTeX source offers the PDF way, which starts a layout translation", async ({
+test("an arXiv version without LaTeX source says so, and the layout way is still there to start", async ({
   page,
 }) => {
   await signIn(page);
@@ -239,16 +252,14 @@ test("an arXiv version without LaTeX source offers the PDF way, which starts a l
   await open(page, paper);
 
   await expect(
-    panel(page).getByRole("heading", {
-      name: "arXiv 没有这个版本的 LaTeX 源码。",
-    }),
+    way(page, "源码重编").getByText("arXiv 没有这个版本的 LaTeX 源码。"),
   ).toBeVisible();
-  // Trying the source again cannot help: only the PDF way is offered.
+  // Trying the source again cannot help: no retry there.
   await expect(panel(page).getByRole("button", { name: "重试" })).toHaveCount(
     0,
   );
-  await panel(page)
-    .getByRole("button", { name: "改为在原 PDF 上排版" })
+  await way(page, "版面翻译")
+    .getByRole("button", { name: "开始版面翻译" })
     .click();
   await expect
     .poll(() => service.started)
@@ -260,12 +271,11 @@ test("an arXiv version without LaTeX source offers the PDF way, which starts a l
       },
     ]);
   await expect(
-    panel(page).getByRole("progressbar", { name: "翻译进度" }),
+    way(page, "版面翻译").getByRole("progressbar", { name: "版面翻译进度" }),
   ).toBeVisible();
-  await expect(panel(page).getByText("在原 PDF 上重新排版")).toBeVisible();
 });
 
-test("another LaTeX failure can be tried again, or re-typeset on the PDF", async ({
+test("another LaTeX failure gives its reason and can be tried again, with the layout way beside it", async ({
   page,
 }) => {
   await signIn(page);
@@ -290,12 +300,12 @@ test("another LaTeX failure can be tried again, or re-typeset on the PDF", async
   await open(page, paper);
 
   await expect(
-    panel(page).getByText("中文 PDF 编译失败：宏包或排版编译失败"),
+    way(page, "源码重编").getByText("中文 PDF 编译失败：宏包或排版编译失败"),
   ).toBeVisible();
   await expect(
-    panel(page).getByRole("button", { name: "改为在原 PDF 上排版" }),
+    way(page, "版面翻译").getByRole("button", { name: "开始版面翻译" }),
   ).toBeVisible();
-  await panel(page).getByRole("button", { name: "重试" }).click();
+  await way(page, "源码重编").getByRole("button", { name: "重试" }).click();
   await expect
     .poll(() => service.started)
     .toEqual([{ model_config_id: "model-1", engine: "latex" }]);
@@ -361,9 +371,13 @@ test("in the local build without the TeX engine, an arXiv paper offers to instal
   const service = await serve(page, paper, { latex: false, installable: true });
   await open(page, paper);
 
-  // Meanwhile the PDF way is what it would use.
-  await expect(panel(page).getByText("在原 PDF 上重新排版")).toBeVisible();
-  await panel(page).getByRole("button", { name: "安装 LaTeX 编译器" }).click();
+  // Meanwhile the layout way can be started.
+  await expect(
+    way(page, "版面翻译").getByRole("button", { name: "开始版面翻译" }),
+  ).toBeVisible();
+  await way(page, "源码重编")
+    .getByRole("button", { name: "安装 LaTeX 编译器" })
+    .click();
   await expect
     .poll(() => service.installCalls)
     .toEqual(["/api/v1/latex-install"]);
@@ -380,8 +394,9 @@ test("in the local build without the TeX engine, an arXiv paper offers to instal
     available: true,
   });
   Object.assign(service, { latex: true, installable: false });
-  await expect(panel(page).getByText("从 arXiv 源码翻译并编译")).toBeVisible();
-  await panel(page).getByRole("button", { name: "开始翻译" }).click();
+  await way(page, "源码重编")
+    .getByRole("button", { name: "开始源码重编" })
+    .click();
   await expect
     .poll(() => service.started)
     .toEqual([{ model_config_id: "model-1", engine: "latex" }]);
@@ -395,9 +410,8 @@ test("without any way to compile or re-typeset, the local build offers the LaTeX
   await serve(page, paper, { latex: false, installable: true, layout: false });
   await open(page, paper);
 
-  await expect(
-    panel(page).getByRole("heading", { name: "还没有安装 LaTeX 编译器" }),
-  ).toBeVisible();
+  await expect(way(page, "源码重编")).toContainText("先安装一次编译器");
+  await expect(way(page, "版面翻译")).toContainText("还没有配置版面翻译");
   await expect(
     panel(page).getByRole("button", { name: "安装 LaTeX 编译器" }),
   ).toBeVisible();

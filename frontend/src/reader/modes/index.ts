@@ -15,6 +15,8 @@ export {
   type ModeControlsProps,
 } from "./ModeControls";
 export { LayoutPanel } from "./layout/LayoutPanel";
+export { EngineSwitch } from "./layout/EngineSwitch";
+export { ENGINES, type Engine } from "./layout/job";
 export {
   useLayoutTranslation,
   type Layout,

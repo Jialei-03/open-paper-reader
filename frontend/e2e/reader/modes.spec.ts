@@ -137,7 +137,7 @@ const mode = (page: Page, name: string) =>
 const menuButton = (page: Page) =>
   main(page).getByRole("button", { name: "翻译设置", exact: true });
 const layoutPanel = (page: Page) =>
-  main(page).getByRole("region", { name: "版面翻译", exact: true });
+  main(page).getByRole("region", { name: "全文翻译", exact: true });
 const progressBar = (page: Page) =>
   layoutPanel(page).getByRole("progressbar", { name: "翻译进度" });
 const column = (page: Page, number: number) =>
@@ -262,9 +262,7 @@ test("the translated view without a translation offers to make one, and starting
   await mode(page, "译文").click();
   await expect(mode(page, "译文")).toHaveAttribute("aria-checked", "true");
   await expect(layoutPanel(page)).toBeVisible();
-  await expect(
-    layoutPanel(page).getByText("把整篇论文译成中文，页面原样保留"),
-  ).toBeVisible();
+  await expect(layoutPanel(page).getByText("保留原有版面")).toBeVisible();
   // The pages are not drawn behind it.
   await expect(pdfPage(page, 1)).toHaveCount(0);
 
@@ -311,7 +309,7 @@ test("a layout translation the service cannot make is said so", async ({
 
   await mode(page, "译文").click();
   await expect(
-    layoutPanel(page).getByRole("heading", { name: "版面翻译未开启" }),
+    layoutPanel(page).getByRole("region", { name: "版面翻译", exact: true }),
   ).toBeVisible();
   await expect(
     layoutPanel(page).getByText("这台服务还没有配置版面翻译"),
@@ -331,7 +329,10 @@ test("without a model the translated view says to add one in settings", async ({
   await expect(
     layoutPanel(page).getByRole("link", { name: "打开设置" }),
   ).toHaveAttribute("href", "#settings");
-  await expect(layoutPanel(page).getByRole("button")).toHaveCount(0);
+  // Nothing can be started without one.
+  await expect(
+    layoutPanel(page).getByRole("button", { name: "开始版面翻译" }),
+  ).toBeDisabled();
 });
 
 test("a running translation shows how far it has got, and can be stopped", async ({
@@ -367,9 +368,6 @@ test("a failed translation gives the service's reason and can be tried again", a
   }));
 
   await mode(page, "译文").click();
-  await expect(
-    layoutPanel(page).getByRole("heading", { name: "翻译没有完成。" }),
-  ).toBeVisible();
   await expect(
     layoutPanel(page).getByText("模型没有回应，请稍后重试。"),
   ).toBeVisible();
@@ -727,7 +725,7 @@ test.describe("in English", () => {
 
     await radios.nth(2).click();
     const panel = main(page).getByRole("region", {
-      name: "Layout translation",
+      name: "Full translation",
       exact: true,
     });
     await expect(

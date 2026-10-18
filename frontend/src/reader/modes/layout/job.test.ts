@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  defaultEngine,
   isArxivVersion,
   lacksSource,
   layoutState,
   percentOf,
   pickJob,
   type LayoutJob,
+  type LayoutState,
 } from "./job";
 
 const job = (change: Partial<LayoutJob>): LayoutJob => ({
@@ -99,5 +101,36 @@ describe("LaTeX translations", () => {
     expect(isArxivVersion("arxiv:2504.19413")).toBe(false);
     expect(isArxivVersion("doi:10.1000/x")).toBe(false);
     expect(isArxivVersion("")).toBe(false);
+  });
+});
+
+describe("pickJob by method", () => {
+  it("keeps each method's result apart", () => {
+    const jobs = [
+      job({ id: "pdf-failed", status: "failed", error: "x" }),
+      job({
+        id: "latex-done",
+        engine: "latex",
+        version_id: "v1",
+        translated_file: "t1",
+      }),
+    ];
+    expect(pickJob(jobs, "f1", "v1", "latex")?.id).toBe("latex-done");
+    expect(pickJob(jobs, "f1", "v1", "pdf")?.id).toBe("pdf-failed");
+  });
+});
+
+describe("defaultEngine", () => {
+  const states = (latex: LayoutState, pdf: LayoutState) => ({ latex, pdf });
+  it("follows the person's choice where it can be made", () => {
+    expect(defaultEngine(states("done", "done"), true, "pdf")).toBe("pdf");
+    expect(defaultEngine(states("idle", "done"), false, "latex")).toBe("pdf");
+  });
+  it("shows the completed one, else the running one, else LaTeX for arXiv", () => {
+    expect(defaultEngine(states("idle", "done"), true, null)).toBe("pdf");
+    expect(defaultEngine(states("done", "done"), true, null)).toBe("latex");
+    expect(defaultEngine(states("idle", "running"), true, null)).toBe("pdf");
+    expect(defaultEngine(states("idle", "idle"), true, null)).toBe("latex");
+    expect(defaultEngine(states("idle", "idle"), false, null)).toBe("pdf");
   });
 });

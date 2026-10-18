@@ -2,33 +2,14 @@ import { useI18n } from "../../../i18n/I18nProvider";
 import { LatexInstall } from "../../../screens/settings/LatexInstall";
 import { LayoutInstall } from "../../../screens/settings/LayoutInstall";
 import { Button, Spinner } from "../../../ui";
-import { lacksSource, layoutState, percentOf } from "./job";
+import { ENGINES, percentOf, type Engine } from "./job";
 import styles from "./LayoutPanel.module.css";
-import type { Layout } from "./useLayoutTranslation";
-
-/** The title, the one line that says what the translation does, and the plain line that says how it is made. */
-function About({ layout }: { layout: Layout }) {
-  const { t } = useI18n();
-  const latex = layout.method === "latex";
-  return (
-    <>
-      <h2 className={styles.title}>
-        {t(latex ? "reader.layout.titleLatex" : "reader.layout.title")}
-      </h2>
-      <p className={styles.about}>
-        {t(latex ? "reader.layout.aboutLatex" : "reader.layout.about")}
-      </p>
-      <p className={styles.method}>
-        {t(latex ? "reader.layout.methodLatex" : "reader.layout.methodPdf")}
-      </p>
-    </>
-  );
-}
+import type { EngineView, Layout } from "./useLayoutTranslation";
 
 /** How far a running translation has got: the service's words for the stage, and a bar. */
-function Progress({ layout }: { layout: Layout }) {
+function Progress({ view, name }: { view: EngineView; name: string }) {
   const { t } = useI18n();
-  const { job } = layout;
+  const { job } = view;
   if (!job) return null;
   const percent = percentOf(job);
   const queued = job.status === "queued";
@@ -45,7 +26,7 @@ function Progress({ layout }: { layout: Layout }) {
       <div
         className={styles.track}
         role="progressbar"
-        aria-label={t("reader.layout.progress")}
+        aria-label={t("reader.engine.progress", { name })}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent ?? undefined}
@@ -59,43 +40,133 @@ function Progress({ layout }: { layout: Layout }) {
   );
 }
 
-/** Translating on the original PDF instead, where the service can; the local build can install it. */
-function UsePdf({
-  layout,
-  variant,
-}: {
-  layout: Layout;
-  variant: "primary" | "ghost";
-}) {
+/** What a method needs that is missing, said plainly; the local build offers to install it. */
+function Missing({ layout, engine }: { layout: Layout; engine: Engine }) {
   const { t } = useI18n();
-  if (!layout.layoutAvailable)
-    return variant === "primary" ? <LayoutInstall compact /> : null;
+  if (engine === "latex")
+    return (
+      <>
+        <p className={styles.note}>{t("reader.layout.latexMissingNote")}</p>
+        {layout.latexInstallable && <LatexInstall compact />}
+      </>
+    );
   return (
-    <Button
-      variant={variant}
-      loading={layout.busy}
-      disabled={!layout.hasModel}
-      onClick={() => layout.start("pdf")}
+    <>
+      <p className={styles.note}>{t("reader.layout.disabledNote")}</p>
+      {/* The local build installs it on demand; elsewhere this shows nothing. */}
+      <LayoutInstall compact />
+    </>
+  );
+}
+
+function Method({ layout, engine }: { layout: Layout; engine: Engine }) {
+  const { t } = useI18n();
+  const view = layout.engines[engine];
+  const name = t(`reader.engine.${engine}.name`);
+  const selected = layout.selected === engine;
+  const ready = view.supported && view.available;
+
+  let body;
+  if (!view.supported)
+    body = (
+      <p className={styles.note}>{t("reader.engine.latex.unsupported")}</p>
+    );
+  else if (view.state === "running")
+    body = (
+      <>
+        <Progress view={view} name={name} />
+        <div className={styles.actions}>
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={layout.busy}
+            onClick={() => layout.cancel(engine)}
+          >
+            {t("reader.layout.cancel")}
+          </Button>
+        </div>
+      </>
+    );
+  else if (view.state === "done")
+    body = (
+      <div className={styles.actions}>
+        <Button
+          variant={selected ? "ghost" : "secondary"}
+          size="sm"
+          disabled={selected}
+          onClick={() => layout.select(engine)}
+        >
+          {t(selected ? "reader.engine.showing" : "reader.engine.show")}
+        </Button>
+      </div>
+    );
+  else if (view.state === "failed" && view.noSource)
+    body = <p className={styles.reason}>{t("reader.layout.noSource")}</p>;
+  else if (!ready) body = <Missing layout={layout} engine={engine} />;
+  else
+    body = (
+      <>
+        {view.state === "failed" && (
+          <p className={styles.reason}>
+            {view.job?.error || t("reader.layout.failed")}
+          </p>
+        )}
+        <div className={styles.actions}>
+          <Button
+            variant="primary"
+            size="sm"
+            loading={layout.busy}
+            disabled={!layout.hasModel}
+            onClick={() => layout.start(engine)}
+          >
+            {t(
+              view.state === "failed"
+                ? "common.retry"
+                : `reader.engine.${engine}.start`,
+            )}
+          </Button>
+        </div>
+      </>
+    );
+
+  const status =
+    view.state === "running"
+      ? t("reader.engine.state.running")
+      : view.state === "done"
+        ? t("reader.engine.state.done")
+        : view.state === "failed"
+          ? t("reader.engine.state.failed")
+          : view.supported
+            ? t("reader.engine.state.idle")
+            : "";
+
+  return (
+    <section
+      className={styles.method}
+      aria-label={name}
+      data-engine={engine}
+      data-state={view.state}
+      data-selected={selected ? "" : undefined}
     >
-      {t("reader.layout.usePdf")}
-    </Button>
+      <header className={styles.methodHead}>
+        <h3 className={styles.methodName}>{name}</h3>
+        {status && <span className={styles.status}>{status}</span>}
+      </header>
+      <p className={styles.about}>{t(`reader.engine.${engine}.about`)}</p>
+      {body}
+    </section>
   );
 }
 
 /**
- * What the paper area shows in the translated view while there is no translated
- * PDF to show: what the translation is, how it is made (from the arXiv LaTeX
- * source, or on the original PDF), and a button to start it; how it is going and
- * a way to stop it; or why it failed and a way to try again — and where arXiv
- * has no LaTeX source, the PDF way instead. Where the service cannot make one,
- * or there is no model, it says so.
+ * What the paper area shows in the translated view while the chosen method has
+ * no translated PDF: the two ways to translate the whole paper side by side,
+ * each with what it does, how it is going (not started, running with progress,
+ * done, failed with the reason and a retry), and a button the person presses.
+ * Nothing starts by itself — a run costs model calls.
  */
 export function LayoutPanel({ layout }: { layout: Layout }) {
   const { t } = useI18n();
-  const state = layoutState(layout.job);
-  const latex = layout.method === "latex";
-  // An arXiv paper read on the PDF way only because the TeX engine is not installed (local build).
-  const offerLatex = !latex && layout.arxiv && layout.latexInstallable;
 
   if (layout.loading)
     return (
@@ -111,96 +182,22 @@ export function LayoutPanel({ layout }: { layout: Layout }) {
   return (
     <section className={styles.panel} aria-label={t("reader.layout.region")}>
       <div className={styles.inner}>
-        {state === "running" ? (
-          <>
-            <About layout={layout} />
-            <Progress layout={layout} />
-            <div className={styles.actions}>
-              <Button
-                variant="ghost"
-                loading={layout.busy}
-                onClick={layout.cancel}
-              >
-                {t("reader.layout.cancel")}
-              </Button>
-            </div>
-          </>
-        ) : state === "failed" && lacksSource(layout.job) ? (
-          <>
-            <h2 className={styles.title}>{t("reader.layout.noSource")}</h2>
-            <p className={styles.about}>{t("reader.layout.noSourceNote")}</p>
-            <div className={styles.actions}>
-              <UsePdf layout={layout} variant="primary" />
-            </div>
-          </>
-        ) : state === "failed" ? (
-          <>
-            <h2 className={styles.title}>{t("reader.layout.failed")}</h2>
-            {layout.job?.error && (
-              <p className={styles.reason}>{layout.job.error}</p>
-            )}
-            <div className={styles.actions}>
-              <Button
-                variant="primary"
-                loading={layout.busy}
-                disabled={!layout.available || !layout.hasModel}
-                onClick={() => layout.start()}
-              >
-                {t("common.retry")}
-              </Button>
-              {latex && <UsePdf layout={layout} variant="ghost" />}
-            </div>
-          </>
-        ) : !layout.available ? (
-          latex || offerLatex ? (
-            <>
-              <h2 className={styles.title}>
-                {t("reader.layout.latexMissing")}
-              </h2>
-              <p className={styles.about}>
-                {t("reader.layout.latexMissingNote")}
-              </p>
-              <LatexInstall compact />
-            </>
-          ) : (
-            <>
-              <h2 className={styles.title}>{t("reader.layout.disabled")}</h2>
-              <p className={styles.about}>{t("reader.layout.disabledNote")}</p>
-              {/* The local build installs it on demand; elsewhere this shows nothing. */}
-              <LayoutInstall compact />
-            </>
-          )
-        ) : !layout.hasModel ? (
-          <>
-            <About layout={layout} />
-            <p className={styles.note}>{t("reader.layout.noModel")}</p>
-            <div className={styles.actions}>
-              <a className={styles.link} href="#settings">
-                {t("reader.layout.toSettings")}
-              </a>
-            </div>
-          </>
-        ) : (
-          <>
-            <About layout={layout} />
-            <div className={styles.actions}>
-              <Button
-                variant="primary"
-                loading={layout.busy}
-                onClick={() => layout.start()}
-              >
-                {t(latex ? "reader.layout.startLatex" : "reader.layout.start")}
-              </Button>
-            </div>
-            <p className={styles.note}>{t("reader.layout.timeNote")}</p>
-            {offerLatex && (
-              <div className={styles.offer}>
-                <p className={styles.note}>{t("reader.layout.latexOffer")}</p>
-                <LatexInstall compact />
-              </div>
-            )}
-          </>
+        <h2 className={styles.title}>{t("reader.engine.title")}</h2>
+        <p className={styles.about}>{t("reader.engine.intro")}</p>
+        {!layout.hasModel && (
+          <p className={styles.note}>
+            {t("reader.layout.noModel")}{" "}
+            <a className={styles.link} href="#settings">
+              {t("reader.layout.toSettings")}
+            </a>
+          </p>
         )}
+        <div className={styles.methods}>
+          {ENGINES.map((engine) => (
+            <Method key={engine} layout={layout} engine={engine} />
+          ))}
+        </div>
+        <p className={styles.note}>{t("reader.layout.timeNote")}</p>
         {layout.error && (
           <p className={styles.error} role="alert">
             {layout.error}

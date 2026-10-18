@@ -68,6 +68,8 @@ import { linkTarget } from "./outline";
 import {
   CompareBar,
   CompareView,
+  ENGINES,
+  EngineSwitch,
   LayoutPanel,
   ModeControls,
   alignedUnits,
@@ -667,6 +669,7 @@ function PaperCard({
         originalController: controller,
         bar: (
           <CompareBar
+            lead={<EngineSwitch layout={layout} />}
             wide={wide}
             view={view}
             onView={setView}
@@ -935,7 +938,10 @@ function PaperCard({
       <PaperHeader
         paper={paper}
         file={source?.file ?? null}
-        translatedFile={layout.translatedFile}
+        translations={ENGINES.flatMap((engine) => {
+          const file = layout.engines[engine].file;
+          return file ? [{ engine, file }] : [];
+        })}
         doc={shownDoc}
         page={page}
         pages={shownPages}

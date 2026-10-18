@@ -261,6 +261,7 @@ class TranslationJob(Base):
             "uq_active_translation",
             "owner",
             "paper_id",
+            "engine",
             unique=True,
             sqlite_where=text("status IN ('queued', 'running')"),
             postgresql_where=text("status IN ('queued', 'running')"),
