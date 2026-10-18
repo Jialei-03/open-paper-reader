@@ -625,28 +625,28 @@ test("the panel is 320px wide, at most 70% of the window high, and shows the thu
   ).toBe(true);
 });
 
-test("the more menu downloads the original and the annotated PDF, and favorites", async ({
+test("the more menu's download dialog saves the original and the annotated PDF, and favorites", async ({
   page,
 }) => {
   const { paperId, title } = await open(page, { pages: 3 });
   const menu = page.getByRole("menu", { name: "更多", exact: true });
 
-  await moreButton(page).click();
-  const [original] = await Promise.all([
-    page.waitForEvent("download"),
-    menu.getByRole("menuitem", { name: "下载原文", exact: true }).click(),
-  ]);
-  expect(original.suggestedFilename()).toBe(`${title}.pdf`);
-
-  await moreButton(page).click();
-  const [annotated] = await Promise.all([
-    page.waitForEvent("download"),
-    menu
-      .getByRole("menuitem", { name: "导出带批注的 PDF", exact: true })
-      .click(),
-  ]);
-  expect(annotated.suggestedFilename()).toBe(`${title}-批注.pdf`);
-  expect(annotated.suggestedFilename().endsWith("-批注.pdf")).toBe(true);
+  const dialog = page.getByRole("dialog", { name: "下载", exact: true });
+  const choose = async (name: string) => {
+    await moreButton(page).click();
+    await menu.getByRole("menuitem", { name: "下载…", exact: true }).click();
+    await dialog.getByRole("radio", { name, exact: true }).check();
+    const [saved] = await Promise.all([
+      page.waitForEvent("download"),
+      dialog.getByRole("button", { name: "下载", exact: true }).click(),
+    ]);
+    await expect(dialog).toBeHidden();
+    return saved;
+  };
+  expect((await choose("原文 PDF")).suggestedFilename()).toBe(`${title}.pdf`);
+  expect((await choose("带批注的 PDF")).suggestedFilename()).toBe(
+    `${title}-批注.pdf`,
+  );
 
   const favorite = async () =>
     (await (await page.request.get(`/api/v1/papers/${paperId}`)).json())
@@ -684,9 +684,12 @@ test("a download that fails, and a favorite that conflicts, say so", async ({
   const menu = page.getByRole("menu", { name: "更多", exact: true });
 
   await moreButton(page).click();
-  await menu
-    .getByRole("menuitem", { name: "导出带批注的 PDF", exact: true })
-    .click();
+  await menu.getByRole("menuitem", { name: "下载…", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "下载", exact: true });
+  await dialog
+    .getByRole("radio", { name: "带批注的 PDF", exact: true })
+    .check();
+  await dialog.getByRole("button", { name: "下载", exact: true }).click();
   await expect(
     page.getByRole("alert").filter({ hasText: "批注 PDF 导出失败" }),
   ).toBeVisible();
@@ -724,7 +727,7 @@ test("in a narrow card zoom and find move into the more menu", async ({
 
   const menu = page.getByRole("menu", { name: "更多", exact: true });
   await moreButton(page).click();
-  for (const name of ["查找论文", "适合宽度", "放大", "缩小", "下载原文"])
+  for (const name of ["查找论文", "适合宽度", "放大", "缩小", "下载…"])
     await expect(
       menu.getByRole("menuitem", { name, exact: true }),
     ).toBeVisible();
@@ -895,7 +898,7 @@ test.describe("in English", () => {
     await page.keyboard.press("Escape");
     await main(page).getByRole("button", { name: "More", exact: true }).click();
     await expect(
-      page.getByRole("menuitem", { name: "Download original", exact: true }),
+      page.getByRole("menuitem", { name: "Download…", exact: true }),
     ).toBeVisible();
     // Nothing of the header is left in Chinese.
     expect(await main(page).innerText()).not.toMatch(/[一-鿿]/);

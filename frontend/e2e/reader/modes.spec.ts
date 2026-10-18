@@ -403,6 +403,7 @@ test("a finished translation is read in the engine, and the modes keep the page"
 
   // The translated PDF, at the page that was being read.
   await mode(page, "译文").click();
+  await main(page).getByRole("radio", { name: "仅译文", exact: true }).click();
   await expect(scroller(page)).toHaveAttribute("data-file", translatedId);
   await expect(layoutPanel(page)).toHaveCount(0);
   await expect(pdfPage(page, 5)).toHaveAttribute("data-rendered", "true");
@@ -531,6 +532,7 @@ test("in 译文 the translated PDF's text is selected as ever, but not highlight
   });
 
   await mode(page, "译文").click();
+  await main(page).getByRole("radio", { name: "仅译文", exact: true }).click();
   await expect(scroller(page)).toHaveAttribute("data-file", translatedId);
   await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
   await selectLine(
@@ -689,7 +691,7 @@ test("where not even one button fits, the modes are in the more menu", async ({
     items.getByRole("menuitem", { name: /Second model/ }),
   ).toBeVisible();
   // The rest of the menu is still there.
-  await expect(items.getByRole("menuitem", { name: "下载原文" })).toBeVisible();
+  await expect(items.getByRole("menuitem", { name: "下载…" })).toBeVisible();
 
   await modeItem(items, "译文").click();
   await expect(layoutPanel(page)).toBeVisible();

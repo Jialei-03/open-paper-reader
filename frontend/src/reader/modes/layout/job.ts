@@ -1,3 +1,5 @@
+import type { AlignmentUnit } from "../compare/scroll-map";
+
 /**
  * How the translated PDF is made: `latex` translates an arXiv paper's LaTeX
  * source and compiles it again; `pdf` (BabelDOC) re-typesets the original PDF.
@@ -27,6 +29,11 @@ export interface LayoutJob {
   source_file: string;
   /** The PDF that came of it; empty until the job has completed. */
   translated_file: string;
+  /**
+   * Where each unit of text is in the original and in the translation (a LaTeX
+   * translation's "建立原译文对照" stage); empty for a layout translation.
+   */
+  alignment?: AlignmentUnit[];
 }
 
 export const isActive = (job: LayoutJob | null): boolean =>

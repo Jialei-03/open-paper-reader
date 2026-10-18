@@ -62,8 +62,15 @@ import { useNotes } from "./notes/useNotes";
 import type { AskRequest } from "./types";
 import { linkTarget } from "./outline";
 import {
+  CompareBar,
+  CompareView,
   LayoutPanel,
   ModeControls,
+  alignedUnits,
+  useTranslatedView,
+  useWide,
+  type AlignmentUnit,
+  type Side,
   useFoldedModeEntries,
   useLayoutTranslation,
   useTranslationLanguage,
@@ -183,6 +190,32 @@ function PaperPages({
   );
 }
 
+/** The translation beside the original shows no previews of its links: they are followed, not previewed. */
+const NO_PREVIEW: LinkPreview = {
+  hover: () => undefined,
+  close: () => undefined,
+  describedBy: () => undefined,
+  element: null,
+};
+
+/** The translated PDF read in the card (译文 mode): the strip over the pages, and, side by side, the second pane. */
+interface Translation {
+  /** The translated PDF. */
+  file: SourceFile;
+  /** The strip over the pages. */
+  bar: ReactNode;
+  /** The original and the translation, two panes; else the one pane is `shown`. */
+  sideBySide: boolean;
+  alignment: readonly AlignmentUnit[] | undefined;
+  linked: boolean;
+  swapped: boolean;
+  /** The original pane's controller (the card's). */
+  originalController: PdfController | null;
+}
+
+/** Room for a link's target above it in the translated pane, as in the original. */
+const TRANSLATED_LEAD = 24;
+
 /**
  * Under the card's header: the paper's PDF, or why it is not there (loading,
  * not found, refused, no PDF, a PDF that would not open). What breaks while it
@@ -202,7 +235,10 @@ function PaperBody({
   instead = null,
   pageAside,
   onVisiblePages,
+  translation = null,
 }: Pick<PdfPagesProps, "pageAside" | "onVisiblePages"> & {
+  /** In 译文 mode with a translated PDF: the strip over the pages, and the second pane beside the original. */
+  translation?: Translation | null;
   route: ReaderRoute;
   go: (hash: string) => void;
   onPaper: (paper: Paper) => void;
@@ -226,6 +262,26 @@ function PaperBody({
   const drawn = shown ?? pdf;
   const pdfDocument = usePdfDocument(drawn?.id ?? null);
   const doc = pdfDocument.doc;
+  // Side by side the translation is a second document with its own pages, scroll and zoom.
+  const sideBySide = translation?.sideBySide === true;
+  const translatedDocument = usePdfDocument(
+    sideBySide ? translation!.file.id : null,
+  );
+  const [translatedController, setTranslatedController] =
+    useState<PdfController | null>(null);
+  const [translatedPage, setTranslatedPage] = useState(1);
+  const translatedNow = useRef(translatedController);
+  translatedNow.current = translatedController;
+  const translatedDoc = translatedDocument.doc;
+  const followInTranslation = useCallback(
+    async (dest: PdfDestination) => {
+      if (!translatedDoc) return;
+      const target = await linkTarget(translatedDoc, dest, TRANSLATED_LEAD);
+      if (target)
+        translatedNow.current?.scrollToPage(target.page, target.offset);
+    },
+    [translatedDoc],
+  );
   useEffect(() => {
     if (paper) onPaper(paper);
   }, [paper, onPaper]);
@@ -295,7 +351,7 @@ function PaperBody({
       </div>
     );
   }
-  return (
+  const single = (
     <PaperPages
       key={drawn!.id}
       doc={pdfDocument.doc}
@@ -309,6 +365,66 @@ function PaperBody({
       pageAside={pageAside}
       onVisiblePages={onVisiblePages}
     />
+  );
+  if (!translation) return single;
+  if (!translation.sideBySide)
+    return (
+      <>
+        {translation.bar}
+        {single}
+      </>
+    );
+  return (
+    <>
+      {translation.bar}
+      <CompareView
+        original={translation.originalController}
+        translated={translatedController}
+        pages={{
+          original: pdfDocument.doc.numPages,
+          translated: translatedDoc?.numPages ?? 0,
+        }}
+        alignment={translation.alignment}
+        linked={translation.linked}
+        swapped={translation.swapped}
+        panes={{
+          original: single,
+          translated: translatedDoc ? (
+            <PaperPages
+              key={translation.file.id}
+              doc={translatedDoc}
+              file={translation.file}
+              page={translatedPage}
+              onPageChange={setTranslatedPage}
+              controllerRef={setTranslatedController}
+              overlays={{
+                onLink: followInTranslation,
+                preview: NO_PREVIEW,
+                region: null,
+                paper: overlays.paper,
+                scroller: translatedController?.root ?? null,
+                onAsk: overlays.onAsk,
+                onNote: overlays.onNote,
+              }}
+              translated
+            />
+          ) : translatedDocument.error ? (
+            <div className={styles.state}>
+              <p className={styles.message} role="alert">
+                {translatedDocument.error}
+              </p>
+              <Button onClick={translatedDocument.retry}>
+                {t("common.retry")}
+              </Button>
+            </div>
+          ) : (
+            <div className={styles.state} role="status">
+              <Spinner />
+            </div>
+          ),
+        }}
+      />
+    </>
   );
 }
 
@@ -461,6 +577,13 @@ function PaperCard({
   const [language, setLanguage] = useTranslationLanguage();
   const [modelId, setModelId] = useState<string | null>(null);
   const layout = useLayoutTranslation({ paper, file, modelId });
+  // 译文 with a translated PDF: alone, or beside the original where the card has room for two pages.
+  const frame = useRef<HTMLDivElement>(null);
+  const wide = useWide(frame);
+  const [view, setView] = useTranslatedView(owner, wide);
+  const [side, setSide] = useState<Side>("translated");
+  const [linked, setLinked] = useState(true);
+  const [swapped, setSwapped] = useState(false);
   // 对照: each page's translation beside it, made in the language and with the model of the menu, for the
   // pages near the view (nothing is asked for in the other modes).
   const parallel = useParallelTranslation({
@@ -472,6 +595,39 @@ function PaperCard({
   });
   // 译文 with no translated PDF yet: the card says how to make one, and there are no pages to move about in.
   const waiting = mode === "translated" && !layout.translatedFile;
+  const translatedFile = mode === "translated" ? layout.translatedFile : null;
+  const sideBySide = translatedFile !== null && wide && view === "compare";
+  // What the one pane shows: the translation, or, in a card too narrow for two panes, the original when asked for.
+  const shown =
+    translatedFile === null || sideBySide
+      ? null
+      : wide || side === "translated"
+        ? translatedFile
+        : null;
+  const translation: Translation | null = translatedFile
+    ? {
+        file: translatedFile,
+        sideBySide,
+        alignment: layout.job?.alignment,
+        linked,
+        swapped,
+        originalController: controller,
+        bar: (
+          <CompareBar
+            wide={wide}
+            view={view}
+            onView={setView}
+            side={side}
+            onSide={setSide}
+            linked={linked}
+            onLinked={setLinked}
+            swapped={swapped}
+            onSwap={() => setSwapped((on) => !on)}
+            aligned={alignedUnits(layout.job?.alignment) > 0}
+          />
+        ),
+      }
+    : null;
   const shownDoc = waiting ? null : doc;
   const shownPages = waiting ? 0 : pages;
   const modeControls = {
@@ -717,10 +873,11 @@ function PaperCard({
   };
 
   return (
-    <div className={styles.frame} onKeyDown={onKeyDown}>
+    <div ref={frame} className={styles.frame} onKeyDown={onKeyDown}>
       <PaperHeader
         paper={paper}
         file={source?.file ?? null}
+        translatedFile={layout.translatedFile}
         doc={shownDoc}
         page={page}
         pages={shownPages}
@@ -755,8 +912,9 @@ function PaperCard({
           controllerRef={setController}
           textLayerRef={onTextLayer}
           overlays={overlays}
-          // 译文: the translated PDF in the engine once there is one, else how to make it.
-          shown={mode === "translated" ? layout.translatedFile : null}
+          // 译文: the translated PDF in the engine (alone, or beside the original) once there is one, else how to make it.
+          shown={shown}
+          translation={translation}
           instead={waiting ? <LayoutPanel layout={layout} /> : null}
           pageAside={
             mode === "parallel"

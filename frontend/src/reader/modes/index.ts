@@ -19,3 +19,13 @@ export {
   useLayoutTranslation,
   type Layout,
 } from "./layout/useLayoutTranslation";
+export {
+  CompareBar,
+  CompareView,
+  alignedUnits,
+  useTranslatedView,
+  useWide,
+  type AlignmentUnit,
+  type Side,
+  type TranslatedView,
+} from "./compare";

@@ -342,6 +342,11 @@ test("a finished LaTeX translation is read in the engine", async ({ page }) => {
   });
   await openReader(page, { paperId: paper.paperId });
   await translated(page).click();
+  // Beside the original by default: this one reads the translation alone.
+  await page
+    .getByRole("main")
+    .getByRole("radio", { name: "仅译文", exact: true })
+    .click();
   await expect(
     page.getByRole("region", { name: "论文页面", exact: true }),
   ).toHaveAttribute("data-file", translatedId);

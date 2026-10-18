@@ -1,0 +1,27 @@
+/* The strip between the card's header and the pages: the choice of how the translation is shown, then the tools of the two panes. */
+.bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-width: 0;
+  padding: 0 var(--ui-space-12) var(--ui-space-8);
+}
+
+.basis {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin-left: auto;
+}

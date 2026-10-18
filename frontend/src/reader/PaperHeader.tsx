@@ -4,7 +4,6 @@ import {
   ChevronUp,
   Download,
   Ellipsis,
-  FileDown,
   Info,
   List,
   Search,
@@ -47,6 +46,7 @@ import {
   type MenuEntry,
 } from "../ui";
 import type { PdfController } from "./engine/PdfPages";
+import { DownloadDialog, type DownloadKind } from "./DownloadDialog";
 import { OutlinePanel } from "./OutlinePanel";
 import styles from "./PaperHeader.module.css";
 
@@ -223,6 +223,8 @@ export interface PaperHeaderProps {
   paper: Paper | null;
   /** The paper's PDF, once it is known. */
   file: SourceFile | null;
+  /** The full translation, once a job has completed: it can be downloaded. */
+  translatedFile?: SourceFile | null;
   /** The open PDF, once it has loaded. */
   doc: PDFDocumentProxy | null;
   /** The page being read. */
@@ -261,6 +263,7 @@ export interface PaperHeaderProps {
 export function PaperHeader({
   paper,
   file,
+  translatedFile = null,
   doc,
   page,
   pages,
@@ -282,7 +285,7 @@ export function PaperHeader({
   const tight = useNarrowCard(bar, TIGHT_CARD);
   const tiny = useNarrowCard(bar, TINY_CARD);
   const [outlineButton, setOutlineButton] = useState<HTMLElement | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const { owner = "" } = useContext(AppActions);
@@ -301,34 +304,29 @@ export function PaperHeader({
       ? error.message
       : fallback;
 
-  const save = async (path: string, name: string) => {
+  const save = async (source: SourceFile, path: string, name: string) => {
     try {
-      await downloadFile(`/api/v1/files/${file!.id}/${path}`, name);
+      await downloadFile(`/api/v1/files/${source.id}/${path}`, name);
     } catch (error) {
       fail(reason(error, t("reader.toast.downloadFailed")));
     }
   };
 
-  const downloadOriginal = () =>
-    save(
-      "content?download=true",
-      paperFileName((paper?.title || file!.name).replace(/\.pdf$/i, "")),
-    );
-
-  const exportAnnotated = async () => {
-    if (exporting) return;
-    setExporting(true);
-    try {
-      await save(
-        "annotated-pdf",
-        paperFileName(
-          (paper?.title || file!.name).replace(/\.pdf$/i, ""),
-          "-批注",
-        ),
+  const download = (kind: DownloadKind) => {
+    const base = (paper?.title || file!.name).replace(/\.pdf$/i, "");
+    if (kind === "translated" && translatedFile)
+      return save(
+        translatedFile,
+        "content?download=true",
+        paperFileName(base, t("reader.download.translatedSuffix")),
       );
-    } finally {
-      setExporting(false);
-    }
+    if (kind === "annotated")
+      return save(
+        file!,
+        "annotated-pdf",
+        paperFileName(base, t("reader.download.annotatedSuffix")),
+      );
+    return save(file!, "content?download=true", paperFileName(base));
   };
 
   const toggleFavorite = async () => {
@@ -437,14 +435,7 @@ export function PaperHeader({
       label: t("reader.more.download"),
       icon: Download,
       disabled: !file,
-      onSelect: () => void downloadOriginal(),
-    },
-    {
-      id: "export",
-      label: t("reader.more.export"),
-      icon: FileDown,
-      disabled: !file || exporting,
-      onSelect: () => void exportAnnotated(),
+      onSelect: () => setDownloadOpen(true),
     },
     { kind: "separator", id: "favorite-start" },
     {
@@ -562,6 +553,12 @@ export function PaperHeader({
               )}
             />
           )}
+          <DownloadDialog
+            open={downloadOpen && file !== null}
+            onClose={() => setDownloadOpen(false)}
+            translated={translatedFile !== null}
+            onDownload={download}
+          />
           <PaperDetails
             paper={detailsOpen ? paper : null}
             owner={owner}
