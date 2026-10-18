@@ -1,0 +1,155 @@
+/*
+ * The card sets what a reset would give it (the new screens do not load one):
+ * the font and the colors. It scrolls inside itself.
+ */
+.root {
+  --home-width: 760px;
+  --continue-min: 200px;
+  flex: 1;
+  color: var(--ui-fg);
+  font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(.root) :focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+}
+
+.empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ui-space-24);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-32);
+  width: 100%;
+  max-width: var(--home-width);
+  margin: 0 auto;
+  padding: var(--ui-space-24) var(--ui-space-24) var(--ui-space-48);
+  overflow-y: auto;
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--ui-space-10);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+}
+
+.more {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-decoration: none;
+}
+
+.more:hover {
+  color: var(--ui-fg);
+}
+
+.cards,
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--continue-min), 1fr));
+  gap: var(--ui-space-10);
+}
+
+.continue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  height: 100%;
+  padding: var(--ui-space-12) var(--ui-space-12) var(--ui-space-10);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-12);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background-color var(--ui-dur-2) var(--ui-ease-out),
+    border-color var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.continue:hover {
+  border-color: var(--ui-edge);
+  background: var(--ui-hover);
+}
+
+.title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.byline {
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page {
+  margin-top: auto;
+  padding-top: var(--ui-space-6);
+  color: var(--ui-accent-text);
+  font-size: var(--ui-text-12);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ui-space-12);
+  padding: var(--ui-space-8) var(--ui-space-10);
+  border-radius: var(--ui-r-8);
+  color: inherit;
+  text-decoration: none;
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.row:hover {
+  background: var(--ui-hover);
+}
+
+.row .title {
+  flex: 1;
+  -webkit-line-clamp: 1;
+}
+
+.row .byline {
+  flex: 0 1 40%;
+  text-align: right;
+}

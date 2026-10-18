@@ -79,6 +79,7 @@ const ReaderScreen = lazy(() =>
     default: module.ReaderScreen,
   })),
 );
+const S2Screens = lazy(() => import("./screens/s2-temp")); // TEMP S2
 /** What shows while the reader's chunk loads. */
 function ReaderLoading() {
   const { t } = useI18n();
@@ -409,6 +410,20 @@ export function Workspace({
   // assistant, notifications or search around it. (An address it cannot read
   // falls through to the workspace's "page not found".)
   const reader = section === "read" ? parseReaderRoute(route) : null;
+  // TEMP S2 begin
+  if (section === "home2" || section === "library2")
+    return (
+      <Suspense fallback={null}>
+        <S2Screens
+          screen={section}
+          owner={user.id}
+          papers={papers}
+          go={go}
+          reload={refresh}
+        />
+      </Suspense>
+    );
+  // TEMP S2 end
   if (reader)
     return (
       <I18nProvider>
