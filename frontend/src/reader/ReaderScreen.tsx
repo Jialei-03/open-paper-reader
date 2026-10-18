@@ -45,6 +45,12 @@ import {
 } from "./engine/PdfPages";
 import { usePdfDocument } from "./engine/usePdfDocument";
 import { FindBar, useFind, type Find } from "./FindBar";
+import {
+  ParallelPage,
+  useParallelTranslation,
+  useQuoteHighlight,
+  type HoverQuote,
+} from "./modes/parallel";
 import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
@@ -185,7 +191,9 @@ function PaperBody({
   overlays,
   shown = null,
   instead = null,
-}: {
+  pageAside,
+  onVisiblePages,
+}: Pick<PdfPagesProps, "pageAside" | "onVisiblePages"> & {
   route: ReaderRoute;
   go: (hash: string) => void;
   onPaper: (paper: Paper) => void;
@@ -288,6 +296,8 @@ function PaperBody({
       controllerRef={controllerRef}
       textLayerRef={textLayerRef}
       overlays={overlays}
+      pageAside={pageAside}
+      onVisiblePages={onVisiblePages}
     />
   );
 }
@@ -413,7 +423,10 @@ function PaperCard({
   onNote: Overlays["onNote"];
   actions: RefObject<PaperActions | null>;
 }) {
+  const { locale } = useI18n();
   const [paper, setPaper] = useState<Paper | null>(null);
+  const [visiblePages, setVisiblePages] = useState<number[]>([]);
+  const [hoverQuote, setHoverQuote] = useState<HoverQuote | null>(null);
   // A reference in the address (a sentence or a region) carries its own page.
   const reference =
     route.quote !== undefined ||
@@ -449,6 +462,13 @@ function PaperCard({
     onRetranslatePage: mode === "parallel" ? () => undefined : undefined,
   };
   const foldedModes = useFoldedModeEntries(modeControls);
+  const parallel = useParallelTranslation({
+    paper,
+    file,
+    language: locale,
+    modelId: null,
+    visiblePages: mode === "parallel" ? visiblePages : [],
+  });
   const find = useFind(doc, controller);
   const preview = useLinkPreview(route.paperId, doc);
   const controllerNow = useRef(controller);
@@ -596,6 +616,13 @@ function PaperCard({
     undefined,
     "fill",
   );
+  // The sentence hovered in the translation beside a page, marked on the page.
+  useQuoteHighlight(
+    mode === "parallel" && hoverQuote
+      ? (textLayers.current.get(hoverQuote.page) ?? null)
+      : null,
+    hoverQuote?.quote ?? "",
+  );
   // Once the reference's page is drawn: the region to the middle if the sentence was not found there,
   // and the keyboard to the paper if nobody has it (as on any opening), once for each time the address is entered.
   const landed = useRef<string | null>(null);
@@ -704,14 +731,24 @@ function PaperCard({
           controllerRef={setController}
           textLayerRef={onTextLayer}
           overlays={overlays}
-          // PLACEHOLDER (对照): mode === "parallel" reads like the original for now. The controller connects
-          // sub-agent E1's column here: PdfPages' pageAside={(page) => <ParallelPage …/>} and its visible pages.
           shown={mode === "translated" ? layout.translatedFile : null}
           instead={
             mode === "translated" && !layout.translatedFile ? (
               <LayoutPanel layout={layout} />
             ) : null
           }
+          pageAside={
+            mode === "parallel"
+              ? (number) => (
+                  <ParallelPage
+                    parallel={parallel}
+                    page={number}
+                    onHoverQuote={setHoverQuote}
+                  />
+                )
+              : undefined
+          }
+          onVisiblePages={setVisiblePages}
         />
       </RegionBoundary>
       {preview.element}

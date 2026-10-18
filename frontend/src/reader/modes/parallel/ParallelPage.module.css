@@ -1,0 +1,131 @@
+/*
+ * The translation of a page, on the desk beside it: prose from the page's top
+ * down, in the reading size of the interface. Over the desk, so the quiet text
+ * is --ui-fg-2 (never --ui-fg-3, R6).
+ */
+.column {
+  color: var(--ui-fg);
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading-loose);
+  overflow-wrap: anywhere;
+}
+
+/* How the page stands: one quiet line on top. */
+.status {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  margin: 0 0 var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+}
+
+/* A sentence; under the pointer it is tinted, and its original is marked on the page. */
+.paragraph {
+  margin: 0 calc(-1 * var(--ui-space-4)) var(--ui-space-6);
+  padding: 0 var(--ui-space-4);
+  border-radius: var(--ui-r-4);
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+/* A sentence that has just come, while the page is translated: it fades in. */
+.column[data-status="working"] .paragraph {
+  animation: parallel-arrive var(--ui-dur-3) var(--ui-ease-out) both;
+}
+
+.paragraph[data-hovered] {
+  background: var(--ui-hover);
+}
+
+.paragraph[data-kind="heading"] {
+  margin-top: var(--ui-space-12);
+  font-weight: var(--ui-weight-strong);
+}
+
+.paragraph[data-kind="heading"]:first-child,
+.status + .paragraph[data-kind="heading"] {
+  margin-top: 0;
+}
+
+.paragraph[data-kind="caption"],
+.figure .paragraph {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+/* The text inside a figure, folded away under one line. */
+.figure {
+  margin: 0 0 var(--ui-space-6);
+}
+
+.summary {
+  width: fit-content;
+  border-radius: var(--ui-r-4);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+  cursor: pointer;
+}
+
+.summary:hover {
+  color: var(--ui-fg-1);
+}
+
+.figure[open] > .summary {
+  margin-bottom: var(--ui-space-4);
+}
+
+/* Why a page was not translated, and the way to try again. */
+.failure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-6);
+}
+
+.failure .status {
+  margin: 0;
+}
+
+.error {
+  margin: 0 0 var(--ui-space-2);
+  color: var(--ui-danger-text);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+/* No model: one sentence, and the way to settings in it. */
+.note {
+  margin: 0;
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+
+.link {
+  border-radius: var(--ui-r-4);
+  color: var(--ui-accent-text);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+@keyframes parallel-arrive {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paragraph {
+    transition: none;
+  }
+
+  .column[data-status="working"] .paragraph {
+    animation: none;
+  }
+}
