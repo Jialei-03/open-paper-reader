@@ -1,0 +1,49 @@
+/*
+ * The find bar floats over the top of the paper's desk, under the card's
+ * header, at the right. It lays out nothing: the pages below do not move.
+ */
+.bar {
+  --find-width: 380px;
+  position: absolute;
+  top: var(--ui-space-4);
+  right: var(--ui-space-16);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  box-sizing: border-box;
+  width: min(var(--find-width), calc(100% - 2 * var(--ui-space-16)));
+  padding: var(--ui-space-6);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  /* It slides in from just above its place. */
+  animation: find-in var(--ui-dur-2) var(--ui-ease-out);
+}
+
+@keyframes find-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--ui-space-8)));
+  }
+}
+
+.field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The field is a little lower than the kit's: the bar is a strip. */
+.field input {
+  height: var(--ui-control-md);
+}
+
+.count {
+  flex: none;
+  min-width: 4.5em;
+  padding: 0 var(--ui-space-4);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}

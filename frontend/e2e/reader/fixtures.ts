@@ -25,24 +25,53 @@ async function writeHeaders(page: Page) {
   };
 }
 
+/** An entry of a PDF's own table of contents, with the entries under it. */
+export type OutlineItem = {
+  title: string;
+  /** The page it leads to, from 1. */
+  page: number;
+  children?: OutlineItem[];
+  /** The destination as the PDF writes it, instead of one to `page`: e.g. `(nowhere)`, a name nothing defines. */
+  dest?: string;
+};
+
 /**
  * A PDF of `pages` pages, each saying which one it is. `links` are internal
- * links: a box near the top of page `from` that jumps to page `to`.
+ * links: a box near the top of page `from` that jumps to page `to`. `outline` is
+ * the PDF's own table of contents; `words` puts a word on a page (a second line
+ * under the one that says which page it is), to search for.
  */
 export function pdfWithPages(
   pages: number,
   links: { from: number; to: number }[] = [],
+  options: { outline?: OutlineItem[]; words?: Record<number, string> } = {},
 ): Buffer {
-  // 1 catalog, 2 page tree, 3 font; then a page and its content per page; then the links.
+  // 1 catalog, 2 page tree, 3 font; then a page and its content per page; then the links; then the outline.
   const pageObject = (page: number) => 4 + 2 * (page - 1);
   const linkObject = (index: number) => 4 + 2 * pages + index;
+  const outlineRoot = 4 + 2 * pages + links.length;
+
+  // The outline, flattened in the order its objects are written: parent, then its children.
+  type Flat = { item: OutlineItem; parent: number | null; children: number[] };
+  const flat: Flat[] = [];
+  const walk = (items: OutlineItem[], parent: number | null): number[] =>
+    items.map((item) => {
+      const index = flat.length;
+      flat.push({ item, parent, children: [] });
+      flat[index].children = walk(item.children ?? [], index);
+      return index;
+    });
+  const top = walk(options.outline ?? [], null);
+  const objectOf = (index: number) => outlineRoot + 1 + index;
+
   const objects: string[] = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
+    `<< /Type /Catalog /Pages 2 0 R${top.length ? ` /Outlines ${outlineRoot} 0 R` : ""} >>`,
     `<< /Type /Pages /Kids [${Array.from({ length: pages }, (_, i) => `${pageObject(i + 1)} 0 R`).join(" ")}] /Count ${pages} >>`,
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
   ];
   for (let page = 1; page <= pages; page++) {
-    const stream = `BT /F1 20 Tf 40 720 Td (Page ${page} of ${pages}) Tj ET`;
+    const word = options.words?.[page];
+    const stream = `BT /F1 20 Tf 40 720 Td (Page ${page} of ${pages}) Tj${word ? ` 0 -40 Td (${word}) Tj` : ""} ET`;
     const annots = links
       .map((link, index) => (link.from === page ? linkObject(index) : 0))
       .filter(Boolean)
@@ -57,6 +86,26 @@ export function pdfWithPages(
     objects.push(
       `<< /Type /Annot /Subtype /Link /Rect [40 640 260 700] /Border [0 0 0] /Dest [${pageObject(link.to)} 0 R /XYZ 40 720 null] >>`,
     );
+  if (top.length) {
+    objects.push(
+      `<< /Type /Outlines /First ${objectOf(top[0])} 0 R /Last ${objectOf(top.at(-1)!)} 0 R /Count ${top.length} >>`,
+    );
+    flat.forEach(({ item, parent, children }, index) => {
+      const siblings = parent === null ? top : flat[parent].children;
+      const at = siblings.indexOf(index);
+      objects.push(
+        `<< /Title (${item.title}) /Parent ${parent === null ? outlineRoot : objectOf(parent)} 0 R` +
+          (at > 0 ? ` /Prev ${objectOf(siblings[at - 1])} 0 R` : "") +
+          (at < siblings.length - 1
+            ? ` /Next ${objectOf(siblings[at + 1])} 0 R`
+            : "") +
+          (children.length
+            ? ` /First ${objectOf(children[0])} 0 R /Last ${objectOf(children.at(-1)!)} 0 R /Count ${children.length}`
+            : "") +
+          ` /Dest ${item.dest ?? `[${pageObject(item.page)} 0 R /XYZ 40 720 null]`} >>`,
+      );
+    });
+  }
   let pdf = "%PDF-1.4\n";
   const offsets: number[] = [];
   objects.forEach((object, index) => {
@@ -71,6 +120,11 @@ export function pdfWithPages(
       .join("") +
     `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   return Buffer.from(pdf);
+}
+
+/** A PDF of `pages` pages with a table of contents of its own. */
+export function pdfWithOutline(pages: number, outline: OutlineItem[]): Buffer {
+  return pdfWithPages(pages, [], { outline });
 }
 
 let made = 0;
@@ -88,6 +142,10 @@ export async function createPaperWithPdf(
     title?: string;
     pages?: number;
     links?: { from: number; to: number }[];
+    /** The PDF's own table of contents. */
+    outline?: OutlineItem[];
+    /** Words to find: a word on a page, by page number. */
+    words?: Record<number, string>;
   } = {},
 ): Promise<{ paperId: string; fileId: string; title: string }> {
   const title =
@@ -104,9 +162,15 @@ export async function createPaperWithPdf(
   expect(response.ok()).toBeTruthy();
   const paper = await response.json();
   const buffer =
-    options.pages === undefined && !options.links
+    options.pages === undefined &&
+    !options.links &&
+    !options.outline &&
+    !options.words
       ? testPdf()
-      : pdfWithPages(options.pages ?? 2, options.links);
+      : pdfWithPages(options.pages ?? 2, options.links, {
+          outline: options.outline,
+          words: options.words,
+        });
   const upload = await page.request.post(`/api/v1/papers/${paper.id}/files`, {
     headers: await writeHeaders(page),
     multipart: {

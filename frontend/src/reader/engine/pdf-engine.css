@@ -62,6 +62,25 @@
 }
 
 /*
+ * The match the find bar is on. The search's highlight (features/PdfNavigation)
+ * lays a layer over the page, with a mark in it for each line of the match; it
+ * is placed and named there, and given its look here.
+ */
+.opr-pdf .pdf-search-highlight {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.opr-pdf .pdf-search-highlight span {
+  position: absolute;
+  border-radius: var(--ui-r-4);
+  background: var(--ui-highlight);
+  outline: 1px solid color-mix(in oklab, var(--ui-accent) 60%, transparent);
+}
+
+/*
  * pdf.js measures text with a canvas it adds to the end of <body>. Left showing
  * it would add a line under the reader, and the window would scroll. Only while
  * the engine is on screen, so the old pages stay exactly as they were.

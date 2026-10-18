@@ -1,27 +1,33 @@
 import { PanelRight } from "lucide-react";
+import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   useCallback,
   useEffect,
   useRef,
   useState,
   useSyncExternalStore,
+  type KeyboardEvent,
   type ReactNode,
+  type Ref,
   type RefObject,
 } from "react";
-import type { Paper } from "../api";
+import type { Paper, SourceFile } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import {
   Button,
   Card,
-  CardHeader,
   IconButton,
   Spinner,
   Toaster,
   Shell,
+  currentPlatformIsMac,
+  matchesShortcut,
 } from "../ui";
 import { recentPapers, rememberPaper } from "../lib/recent-papers";
 import { PdfPages, zoomShortcut, type PdfController } from "./engine/PdfPages";
 import { usePdfDocument } from "./engine/usePdfDocument";
+import { FindBar, useFind, type Find } from "./FindBar";
+import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel } from "./RightPanel";
@@ -63,19 +69,21 @@ function PaperBody({
   route,
   go,
   onPaper,
-  onPages,
+  onSource,
   page,
   onPageChange,
   controllerRef,
+  textLayerRef,
 }: {
   route: ReaderRoute;
   go: (hash: string) => void;
   onPaper: (paper: Paper) => void;
-  /** How many pages the PDF has; 0 while there is none. */
-  onPages: (pages: number) => void;
+  /** The paper's PDF, and the open document once it has loaded; `null` while there is no PDF. */
+  onSource: (source: Source | null) => void;
   page: number;
   onPageChange: (page: number) => void;
-  controllerRef: RefObject<PdfController | null>;
+  controllerRef: Ref<PdfController>;
+  textLayerRef: Find["onTextLayer"];
 }) {
   const { t } = useI18n();
   const { paper, pdf, error, missing, loading, retry } = usePaper(
@@ -83,14 +91,14 @@ function PaperBody({
     route.fileId,
   );
   const pdfDocument = usePdfDocument(pdf?.id ?? null);
-  const pages = pdfDocument.doc?.numPages ?? 0;
+  const doc = pdfDocument.doc;
   useEffect(() => {
     if (paper) onPaper(paper);
   }, [paper, onPaper]);
   useEffect(() => {
-    onPages(pages);
-    return () => onPages(0);
-  }, [pages, onPages]);
+    onSource(pdf ? { file: pdf, doc } : null);
+    return () => onSource(null);
+  }, [pdf, doc, onSource]);
 
   if (loading)
     return (
@@ -160,13 +168,37 @@ function PaperBody({
       page={page}
       onPageChange={onPageChange}
       controllerRef={controllerRef}
+      textLayerRef={textLayerRef}
     />
+  );
+}
+
+/** The paper's PDF, and the document once it has opened. */
+interface Source {
+  file: SourceFile;
+  doc: PDFDocumentProxy | null;
+}
+
+/** What the card offers the screen around it. */
+interface PaperActions {
+  /** Opens the find bar (or takes the keyboard to it); whether it could be opened. */
+  find(): boolean;
+}
+
+/** Whether the keyboard is in a field that takes text, where letters are for typing. */
+function typing(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
+      target.tagName === "SELECT")
   );
 }
 
 /**
  * The inside of the paper's card, for one paper (it is made anew for the next):
- * the header, with the title, the page and the side panel's toggle, and the
+ * the header, with the title, the page, the zoom, find and the contents, and the
  * body. Only the body fails on its own, so the header and the toggle stay.
  */
 function PaperCard({
@@ -174,17 +206,22 @@ function PaperCard({
   go,
   panelToggle,
   onPaper,
+  actions,
 }: {
   route: ReaderRoute;
   go: (hash: string) => void;
   panelToggle: ReactNode;
   onPaper: (paper: Paper) => void;
+  actions: RefObject<PaperActions | null>;
 }) {
-  const { t } = useI18n();
   const [paper, setPaper] = useState<Paper | null>(null);
   const [page, setPage] = useState(route.page ?? 1);
-  const [pages, setPages] = useState(0);
-  const controller = useRef<PdfController>(null);
+  const [source, setSource] = useState<Source | null>(null);
+  const [controller, setController] = useState<PdfController | null>(null);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const doc = source?.doc ?? null;
+  const pages = doc?.numPages ?? 0;
+  const find = useFind(doc, controller);
 
   // An address that names a page (a link into the paper) goes there.
   useEffect(() => {
@@ -199,39 +236,98 @@ function PaperCard({
     [onPaper],
   );
 
-  return (
+  /** Through the pages when they are there; else the page is kept for them to go to once they are. */
+  const navigate = (target: number) => {
+    if (controller) controller.scrollToPage(target);
+    else setPage(target);
+  };
+
+  // The keys of the paper work from wherever the keyboard is in the card, so the paper has the keyboard
+  // from the start, unless somebody is typing, or an address with a quote (which goes to the quote).
+  const focused = useRef<PDFDocumentProxy | null>(null);
+  const reference =
+    route.quote !== undefined ||
+    route.prefix !== undefined ||
+    route.rect !== undefined;
+  useEffect(() => {
+    const desk = controller?.root;
+    if (!doc || !desk || focused.current === doc) return;
+    focused.current = doc;
+    if (reference || typing(document.activeElement)) return;
+    desk.focus({ preventScroll: true });
+  }, [doc, controller, reference]);
+
+  // The screen's mod+f reaches the find bar through this.
+  useEffect(() => {
+    actions.current = {
+      find() {
+        if (!doc) return false;
+        find.show();
+        return true;
+      },
+    };
+    return () => {
+      actions.current = null;
+    };
+  });
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const key = event.nativeEvent;
+    if (key.isComposing) return;
     // The zoom shortcuts work wherever the keyboard is in the card.
-    <div
-      className={styles.frame}
-      onKeyDown={(event) => {
-        if (zoomShortcut(event.nativeEvent, controller.current))
-          event.preventDefault();
-      }}
-    >
-      <CardHeader>
-        {paper ? (
-          <h1 className={styles.title}>
-            {paper.title || t("reader.untitled")}
-          </h1>
-        ) : (
-          <span className={styles.title} />
-        )}
-        {pages > 0 && (
-          <span className={styles.pageStatus} aria-live="polite">
-            {t("reader.page.status", { page, pages })}
-          </span>
-        )}
-        {panelToggle}
-      </CardHeader>
+    if (zoomShortcut(key, controller)) {
+      event.preventDefault();
+      return;
+    }
+    // Esc closes the bar, unless something else (a menu, the page field) has taken it.
+    if (event.key === "Escape" && find.open && !event.defaultPrevented) {
+      event.preventDefault();
+      find.close();
+      return;
+    }
+    // [ and ] turn the pages, but are letters while a field is being typed in.
+    if (!pages || typing(event.target)) return;
+    const mac = currentPlatformIsMac();
+    if (matchesShortcut(key, "[", mac)) navigate(Math.max(1, page - 1));
+    else if (matchesShortcut(key, "]", mac))
+      navigate(Math.min(pages, page + 1));
+    else return;
+    event.preventDefault();
+  };
+
+  return (
+    <div className={styles.frame} onKeyDown={onKeyDown}>
+      <PaperHeader
+        paper={paper}
+        file={source?.file ?? null}
+        doc={doc}
+        page={page}
+        pages={pages}
+        controller={controller}
+        onNavigate={navigate}
+        findOpen={find.open}
+        onFind={find.toggle}
+        outlineOpen={outlineOpen}
+        onOutline={() => setOutlineOpen((open) => !open)}
+        onPaperChange={found}
+        panelToggle={panelToggle}
+      />
+      {/* No height of its own: the bar floats over the top of the paper, and the pages do not move for it. */}
+      {find.open && (
+        <div className={styles.findAnchor}>
+          <FindBar find={find} />
+        </div>
+      )}
       <RegionBoundary region="paper">
         <PaperBody
           route={route}
           go={go}
           onPaper={found}
-          onPages={setPages}
+          onSource={setSource}
           page={page}
           onPageChange={setPage}
-          controllerRef={controller}
+          controllerRef={setController}
+          textLayerRef={find.onTextLayer}
         />
       </RegionBoundary>
     </div>
@@ -267,6 +363,7 @@ export function ReaderScreen({
   const toggle = useRef<HTMLButtonElement>(null);
   const [loaded, setLoaded] = useState<Paper | null>(null);
   const [visits, setVisits] = useState(() => recentPapers(owner));
+  const actions = useRef<PaperActions>(null);
 
   // The panel only opens over the paper; a window that has grown wide shows it docked, and shut when narrowed again.
   useEffect(() => {
@@ -291,7 +388,18 @@ export function ReaderScreen({
   ) : null;
 
   return (
-    <div className={styles.root}>
+    <div
+      className={styles.root}
+      onKeyDown={(event) => {
+        // mod+f is the paper's find wherever the keyboard is on this screen, instead of the browser's.
+        if (event.defaultPrevented || event.nativeEvent.isComposing) return;
+        if (
+          matchesShortcut(event.nativeEvent, "mod+f", currentPlatformIsMac()) &&
+          actions.current?.find()
+        )
+          event.preventDefault();
+      }}
+    >
       <Shell
         sidebar={
           <RegionBoundary region="sidebar" className={styles.sidebarFailure}>
@@ -317,6 +425,7 @@ export function ReaderScreen({
             go={go}
             panelToggle={panelToggle}
             onPaper={setLoaded}
+            actions={actions}
           />
         </Card>
         <RightPanel

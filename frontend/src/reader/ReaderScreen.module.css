@@ -35,33 +35,19 @@
 
 /* The card's inside for one paper: the header, then the body, which takes the rest. */
 .frame {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
 }
 
-.title {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  font-size: var(--ui-text-14);
-  font-weight: var(--ui-weight-strong);
-  /* The old stylesheets give every h1 a tight tracking; this is not that page. */
-  letter-spacing: normal;
-  line-height: var(--ui-leading-tight);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Which page is being read, beside the title. */
-.pageStatus {
+/* Where the find bar hangs: the line under the header, with no height, over the paper. */
+.findAnchor {
+  position: relative;
+  z-index: 2;
   flex: none;
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  height: 0;
 }
 
 /* Loading, or the reason the paper is not here, in the middle of the card. */

@@ -146,8 +146,6 @@ export function PdfPages({
   const [measured, setMeasured] = useState(0);
   const retention = useMemo(() => new PdfRenderRetention(KEEP), []);
   const watcher = useMemo(() => new PageWatcher(), []);
-  const zoom = usePdfZoom(root, width, undefined, undefined, PAGE);
-  usePdfTouchPan(root);
 
   /** Each page's top in the scroller and the distance to the next one; cleared whenever the layout changes. */
   const rows = useRef<Row[] | null>(null);
@@ -157,6 +155,36 @@ export function PdfPages({
   const hold = useRef<{ page: number; offset: number; top: number } | null>(
     null,
   );
+
+  // Scrolling reports the page at most once a frame.
+  const trackNow = useRef<() => void>(() => undefined);
+  const frame = useRef(0);
+  const scheduleTrack = useCallback(() => {
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => {
+      frame.current = 0;
+      trackNow.current();
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+
+  const zoom = usePdfZoom(
+    root,
+    width,
+    // Any zoom (the menu, the keys, a wheel or a pinch) is the person moving
+    // the view: a page scrolled to before it no longer holds the place.
+    () => {
+      hold.current = null;
+    },
+    // The pages have settled at their new size: which page is under the view is to be read again.
+    () => {
+      rows.current = null;
+      scheduleTrack();
+    },
+    PAGE,
+  );
+  usePdfTouchPan(root);
+
   /** A position to come back to once a change of layout (a new width, a page's real size) is drawn. */
   const kept = useRef<number | null>(null);
   const onPageChangeNow = useRef(onPageChange);
@@ -271,19 +299,7 @@ export function PdfPages({
     }
     report(low + 1);
   };
-  const trackNow = useRef(track);
   trackNow.current = track;
-
-  // Scrolling reports the page at most once a frame.
-  const frame = useRef(0);
-  const scheduleTrack = useCallback(() => {
-    if (frame.current) return;
-    frame.current = requestAnimationFrame(() => {
-      frame.current = 0;
-      trackNow.current();
-    });
-  }, []);
-  useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
   // The room the pages have: the scroller's width less the padding around them.
   useLayoutEffect(() => {

@@ -21,6 +21,19 @@
   isolation: isolate;
 }
 
+/*
+ * The scroller takes the keyboard (arrows, Page Up / Down, the zoom keys) and
+ * shows it. The card clips anything outside its edge, so the ring is drawn
+ * inside the desk, in the padding around the pages; it is the screen's focus
+ * ring (--ui-focus-ring) turned inwards.
+ */
+.scroller:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px var(--ui-bg),
+    inset 0 0 0 4px color-mix(in oklab, var(--ui-accent) 70%, transparent);
+}
+
 .pages {
   display: flex;
   flex-direction: column;

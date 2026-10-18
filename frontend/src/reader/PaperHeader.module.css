@@ -1,0 +1,81 @@
+/*
+ * The strip on top of the paper's card. One row: the title takes what the
+ * controls leave; the controls keep their size.
+ */
+.bar {
+  --header-control: 30px;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-width: 0;
+}
+
+.title {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-15);
+  font-weight: var(--ui-weight-strong);
+  /* The old stylesheets give every h1 a tight tracking; this is not that page. */
+  letter-spacing: normal;
+  line-height: var(--ui-leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Controls that belong together, close. */
+.group {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.pageField {
+  width: 48px;
+}
+
+/* The field is as tall as the buttons beside it, and the number is in the middle of it. */
+.pageField input {
+  height: var(--header-control);
+  padding: 0 var(--ui-space-4);
+  border-radius: var(--ui-r-8);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.total {
+  padding: 0 var(--ui-space-6) 0 var(--ui-space-4);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The step that has nowhere to go: dimmed, but still a button, so the keyboard is not lost when it is the last one. */
+.group .atEnd {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The percentage keeps its room while it changes. */
+.zoom {
+  min-width: 56px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The page, for a screen reader; the field shows it. */
+.announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
