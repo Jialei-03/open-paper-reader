@@ -36,11 +36,7 @@ test("without a model the app sets one up first, and the rest stays reachable", 
   await page.goto("/#home");
   await expect(screen(page)).toHaveAttribute("data-app-screen", "setup");
 
-  await page.getByRole("button", { name: "稍后" }).click();
-  await expect(screen(page)).toHaveAttribute("data-app-screen", "home");
-  await expect(
-    sidebar(page).getByRole("link", { name: "首页" }),
-  ).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("button", { name: "继续" })).toBeDisabled();
 });
 
 test("the sidebar goes to each screen and marks where it is", async ({

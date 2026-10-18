@@ -203,7 +203,7 @@ def create_app(settings=None):
         engine.dispose()
 
     app = FastAPI(
-        title="纸间 · Portable Paper Workspace API",
+        title="open-paper-reader API",
         version=VERSION,
         openapi_url="/api/v1/openapi.json",
         docs_url=None,

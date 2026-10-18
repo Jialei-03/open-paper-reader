@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import { en } from "../src/i18n/messages/en";
+import { zh } from "../src/i18n/messages/zh";
 
 const loaded = (page: Page, selector: string) =>
   page
@@ -7,141 +9,129 @@ const loaded = (page: Page, selector: string) =>
       (img: HTMLImageElement) => img.complete && img.naturalWidth > 100,
     );
 
-test("public product site, interactive preview and searchable docs", async ({
+for (const [locale, words] of [
+  ["zh-CN", zh],
+  ["en-US", en],
+] as const) {
+  test.describe(`public site in ${locale}`, () => {
+    test.use({ locale });
+
+    test("the first screen says what it does, with the real reader", async ({
+      page,
+    }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto("/");
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: words["site.hero.title"],
+        }),
+      ).toBeVisible();
+      await expect(page.getByText(words["site.hero.lead"])).toBeVisible();
+      await expect(
+        page
+          .getByRole("main")
+          .getByRole("link", { name: words["site.hero.start"] })
+          .first(),
+      ).toBeInViewport();
+      const shot = page.getByRole("img", { name: words["site.shot.alt"] });
+      await expect(shot).toHaveAttribute(
+        "src",
+        /^\/assets\/site\/reader-light(-en)?\.png$/,
+      );
+      await expect
+        .poll(() =>
+          shot.evaluate(
+            (img: HTMLImageElement) => img.complete && img.naturalWidth > 100,
+          ),
+        )
+        .toBeTruthy();
+      await expect(page).toHaveTitle(/^open-paper-reader/);
+      await page.screenshot({
+        path: `../test-results/product-home-${locale}.png`,
+        fullPage: true,
+      });
+    });
+
+    test("the four steps, and the way into the app", async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await page.goto("/#home");
+      await page
+        .getByRole("navigation", { name: words["site.nav"] })
+        .getByRole("link", { name: words["site.nav.how"] })
+        .click();
+      await expect(
+        page.getByRole("heading", { name: words["site.how.title"] }),
+      ).toBeInViewport();
+      for (const step of ["import", "guide", "select", "ask"] as const) {
+        await expect(
+          page.getByRole("heading", {
+            level: 3,
+            name: words[`site.how.${step}.title`],
+          }),
+        ).toBeVisible();
+        await expect(
+          page.getByText(words[`site.how.${step}.body`]),
+        ).toBeVisible();
+      }
+      await page
+        .getByRole("navigation", { name: words["site.nav"] })
+        .getByRole("link", { name: words["site.nav.start"] })
+        .click();
+      await expect(
+        page.getByLabel(words["login.username"], { exact: true }),
+      ).toBeVisible();
+    });
+  });
+}
+
+test("the dark reader picture follows the theme", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.goto("/");
+  const shot = page.getByRole("img", { name: zh["site.shot.alt"] });
+  await expect(shot).toHaveAttribute("src", "/assets/site/reader-dark.png");
+  await expect.poll(() => loaded(page, "main img")).toBeTruthy();
+});
+
+test("the language switch changes the page and is remembered", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const switcher = page.getByRole("radiogroup", { name: zh["site.language"] });
+  await switcher.getByRole("radio", { name: "English" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: en["site.hero.title"] }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { level: 1, name: en["site.hero.title"] }),
+  ).toBeVisible();
+});
+
+test("narrow screens do not scroll sideways and the header stays on one line", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-  // The tools open the page: the heading, the two buttons, and the first picture already in view.
-  await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: /^开源的论文阅读工作台，\s*助手全程参与。$/,
-    }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "开始阅读", exact: true }),
-  ).toBeInViewport();
-  const groups = page.getByRole("tablist", { name: "功能分类" });
-  await expect(groups).toBeInViewport();
-  await expect(groups.getByRole("tab").first()).toHaveText("助手");
-  await expect(
-    page.locator("#feature-detail .product-screenshot img"),
-  ).toHaveAttribute("src", /^\/assets\/showcase\/chat\.webp\?v=[a-f0-9]{12}$/);
-  await expect
-    .poll(() => loaded(page, "#feature-detail .product-screenshot img"))
-    .toBeTruthy();
-  await expect(page.locator("#feature-detail")).toBeInViewport();
-  await page
-    .getByRole("button", { name: "放大截图：同一篇论文，接着聊", exact: true })
-    .click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await page.screenshot({
-    path: "../test-results/product-home-desktop.png",
-    fullPage: true,
-  });
-
-  // Layout translation: the original and the translated page share one frame
-  // and the divider moves with the keyboard as well as the pointer.
-  const slider = page.getByRole("slider", { name: "拖动对比原文与译文" });
-  await slider.scrollIntoViewIfNeeded();
-  const before = Number(await slider.inputValue());
-  await slider.focus();
-  await page.keyboard.press("ArrowLeft");
-  expect(Number(await slider.inputValue())).toBeLessThan(before);
-  const frame = (await page.locator(".lp-compare").boundingBox())!;
-  await page.mouse.move(
-    frame.x + frame.width * 0.5,
-    frame.y + frame.height / 2,
-  );
-  await page.mouse.down();
-  await page.mouse.move(
-    frame.x + frame.width * 0.2,
-    frame.y + frame.height / 2,
-    { steps: 4 },
-  );
-  await page.mouse.up();
-  expect(Number(await slider.inputValue())).toBeLessThan(30);
-  await page.getByRole("tab", { name: "图表页", exact: true }).click();
-  await expect
-    .poll(() => loaded(page, ".lp-compare .lp-compare-after"))
-    .toBeTruthy();
-
-  // Every feature in the explorer has a picture that actually loads.
-  const names = await groups.getByRole("tab").allInnerTexts();
-  expect(names.length).toBeGreaterThanOrEqual(7);
-  expect(names[0]).toBe("助手");
-  let pictures = 0;
-  for (const name of names) {
-    await groups.getByRole("tab", { name, exact: true }).click();
-    const items = page.locator(".lp-feature-list button");
-    for (let i = 0; i < (await items.count()); i++) {
-      await items.nth(i).click();
-      await expect
-        .poll(() => loaded(page, "#feature-detail .product-screenshot img"))
-        .toBeTruthy();
-      await expect(
-        page.locator("#feature-detail .lp-detail-how"),
-      ).toContainText("怎么用");
-      pictures++;
-    }
-  }
-  expect(pictures).toBeGreaterThanOrEqual(33);
-
-  await page
-    .getByRole("navigation", { name: "产品导航" })
-    .getByRole("link", { name: "功能", exact: true })
-    .click();
-  // The tools are the top of the page: the link brings the heading back into view.
-  await expect(
-    page.getByRole("heading", { level: 1, name: /^开源的论文阅读工作台/ }),
-  ).toBeInViewport();
-  await page.screenshot({ path: "../test-results/product-features.png" });
-  await page
-    .getByRole("navigation", { name: "产品导航" })
-    .getByRole("link", { name: "文档", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "开始使用", exact: true }),
-  ).toBeVisible();
-  await page.getByLabel("搜索文档").fill("联动");
-  await page
-    .getByRole("complementary", { name: "文档导航" })
-    .getByRole("link", { name: "翻译与双语对照", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "翻译与双语对照", exact: true }),
-  ).toBeVisible();
-  await page.screenshot({
-    path: "../test-results/product-docs-desktop.png",
-    fullPage: true,
-  });
-
   for (const width of [390, 768]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/#home");
     await expect(
-      page.getByRole("heading", {
-        level: 1,
-        name: /^开源的论文阅读工作台，\s*助手全程参与。$/,
-      }),
+      page.getByRole("heading", { level: 1, name: zh["site.hero.title"] }),
     ).toBeVisible();
     expect(
-      await page
-        .locator(".product-site")
-        .evaluate((e) => e.scrollWidth <= e.clientWidth),
+      await page.locator("main").evaluate((e) => {
+        const site = e.parentElement!;
+        return site.scrollWidth <= site.clientWidth;
+      }),
     ).toBeTruthy();
-    // Every header link stays on one line (they once broke into one character per line).
-    for (const link of await page.locator(".product-header a:visible").all()) {
+    for (const link of await page.locator("header a:visible").all()) {
       const box = await link.boundingBox();
       expect(box!.height).toBeLessThan(48);
     }
+    await page.screenshot({
+      path: `../test-results/product-home-${width}.png`,
+      fullPage: true,
+    });
   }
-  await page.screenshot({
-    path: "../test-results/product-home-mobile.png",
-    fullPage: true,
-  });
-  await page.getByRole("link", { name: "开始阅读", exact: true }).click();
-  await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
 });

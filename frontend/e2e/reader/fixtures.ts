@@ -2,14 +2,15 @@ import { expect, type Page } from "@playwright/test";
 import { readerHash, type ReaderRoute } from "../../src/reader/route";
 import { testPdf } from "../fixtures/pdf";
 
-/** Sign in as alice through the sign-in form, the way every other spec does. */
+/** Sign in as alice through the sign-in form, in whichever language the browser asks for. */
 export async function signIn(page: Page) {
   await page.goto("/#dashboard");
-  await page.getByLabel("用户名", { exact: true }).fill("alice");
+  const username = page.getByLabel(/^(用户名|Username)$/);
+  await username.fill("alice");
   await page
-    .getByLabel("密码", { exact: true })
+    .getByLabel(/^(密码|Password)$/)
     .fill(process.env.E2E_TEST_PASSWORD!);
-  await page.getByRole("button", { name: "登录空间", exact: true }).click();
+  await page.getByRole("button", { name: /^(登录空间|Sign in)$/ }).click();
   // Signed in: the app's first screen (home, or the setup while there is no model).
   await expect(page.locator("[data-app-screen]")).toBeVisible();
 }

@@ -263,18 +263,21 @@ function SetupGate({
   children: ReactNode;
 }) {
   const model = useModel();
-  if (!model.known) return <Loading />;
-  if (model.id) return children;
+  // Once it is showing, the setup stays until it is done with: a model saved on the way does not take it away.
+  const [needed, setNeeded] = useState(false);
+  const missing = model.known && !model.id;
+  useEffect(() => {
+    if (missing) setNeeded(true);
+  }, [missing]);
+  if (!needed && !missing) return model.known ? children : <Loading />;
   return (
     <div className={styles.root} data-app-screen="setup">
-      <div className={styles.setup}>
-        <SetupScreen
-          onDone={() => {
-            onDone();
-            window.dispatchEvent(new Event("model-settings-updated"));
-          }}
-        />
-      </div>
+      <SetupScreen
+        onDone={() => {
+          onDone();
+          window.dispatchEvent(new Event("model-settings-updated"));
+        }}
+      />
       <Toaster />
     </div>
   );

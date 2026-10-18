@@ -1,22 +1,14 @@
 import { useState, useEffect, FormEvent } from "react";
 import { api, send } from "../api";
-import { Button } from "@/components/ui/button";
+import { Button as OldButton } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldDescription,
-} from "@/components/ui/field";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useI18n } from "../i18n/I18nProvider";
+import { Button, TextField } from "../ui";
+import { AuthFrame } from "./AuthFrame";
+import styles from "./auth.module.css";
 
 export function AccountRecovery({
   mode,
@@ -25,16 +17,18 @@ export function AccountRecovery({
   mode: string;
   onReset: () => void;
 }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const reset = mode === "reset-password";
   const verify = mode === "verify-email";
+  const kind = verify ? "verify" : reset ? "reset" : "request";
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const f = new FormData(event.currentTarget);
     if (reset && f.get("password") !== f.get("confirm")) {
-      setError("两次密码不一致");
+      setError(t("recovery.mismatch"));
       return;
     }
     setBusy(true);
@@ -64,97 +58,72 @@ export function AccountRecovery({
     }
   };
   return (
-    <main className="min-h-dvh grid place-items-center p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>
-            {verify ? "验证找回邮箱" : reset ? "设置新密码" : "找回账号与密码"}
-          </CardTitle>
-          <CardDescription>
-            {verify
-              ? "确认后，此邮箱可用于找回当前登录账号。"
-              : "使用已验证的邮箱找回账号。"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+    <AuthFrame
+      title={t(`recovery.title.${kind}`)}
+      lead={
+        reset
+          ? undefined
+          : t(verify ? "recovery.lead.verify" : "recovery.lead.request")
+      }
+    >
+      {error && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+      {message ? (
+        <p className={styles.notice} role="status">
+          {message}
+        </p>
+      ) : (
+        <form className={styles.form} onSubmit={submit}>
+          {reset && (
+            <>
+              <TextField
+                name="password"
+                type="password"
+                label={t("recovery.password")}
+                description={t("recovery.password.hint")}
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={256}
+                required
+              />
+              <TextField
+                name="confirm"
+                type="password"
+                label={t("recovery.confirm")}
+                autoComplete="new-password"
+                required
+              />
+            </>
           )}
-          {message ? (
-            <Alert>
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
-          ) : (
-            <form onSubmit={submit}>
-              <FieldGroup>
-                {!verify &&
-                  (reset ? (
-                    <>
-                      <Field>
-                        <FieldLabel htmlFor="reset-password">新密码</FieldLabel>
-                        <Input
-                          id="reset-password"
-                          name="password"
-                          type="password"
-                          autoComplete="new-password"
-                          minLength={8}
-                          maxLength={256}
-                          required
-                        />
-                        <FieldDescription>至少 8 个字符。</FieldDescription>
-                      </Field>
-                      <Field>
-                        <FieldLabel htmlFor="reset-confirm">
-                          确认新密码
-                        </FieldLabel>
-                        <Input
-                          id="reset-confirm"
-                          name="confirm"
-                          type="password"
-                          autoComplete="new-password"
-                          required
-                        />
-                      </Field>
-                    </>
-                  ) : (
-                    <Field>
-                      <FieldLabel htmlFor="recovery-email">找回邮箱</FieldLabel>
-                      <Input
-                        id="recovery-email"
-                        name="email"
-                        type="email"
-                        autoComplete="email"
-                        required
-                      />
-                      <FieldDescription>
-                        请输入在账户设置中验证过的邮箱。
-                      </FieldDescription>
-                    </Field>
-                  ))}
-                <Button type="submit" disabled={busy}>
-                  {busy
-                    ? "正在处理…"
-                    : verify
-                      ? "确认绑定邮箱"
-                      : reset
-                        ? "重置密码"
-                        : "发送找回邮件"}
-                </Button>
-              </FieldGroup>
-            </form>
+          {!verify && !reset && (
+            <TextField
+              name="email"
+              type="email"
+              label={t("recovery.email")}
+              description={t("recovery.email.hint")}
+              autoComplete="email"
+              required
+            />
           )}
-        </CardContent>
-        <CardFooter>
-          <Button asChild variant="ghost">
-            <a href={verify ? "#settings" : "#dashboard"}>
-              {verify ? "返回账户设置" : "返回登录"}
-            </a>
+          <Button
+            type="submit"
+            variant="primary"
+            className={styles.submit}
+            loading={busy}
+          >
+            {busy ? t("recovery.busy") : t(`recovery.submit.${kind}`)}
           </Button>
-        </CardFooter>
-      </Card>
-    </main>
+        </form>
+      )}
+      <div className={styles.links}>
+        <a className={styles.link} href={verify ? "#settings" : "#dashboard"}>
+          {verify ? t("recovery.back.verify") : t("recovery.back")}
+        </a>
+      </div>
+    </AuthFrame>
   );
 }
 
@@ -251,9 +220,13 @@ export function AccountSettings({
                 disabled={!enabled}
               />
             </Field>
-            <Button type="submit" variant="outline" disabled={!enabled || busy}>
+            <OldButton
+              type="submit"
+              variant="outline"
+              disabled={!enabled || busy}
+            >
               {busy ? "正在发送…" : "发送邮箱验证链接"}
-            </Button>
+            </OldButton>
           </FieldGroup>
         </form>
       </CardContent>

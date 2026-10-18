@@ -21,15 +21,6 @@
   display: contents;
 }
 
-/* The first-run setup: one card in the middle of the window, nothing around it. */
-.setup {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  padding: var(--ui-space-16);
-  overflow: auto;
-}
-
 .loading {
   display: grid;
   place-items: center;
