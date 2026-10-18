@@ -5,9 +5,6 @@
  * by a lazily loaded module would land after design-system.css, which must
  * stay last.
  */
-import "./features/product-site.css";
-import "./features/landing.css";
-import "./features/landing-sections.css";
 import "katex/dist/katex.min.css";
 import "./features/paper-cover.css";
 import "./features/parallel-translation.css";
