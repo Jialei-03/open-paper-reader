@@ -280,6 +280,8 @@ interface Source {
 interface PaperActions {
   /** Opens the find bar (or takes the keyboard to it); whether it could be opened. */
   find(): boolean;
+  /** Goes to a page of the paper (the guide's page chips). */
+  jump(page: number): void;
 }
 
 /**
@@ -357,6 +359,7 @@ function PaperCard({
   owner,
   panelToggle,
   onPaper,
+  onFile,
   actions,
 }: {
   route: ReaderRoute;
@@ -364,6 +367,8 @@ function PaperCard({
   owner: string;
   panelToggle: ReactNode;
   onPaper: (paper: Paper) => void;
+  /** The paper's PDF, for the panel beside it (`null` while there is none). */
+  onFile: (file: SourceFile | null) => void;
   actions: RefObject<PaperActions | null>;
 }) {
   const [paper, setPaper] = useState<Paper | null>(null);
@@ -383,6 +388,8 @@ function PaperCard({
   const [outlineOpen, setOutlineOpen] = useState(false);
   const doc = source?.doc ?? null;
   const pages = doc?.numPages ?? 0;
+  const file = source?.file ?? null;
+  useEffect(() => onFile(file), [file, onFile]);
   const find = useFind(doc, controller);
   const preview = useLinkPreview(route.paperId, doc);
   const controllerNow = useRef(controller);
@@ -560,6 +567,7 @@ function PaperCard({
         find.show();
         return true;
       },
+      jump: navigate,
     };
     return () => {
       actions.current = null;
@@ -660,6 +668,7 @@ export function ReaderScreen({
   const [panelOpen, setPanelOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const [loaded, setLoaded] = useState<Paper | null>(null);
+  const [file, setFile] = useState<SourceFile | null>(null);
   const [visits, setVisits] = useState(() => recentPapers(owner));
   const actions = useRef<PaperActions>(null);
 
@@ -724,11 +733,15 @@ export function ReaderScreen({
             owner={owner}
             panelToggle={panelToggle}
             onPaper={setLoaded}
+            onFile={setFile}
             actions={actions}
           />
         </Card>
         <RightPanel
           paperId={paperId}
+          paper={loaded?.id === paperId ? loaded : null}
+          file={file?.paper_id === paperId ? file : null}
+          onJumpToPage={(page) => actions.current?.jump(page)}
           overlay={
             narrow
               ? {

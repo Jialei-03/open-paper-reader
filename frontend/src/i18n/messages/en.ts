@@ -92,6 +92,20 @@ export const en = {
   "reader.tab.assistant": "Assistant",
   "reader.tab.notes": "Notes",
   "reader.tab.guide.empty": "The guide to this paper will appear here.",
+  "reader.guide.loading": "Loading the guide…",
+  "reader.guide.working": "Generating the guide…",
+  "reader.guide.noModel":
+    "Add a model in settings, and a guide to this paper can be made.",
+  "reader.guide.openSettings": "Open settings",
+  "reader.guide.idle":
+    "A guide sets out the paper's question, method, results and limits, with the pages they come from.",
+  "reader.guide.generate": "Generate guide",
+  "reader.guide.failed": "The guide could not be generated.",
+  "reader.guide.stopped": "Generating the guide was stopped.",
+  "reader.guide.keywords": "Keywords",
+  "reader.guide.summary": "Summary",
+  "reader.guide.pages": "Pages it comes from",
+  "reader.guide.page": "Page {page}",
   "reader.tab.assistant.empty":
     "Your conversation with the assistant about this paper will appear here.",
   "reader.tab.notes.empty":
