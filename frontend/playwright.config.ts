@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 process.env.E2E_TEST_PASSWORD ||= randomBytes(30).toString("base64url");
+// Parallel checkouts each run their own server: E2E_PORT keeps them apart.
+const port = process.env.E2E_PORT || "8766";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -17,7 +19,7 @@ export default defineConfig({
   ],
   outputDir: "../test-results/browser",
   use: {
-    baseURL: "http://127.0.0.1:8766",
+    baseURL: `http://127.0.0.1:${port}`,
     headless: true,
     viewport: { width: 1440, height: 1000 },
     screenshot: "only-on-failure",
@@ -25,7 +27,7 @@ export default defineConfig({
   },
   webServer: {
     command: "../.venv/bin/python ../scripts/e2e_server.py",
-    url: "http://127.0.0.1:8766/api/v1/health",
+    url: `http://127.0.0.1:${port}/api/v1/health`,
     timeout: 30000,
     reuseExistingServer: false,
   },

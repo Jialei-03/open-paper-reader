@@ -15,7 +15,8 @@ if not os.getenv("E2E_TEST_PASSWORD"):
 with tempfile.TemporaryDirectory(prefix="paper-platform-e2e-") as directory:
     os.environ["DATABASE_URL"] = "sqlite:///" + directory + "/test.db"
     os.environ["STORAGE_DIR"] = directory + "/files"
-    os.environ["APP_ORIGIN"] = "http://127.0.0.1:8766"
+    port = int(os.environ.get("E2E_PORT", "8766"))
+    os.environ["APP_ORIGIN"] = f"http://127.0.0.1:{port}"
     os.environ["APP_ENV"] = "development"
     subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"], cwd=root, check=True
@@ -142,4 +143,4 @@ with tempfile.TemporaryDirectory(prefix="paper-platform-e2e-") as directory:
     translations.download = discovery_download
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=8766, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
