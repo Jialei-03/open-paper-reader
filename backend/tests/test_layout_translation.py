@@ -139,6 +139,8 @@ def test_layout_container_mounts_extensionless_source_as_readonly_pdf(
     )
     staged = next((tmp_path / "out").glob("source-*.pdf"))
     assert mounted == f"type=bind,src={staged},dst=/input.pdf,readonly"
+    worker = next(part for part in calls[0] if "dst=/app/layout_translation_worker.py" in part)
+    assert worker.endswith(",readonly") and "backend/layout_translation_worker.py" in worker
     assert staged.read_bytes() == source.read_bytes()
     assert staged.stat().st_mode & 0o777 == 0o600
     assert staged.stat().st_uid == layout_translation.os.getuid()

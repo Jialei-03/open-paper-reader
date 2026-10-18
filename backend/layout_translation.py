@@ -53,6 +53,7 @@ def check_workspace(output):
                     raise ValueError("版面翻译临时文件超过空间限制")
 
 
+WORKER_SOURCE = Path(__file__).resolve().with_name("layout_translation_worker.py")
 PARAGRAPH_ATTEMPTS = 3
 PARAGRAPH_BACKOFF = (2, 6)
 
@@ -116,6 +117,10 @@ def translate_pdf(
             f"type=bind,src={staged_source},dst={engine_source},readonly",
             "--mount",
             f"type=bind,src={output},dst={output}",
+            # The image's worker is the one it was built with; this release's
+            # worker (same pinned BabelDOC) is laid over it, read-only.
+            "--mount",
+            f"type=bind,src={WORKER_SOURCE},dst=/app/layout_translation_worker.py,readonly",
             "--env",
             f"PAPER_LAYOUT_CACHE={output / '.runtime-cache'}",
             container_image,
