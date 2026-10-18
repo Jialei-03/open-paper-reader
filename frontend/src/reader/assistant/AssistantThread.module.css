@@ -355,3 +355,22 @@
   padding: var(--ui-space-24);
   color: var(--ui-fg-2);
 }
+
+/* The newest words come in out of the background: the last few characters fade toward the edge. */
+.answer [data-fresh] {
+  background: linear-gradient(
+    90deg,
+    var(--ui-fg) 0%,
+    color-mix(in srgb, var(--ui-fg) 20%, transparent) 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .answer [data-fresh] {
+    background: none;
+    color: inherit;
+  }
+}

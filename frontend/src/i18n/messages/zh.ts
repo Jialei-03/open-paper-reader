@@ -231,8 +231,17 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.tab.assistant.empty": "这里将显示你和助手关于这篇论文的对话。",
   "reader.tab.notes.empty": "这里将显示你读这篇论文时写下的笔记。",
   "reader.assistant.thread": "与助手的对话",
-  "reader.assistant.empty":
-    "还没有对话。在论文下方的输入框里提问，回答会标出引用的页码。",
+  "reader.assistant.empty.lead":
+    "和助手对话，就像问一位读过这篇论文的同事；回答会标出引用的页码。",
+  "reader.assistant.suggest": "可以从这些问题开始",
+  "reader.assistant.suggest.contributions": "这篇论文的主要贡献是什么？",
+  "reader.assistant.suggest.method": "一步一步讲讲它的方法。",
+  "reader.assistant.suggest.limitations": "这项工作有哪些局限？",
+  "reader.assistant.suggest.related": "它和相关工作相比怎么样？",
+  "reader.assistant.empty.select":
+    "在论文里选中一段文字，按 ↵ 就能针对它提问。",
+  "reader.assistant.empty.keys.send": "发送",
+  "reader.assistant.empty.keys.newline": "换行",
   "reader.assistant.input": "向助手提问",
   "reader.assistant.placeholder": "问这一页、这段，或整篇论文…",
   "reader.assistant.send": "发送",

@@ -4,6 +4,7 @@ import type { Paper, SourceFile } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, Spinner } from "../../ui";
 import type { GuideContent, GuideSection } from "./guide";
+import { useSmoothText } from "../stream";
 import styles from "./GuideTab.module.css";
 import { useGuide } from "./useGuide";
 
@@ -25,6 +26,20 @@ function inline(text: string): ReactNode[] {
   });
 }
 
+/** Text of the guide that is still being written comes in at an even pace, not a sentence at a time. */
+function Flowing({
+  text,
+  streaming,
+  children,
+}: {
+  text: string;
+  streaming: boolean;
+  children(shown: string): ReactNode;
+}) {
+  const { text: shown } = useSmoothText(text, { done: !streaming });
+  return <>{children(shown)}</>;
+}
+
 function Paragraphs({ text }: { text: string }) {
   return (
     <>
@@ -43,10 +58,12 @@ function Paragraphs({ text }: { text: string }) {
 function Section({
   section,
   className,
+  streaming,
   onJumpToPage,
 }: {
   section: GuideSection;
   className?: string;
+  streaming: boolean;
   onJumpToPage(page: number): void;
 }) {
   const { t } = useI18n();
@@ -54,7 +71,9 @@ function Section({
     <section className={clsx(styles.section, className)}>
       <h2 className={styles.title}>{section.title}</h2>
       <div className={styles.body}>
-        <Paragraphs text={section.body} />
+        <Flowing text={section.body} streaming={streaming}>
+          {(shown) => <Paragraphs text={shown} />}
+        </Flowing>
       </div>
       {section.pages.length > 0 && (
         <ul className={styles.pages} aria-label={t("reader.guide.pages")}>
@@ -106,7 +125,11 @@ function Content({
           <h2 className={styles.label}>{t("reader.guide.summary")}</h2>
           <ol className={styles.summary}>
             {content.summary.map((line, index) => (
-              <li key={index}>{inline(line)}</li>
+              <li key={index}>
+                <Flowing text={line} streaming={streaming}>
+                  {(shown) => inline(shown)}
+                </Flowing>
+              </li>
             ))}
           </ol>
         </div>
@@ -116,6 +139,7 @@ function Content({
           key={index}
           section={section}
           className={arrive}
+          streaming={streaming}
           onJumpToPage={onJumpToPage}
         />
       ))}

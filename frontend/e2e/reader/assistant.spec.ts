@@ -200,7 +200,9 @@ test("a question sent with Enter is asked of the paper's discussion, and its ans
   expect(below).toBeLessThan(40);
 
   await assistantTab(page).click();
-  await expect(page.getByRole("tabpanel")).toContainText("还没有对话");
+  await expect(page.getByRole("tabpanel")).toContainText(
+    "像问一位读过这篇论文的同事",
+  );
 
   // Shift+Enter is a new line; Enter sends.
   await box.fill("第一行");
