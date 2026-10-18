@@ -256,3 +256,28 @@ def test_missing_glyphs_are_named(tmp_path, monkeypatch):
     monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=0, stdout=log, stderr=b''))
     with pytest.raises(ValueError, match='缺失字形：。'):
         engine.compile_project(tmp_path)
+
+
+def test_curly_quotes_become_ligatures_only_under_8bit_fonts_and_never_beside_chinese(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text('\\documentclass{article}\n\\usepackage[T1]{fontenc}\n\\begin{document}\nThe agent’s “memory” — here.\n中文“引号”和 agent’s。\n\\end{document}\n')
+    (tmp_path / 'main.bbl').write_text('\\bibitem{a} A. Author’s book – 2020.\n')
+    engine.prepare_compile_source(main)
+    body = main.read_text()
+    assert "The agent's ``memory'' --- here." in body
+    assert '中文“引号”和 agent’s。' in body
+    assert (tmp_path / 'main.bbl').read_text() == "\\bibitem{a} A. Author's book -- 2020.\n"
+    plain = tmp_path / 'plain'
+    plain.mkdir()
+    other = plain / 'main.tex'
+    other.write_text('\\documentclass{article}\\begin{document}agent’s\\end{document}')
+    engine.prepare_compile_source(other)
+    assert 'agent’s' in other.read_text()
+
+
+def test_an_8bit_encoding_chosen_by_a_bundled_style_counts_too(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text('\\documentclass{article}\n\\usepackage{journal}\n\\begin{document}agent’s\\end{document}\n')
+    (tmp_path / 'journal.sty').write_text('\\usepackage[T1]{fontenc}\n')
+    engine.prepare_compile_source(main)
+    assert "agent's" in main.read_text()

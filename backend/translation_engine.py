@@ -527,6 +527,35 @@ def translate_project(source, output, config, progress, cached=None):
 SUBFIG_LOAD = re.compile(r"(?m)^(?P<lead>[^%\n]*?)\\(?:usepackage|RequirePackage)(\[[^\]]*\])?\{([^{}]*)\}")
 
 
+FONTENC_8BIT = re.compile(r"(?m)^[^%\n]*\\usepackage\[[^\]]*\b(?:T1|OT1|LY1)\b[^\]]*\]\{fontenc\}")
+LIGATURE_PUNCTUATION = {"‘": "`", "’": "'", "“": "``", "”": "''", "–": "--", "—": "---"}
+CJK = re.compile(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]")
+
+
+def legacy_font_punctuation(main):
+    """Curly quotes and dashes, written as TeX ligatures where 8-bit fonts set the text.
+
+    A paper loading fontenc with T1 sets its Latin text in fonts (ec-lmr10, ...)
+    that have no slot for a Unicode ’ under XeTeX; the ligature `'` draws the very
+    same glyph. Lines with Chinese are left alone: their quotes are the CJK font's.
+    """
+    sources = [*main.parent.rglob("*.tex"), *main.parent.rglob("*.bbl")]
+    # The encoding is often chosen by a bundled journal style, not the paper itself.
+    styles = [*main.parent.rglob("*.tex"), *main.parent.rglob("*.sty"), *main.parent.rglob("*.cls")]
+    if not any(FONTENC_8BIT.search(path.read_text(errors="replace")) for path in styles):
+        return
+    for path in sources:
+        text = path.read_text(errors="replace")
+        lines = text.splitlines(keepends=True)
+        changed = [
+            line if CJK.search(line) else "".join(LIGATURE_PUNCTUATION.get(ch, ch) for ch in line)
+            for line in lines
+        ]
+        repaired = "".join(changed)
+        if repaired != text:
+            path.write_text(repaired)
+
+
 def resolve_subfigure_packages(main):
     """subcaption refuses to load beside subfig; drop whichever one the paper never uses.
 
@@ -595,6 +624,7 @@ def prepare_compile_source(main):
         if repaired != content:
             path.write_text(repaired)
     resolve_subfigure_packages(main)
+    legacy_font_punctuation(main)
     tex = main.read_text()
     # A translated title occasionally has its closing brace before the final
     # plain-text words. Plain text cannot occur here in the preamble: recover
