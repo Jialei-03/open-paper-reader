@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useState } from "react";
 import type { Paper } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { PaperPdf } from "./thumbnail";
@@ -20,17 +21,30 @@ export function PaperThumb({
 }) {
   const { t } = useI18n();
   const title = paper.title || t("reader.untitled");
+  // The picture is the server's, kept by the browser; until it arrives (or if
+  // the paper has none) a page of type stands in.
+  const [shown, setShown] = useState<{ src: string; ok: boolean } | null>(null);
+  const src = pdf?.thumb ?? "";
+  const loaded = shown?.src === src && shown.ok;
+  const failed = shown?.src === src && !shown.ok;
   return (
     <div className={clsx(styles.thumb, className)} aria-hidden="true">
-      {pdf?.thumb ? (
+      {src && !failed ? (
         <img
-          className={styles.image}
-          src={pdf.thumb}
+          className={clsx(styles.image, loaded && styles.loaded)}
+          src={src}
           alt=""
+          width={360}
+          height={466}
+          loading="lazy"
+          decoding="async"
           draggable={false}
           data-thumb="image"
+          onLoad={() => setShown({ src, ok: true })}
+          onError={() => setShown({ src, ok: false })}
         />
-      ) : (
+      ) : null}
+      {!loaded ? (
         <div className={styles.placeholder} data-thumb="placeholder">
           <span className={styles.placeholderTitle}>{title}</span>
           <span className={styles.lines}>
@@ -40,7 +54,7 @@ export function PaperThumb({
             <i />
           </span>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

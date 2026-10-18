@@ -24,6 +24,7 @@ from .models import (
     Version,
     public,
 )
+from . import thumbnails
 from .storage_budget import lock_owner
 
 ASSETS = {"papers": File, "note_images": NoteImage, "chat_attachments": AgentAttachment}
@@ -171,6 +172,7 @@ def install_storage_routes(app, settings, db, auth, human, owned):
         # Unused-file deletion is explicit. If the DB commit fails, the row still
         # counts toward quota and a retry can finish cleanup without deleting more.
         (Path(settings.storage) / id).unlink(missing_ok=True)
+        thumbnails.remove(settings, id)
         d.delete(file)
         d.commit()
         return {"ok": True, "freed_bytes": file.size}

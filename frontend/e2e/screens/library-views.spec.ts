@@ -57,10 +57,10 @@ test("the library shows cards with the first page, and a list on request", async
 
   const card = library.locator(`[data-paper="${paper.paperId}"]`);
   await expect(library.locator("[data-view=grid]")).toBeVisible();
-  // The first page is drawn from the PDF itself.
+  // The first page is the server's picture, not drawn in the browser.
   await expect(card.locator('img[data-thumb="image"]')).toHaveAttribute(
     "src",
-    /^data:image\/jpeg/,
+    /^\/api\/v1\/files\/[0-9a-f-]+\/thumbnail$/,
   );
   await expect(card.getByRole("heading", { name: paper.title })).toBeVisible();
   await expect(card).toContainText("A. Author, B. Author");
@@ -229,4 +229,84 @@ test("the reader's menu opens the same details", async ({ page }) => {
   const sheet = page.getByRole("dialog", { name: "论文详情" });
   await expect(sheet).toContainText(paper.title);
   await expect(sheet.getByText("2 页")).toBeVisible();
+});
+
+test("covers come from the thumbnail route and the PDF itself is not downloaded", async ({
+  browser,
+  baseURL,
+}) => {
+  // A fresh context: routed pages (the other specs mock models) switch the HTTP cache off.
+  const context = await browser.newContext({ baseURL, locale: "zh-CN" });
+  const page = await context.newPage();
+  await signIn(page);
+  const stamp = Date.now().toString(36);
+  const paper = await createPaperWithPdf(page, {
+    title: `Cover Cache ${stamp}`,
+    pages: 3,
+  });
+  const contents: string[] = [];
+  const covers: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (/\/files\/[^/]+\/content$/.test(url.pathname))
+      contents.push(url.pathname);
+    if (/\/files\/[^/]+\/thumbnail$/.test(url.pathname))
+      covers.push(url.pathname);
+  });
+  const response = page.waitForResponse(/\/thumbnail$/);
+  await page.goto(LIBRARY);
+  const card = page
+    .getByRole("main")
+    .locator(`[data-paper="${paper.paperId}"]`);
+  const image = card.locator('img[data-thumb="image"]');
+  await expect(image).toHaveAttribute("src", /\/thumbnail$/);
+  await expect
+    .poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth))
+    .toBeGreaterThan(0);
+  const headers = (await response).headers();
+  expect(headers["content-type"]).toBe("image/jpeg");
+  expect(headers["cache-control"]).toContain("immutable");
+  expect(headers["cache-control"]).not.toContain("public");
+  // A reload reuses the browser's copy of the picture.
+  await page.reload();
+  await page.goto(LIBRARY);
+  await expect(image).toHaveAttribute("src", /\/thumbnail$/);
+  await expect
+    .poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth))
+    .toBeGreaterThan(0);
+  const cached = await page.evaluate(() =>
+    performance
+      .getEntriesByType("resource")
+      .filter((e) => e.name.endsWith("/thumbnail"))
+      .map((e) => (e as PerformanceResourceTiming).transferSize),
+  );
+  expect(cached.length).toBeGreaterThan(0);
+  expect(cached, JSON.stringify(cached)).toEqual(cached.map(() => 0));
+  expect(contents).toEqual([]);
+  await context.close();
+});
+
+test("Home covers are the server's pictures too, with no PDF download", async ({
+  page,
+}) => {
+  await signIn(page);
+  await createPaperWithPdf(page, {
+    title: `Home Cover ${Date.now().toString(36)}`,
+    pages: 3,
+  });
+  const contents: string[] = [];
+  page.on("request", (request) => {
+    if (/\/files\/[^/]+\/content$/.test(new URL(request.url()).pathname))
+      contents.push(request.url());
+  });
+  await page.goto("/#home");
+  const image = page
+    .getByRole("main")
+    .locator('img[data-thumb="image"]')
+    .first();
+  await expect(image).toHaveAttribute("src", /\/thumbnail$/);
+  await expect
+    .poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth))
+    .toBeGreaterThan(0);
+  expect(contents).toEqual([]);
 });
