@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, send } from "../../api";
+import type { MessageKey } from "../../i18n/i18n";
 import { useI18n } from "../../i18n/I18nProvider";
 import { serviceReason, serviceWords } from "../service-error";
 import { readerContext, type AskRequest } from "../types";
@@ -50,7 +51,16 @@ const cancel = (id: string) =>
  * the translation is given up. A run still going when the request goes (the
  * popover closed) is cancelled. `retry` starts a new run.
  */
-export function useSelectionTranslation(request: AskRequest) {
+export function useSelectionTranslation(
+  request: AskRequest,
+  options: {
+    /** What the model is asked, when it is not to translate (a boxed region explained). */
+    prompt?: string;
+    /** The words for a run that failed without a reason of its own. */
+    failed?: MessageKey;
+  } = {},
+) {
+  const { prompt = PROMPT, failed = "reader.translate.failed" } = options;
   const i18n = useI18n();
   const i18nNow = useRef(i18n);
   i18nNow.current = i18n;
@@ -91,7 +101,7 @@ export function useSelectionTranslation(request: AskRequest) {
         status: "failed",
         text: "",
         error: serviceReason(error, i18nNow.current, {
-          fallback: "reader.translate.failed",
+          fallback: failed,
         }),
         stopped: false,
       });
@@ -129,9 +139,9 @@ export function useSelectionTranslation(request: AskRequest) {
         const session = await send(`/papers/${request.paperId}/discussion`, {});
         if (!live) return;
         const run: Run = await send(`/agent/sessions/${session.id}/runs`, {
-          prompt: PROMPT,
+          prompt,
           model_config_id: model.id,
-          reader_context: readerContext({ ...request, action: "translate" }),
+          reader_context: readerContext(request),
           writable: false,
           context: `paper/${request.paperId}`,
         });
@@ -154,7 +164,7 @@ export function useSelectionTranslation(request: AskRequest) {
       window.clearTimeout(timer);
       if (runId && !settled) cancel(runId);
     };
-  }, [request, attempt, model.known, model.id]);
+  }, [request, prompt, failed, attempt, model.known, model.id]);
 
   return { translation, retry: () => setAttempt((count) => count + 1) };
 }

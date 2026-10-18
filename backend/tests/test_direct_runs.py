@@ -252,6 +252,9 @@ def test_translating_a_page_from_the_menu_reads_it_on_the_server(env, monkeypatc
         ("translate", "page", True),
         # A box is read from the page's text and, if the model can see, its picture.
         ("translate", "region", True),
+        ("explain", "region", True),
+        ("formula", "region", True),
+        ("latex", "region", True),
         ("explain", "selection", False),
         ("explain", "page", False),
         ("ask", "selection", False),
@@ -296,7 +299,9 @@ def readable_pdf(text=True):
     return out.getvalue()
 
 
-def boxed(env, rect=(0.03, 0.09, 0.5, 0.06), *, vision=False, text=True, page=1):
+def boxed(
+    env, rect=(0.03, 0.09, 0.5, 0.06), *, vision=False, text=True, page=1, action="translate"
+):
     from backend.tests.test_acceptance import attach, paper
     from backend.translation_settings import write_config
 
@@ -322,7 +327,7 @@ def boxed(env, rect=(0.03, 0.09, 0.5, 0.06), *, vision=False, text=True, page=1)
         "file_id": f["id"],
         "page": page,
         "source": "region",
-        "action": "translate",
+        "action": action,
         "rect": list(rect),
     }
     response = write(
@@ -397,6 +402,41 @@ def test_a_box_over_a_scan_needs_a_model_that_can_see(env, monkeypatch):
     assert done["status"] == "failed"
     assert "图片" in done["error"]
     assert sent == []
+
+
+def test_a_boxed_figure_is_explained_from_its_picture(env, monkeypatch):
+    app, a, session, run = boxed(env, vision=True, action="explain")
+    sent = provider(monkeypatch, ["图 1 展示了…"])
+    work(app, run["id"])
+    done = outcome(a, session)
+    assert done["status"] == "completed", done
+    assert done["response"] == "图 1 展示了…"
+    assert "tools" not in sent[0]
+    assert "explained" in sent[0]["messages"][0]["content"]
+    content = sent[0]["messages"][-1]["content"]
+    assert [part["type"] for part in content].count("image_url") == 1
+
+
+def test_a_figure_without_text_is_explained_from_the_page_by_a_text_model(
+    env, monkeypatch
+):
+    # The box is below the only line, so it holds nothing; the model cannot see.
+    app, a, session, run = boxed(env, rect=(0.03, 0.5, 0.5, 0.1), action="explain")
+    sent = provider(monkeypatch, ["只能依据周围文字"])
+    work(app, run["id"])
+    done = outcome(a, session)
+    assert done["status"] == "completed", done
+    content = sent[0]["messages"][-1]["content"]
+    assert isinstance(content, str)
+    assert "could not be shown" in content and "Evidence on page 1" in content
+
+
+def test_a_formula_is_transcribed_as_latex_only(env, monkeypatch):
+    app, a, session, run = boxed(env, action="latex")
+    sent = provider(monkeypatch, ["E = mc^2"])
+    work(app, run["id"])
+    assert outcome(a, session)["response"] == "E = mc^2"
+    assert "LaTeX" in sent[0]["messages"][0]["content"]
 
 
 def test_a_translated_page_keeps_the_exact_original_and_is_found_again(

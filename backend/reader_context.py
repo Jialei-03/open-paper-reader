@@ -22,7 +22,7 @@ class ReaderContextInput(Strict):
     source: Literal["selection", "page", "region", "paper"]
     # What the reader asked for. Translating is not explaining, so the activity
     # log keeps them apart; older snapshots have no action and fall back to the prompt.
-    action: Literal["ask", "explain", "translate", "formula", "guide"] | None = None
+    action: Literal["ask", "explain", "translate", "formula", "latex", "guide"] | None = None
     category: Literal["text", "image", "table", "formula", "url", "paper"] | None = None
     quote: str = Field(default="", max_length=10000)
     prefix: str = Field(default="", max_length=1000)

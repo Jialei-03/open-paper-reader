@@ -1,7 +1,13 @@
 import type { PdfRect } from "../features/PdfAnnotations";
 
 /** What the reader asks the assistant about: a selection, a page or a boxed region. */
-export type ReaderAction = "ask" | "explain" | "translate";
+export type ReaderAction =
+  | "ask"
+  | "explain"
+  | "translate"
+  /** A boxed formula: explained, or written out as LaTeX. */
+  | "formula"
+  | "latex";
 
 export type AskRequest = {
   paperId: string;

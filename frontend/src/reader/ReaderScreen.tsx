@@ -1,4 +1,4 @@
-import { PanelRight } from "lucide-react";
+import { BoxSelect, PanelRight } from "lucide-react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   useCallback,
@@ -55,6 +55,7 @@ import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel, type PanelView } from "./RightPanel";
+import { RegionTool } from "./regions/RegionTool";
 import { SelectionMenu, type SelectionNote } from "./selection/SelectionMenu";
 import { Composer, useAssistant } from "./assistant";
 import { useComposerDock, useComposerDraft } from "./assistant/useComposerDock";
@@ -116,6 +117,9 @@ interface Overlays {
   onNote(request: SelectionNote): void;
   /** The key sentences to underline on the pages (of the categories that are shown). */
   keypoints?: readonly Keypoint[];
+  /** Region mode (the toolbar's): a drag on a page boxes a figure, table or formula. */
+  regionMode: boolean;
+  onRegionMode(active: boolean): void;
 }
 
 /**
@@ -133,6 +137,8 @@ function PaperPages({
     onAsk,
     onNote,
     keypoints,
+    regionMode,
+    onRegionMode,
   },
   translated,
   ...props
@@ -213,6 +219,17 @@ function PaperPages({
           noHighlight={
             translated ? t("reader.selection.highlightTranslated") : undefined
           }
+        />
+      )}
+      {paper && (
+        <RegionTool
+          scroller={scroller}
+          paper={paper}
+          file={file}
+          active={regionMode}
+          onActiveChange={onRegionMode}
+          onAsk={onAsk}
+          onNote={onNote}
         />
       )}
     </>
@@ -434,6 +451,8 @@ function PaperBody({
                 scroller: translatedController?.root ?? null,
                 onAsk: overlays.onAsk,
                 onNote: overlays.onNote,
+                regionMode: overlays.regionMode,
+                onRegionMode: overlays.onRegionMode,
               }}
               translated
             />
@@ -582,6 +601,7 @@ function PaperCard({
   keypoints: Overlays["keypoints"];
   actions: RefObject<PaperActions | null>;
 }) {
+  const { t } = useI18n();
   const [paper, setPaper] = useState<Paper | null>(null);
   const [visiblePages, setVisiblePages] = useState<number[]>([]);
   const [hoverQuote, setHoverQuote] = useState<HoverQuote | null>(null);
@@ -599,6 +619,7 @@ function PaperCard({
   const [source, setSource] = useState<Source | null>(null);
   const [controller, setController] = useState<PdfController | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [regionMode, setRegionMode] = useState(false);
   const doc = source?.doc ?? null;
   const pages = doc?.numPages ?? 0;
   const file = source?.file ?? null;
@@ -865,6 +886,8 @@ function PaperCard({
     onAsk,
     onNote,
     keypoints,
+    regionMode,
+    onRegionMode: setRegionMode,
   };
 
   // The screen's mod+f reaches the find bar through this.
@@ -928,6 +951,14 @@ function PaperCard({
           <ModeControls compact={compact} {...modeControls} />
         )}
         modeItems={foldedModes}
+        tools={
+          <IconButton
+            icon={BoxSelect}
+            label={t("reader.region.tool")}
+            aria-pressed={regionMode}
+            onClick={() => setRegionMode((on) => !on)}
+          />
+        }
       />
       {/* No height of its own: the bar floats over the top of the paper, and the pages do not move for it. */}
       {find.open && (
@@ -1065,10 +1096,12 @@ export function ReaderScreen({
 
   // Kept in the note: the words, their translation if they come with one, and the way back to them.
   const keep = (request: SelectionNote) => {
-    const markdown = excerptMarkdown(
-      request,
-      t("reader.notes.source", { page: request.page }),
-    );
+    const markdown =
+      request.markdown ??
+      excerptMarkdown(
+        request,
+        t("reader.notes.source", { page: request.page }),
+      );
     const toNotes = {
       label: t("reader.notes.show"),
       onClick: () => show("notes"),

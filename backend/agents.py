@@ -288,6 +288,11 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         ) or (
             task == "translate"
             and (reader_context or {}).get("source") in {"selection", "page", "region"}
+        ) or (
+            # A boxed figure, table or formula is explained from its picture and
+            # text in one call; no tools are needed to read what is in the box.
+            (reader_context or {}).get("source") == "region"
+            and (reader_context or {}).get("action") in {"explain", "formula", "latex"}
         )
         lane = "translation" if page_translation else ""
         # Limits on a user's tasks are off unless the settings turn them on. Bulk
