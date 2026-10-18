@@ -119,6 +119,22 @@ export const en = {
   "reader.layout.cancelFailed":
     "Couldn't cancel the translation. Try again in a moment.",
   "reader.layout.offline": "Couldn't reach the service. Trying again.",
+  "reader.layout.titleLatex": "Full translation",
+  "reader.layout.aboutLatex":
+    "Translates the whole paper into Chinese, with its formulas, figures and references kept.",
+  "reader.layout.methodLatex":
+    "Translated from the arXiv LaTeX source and recompiled",
+  "reader.layout.methodPdf": "Re-typeset on the original PDF",
+  "reader.layout.startLatex": "Translate the paper",
+  "reader.layout.noSource": "arXiv has no LaTeX source for this version.",
+  "reader.layout.noSourceNote":
+    "It can still be translated by re-typesetting the original PDF.",
+  "reader.layout.usePdf": "Re-typeset the PDF instead",
+  "reader.layout.latexMissing": "The LaTeX compiler isn't installed",
+  "reader.layout.latexMissingNote":
+    "An arXiv paper is translated from its LaTeX source and compiled on this computer. Install the compiler once to do that.",
+  "reader.layout.latexOffer":
+    "Install the LaTeX compiler to translate arXiv papers from their source instead.",
   "reader.toast.favorited": "Added to favorites",
   "reader.toast.unfavorited": "Removed from favorites",
   "reader.toast.favoriteFailed": "Could not update favorites. Try again.",
@@ -483,6 +499,24 @@ export const en = {
   "settings.layoutInstall.stage.engine": "Installing BabelDOC…",
   "settings.layoutInstall.stage.assets": "Downloading layout models and fonts…",
   "settings.layoutInstall.stage.finish": "Finishing…",
+  "settings.latexInstall.title": "LaTeX translation",
+  "settings.latexInstall.about":
+    "Translates an arXiv paper from its LaTeX source and compiles it into a new PDF. It uses the Tectonic compiler on this computer, installed once.",
+  "settings.latexInstall.installed": "Installed",
+  "settings.latexInstall.start": "Install the LaTeX compiler",
+  "settings.latexInstall.cancel": "Cancel install",
+  "settings.latexInstall.cancelled":
+    "The install was cancelled. Nothing was left behind.",
+  "settings.latexInstall.failed": "The install could not be finished.",
+  "settings.latexInstall.sizeNote":
+    "Downloads Tectonic, and the LaTeX packages and Chinese fonts it needs, into its own folder. Papers fetch further packages as they are compiled.",
+  "settings.latexInstall.progress": "Install progress",
+  "settings.latexInstall.percent": "{percent}%",
+  "settings.latexInstall.stage.download": "Downloading Tectonic…",
+  "settings.latexInstall.stage.unpack": "Unpacking…",
+  "settings.latexInstall.stage.assets":
+    "Downloading LaTeX packages and Chinese fonts…",
+  "settings.latexInstall.stage.finish": "Finishing…",
   "kit.sample.pages#one": "Read {count} page",
   "kit.sample.pages#other": "Read {count} pages",
   "kit.sample.region": "Preview",

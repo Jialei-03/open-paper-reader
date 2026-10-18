@@ -16,6 +16,7 @@ from sqlalchemy import select, update
 
 from .arxiv_import import NO_PDF, NO_SOURCE, ArxivNotFound, download, extract_source
 from .config import Settings, database
+from .latex_install import latex_runtime, tex_env
 from .models import File, Paper, TranslationJob, now
 from .translation_dispatch import TaskExecutor
 from .translation_engine import align, compile_project, translate_project
@@ -69,6 +70,16 @@ def preserve_layout_diagnostics(work):
     manifest = destination / "manifest.json"
     manifest.write_text(json.dumps(records))
     manifest.chmod(0o600)
+
+
+def compiler(settings):
+    """How the translated source is compiled: the hosted TeX container, or Tectonic locally."""
+    if settings.mode != "local":
+        return {}
+    tectonic = latex_runtime(settings)
+    if not tectonic:
+        raise ValueError("本机还没有安装 LaTeX 编译器（Tectonic），请在设置里安装后重试")
+    return {"tectonic": tectonic, "tex_env": tex_env(settings)}
 
 
 def process(settings, maker, job_id):
@@ -156,6 +167,8 @@ def process(settings, maker, job_id):
             ):
                 process_layout(settings, maker, job_id, config, work, progress)
             return
+        # The local build compiles with Tectonic; without it nothing can be compiled.
+        compiler(settings)
         progress(0, 0, "下载固定版本的原文与源码")
         # The paper exists (it was imported); a 404 here is a missing file.
         try:
@@ -199,7 +212,7 @@ def process(settings, maker, job_id):
             cancelled,
             lambda: progress(len(units), len(units), "等待编译运行内存"),
         ):
-            translated = compile_project(work / "translated")
+            translated = compile_project(work / "translated", **compiler(settings))
         progress(len(units), len(units), "保存中文 PDF")
         progress(len(units), len(units), "建立原译文对照")
         alignment = align(units, Path(settings.storage) / source_file, translated)

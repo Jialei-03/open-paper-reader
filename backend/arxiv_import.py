@@ -49,7 +49,7 @@ def identifier(value):
 
 # A paper that exists can still lack one of its files on arXiv.
 NO_PDF = "arXiv 没有提供这篇论文的 PDF，可能还在生成或只有网页版"
-NO_SOURCE = "该版本未提供可用的 LaTeX 源码；本阶段不支持纯 PDF 翻译"
+NO_SOURCE = "该版本未提供可用的 LaTeX 源码，可以改用在原 PDF 上重新排版的版面翻译"
 
 
 class ArxivNotFound(ValueError):

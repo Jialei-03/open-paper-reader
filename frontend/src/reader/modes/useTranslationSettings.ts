@@ -14,6 +14,10 @@ export interface TranslationSettings {
   activeId: string;
   /** The service can translate a PDF with its layout kept (`pdf_layout_enabled`). */
   layoutEnabled: boolean;
+  /** An arXiv paper's LaTeX source can be translated and compiled here (`latex_translation_available`). */
+  latexAvailable: boolean;
+  /** The local build can install the TeX engine for that (`latex_installable`). */
+  latexInstallable: boolean;
   /** The first answer (or the first failure) has come. */
   loaded: boolean;
 }
@@ -23,12 +27,16 @@ type Answer = {
   active_id?: string;
   configured?: boolean;
   pdf_layout_enabled?: boolean;
+  latex_translation_available?: boolean;
+  latex_installable?: boolean;
 };
 
 const NOTHING: TranslationSettings = {
   models: [],
   activeId: "",
   layoutEnabled: false,
+  latexAvailable: false,
+  latexInstallable: false,
   loaded: false,
 };
 
@@ -60,6 +68,8 @@ function read() {
         // A service with no usable key says so (`configured`): then no model is in use.
         activeId: answer.configured === false ? "" : (active?.id ?? ""),
         layoutEnabled: answer.pdf_layout_enabled === true,
+        latexAvailable: answer.latex_translation_available === true,
+        latexInstallable: answer.latex_installable === true,
         loaded: true,
       };
       listeners.forEach((listener) => listener());
