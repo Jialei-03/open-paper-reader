@@ -12,6 +12,7 @@ from fastapi import Depends, HTTPException
 from pydantic import Field, ValidationError, model_validator
 from sqlalchemy import func, select
 
+from .citation_marks import verify
 from .model_options import task_of, task_options
 from .models import AgentRun, AgentSession, File, Paper, ReadingArtifact, now, public
 from .reader_context import ReaderContextInput
@@ -20,7 +21,7 @@ from .storage_budget import StorageBudgetExceeded, lock_owner, require_space
 from .translation_settings import read_config
 
 RESULT_LIMIT = 128 * 1024
-EVIDENCE_LIMIT = 256 * 1024
+EVIDENCE_LIMIT = 448 * 1024
 RESERVE = RESULT_LIMIT + EVIDENCE_LIMIT
 
 
@@ -54,19 +55,23 @@ class Evidence(Strict):
 
 class GuideSection(Evidence):
     title: str = Field(min_length=1, max_length=100)
-    body: str = Field(min_length=1, max_length=8000)
+    # Each sentence may end with a citation marker (backend/citation_marks.py).
+    body: str = Field(min_length=1, max_length=16000)
 
 
 class Guide(Strict):
     keywords: list[str] = Field(min_length=1, max_length=12)
     summary: list[str] = Field(min_length=3, max_length=3)
     sections: list[GuideSection] = Field(min_length=4, max_length=4)
+    # True once every sentence's citation marker has been checked against the
+    # pages (guides made before that have page chips only).
+    cited: bool = False
 
     @model_validator(mode="after")
     def meaningful_text(self):
         if any(not s.strip() or len(s) > 120 for s in self.keywords):
             raise ValueError("关键词为空或过长")
-        if any(not s.strip() or len(s) > 2000 for s in self.summary):
+        if any(not s.strip() or len(s) > 4000 for s in self.summary):
             raise ValueError("三句摘要为空或过长")
         if [s.title for s in self.sections] != [
             "研究问题",
@@ -272,6 +277,38 @@ def normalize_guide(value):
     return value
 
 
+CITATION_RULES = (
+    "逐句出处：章节 body 与摘要里每一句陈述论文内容的话，句末紧跟一个出处标记，"
+    "格式 [[p页码: 「原文」]]，例如 [[p3: 「we reduce latency by 40%」]]（用「」而不是英文双引号，"
+    "免得破坏 JSON）。页码是该原文所在的PDF页（与上文「【第 N 页】」一致）；「」里的原文必须逐字复制自该页文字，"
+    "是其中一个连续片段（只允许调整空白和换行），不超过300字，不改写、不翻译、不拼接、不省略，"
+    "挑能直接支持这一句的那一句原文，原文含英文双引号时改选不含的一句。"
+    "一句话如依据多处原文，就紧跟多个标记。不要在标题或关键词里写标记；"
+    "找不到可逐字引用的原文时，这一句不加标记，不要编造引文。"
+)
+
+
+def verify_guide(guide, evidence_text):
+    """Keep only the citations that are really on the pages the model read.
+
+    A quote found on another page than the one named gets that page; one found
+    nowhere is dropped with its sentence kept. A section's `pages` become the
+    pages its verified citations are on (those the model listed stay for a
+    section it cited nothing in)."""
+    pages = {
+        int(number): text
+        for number, text in (evidence_text or {}).items()
+        if str(number).isdigit() and isinstance(text, str)
+    }
+    guide.summary = [verify(line, pages)[0] or line for line in guide.summary]
+    for section in guide.sections:
+        body, kept = verify(section.body, pages)
+        section.body = body.strip() or section.body
+        if kept:
+            section.pages = sorted({page for page, _ in kept})
+    guide.cited = True
+
+
 def artifact_prompt(file, body, direct=False):
     """The task, for the agent (which reads the paper with tools) or, with
     `direct`, for a model that is handed the whole text with the request."""
@@ -366,6 +403,8 @@ def artifact_prompt(file, body, direct=False):
             '{"title":"主要结果","body":"内容","pages":[3]},'
             '{"title":"适用边界","body":"内容","pages":[4]}]}。'
             "关键词1–12个，摘要恰好3句，四个章节顺序及标题固定。"
+            + CITATION_RULES
+            + (
             "事实核对要求：先完成四个章节，再依据这些章节写摘要；最终输出前逐项核对摘要、主要结果、"
             "适用边界中的数字与比较结论，不能出现摘要称某方法最优、正文却列出更优基线的矛盾。"
             "每个定量结论必须核对原始表格/正文中的方法、数据集、任务子类、指标名、数值、单位、"
@@ -379,6 +418,7 @@ def artifact_prompt(file, body, direct=False):
             "特别区分检索/召回后传入模型的上下文 token、持久记忆存储 token、输入/输出 token，"
             "不要统称为‘记忆规模’或把不同口径直接比较；区分检索延迟、端到端延迟、预处理/写入成本。"
             "作者解释或推测必须标明，不能把单次基准结果写成普遍规律；保留重要反例与适用边界。"
+            )
         )
     difficulty = (
         "理解概念和主要发现"
@@ -459,7 +499,13 @@ def record_reading_evidence(app, run_id, tool, result):
                 and isinstance(p.get("text"), str)
                 and p["text"].strip()
             )
-            if row.kind in {"page_translation", "highlights", "outline", "keypoints"}:
+            if row.kind in {
+                "page_translation",
+                "highlights",
+                "outline",
+                "keypoints",
+                "guide",
+            }:
                 texts = dict(row.evidence_text or {})
                 for p in result.get("pages", []):
                     if (
@@ -519,6 +565,8 @@ def check_result(kind, raw, *, parameters, expected, evidence_pages, evidence_te
         "outline": Outline,
     }[kind]
     result = schema.model_validate(parsed)
+    if kind == "guide":
+        verify_guide(result, evidence_text)
     if kind in {"guide", "quiz"}:
         entries = result.sections if kind == "guide" else result.questions
         if kind == "quiz" and len(entries) != parameters["question_count"]:

@@ -183,7 +183,10 @@ def test_artifact_reads_real_pdf_validates_and_caches(env, monkeypatch, kind, co
     calls = run_fixture_model(app, settings, row, expected, monkeypatch)
     result = a.get("/api/v1/reading-artifacts/" + row["id"]).json()
     assert result["status"] == "completed", result
-    assert result["result"] == expected
+    # A guide also records that its citations were checked.
+    assert result["result"] == (
+        {**expected, "cited": True} if kind == "guide" else expected
+    )
     assert result["evidence_pages"] == list(range(1, 13))
     assert len(calls) == 4
     assert a.post(endpoint, json=body).json()["run_id"] == row["run_id"]

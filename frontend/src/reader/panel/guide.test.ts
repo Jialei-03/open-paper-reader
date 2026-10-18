@@ -53,7 +53,13 @@ describe("readGuide", () => {
       keywords: ["attention"],
       summary: ["One.", "Two.", "Three."],
       sections: [{ title: "研究问题", body: "Body.", pages: [3] }],
+      cited: false,
     });
+  });
+
+  it("knows a guide whose sentence citations were checked", () => {
+    expect(readGuide({ ...GUIDE, cited: true }).cited).toBe(true);
+    expect(readGuide({ ...GUIDE, cited: "yes" }).cited).toBe(false);
   });
 
   it("reads nothing from what is not a guide", () => {
@@ -132,7 +138,7 @@ describe("guideView", () => {
     });
     expect(view).toEqual({
       kind: "working",
-      content: { keywords: ["x"], summary: [], sections: [] },
+      content: { keywords: ["x"], summary: [], sections: [], cited: false },
     });
   });
 

@@ -1,0 +1,7 @@
+/* The sentence a citation chip belongs to, marked while the chip is hovered or focused. */
+::highlight(opr-cite-sentence) {
+  background-color: var(--ui-accent-soft);
+  text-decoration: underline dotted;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}

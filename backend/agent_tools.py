@@ -78,7 +78,7 @@ TOOLS = [
     ),
     tool(
         "read_file",
-        f"读取论文附件文本。id 必须为附件 ID；只有论文 ID 时用 paper_id，自动选择原版 PDF。每次最多 {agent_limits.PAGES_PER_READ} 页，返回明确页码。",
+        f"读取论文附件文本。id 必须为附件 ID；只有论文 ID 时用 paper_id，自动选择原版 PDF。每次最多 {agent_limits.PAGES_PER_READ} 页，返回明确页码。要引用时从返回的页文字里逐字复制一个连续片段，写成 [[p页码: \"原文\"]]（见技能「逐句出处」）。",
         {
             "id": ID,
             "paper_id": ID,

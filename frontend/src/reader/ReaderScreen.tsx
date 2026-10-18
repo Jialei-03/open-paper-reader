@@ -1224,6 +1224,19 @@ export function ReaderScreen({
           assistant={assistant}
           keypoints={keypoints}
           onCite={jumpFromPanel}
+          onKeep={
+            here && hereFile
+              ? (markdown) =>
+                  keep({
+                    paperId: here.id,
+                    fileId: hereFile.id,
+                    page: 1,
+                    source: "page",
+                    action: "ask",
+                    markdown,
+                  })
+              : undefined
+          }
           notes={
             here
               ? { paper: here, file: hereFile, notes, onJump: jumpFromPanel }

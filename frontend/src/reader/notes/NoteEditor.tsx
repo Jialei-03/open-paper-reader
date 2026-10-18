@@ -4,6 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { noteExtensions, type FormulaClick } from "../../lib/note-editor";
 import { Button, Dialog, TextArea } from "../../ui";
+import {
+  CiteProvider,
+  NoteCitation,
+  marksIn,
+  noteLeafText,
+  verifyMarks,
+  type CiteTarget,
+} from "../cite";
 import type { ReaderRoute } from "../route";
 import { serviceReason } from "../service-error";
 import { readerRouteOf } from "./noteLink";
@@ -24,6 +32,8 @@ export interface NoteEditorProps {
   onJump(route: ReaderRoute): void;
   /** Puts an image pasted or dropped into the note; its address comes back. */
   onImage(file: File): Promise<{ url: string; name: string }>;
+  /** The paper the note is about: where the sentence citations in the text lead, and are looked up. */
+  cite?: CiteTarget;
 }
 
 /**
@@ -39,6 +49,7 @@ export function NoteEditor({
   onFlush,
   onJump,
   onImage,
+  cite,
 }: NoteEditorProps) {
   const i18n = useI18n();
   const { t } = i18n;
@@ -53,16 +64,23 @@ export function NoteEditor({
   const busy = useRef(false);
 
   const editor = useEditor({
-    extensions: noteExtensions(setFormula, {
-      alt: t("reader.notes.image.alt"),
-      missing: (alt) =>
-        t("reader.notes.image.placeholder", {
-          alt: alt || t("reader.notes.image.placeholderEmpty"),
-        }),
-    }),
+    extensions: noteExtensions(
+      setFormula,
+      {
+        alt: t("reader.notes.image.alt"),
+        missing: (alt) =>
+          t("reader.notes.image.placeholder", {
+            alt: alt || t("reader.notes.image.placeholderEmpty"),
+          }),
+      },
+      [NoteCitation],
+    ),
     content: body,
     contentType: "markdown",
     editorProps: {
+      // Copied as plain text, a citation reads "(p. 3)"; the HTML keeps it as a citation.
+      clipboardTextSerializer: (slice) =>
+        slice.content.textBetween(0, slice.content.size, "\n\n", noteLeafText),
       attributes: {
         class: styles.prose,
         role: "textbox",
@@ -168,6 +186,12 @@ export function NoteEditor({
     }
   };
 
+  // The citations in the text are looked up on the paper once, whatever their number.
+  const fileId = cite?.fileId;
+  useEffect(() => {
+    if (fileId) void verifyMarks(fileId, marksIn(body));
+  }, [fileId, body]);
+
   // The text changed from outside the editor: show it, without counting it as typing.
   useEffect(() => {
     if (editor && !editor.isDestroyed && editor.getMarkdown() !== body)
@@ -206,7 +230,9 @@ export function NoteEditor({
         ),
       }}
     >
-      <EditorContent editor={editor} />
+      <CiteProvider target={cite ?? null}>
+        <EditorContent editor={editor} />
+      </CiteProvider>
       {uploading && (
         <p className={styles.notice} role="status">
           {t("reader.notes.image.uploading")}
