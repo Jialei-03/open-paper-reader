@@ -262,7 +262,7 @@ def test_a_boxed_region_reaches_the_agent_with_the_text_under_it(env, monkeypatc
         "file_id": f["id"],
         "page": 3,
         "source": "region",
-        "action": "explain",
+        "action": "ask",
         "rect": [0.03, 0.09, 0.5, 0.06],
     }
     run = write(

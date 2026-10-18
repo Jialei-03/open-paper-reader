@@ -22,7 +22,11 @@ import { outOfView, selectionSpot, spotRect, type PageSpot } from "./anchor";
 import { TranslatePopover } from "./TranslatePopover";
 
 /** What is kept in the note: the selection, and its translation when it comes from the translation. */
-export type SelectionNote = AskRequest & { translation?: string };
+export type SelectionNote = AskRequest & {
+  translation?: string;
+  /** The note's text, when it is not made from a quote (a boxed region: its picture and what was made of it). */
+  markdown?: string;
+};
 
 export interface SelectionMenuProps {
   /** The pages' scroller (`PdfController.root`), where text is selected. */

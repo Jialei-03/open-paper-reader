@@ -253,6 +253,8 @@ export interface PaperHeaderProps {
   modes?: (compact: boolean) => ReactNode;
   /** The same as menu entries, for the more menu of a strip with no room for `modes` at all. */
   modeItems?: MenuEntry[];
+  /** Tools for working on the page (the region box), beside the contents button while there are pages. */
+  tools?: ReactNode;
 }
 
 /**
@@ -278,6 +280,7 @@ export function PaperHeader({
   panelToggle,
   modes,
   modeItems,
+  tools,
 }: PaperHeaderProps) {
   const { t } = useI18n();
   const bar = useRef<HTMLDivElement>(null);
@@ -512,6 +515,7 @@ export function PaperHeader({
               />
             </>
           )}
+          {reading && tools}
           {reading && doc && (
             <>
               <IconButton

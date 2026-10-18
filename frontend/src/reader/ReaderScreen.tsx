@@ -1,4 +1,4 @@
-import { PanelRight } from "lucide-react";
+import { BoxSelect, PanelRight } from "lucide-react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
   useCallback,
@@ -55,6 +55,7 @@ import { PaperHeader } from "./PaperHeader";
 import { ReaderSidebar } from "./ReaderSidebar";
 import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel, type PanelView } from "./RightPanel";
+import { RegionTool } from "./regions/RegionTool";
 import { SelectionMenu, type SelectionNote } from "./selection/SelectionMenu";
 import { Composer, useAssistant } from "./assistant";
 import { excerptMarkdown } from "./notes/excerpt";
@@ -112,6 +113,9 @@ interface Overlays {
   /** The menu's explain and ask, and its keeping in the note. */
   onAsk(request: AskRequest): void;
   onNote(request: SelectionNote): void;
+  /** Region mode (the toolbar's): a drag on a page boxes a figure, table or formula. */
+  regionMode: boolean;
+  onRegionMode(active: boolean): void;
 }
 
 /**
@@ -120,7 +124,17 @@ interface Overlays {
  * address points at.
  */
 function PaperPages({
-  overlays: { onLink, preview, region, paper, scroller, onAsk, onNote },
+  overlays: {
+    onLink,
+    preview,
+    region,
+    paper,
+    scroller,
+    onAsk,
+    onNote,
+    regionMode,
+    onRegionMode,
+  },
   translated,
   ...props
 }: Omit<PdfPagesProps, "pageOverlays"> & {
@@ -184,6 +198,17 @@ function PaperPages({
           noHighlight={
             translated ? t("reader.selection.highlightTranslated") : undefined
           }
+        />
+      )}
+      {paper && (
+        <RegionTool
+          scroller={scroller}
+          paper={paper}
+          file={file}
+          active={regionMode}
+          onActiveChange={onRegionMode}
+          onAsk={onAsk}
+          onNote={onNote}
         />
       )}
     </>
@@ -405,6 +430,8 @@ function PaperBody({
                 scroller: translatedController?.root ?? null,
                 onAsk: overlays.onAsk,
                 onNote: overlays.onNote,
+                regionMode: overlays.regionMode,
+                onRegionMode: overlays.onRegionMode,
               }}
               translated
             />
@@ -551,6 +578,7 @@ function PaperCard({
   onNote: Overlays["onNote"];
   actions: RefObject<PaperActions | null>;
 }) {
+  const { t } = useI18n();
   const [paper, setPaper] = useState<Paper | null>(null);
   const [visiblePages, setVisiblePages] = useState<number[]>([]);
   const [hoverQuote, setHoverQuote] = useState<HoverQuote | null>(null);
@@ -568,6 +596,7 @@ function PaperCard({
   const [source, setSource] = useState<Source | null>(null);
   const [controller, setController] = useState<PdfController | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const [regionMode, setRegionMode] = useState(false);
   const doc = source?.doc ?? null;
   const pages = doc?.numPages ?? 0;
   const file = source?.file ?? null;
@@ -831,6 +860,8 @@ function PaperCard({
     scroller: controller?.root ?? null,
     onAsk,
     onNote,
+    regionMode,
+    onRegionMode: setRegionMode,
   };
 
   // The screen's mod+f reaches the find bar through this.
@@ -894,6 +925,14 @@ function PaperCard({
           <ModeControls compact={compact} {...modeControls} />
         )}
         modeItems={foldedModes}
+        tools={
+          <IconButton
+            icon={BoxSelect}
+            label={t("reader.region.tool")}
+            aria-pressed={regionMode}
+            onClick={() => setRegionMode((on) => !on)}
+          />
+        }
       />
       {/* No height of its own: the bar floats over the top of the paper, and the pages do not move for it. */}
       {find.open && (
@@ -1016,10 +1055,12 @@ export function ReaderScreen({
 
   // Kept in the note: the words, their translation if they come with one, and the way back to them.
   const keep = (request: SelectionNote) => {
-    const markdown = excerptMarkdown(
-      request,
-      t("reader.notes.source", { page: request.page }),
-    );
+    const markdown =
+      request.markdown ??
+      excerptMarkdown(
+        request,
+        t("reader.notes.source", { page: request.page }),
+      );
     const toNotes = {
       label: t("reader.notes.show"),
       onClick: () => show("notes"),
