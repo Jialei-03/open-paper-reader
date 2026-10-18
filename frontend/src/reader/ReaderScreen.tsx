@@ -55,6 +55,14 @@ import { excerptMarkdown } from "./notes/excerpt";
 import { useNotes } from "./notes/useNotes";
 import type { AskRequest } from "./types";
 import { linkTarget } from "./outline";
+import {
+  LayoutPanel,
+  ModeControls,
+  useFoldedModeEntries,
+  useLayoutTranslation,
+  useTranslationLanguage,
+  type ReadingMode,
+} from "./modes";
 import { followLink, readerHash, type ReaderRoute } from "./route";
 import { useMediaQuery } from "./useMediaQuery";
 import { usePaper } from "./usePaper";
@@ -175,6 +183,8 @@ function PaperBody({
   controllerRef,
   textLayerRef,
   overlays,
+  shown = null,
+  instead = null,
 }: {
   route: ReaderRoute;
   go: (hash: string) => void;
@@ -186,13 +196,18 @@ function PaperBody({
   controllerRef: Ref<PdfController>;
   textLayerRef: Find["onTextLayer"];
   overlays: Overlays;
+  /** A file of the paper to draw in place of its PDF (the translated one). */
+  shown?: SourceFile | null;
+  /** Put where the pages would be (the translated view with nothing to show yet); the pages are not drawn. */
+  instead?: ReactNode;
 }) {
   const { t } = useI18n();
   const { paper, pdf, error, missing, loading, retry } = usePaper(
     route.paperId,
     route.fileId,
   );
-  const pdfDocument = usePdfDocument(pdf?.id ?? null);
+  const drawn = shown ?? pdf;
+  const pdfDocument = usePdfDocument(drawn?.id ?? null);
   const doc = pdfDocument.doc;
   useEffect(() => {
     if (paper) onPaper(paper);
@@ -235,6 +250,7 @@ function PaperBody({
         <p className={styles.message}>{t("reader.pdf.none")}</p>
       </div>
     );
+  if (instead) return instead;
   if (pdfDocument.error)
     return (
       <div className={styles.state}>
@@ -264,9 +280,9 @@ function PaperBody({
   }
   return (
     <PaperPages
-      key={pdf.id}
+      key={drawn!.id}
       doc={pdfDocument.doc}
-      file={pdf}
+      file={drawn!}
       page={page}
       onPageChange={onPageChange}
       controllerRef={controllerRef}
@@ -416,6 +432,23 @@ function PaperCard({
   const pages = doc?.numPages ?? 0;
   const file = source?.file ?? null;
   useEffect(() => onFile(file), [file, onFile]);
+  // How the paper is read, and what its translation is made with. The page is the card's, so it is kept across modes.
+  const [mode, setMode] = useState<ReadingMode>("original");
+  const [language, setLanguage] = useTranslationLanguage();
+  const [modelId, setModelId] = useState<string | null>(null);
+  const layout = useLayoutTranslation({ paper, file, modelId });
+  const modeControls = {
+    mode,
+    onMode: setMode,
+    language,
+    onLanguage: setLanguage,
+    modelId,
+    onModel: setModelId,
+    // PLACEHOLDER (对照): side by side is not built into this screen yet. The controller connects this
+    // to translating the current page again (sub-agent E1's hook).
+    onRetranslatePage: mode === "parallel" ? () => undefined : undefined,
+  };
+  const foldedModes = useFoldedModeEntries(modeControls);
   const find = useFind(doc, controller);
   const preview = useLinkPreview(route.paperId, doc);
   const controllerNow = useRef(controller);
@@ -649,6 +682,10 @@ function PaperCard({
         onPaperChange={found}
         onBack={trail.length ? back : undefined}
         panelToggle={panelToggle}
+        modes={(compact) => (
+          <ModeControls compact={compact} {...modeControls} />
+        )}
+        modeItems={foldedModes}
       />
       {/* No height of its own: the bar floats over the top of the paper, and the pages do not move for it. */}
       {find.open && (
@@ -667,6 +704,14 @@ function PaperCard({
           controllerRef={setController}
           textLayerRef={onTextLayer}
           overlays={overlays}
+          // PLACEHOLDER (对照): mode === "parallel" reads like the original for now. The controller connects
+          // sub-agent E1's column here: PdfPages' pageAside={(page) => <ParallelPage …/>} and its visible pages.
+          shown={mode === "translated" ? layout.translatedFile : null}
+          instead={
+            mode === "translated" && !layout.translatedFile ? (
+              <LayoutPanel layout={layout} />
+            ) : null
+          }
         />
       </RegionBoundary>
       {preview.element}
