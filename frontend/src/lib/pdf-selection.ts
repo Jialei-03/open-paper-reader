@@ -72,9 +72,9 @@ export function readPdfSelection(
       piece.setEnd(layer, layer.childNodes.length);
     const text = piece.toString();
     if (!text.trim()) continue;
-    const page = Number(
-      layer.closest<HTMLElement>("[data-pdf-page]")?.dataset.pdfPage,
-    );
+    // The old reader marks its pages with data-pdf-page, the new one with data-page.
+    const sheet = layer.closest<HTMLElement>("[data-pdf-page], [data-page]");
+    const page = Number(sheet?.dataset.pdfPage ?? sheet?.dataset.page);
     if (!page) continue;
     const before = document.createRange();
     before.selectNodeContents(layer);
