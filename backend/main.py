@@ -185,7 +185,7 @@ def detect(data, name):
     return "application/octet-stream", None
 
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 def create_app(settings=None):
@@ -520,7 +520,12 @@ def create_app(settings=None):
     @app.get("/api/v1/health")
     def health(d=Depends(db)):
         d.execute(select(User.id).limit(1))
-        return {"status": "ok", "version": VERSION, "mode": settings.mode}
+        body = {"status": "ok", "version": VERSION, "mode": settings.mode}
+        if settings.mode == "local":
+            from .local.supervisor import worker_health
+
+            body["workers"] = worker_health()
+        return body
 
     @app.post("/api/v1/auth/login")
     def login(body: Credentials, request: Request, d=Depends(db)):
