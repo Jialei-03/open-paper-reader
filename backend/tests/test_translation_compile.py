@@ -169,3 +169,66 @@ def test_unicode_symbol_mapping_precedes_stored_author_macros(tmp_path):
     engine.prepare_compile_source(main)
     assert main.read_text() == content
     assert content.count('% paper-workspace early Unicode symbol mappings') == 1
+
+
+def test_subfig_beside_subcaption_drops_the_unused_package(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text(
+        '\\documentclass{article}\n\\usepackage{subfig}\n\\usepackage{graphicx,subcaption}\n'
+        '\\begin{document}\\begin{figure}\\begin{subfigure}{.5\\linewidth}x\\end{subfigure}\\end{figure}\\end{document}'
+    )
+    engine.prepare_compile_source(main)
+    prepared = main.read_text()
+    assert '% \\usepackage{subfig}' in prepared
+    assert '\\usepackage{graphicx,subcaption}' in prepared
+    # Running again changes nothing.
+    engine.prepare_compile_source(main)
+    assert main.read_text() == prepared
+
+
+def test_subcaption_goes_when_only_subfloat_is_used_and_both_stay_when_both_are(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text(
+        '\\documentclass{article}\n\\usepackage{subfig,subcaption}\n'
+        '\\begin{document}\\subfloat{x}\\end{document}'
+    )
+    engine.prepare_compile_source(main)
+    assert '\\usepackage{subfig}' in main.read_text()
+    both = (
+        '\\documentclass{article}\n\\usepackage{subfig}\n\\usepackage{subcaption}\n'
+        '\\begin{document}\\subfloat{x}\\subcaptionbox{a}{b}\\end{document}'
+    )
+    main.write_text(both)
+    engine.prepare_compile_source(main)
+    assert '\\usepackage{subfig}\n\\usepackage{subcaption}' in main.read_text()
+
+
+def test_a_recoverable_error_compiles_again_past_it_once(tmp_path, monkeypatch):
+    (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}x\end{document}')
+    commands = []
+
+    def run(command, **kw):
+        if command[:2] == ['docker', 'run']:
+            commands.append(command)
+            if '-f' in command:
+                (tmp_path / 'build').mkdir(exist_ok=True)
+                (tmp_path / 'build/main.pdf').write_bytes(b'%PDF-1.7')
+                return SimpleNamespace(returncode=1, stdout=b'', stderr=b'')
+            return SimpleNamespace(returncode=1, stdout=b'./main.tex:3: LaTeX Error: Something recoverable.\n', stderr=b'')
+        return SimpleNamespace(returncode=0, stdout=b'', stderr=b'')
+
+    monkeypatch.setattr(engine.subprocess, 'run', run)
+    pdf = engine.compile_project(tmp_path)
+    assert str(pdf).endswith('main.pdf')
+    strict, forced = commands
+    assert '-halt-on-error' in strict and '-f' not in strict
+    assert '-halt-on-error' not in forced and '-f' in forced
+    assert 'max_print_line=10000' in strict
+
+
+def test_when_the_retry_makes_no_pdf_the_first_error_is_reported(tmp_path, monkeypatch):
+    (tmp_path / 'main.tex').write_text(r'\documentclass{article}\begin{document}x\end{document}')
+    log = b'./main.tex:3: Package subcaption Error: This package can\'t be used in cooperation with the subfig package.\n'
+    monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=1, stdout=log, stderr=b''))
+    with pytest.raises(ValueError, match='subcaption Error'):
+        engine.compile_project(tmp_path)

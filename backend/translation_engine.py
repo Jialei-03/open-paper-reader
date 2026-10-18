@@ -490,6 +490,52 @@ def translate_project(source, output, config, progress, cached=None):
     return list(cache.values())
 
 
+# A package line that is not commented out: what precedes it on its line has no %.
+SUBFIG_LOAD = re.compile(r"(?m)^(?P<lead>[^%\n]*?)\\(?:usepackage|RequirePackage)(\[[^\]]*\])?\{([^{}]*)\}")
+
+
+def resolve_subfigure_packages(main):
+    """subcaption refuses to load beside subfig; drop whichever one the paper never uses.
+
+    arXiv compiles past that error, so papers ship with both. Only the package
+    list changes, and only when the other package's commands are absent.
+    """
+    files = [*main.parent.rglob("*.tex")]
+    texts = {path: path.read_text(errors="replace") for path in files}
+
+    def loaded(name):
+        return any(
+            name in [part.strip() for part in m[3].split(",")]
+            for text in texts.values()
+            for m in SUBFIG_LOAD.finditer(text)
+        )
+
+    if not (loaded("subfig") and loaded("subcaption")):
+        return
+    everything = "\n".join(texts.values())
+    if not re.search(r"\\subfloat\b", everything):
+        drop = "subfig"
+    elif not re.search(r"\\begin\{sub(?:figure|table)\}|\\subcaption(?:box)?\b", everything):
+        drop = "subcaption"
+    else:
+        return
+
+    def without(m):
+        names = [part for part in m[3].split(",") if part.strip() != drop]
+        line = m[0][len(m["lead"]):]
+        if not any(name.strip() for name in names):
+            return m["lead"] + "% " + line + " (open-paper-reader: conflicts with the other subfigure package)"
+        return m["lead"] + line.replace("{" + m[3] + "}", "{" + ",".join(names) + "}")
+
+    for path, text in texts.items():
+        repaired = SUBFIG_LOAD.sub(
+            lambda m: without(m) if drop in [part.strip() for part in m[3].split(",")] else m[0],
+            text,
+        )
+        if repaired != text:
+            path.write_text(repaired)
+
+
 def prepare_compile_source(main):
     """Repair explicit XeTeX compatibility issues without discarding content."""
     # A standalone line break immediately after a section starts in vertical
@@ -515,6 +561,7 @@ def prepare_compile_source(main):
         )
         if repaired != content:
             path.write_text(repaired)
+    resolve_subfigure_packages(main)
     tex = main.read_text()
     # A translated title occasionally has its closing brace before the final
     # plain-text words. Plain text cannot occur here in the preamble: recover
@@ -751,6 +798,9 @@ def compile_project(directory, tectonic=None, tex_env=None):
         "openout_any=p",
         "-e",
         "TEXMFVAR=/tmp/texmf-var",
+        # One error per line in the log, so its cause can be read back out.
+        "-e",
+        "max_print_line=10000",
         "-e",
         "XDG_CACHE_HOME=/tmp/cache",
         "-v",
@@ -772,6 +822,21 @@ def compile_project(directory, tectonic=None, tex_env=None):
     for path in [Path(directory), *Path(directory).rglob("*")]:
         path.chmod(0o777 if path.is_dir() else 0o666)
     try:
+        return compiled(directory, main, run_container(command, container))
+    except ValueError as strict:
+        # arXiv builds past recoverable errors; so may we, once, when a PDF results.
+        forced = [part for part in command if part != "-halt-on-error"]
+        forced.insert(forced.index("-gg") + 1, "-f")
+        retry = "paper-tex-" + uuid.uuid4().hex
+        forced[forced.index(container)] = retry
+        try:
+            return compiled(directory, main, run_container(forced, retry), forced=True)
+        except ValueError:
+            raise strict from None
+
+
+def run_container(command, container):
+    try:
         result = subprocess.run(command, capture_output=True, timeout=240, check=False)
     except (subprocess.TimeoutExpired, FileNotFoundError):
         raise ValueError("论文编译超时或编译环境不可用") from None
@@ -785,11 +850,15 @@ def compile_project(directory, tectonic=None, tex_env=None):
             )
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
-    return compiled(directory, main, result)
+    return result
 
 
-def compiled(directory, main, result):
-    """The PDF the compile made, or the first error in its log."""
+def compiled(directory, main, result, forced=False):
+    """The PDF the compile made, or the first error in its log.
+
+    ``forced``: the compile went on past errors (latexmk -f), so it reports failure
+    even when it made a whole PDF; that PDF is taken if there is one.
+    """
     log = result.stdout.decode(errors="replace") + result.stderr.decode(
         errors="replace"
     )
@@ -798,7 +867,7 @@ def compiled(directory, main, result):
     if font:
         raise ValueError(f"中文 PDF 编译失败：fontspec 找不到字体 {font[1]}，请安装该字体后重试")
     target = Path(directory) / "build" / (main.stem + ".pdf")
-    if result.returncode or not target.exists():
+    if (result.returncode and not forced) or not target.exists():
         errors = re.findall(
             r"(?:LaTeX Error:|Class \w+ Error:|(?:Package )?fontspec Error:|Package \w+ Error:|Missing character:|Undefined control sequence\.|Emergency stop\.|I can\'t find file)[^\n]*",
             log,
