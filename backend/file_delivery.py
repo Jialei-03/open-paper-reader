@@ -25,9 +25,10 @@ def file_response(settings, record, request, download=False):
     headers = {
         "ETag": etag,
         "Accept-Ranges": "bytes",
-        # A file id never changes its bytes, so the browser may keep them (private
-        # only: never a shared cache); the owner check runs on every uncached request.
-        "Cache-Control": "private, max-age=31536000, immutable",
+        # The browser keeps the bytes but asks first each time: an unchanged file
+        # costs one 304 (the ETag is its hash), and access that was revoked, or a
+        # session that ended, stops the cached copy from opening.
+        "Cache-Control": "private, no-cache",
         "Vary": "Cookie, Authorization",
         "Content-Disposition": f"{'attachment' if download else 'inline'}; filename=\"attachment\"; filename*=UTF-8''{quote(record.name, safe='')}",
     }
