@@ -24,8 +24,8 @@
   --ui-fg-1: #47433f; /* secondary */
   --ui-fg-2: #67625f; /* captions */
   --ui-fg-3: #726e6a; /* placeholders, meta */
-  --ui-accent: #eb7f3b; /* fills and touches only, never text */
-  --ui-accent-text: #a94900; /* orange text: citation pages, context labels */
+  --ui-accent: #57534e; /* quiet ink for marks: dots, rules, progress — no brand orange */
+  --ui-accent-text: #47433f; /* citation pages, context labels */
   --ui-primary: #1c1917; /* primary button background */
   --ui-primary-fg: #fefdfc; /* primary button text */
   --ui-danger: #d93036; /* destructive fills */
@@ -34,7 +34,7 @@
   --ui-warning-text: #8a5a00; /* warnings */
 
   /* The paper being read */
-  --ui-highlight: rgba(235, 127, 59, 0.24);
+  --ui-highlight: rgba(250, 204, 21, 0.32); /* a marker pen */
   --ui-selection: rgba(28, 99, 191, 0.18);
   --ui-page-filter: none; /* dims the PDF paper in dark */
   --ui-paper: #ffffff; /* a PDF page before it is drawn: white, as pdf.js paints it, in both themes */
@@ -55,11 +55,10 @@
   --ui-hover: color-mix(in oklab, var(--ui-fg) 5%, transparent);
   --ui-selected: color-mix(in oklab, var(--ui-fg) 8%, transparent);
   --ui-fill: color-mix(in oklab, var(--ui-fg) 4%, transparent);
-  --ui-accent-soft: color-mix(in oklab, var(--ui-accent) 16%, transparent);
+  --ui-accent-soft: color-mix(in oklab, var(--ui-fg) 7%, transparent);
   --ui-danger-soft: color-mix(in oklab, var(--ui-danger) 14%, transparent);
-  --ui-focus-ring:
-    0 0 0 2px var(--ui-bg),
-    0 0 0 4px color-mix(in oklab, var(--ui-accent) 70%, transparent);
+  /* Neutral, one quiet ring: focus is shown, never decorated. */
+  --ui-focus-ring: 0 0 0 3px color-mix(in oklab, var(--ui-fg) 14%, transparent);
   --ui-elev-1:
     0 0 0 1px var(--ui-edge-subtle),
     0 1px 2px rgb(var(--ui-shade) / calc(0.05 * var(--ui-shadow-k)));
@@ -151,8 +150,8 @@
   --ui-fg-1: #c4c2be;
   --ui-fg-2: #a5a39e;
   --ui-fg-3: #93918c;
-  --ui-accent: #f5914f;
-  --ui-accent-text: #f9a56e;
+  --ui-accent: #a8a29e;
+  --ui-accent-text: #d6d3d1;
   --ui-primary: #eeedea;
   --ui-primary-fg: #1b1a18;
   --ui-danger: #e5484d;
@@ -160,7 +159,7 @@
   --ui-success-text: #69d98d;
   --ui-warning-text: #f0b450;
 
-  --ui-highlight: rgba(245, 145, 79, 0.3);
+  --ui-highlight: rgba(234, 179, 8, 0.28);
   --ui-selection: rgba(128, 182, 251, 0.32);
   --ui-page-filter: brightness(0.86) contrast(0.97);
 
