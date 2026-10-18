@@ -176,3 +176,23 @@ def test_a_local_model_needs_no_key(monkeypatch, tmp_path, local_app):
         assert config["configured"] is True and config["local_models"] is True
         assert {"127.0.0.1", "localhost"} <= set(config["allowed_hosts"])
         assert config["models"][0]["base_url"] == "http://127.0.0.1:11434/v1"
+
+
+def test_local_mode_takes_any_https_model_service(monkeypatch):
+    monkeypatch.delenv("TRANSLATION_ALLOWED_HOSTS", raising=False)
+    monkeypatch.delenv("APP_MODE", raising=False)
+    with pytest.raises(ValueError):
+        translation_settings.validate_endpoint("https://llm.example.test/v1")
+    monkeypatch.setenv("APP_MODE", "local")
+    assert (
+        translation_settings.validate_endpoint("https://llm.example.test/v1/")
+        == "https://llm.example.test/v1"
+    )
+    for url in (
+        "http://llm.example.test/v1",
+        "https://user:pw@llm.example.test/v1",
+        "https://llm.example.test:8443/v1",
+        "https:///v1",
+    ):
+        with pytest.raises(ValueError):
+            translation_settings.validate_endpoint(url)

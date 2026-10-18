@@ -93,9 +93,13 @@ def validate_endpoint(value):
     if local_endpoint(value):
         return value.rstrip("/")
     u = urlparse(value.rstrip("/"))
+    # The local build runs for one person with their own key, so any HTTPS
+    # model service is theirs to choose; the hosted site keeps its list.
+    local = os.getenv("APP_MODE", "").strip().lower() == "local"
     if (
         u.scheme != "https"
-        or u.hostname not in allowed_hosts()
+        or not u.hostname
+        or (not local and u.hostname not in allowed_hosts())
         or u.username
         or u.password
         or u.query
