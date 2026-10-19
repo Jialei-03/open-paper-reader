@@ -250,6 +250,8 @@ def main():
         choices=["playbook", "no-playbook", "no-advisor"],
     )
     parser.add_argument("--seeds", type=int, default=1)
+    # Seeds are labels; a later start lets several runners share one task without overlap.
+    parser.add_argument("--seed-start", type=int, default=1)
     parser.add_argument("--max-sprints", type=int, default=8)
     parser.add_argument("--timeout", type=int, default=3600)
     parser.add_argument("--base", default="http://127.0.0.1:8765")
@@ -267,7 +269,7 @@ def main():
     client = Client(args.base)
     for name in args.tasks:
         task = json.loads((HERE / "tasks" / name / "task.json").read_text())
-        for seed in range(1, args.seeds + 1):
+        for seed in range(args.seed_start, args.seed_start + args.seeds):
             if (name, args.condition, seed) in done:
                 continue
             row = run_one(client, args, name, task, args.condition, seed)
