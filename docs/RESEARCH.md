@@ -79,7 +79,7 @@
 - `tasks/<name>/`：任务说明（`task.json`）、数据生成脚本（`make_data.py`，固定随机种子）和评分标准。
 - 任务分为两类。"学习集"的项目会提炼进研究手册；"封存集"的项目永远不参与提炼，只用来评测。
 - 评分只看客观标准：是否记录了证据、是否得出结论、结论的方向（比如死胡同任务必须以"否定"结束）、导师是否判定没有偏离、关键数字是否与事先算好的真值一致、缺数据时是否如实报告。这些标准执行者、导师和提炼者都看不到。
-- 封存集现有四个任务：`imbalance-threshold`（找最优阈值）、`missing-transfer`（缺数据，应如实报告并停下）、`poly-dead-end`（诱人的方向其实无效，应否定并收手）、`leaky-feature`（接近完美的准确率来自标签泄漏，要读数据说明、找出泄漏列，给出去掉它之后的真实准确率）。
+- 封存集现有五个任务：`imbalance-threshold`（找最优阈值）、`missing-transfer`（缺数据，应如实报告并停下）、`poly-dead-end`（诱人的方向其实无效，应否定并收手）、`leaky-feature`（接近完美的准确率来自标签泄漏，要读数据说明、找出泄漏列，给出去掉它之后的真实准确率）、`confounded-treatment`（辛普森悖论：总体看 A 更好，分层后每一层都是 B 更好）。学习集有五个任务，其中三个和封存任务同类、领域不同。
 - 规则改了以后，`rescore.py` 可以用新标准给已结束的运行重新打分。
 
 ```bash
@@ -91,4 +91,4 @@ python scripts/research_eval/report.py scripts/research_eval/results/*.jsonl
 
 可比较的条件：`playbook`（读研究手册）、`no-playbook`（不读）、`no-advisor`（没有导师）。
 
-已有的评测结果（2026-10-20）：[第一轮](research/2026-10-20-first-results.md)、[第二轮](research/2026-10-20-second-results.md)、[第三到第七轮](research/2026-10-20-third-results.md)，以及[从空手册开始学的对照实验](research/2026-10-20-learned-playbook.md)。
+已有的评测结果（2026-10-20）：[第一轮](research/2026-10-20-first-results.md)、[第二轮](research/2026-10-20-second-results.md)、[第三到第七轮](research/2026-10-20-third-results.md)，[从空手册开始学的对照实验](research/2026-10-20-learned-playbook.md)，以及据此整理的[论文提纲](research/paper-outline.md)。
