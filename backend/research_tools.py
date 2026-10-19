@@ -148,7 +148,78 @@ RESEARCH_TOOLS = [
         ["job_id"],
     ),
 ]
+RESEARCH_TOOLS.append(
+    _research(
+        "advise",
+        "（仅导师）对地图上的开放节点给出判断并结束本轮：continue / invest（加注）/ kill（放弃）/ pivot（转向，须给新假设和 kill_if）/ ask_human（请人拍板，可附 proposal）。可逐轮判断执行者是否跑偏（drift），并评估这条研究线值不值得发表（assessment）。北极星问题已得到回答时用 conclude。",
+        {
+            "verdicts": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 30,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "node_id": NODE,
+                        "verdict": {
+                            "type": "string",
+                            "enum": [
+                                "continue",
+                                "invest",
+                                "kill",
+                                "pivot",
+                                "ask_human",
+                            ],
+                        },
+                        "reason": {"type": "string", "maxLength": 1000},
+                        "proposal": {
+                            "type": "string",
+                            "enum": ["continue", "invest", "kill", "pivot"],
+                        },
+                        "new_hypothesis": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string", "maxLength": 300},
+                                "kill_if": {"type": "string", "maxLength": 500},
+                            },
+                            "additionalProperties": False,
+                        },
+                    },
+                    "required": ["node_id", "verdict", "reason"],
+                    "additionalProperties": False,
+                },
+            },
+            "drift": {
+                "type": "array",
+                "maxItems": 30,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "sprint_number": {"type": "integer", "minimum": 1},
+                        "on_track": {"type": "boolean"},
+                        "note": {"type": "string", "maxLength": 300},
+                    },
+                    "required": ["sprint_number", "on_track"],
+                    "additionalProperties": False,
+                },
+            },
+            "assessment": {"type": "string", "maxLength": 2000},
+            "conclude": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": ["concluded", "refuted"]},
+                    "summary": {"type": "string", "maxLength": 2000},
+                },
+                "required": ["status"],
+                "additionalProperties": False,
+            },
+        },
+        ["verdicts"],
+    )
+)
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
+# What the advisor may use: it looks and judges; it does not do.
+ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
 
 
 def _context(d, research):
@@ -177,7 +248,14 @@ def _blocked(d, project, sprint, tool_name, reason, message, node=None):
 
 def gate(app, research, name):
     """Refuses a step that does something before saying which live node it advances."""
-    if name in FOCUS_FREE:
+    role = research.get("role", "executor")
+    if role == "advisor" and name not in ADVISOR_TOOLS:
+        raise ValueError(
+            "导师只做判断，不动手：可以读地图、日志和文献，最后用 advise 给出判断"
+        )
+    if role != "advisor" and name == "advise":
+        raise ValueError("只有导师可以给出判断（advise）")
+    if name in FOCUS_FREE or name == "advise":
         with app.state.maker() as d:
             _context(d, research)
         return
@@ -375,6 +453,10 @@ def _run(app, owner, research, name, args):
                 "status": job.status,
                 "hint": "作业在后台运行；需要等它时，用 end_sprint(waiting_on=[job_id]) 结束本轮。",
             }
+        elif name == "advise":
+            from .research_advice import apply
+
+            result = apply(d, project, sprint, args)
         elif name == "job_status":
             return research_sandbox.job_status(_job(d, project, args["job_id"]))
         elif name == "job_logs":
