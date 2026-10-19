@@ -53,6 +53,8 @@ import {
   type AgentStep,
 } from "./runs";
 import type { Assistant } from "./useAssistant";
+import { regionImageUrl } from "../regions/geometry";
+import { attachmentPreview } from "./images";
 import styles from "./AssistantThread.module.css";
 
 /** How close to the end the reading must be (in pixels) for the thread to keep following new text. */
@@ -212,6 +214,18 @@ const Turn = memo(function Turn({
   const context = run.runtime?.reader_context;
   const quote = context?.source === "selection" ? (context.quote ?? "") : "";
   const active = isActive(run);
+  const pictures = (run.attachments ?? []).filter((attachment) =>
+    attachment.mime.startsWith("image/"),
+  );
+  const region =
+    context?.source === "region" && context.rect?.length === 4
+      ? regionImageUrl(context.file_id, context.page, {
+          x: context.rect[0],
+          y: context.rect[1],
+          w: context.rect[2],
+          h: context.rect[3],
+        })
+      : "";
   // Where the citations of this answer are looked up: the file the question was about.
   const fileId = context?.file_id ?? paperFile;
   const target = useMemo(
@@ -235,6 +249,36 @@ const Turn = memo(function Turn({
               )}
             </span>
           )
+        )}
+        {(pictures.length > 0 || region) && (
+          <div className={styles.pictures}>
+            {region && (
+              <img
+                className={styles.picture}
+                data-region=""
+                src={region}
+                alt={t("reader.assistant.context.region", {
+                  page: context?.page ?? 1,
+                })}
+                loading="lazy"
+              />
+            )}
+            {pictures.map((attachment) => (
+              <a
+                key={attachment.id}
+                href={attachmentPreview(attachment)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <img
+                  className={styles.picture}
+                  src={attachmentPreview(attachment)}
+                  alt={attachment.name || t("reader.assistant.image.alt")}
+                  loading="lazy"
+                />
+              </a>
+            ))}
+          </div>
         )}
         <p className={styles.prompt}>{run.prompt}</p>
       </div>

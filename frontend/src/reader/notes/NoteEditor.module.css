@@ -244,3 +244,43 @@
 .problem {
   color: var(--ui-danger-text);
 }
+
+/* The formatting bar: stays at the top of the panel while the note scrolls. */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  margin: 0 0 var(--ui-space-12);
+  padding: var(--ui-space-4) 0;
+  border-bottom: 1px solid var(--ui-edge-subtle);
+  background: var(--ui-bg);
+}
+
+.toolGap {
+  width: 1px;
+  height: 16px;
+  margin: 0 var(--ui-space-4);
+  background: var(--ui-edge-subtle);
+}
+
+.blockPicker {
+  flex: none;
+  white-space: nowrap;
+}
+
+.blockInner {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+
+.linkForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+  margin: 0;
+}

@@ -272,3 +272,114 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Files held over the box: its edge says it will take them. */
+.dropping {
+  box-shadow: var(--ui-elev-composer), var(--ui-focus-ring);
+}
+
+/* The pictures going with the question, in a row above it. */
+.tray {
+  --composer-thumb: 56px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thumb {
+  position: relative;
+  width: var(--composer-thumb);
+  height: var(--composer-thumb);
+  border-radius: var(--ui-r-10);
+  background: var(--ui-bg-2);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+/* The boxed region: the whole box shown, on the page's white. */
+.thumb[data-region] {
+  width: auto;
+  min-width: var(--composer-thumb);
+  max-width: calc(var(--composer-thumb) * 3);
+  background: #fff;
+}
+
+.thumb[data-region] img {
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.thumb[data-status="uploading"] img {
+  opacity: 0.5;
+}
+
+.thumb[data-status="failed"] {
+  box-shadow: inset 0 0 0 2px var(--ui-danger-text);
+}
+
+.thumbBusy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-fg);
+}
+
+.thumbBusy svg {
+  animation: composer-spin 0.9s linear infinite;
+}
+
+@keyframes composer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbBusy svg {
+    animation: none;
+  }
+}
+
+.thumbRemove {
+  position: absolute;
+  top: calc(var(--ui-space-6) * -1);
+  right: calc(var(--ui-space-6) * -1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-fg);
+  color: var(--ui-bg);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.thumb:hover .thumbRemove,
+.thumbRemove:focus-visible,
+.thumb[data-status="failed"] .thumbRemove {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .thumbRemove {
+    opacity: 1;
+  }
+}

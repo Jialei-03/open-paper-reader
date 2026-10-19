@@ -41,7 +41,10 @@ export function ModelNamePicker({
 
   // Keeps the name the arrow keys reached in view inside the scrolled list.
   useEffect(() => {
-    if (expanded) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest" });
+    if (expanded)
+      document
+        .getElementById(`${listId}-${active}`)
+        ?.scrollIntoView({ block: "nearest" });
   }, [expanded, active, listId]);
 
   const pick = (name: string) => {
@@ -95,7 +98,12 @@ export function ModelNamePicker({
         }}
       />
       {expanded && (
-        <ul id={listId} role="listbox" aria-label={label} className={styles.options}>
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={label}
+          className={styles.options}
+        >
           {shown.map((name, index) => (
             <li
               key={name}

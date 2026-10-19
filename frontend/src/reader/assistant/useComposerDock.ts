@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ComposerImage } from "./images";
 
 /** Where the question box is: in the panel's foot, or floating over the paper. */
 export type DockMode = "docked" | "floating";
@@ -20,12 +21,18 @@ export interface ComposerDraft {
   /** The text in the box is a question that was not sent: trying again sends it from here. */
   unsent: boolean;
   setUnsent(unsent: boolean): void;
+  /** The pictures put in the box to go with the question. */
+  images: ComposerImage[];
+  setImages(
+    next: ComposerImage[] | ((images: ComposerImage[]) => ComposerImage[]),
+  ): void;
 }
 
 export function useComposerDraft(): ComposerDraft {
   const [text, setText] = useState("");
   const [unsent, setUnsent] = useState(false);
-  return { text, setText, unsent, setUnsent };
+  const [images, setImages] = useState<ComposerImage[]>([]);
+  return { text, setText, unsent, setUnsent, images, setImages };
 }
 
 /** How far the pointer must be from where it was pressed, and outside the panel, before the box comes away. */
