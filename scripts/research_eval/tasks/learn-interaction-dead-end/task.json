@@ -1,0 +1,19 @@
+{
+ "split": "learn",
+ "question": "On /work/data/sales.csv, do pairwise interaction terms raise a linear regression's test R² by at least 0.05?",
+ "background": "sales.csv has 600 rows with inputs x0-x5 and the target sales. Use a fixed 25% test split with random_state=0. Raw model: LinearRegression. Interaction model: PolynomialFeatures(degree=2, interaction_only=True, include_bias=False), then LinearRegression. A consultant says interactions always help with sales data.",
+ "criteria": [
+  "evidence",
+  "on_track",
+  {
+   "verdict": "refuted"
+  },
+  {
+   "numbers": [
+    0.630644,
+    0.607412
+   ],
+   "tolerance": 0.005
+  }
+ ]
+}

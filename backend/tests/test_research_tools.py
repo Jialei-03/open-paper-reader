@@ -243,6 +243,58 @@ def test_run_job_binds_focus(world, monkeypatch):
     assert out["status"] == "running" and out["job_id"]
 
 
+def test_run_job_can_wait_for_a_short_job_and_return_its_log(world, monkeypatch):
+    app, maker, research, ids, _calls = world
+    hyp = add_hypothesis(app, ids, research)
+    call(app, ids, research, "focus", {"node_id": hyp, "intent": "measure"})
+
+    def fake_start(settings, d, project, node, sprint, command, timeout):
+        # The sweeper has already collected it by the time the wait looks.
+        job = ResearchJob(
+            project_id=project.id,
+            node_id=node.id,
+            sprint_id=sprint.id,
+            command=command,
+            status="succeeded",
+            exit_code=0,
+            log_lines=2,
+        )
+        d.add(job)
+        d.flush()
+        (rs.logdir(settings, project.id) / f"{job.id}.log").write_text(
+            "acc=0.785\nok\n"
+        )
+        return job
+
+    monkeypatch.setattr(rs, "start_job", fake_start)
+    out = call(
+        app, ids, research, "run_job", {"command": "python3 a.py", "wait_seconds": 30}
+    )
+    assert out["status"] == "succeeded" and out["exit_code"] == 0
+    assert out["lines"] == [{"n": 1, "text": "acc=0.785"}, {"n": 2, "text": "ok"}]
+
+
+def test_run_job_wait_gives_up_and_leaves_the_job_running(world, monkeypatch):
+    app, _maker, research, ids, _calls = world
+    hyp = add_hypothesis(app, ids, research)
+    call(app, ids, research, "focus", {"node_id": hyp, "intent": "measure"})
+
+    def fake_start(settings, d, project, node, sprint, command, timeout):
+        job = ResearchJob(
+            project_id=project.id, node_id=node.id, sprint_id=sprint.id, command=command
+        )
+        d.add(job)
+        d.flush()
+        return job
+
+    monkeypatch.setattr(rs, "start_job", fake_start)
+    monkeypatch.setattr(rt, "WAIT_POLL", 0.01)
+    out = call(
+        app, ids, research, "run_job", {"command": "python3 a.py", "wait_seconds": 1}
+    )
+    assert out["status"] == "running" and "waiting_on" in out["hint"]
+
+
 def test_research_tools_absent_from_normal_runs(world):
     app, _maker, _research, ids, _calls = world
     names = {t["name"] for t in TOOLS if t.get("research")}
@@ -271,6 +323,24 @@ def test_tools_after_end_sprint_rejected(world):
         call(app, ids, research, "research_map_read", {})
 
 
+def test_end_sprint_records_what_only_a_person_can_provide(world):
+    app, maker, research, ids, _calls = world
+    call(
+        app,
+        ids,
+        research,
+        "end_sprint",
+        {"summary": "second.csv is absent", "needs_input": "/work/data/second.csv"},
+    )
+    with maker() as d:
+        sprint = d.get(ResearchSprint, ids.sprint)
+        assert "/work/data/second.csv" in sprint.summary
+        ended = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "end_sprint")
+        ).one()
+        assert ended.detail["needs_input"] == "/work/data/second.csv"
+
+
 def test_supported_needs_recorded_evidence(world):
     app, maker, research, ids, calls = world
     hyp = add_hypothesis(app, ids, research)
@@ -285,6 +355,50 @@ def test_supported_needs_recorded_evidence(world):
         )
     with maker() as d:
         assert d.get(ResearchNode, hyp).status == "active"
+
+
+def test_supported_may_rest_on_evidence_recorded_under_the_node(world):
+    app, maker, research, ids, _calls = world
+    hyp = add_hypothesis(app, ids, research)
+    call(app, ids, research, "focus", {"node_id": hyp, "intent": "test it"})
+    exp = call(
+        app,
+        ids,
+        research,
+        "add_node",
+        {
+            "parent_id": hyp[:8],
+            "kind": "experiment",
+            "title": "Ablation",
+            "reason": "test",
+        },
+    )["node"]["id"]
+    with maker() as d:
+        child = d.get(ResearchNode, exp)
+        child.evidence_for = [{"summary": "acc 0.785", "evidence": []}]
+        child.status = "refuted"
+        d.commit()
+    # Support for something since refuted supports nothing above it.
+    with pytest.raises(ValueError, match="record_result"):
+        call(
+            app,
+            ids,
+            research,
+            "update_node",
+            {"node_id": hyp, "status": "supported", "reason": "a refuted child"},
+        )
+    with maker() as d:
+        d.get(ResearchNode, exp).status = "supported"
+        d.commit()
+    call(
+        app,
+        ids,
+        research,
+        "update_node",
+        {"node_id": hyp, "status": "supported", "reason": "the ablation shows it"},
+    )
+    with maker() as d:
+        assert d.get(ResearchNode, hyp).status == "supported"
 
 
 def test_executor_cannot_close_root_or_touch_dead_nodes(world):

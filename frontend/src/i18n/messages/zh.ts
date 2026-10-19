@@ -732,6 +732,9 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.research.playbook.title": "研究手册",
   "site.research.playbook.body":
     "项目结束后，把导师的判断和止损的经过提炼成判断规则；被两个项目支持的规则才会生效，之后的项目都会读到。",
+  "site.research.result":
+    "在最新一轮评测里，18 次运行有 17 次以正确的方式结束：该回答的数字与真值一致，诱人的死胡同和标签泄漏都被否定。缺数据时，它会停下来问人，从不编造数据。去掉导师后，项目全部跑满预算。",
+  "site.research.resultLink": "评测记录",
   "site.research.alt": "研究页：研究地图、轮次时间线和过程指标。",
   "site.nav.start": "在线读论文",
   "site.language": "语言",

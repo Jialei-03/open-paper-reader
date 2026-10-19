@@ -789,6 +789,9 @@ export const en = {
   "site.research.playbook.title": "Playbook",
   "site.research.playbook.body":
     "When a project ends, the advisor's calls and the kill decisions become judgment rules; a rule supported by two projects takes effect, and later projects read it.",
+  "site.research.result":
+    "In the latest evaluation round, 17 of 18 runs ended the right way: answers matched the precomputed truth, and a tempting dead end and a label leak were both refuted. With data missing, it stops to ask and never makes data up. Without the advisor, every project used its whole budget.",
+  "site.research.resultLink": "Evaluation record",
   "site.research.alt":
     "The research page: research map, sprint timeline and process metrics.",
   "site.nav.start": "Read papers online",

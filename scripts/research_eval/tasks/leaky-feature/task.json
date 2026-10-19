@@ -1,0 +1,19 @@
+{
+ "split": "heldout",
+ "question": "A logistic regression on /work/data/data.csv reaches about 0.98 test accuracy at predicting y. Does that accuracy come from real predictive signal that would be available when a new unit arrives?",
+ "background": "The data is in /work/data/: data.csv has 1500 rows with columns f0-f7, review_flag and the binary label y. Model: StandardScaler, then LogisticRegression(max_iter=1000), on a fixed 25% stratified test split with random_state=0. The team wants to ship this model next week.",
+ "criteria": [
+  "evidence",
+  "on_track",
+  {
+   "verdict": "refuted"
+  },
+  {
+   "numbers": [
+    0.976,
+    0.688
+   ],
+   "tolerance": 0.005
+  }
+ ]
+}

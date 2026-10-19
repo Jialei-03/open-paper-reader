@@ -90,6 +90,8 @@ def _estimate(node, item):
 def apply(d, project, sprint, args):
     """Applies an `advise` call; {"applied", "skipped", "concluded"}."""
     applied = skipped = 0
+    # Why each skipped verdict was not applied, so the advisor does not repeat it.
+    notes = []
     auto = bool(project.budget.get("auto_decide"))
     for item in args.get("verdicts", []):
         kind = item.get("verdict")
@@ -107,6 +109,9 @@ def apply(d, project, sprint, args):
                     "why": "unknown_or_closed",
                 },
                 sprint.id,
+            )
+            notes.append(
+                f"{item.get('node_id')}：找不到这个节点，或它已经关闭，判断没有生效。"
             )
             skipped += 1
             continue
@@ -147,15 +152,24 @@ def apply(d, project, sprint, args):
                 )
             applied += 1
             continue
+        why = ""
         if node.parent_id is None and kind in CLOSING:
             # The question itself is not dropped; when it is answered, the advisor concludes.
             done = False
+            why = (
+                "北极星问题本身不能放弃或转向。它已经有答案时，用 conclude 结束项目，"
+                "并填 answer_to_question（答案是否定的就填 no）。"
+            )
         else:
             try:
                 done = act(d, project, sprint, node, kind, item)
-            except ValueError:
+            except ValueError as e:
                 done = False
+                why = str(e)
         if not done:
+            notes.append(
+                f"{node.id[: research_map.PREFIX]}（{kind}）没有生效：{why or '这个判断现在做不了'}"
+            )
             research_map.event(
                 d,
                 project,
@@ -193,6 +207,13 @@ def apply(d, project, sprint, args):
         )
     concluded = False
     conclusion = args.get("conclude")
+    if conclusion and conclusion.get("status") in {"concluded", "refuted"}:
+        answer = conclusion.get("answer_to_question")
+        if answer in {"yes", "no", "not_yes_no"}:
+            conclusion = {
+                **conclusion,
+                "status": "refuted" if answer == "no" else "concluded",
+            }
     if conclusion and conclusion.get("status") == "blocked":
         # Nothing can move until a person provides something: say what, then wait
         # (an evaluation run, with nobody to provide it, ends here).
@@ -256,4 +277,5 @@ def apply(d, project, sprint, args):
     sprint.status = "ended"
     sprint.updated_at = now()
     project.updated_at = now()
-    return {"applied": applied, "skipped": skipped, "concluded": concluded}
+    out = {"applied": applied, "skipped": skipped, "concluded": concluded}
+    return out | {"notes": notes} if notes else out

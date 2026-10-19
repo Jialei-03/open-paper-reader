@@ -189,7 +189,12 @@ def test_unknown_node_skipped_others_applied(world):
         ids,
         {"verdicts": [verdict("deadbeef-0000", "kill"), verdict(ids.hyp, "invest")]},
     )
-    assert out == {"applied": 1, "skipped": 1, "concluded": False}
+    assert {k: out[k] for k in ("applied", "skipped", "concluded")} == {
+        "applied": 1,
+        "skipped": 1,
+        "concluded": False,
+    }
+    assert "deadbeef" in out["notes"][0]
     with maker() as d:
         assert any("加注" in doubt for doubt in d.get(ResearchNode, ids.hyp).doubts)
 
@@ -274,6 +279,39 @@ def test_conclude_finishes_project(world):
         assert p.status == "finished" and p.end_reason == "concluded"
         assert d.get(ResearchNode, ids.root).status == "supported"
         assert d.get(ResearchSprint, ids.advisor).status == "ended"
+
+
+def test_a_no_answer_ends_refuted_whatever_the_status_says(world):
+    """A yes/no question answered no is refuted: the answer, not the label, decides."""
+    app, maker, ids = world
+    with maker() as d:
+        node = d.get(ResearchNode, ids.hyp)
+        node.evidence_for = [{"summary": "acc=0.688", "evidence": [{"kind": "log"}]}]
+        d.commit()
+    advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {
+                "status": "concluded",
+                "answer_to_question": "no",
+                "summary": "No: leakage",
+            },
+        },
+    )
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        assert p.end_reason == "refuted"
+        assert d.get(ResearchNode, ids.root).status == "refuted"
+
+
+def test_killing_the_question_itself_says_to_conclude_instead(world):
+    """A skipped verdict tells the advisor why, so it does not repeat it until the budget ends."""
+    app, _maker, ids = world
+    out = advise(app, ids, {"verdicts": [verdict(ids.root, "kill")]})
+    assert out["skipped"] == 1
+    assert "conclude" in out["notes"][0] and "answer_to_question" in out["notes"][0]
 
 
 def test_failing_verdict_skipped_rest_applied(world):

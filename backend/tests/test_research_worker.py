@@ -398,6 +398,28 @@ def test_advisor_every_three_sprints(lab):
     assert "advise" in run.prompt and "sprint 3 summary" in run.prompt
 
 
+def test_advisor_is_told_when_this_is_its_last_review(lab):
+    app, project, _ = lab
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        p.budget = {**p.budget, "max_sprints": 6}
+        d.commit()
+    for n in (1, 2, 3):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    rw.tick(app)
+    sprint, run = planned(app, project["id"])
+    assert sprint.role == "advisor" and "最后一次评审" in run.prompt
+
+
+def test_advisor_with_budget_left_is_not_hurried(lab):
+    app, project, _ = lab
+    for n in (1, 2, 3):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    rw.tick(app)
+    sprint, run = planned(app, project["id"])
+    assert sprint.role == "advisor" and "最后一次评审" not in run.prompt
+
+
 def test_no_advisor_twice_in_a_row(lab):
     app, project, _ = lab
     for n in (1, 2, 3):
@@ -427,6 +449,18 @@ def test_stall_triggers_advisor(lab):
     app, project, _ = lab
     past_sprint(app, project["id"], 1)
     past_sprint(app, project["id"], 2)
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "advisor"
+
+
+def test_needs_input_triggers_advisor_at_once(lab):
+    app, project, _ = lab
+    past_sprint(
+        app,
+        project["id"],
+        1,
+        events=PROGRESS + [("end_sprint", {"needs_input": "/work/data/second.csv"})],
+    )
     rw.tick(app)
     assert planned(app, project["id"])[0].role == "advisor"
 
