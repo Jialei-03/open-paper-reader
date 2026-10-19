@@ -94,6 +94,24 @@ websites reaching it through DNS rebinding) and did not pass through a proxy.
 Writes still need the session's CSRF token. Do not put it behind a reverse
 proxy or share the port; use the hosted setup (README, Docker) for a server.
 
+## Research projects
+
+The Research screen gives an agent a research question to pursue over many
+sprints. It keeps a research map (the question, hypotheses that can fail, the
+experiments and what they found) and runs experiments in an isolated sandbox:
+a Docker container with no network, a read-only system, and only the project's
+own work directory at `/work`. It needs Docker and the sandbox image, built once:
+
+```bash
+make research-image
+```
+
+Without Docker a project can still be created and read papers; experiments say
+why they cannot run. Workspaces and experiment logs live in `research/` under the
+data directory; the logs are kept outside the workspace, so the results the agent
+cites are the output that was really produced. `scripts/research_eval/` has small
+tasks to try it on.
+
 ## Opening papers from the browser
 
 Paste any paper address into the home box: arXiv, alphaxiv and ar5iv pages, a
@@ -125,5 +143,6 @@ checkout (build the frontend first).
 不需要密钥）。版面翻译按需安装：译文模式或设置里点「安装版面翻译」，装在数据目录
 的 `babeldoc-venv`，可看进度、可取消。arXiv 论文的译文从 LaTeX 源码翻译再编译：译文模式或设置里点「安装 LaTeX 编译器」，从 Tectonic 官方 GitHub 发布页下载到数据目录的 `tools/tectonic`，装完会先编译一页中文小样，取回宏包和 Fandol 中文字体；没有源码的版本可以改用版面翻译。没有 Docker 时，代码沙箱类工具明确提示不可用。
 任意论文网址（出版社页面、PDF 直链、alphaxiv 等）可以直接粘贴到首页的导入框；浏览器扩展见 [`extension/`](../extension/README.md)，点工具栏按钮或右键菜单即在本机版里打开，只发送网址。
+研究：在「研究」页给 Agent 一个研究问题，它会维护研究地图（问题、可证伪的假设、实验和结果），一轮一轮推进，在 Docker 隔离环境里跑实验（无网络、只挂载项目自己的工作目录）。第一次使用前构建沙箱镜像：`make research-image`。没有 Docker 时仍可建项目、读论文，实验会说明为什么不能运行。工作区和实验日志在数据目录的 `research/` 下，日志放在工作区之外，Agent 引用的结果就是真实运行的输出。
 免登录只在本机模式、只监听 127.0.0.1、请求来自本机且 Host 是本机时生效，其他情况一律按
 正常登录处理。
