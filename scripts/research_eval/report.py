@@ -1,20 +1,28 @@
 """Summarizes evaluation results as a Markdown table: one row per task and condition.
 
-    python scripts/research_eval/report.py scripts/research_eval/results/*.jsonl
+python scripts/research_eval/report.py scripts/research_eval/results/*.jsonl
 """
 
 import json
 import sys
 from collections import defaultdict
+from pathlib import Path
 from statistics import mean
 
 
 def main(paths):
-    rows = [json.loads(line) for p in paths for line in open(p) if line.strip()]
+    rows = [
+        json.loads(line)
+        for p in paths
+        for line in Path(p).read_text().splitlines()
+        if line.strip()
+    ]
     groups = defaultdict(list)
     for row in rows:
         groups[(row["task"], row["condition"])].append(row)
-    print("| task | condition | runs | score | concluded | drift | evidence | sprints | tokens |")
+    print(
+        "| task | condition | runs | score | concluded | drift | evidence | sprints | tokens |"
+    )
     print("|---|---|---|---|---|---|---|---|---|")
     for (task, condition), group in sorted(groups.items()):
         drift = [
@@ -34,6 +42,7 @@ def main(paths):
             f"{mean(r['tokens'] for r in group):.0f}",
         ]
         print("| " + " | ".join(cells) + " |")
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])
