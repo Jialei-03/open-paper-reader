@@ -211,7 +211,7 @@ def create_app(settings=None):
         engine.dispose()
 
     app = FastAPI(
-        title="open-paper-reader API",
+        title="open-research-agent API",
         version=VERSION,
         openapi_url="/api/v1/openapi.json",
         docs_url=None,
