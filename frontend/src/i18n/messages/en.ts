@@ -314,10 +314,8 @@ export const en = {
   "reader.panel.show": "Show side panel",
   "reader.panel.hide": "Hide side panel",
   "reader.panel.tabs": "Side panel views",
-  "reader.tab.guide": "Guide",
   "reader.tab.assistant": "Assistant",
   "reader.tab.notes": "Notes",
-  "reader.tab.guide.empty": "The guide to this paper will appear here.",
   "reader.guide.loading": "Loading the guide…",
   "reader.guide.working": "Generating the guide…",
   "reader.guide.noModel":
@@ -350,19 +348,6 @@ export const en = {
   "reader.tab.notes.empty":
     "The notes you take on this paper will appear here.",
   "reader.assistant.thread": "Conversation with the assistant",
-  "reader.assistant.empty.lead":
-    "Ask about this paper as you would a colleague who has read it. Answers cite the pages they draw on.",
-  "reader.assistant.suggest": "Questions to start with",
-  "reader.assistant.suggest.contributions":
-    "What are the main contributions of this paper?",
-  "reader.assistant.suggest.method": "Explain the method step by step.",
-  "reader.assistant.suggest.limitations":
-    "What are the limitations of this work?",
-  "reader.assistant.suggest.related": "How does it compare with related work?",
-  "reader.assistant.empty.select":
-    "Select a passage in the paper and press ↵ to ask about it.",
-  "reader.assistant.empty.keys.send": "Send",
-  "reader.assistant.empty.keys.newline": "New line",
   "reader.assistant.input": "Ask the assistant",
   "reader.assistant.placeholder":
     "Ask about this page, a passage, or the whole paper…",

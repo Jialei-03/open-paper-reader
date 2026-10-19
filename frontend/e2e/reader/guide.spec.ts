@@ -392,3 +392,72 @@ test("the guide stops asking once the reader is left", async ({ page }) => {
   await page.waitForTimeout(2000);
   expect(service.polled - settled).toBeLessThanOrEqual(1);
 });
+
+test("the guide opens the assistant's tab, the conversation follows it, and the question box is only under that tab", async ({
+  page,
+}) => {
+  const SESSION = "guide-merge-session";
+  const runs: Row[] = [];
+  await page.route("**/api/v1/papers/*/discussion", (route) =>
+    route.fulfill({ json: { id: SESSION, title: "Discussion" } }),
+  );
+  await page.route(`**/api/v1/agent/sessions/${SESSION}/runs`, (route) => {
+    if (route.request().method() !== "POST")
+      return route.fulfill({ json: runs });
+    const body = route.request().postDataJSON() as Row;
+    const run = {
+      id: `run-${runs.length + 1}`,
+      prompt: String(body.prompt),
+      response: "这是回答。",
+      status: "completed",
+      error: "",
+      writable: false,
+      steps: [],
+      runtime: { phase: "completed", execution_seconds: 1 },
+    };
+    runs.push(run);
+    return route.fulfill({ json: run });
+  });
+  await open(page, (fileId) => ({
+    row: running(fileId, { status: "completed", result: GUIDE }),
+  }));
+
+  const tabs = page.getByRole("complementary").getByRole("tab");
+  await expect(tabs).toHaveText(["助手", "笔记", "相关"]);
+  await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  // The empty view offers nothing to start from: the guide is what is there.
+  await expect(heading(page, "研究问题")).toBeVisible();
+  await expect(panel(page).getByText("可以从这些问题开始")).toHaveCount(0);
+  await expect(panel(page).getByRole("log")).toHaveCount(0);
+
+  const box = page.getByRole("textbox", { name: "向助手提问", exact: true });
+  await expect(box).toBeVisible();
+  await box.fill("它的局限是什么？");
+  await box.press("Enter");
+  const log = panel(page).getByRole("log", { name: "与助手的对话" });
+  await expect(log).toContainText("这是回答。");
+  // The guide stays above the conversation.
+  const [guideBox, logBox] = await Promise.all([
+    heading(page, "研究问题").boundingBox(),
+    log.boundingBox(),
+  ]);
+  const body = await panel(page).evaluate((el) => ({
+    top: el.parentElement!.scrollTop,
+  }));
+  expect(guideBox!.y).toBeLessThan(logBox!.y + body.top + 1);
+
+  // The other tabs have no question box; the draft waits for the return.
+  await box.fill("还没写完");
+  for (const name of ["笔记", "相关"]) {
+    await page.getByRole("tab", { name, exact: true }).click();
+    await expect(box).toHaveCount(0);
+  }
+  await page.getByRole("tab", { name: "助手", exact: true }).click();
+  await expect(box).toHaveValue("还没写完");
+
+  // Put away, the panel has no question box either.
+  await page.getByRole("button", { name: "收起右侧面板" }).click();
+  await expect(box).toHaveCount(0);
+  await page.getByRole("button", { name: "展开右侧面板" }).click();
+  await expect(box).toHaveValue("还没写完");
+});

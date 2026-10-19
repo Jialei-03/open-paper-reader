@@ -75,6 +75,17 @@
   scrollbar-width: thin;
 }
 
+/* The assistant's view: the guide as its opening block, the conversation under it. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-24);
+}
+
+.guide {
+  min-width: 0;
+}
+
 .placeholder {
   margin: 0;
   color: var(--ui-fg-2);

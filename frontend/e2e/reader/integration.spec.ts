@@ -99,14 +99,11 @@ async function openPaper(page: Page, pages = 3) {
   const created = await fakeAssistant(page);
   await openReader(page, { paperId: paper.paperId });
   await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
-  // In a window too narrow for the panel it is folded away, out of the accessibility tree.
-  await expect(
-    page.getByRole("textbox", {
-      name: "向助手提问",
-      exact: true,
-      includeHidden: true,
-    }),
-  ).toBeEnabled();
+  // The model is known once the box can be used (wide, it is in the panel).
+  if ((page.viewportSize()?.width ?? 0) >= 1100)
+    await expect(
+      page.getByRole("textbox", { name: "向助手提问", exact: true }),
+    ).toBeEnabled();
   return { ...paper, created };
 }
 
@@ -121,7 +118,7 @@ test("E explains the selection at once, and the assistant's tab shows the answer
   page,
 }) => {
   const { paperId, fileId, created } = await openPaper(page);
-  await expect(tab(page, "导读")).toHaveAttribute("aria-selected", "true");
+  await expect(tab(page, "助手")).toHaveAttribute("aria-selected", "true");
 
   await selectLine(page, line(page, 1, WORDS));
   await page.keyboard.press("e");
@@ -328,7 +325,7 @@ test("in a narrow window, a place chosen in the panel folds it out of the way", 
   };
 
   // A page of the guide.
-  await reopen("导读");
+  await reopen("助手");
   await panel(page)
     .getByRole("button", { name: "第 2 页", exact: true })
     .click();

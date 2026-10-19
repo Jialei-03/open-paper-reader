@@ -11,7 +11,7 @@ import type { Paper, SourceFile } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { Card, CardHeader, SegmentedControl } from "../ui";
 import { GuideTab } from "./panel/GuideTab";
-import type { Keypoint, Keypoints } from "./keypoints";
+import type { Keypoints } from "./keypoints";
 import { NotesTab, type NotesTabProps } from "./panel/NotesTab";
 import { AssistantThread, type Assistant } from "./assistant";
 import type { ReaderRoute } from "./route";
@@ -20,10 +20,9 @@ import { RegionBoundary } from "./RegionBoundary";
 import styles from "./RightPanel.module.css";
 
 /** The panel's views, one shown at a time. */
-export type PanelView = "guide" | "assistant" | "notes" | "related";
+export type PanelView = "assistant" | "notes" | "related";
 
 const VIEWS = [
-  "guide",
   "assistant",
   "notes",
   "related",
@@ -69,6 +68,7 @@ export function RightPanel({
   tab,
   onTabChange,
   dock,
+  guideAsk = 0,
 }: {
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
@@ -94,16 +94,25 @@ export function RightPanel({
   onTabChange?: (tab: PanelView) => void;
   /** The question box's place under the views. */
   dock?: PanelDock;
+  /** Counts the requests to see the guide (the opening block of the assistant's view): each scrolls to it. */
+  guideAsk?: number;
 }) {
   const { t } = useI18n();
   const ids = useId();
-  const [own, setOwn] = useState<PanelView>("guide");
+  const [own, setOwn] = useState<PanelView>("assistant");
   const view = tab ?? own;
   const choose = (next: PanelView) => {
     setOwn(next);
     onTabChange?.(next);
   };
   const tabs = useRef<HTMLDivElement>(null);
+  const guideEl = useRef<HTMLDivElement>(null);
+  const asked = useRef(guideAsk);
+  useEffect(() => {
+    if (guideAsk === asked.current) return;
+    asked.current = guideAsk;
+    guideEl.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [guideAsk]);
 
   const floating = overlay !== undefined;
   const shown = overlay?.open === true;
@@ -173,34 +182,42 @@ export function RightPanel({
               aria-labelledby={`${ids}-${value}-tab`}
               hidden={view !== value}
             >
-              {value === "guide" && paper && file && onJumpToPage ? (
-                <GuideTab
-                  key={file.id}
-                  paper={paper}
-                  file={file}
-                  onJumpToPage={onJumpToPage}
-                  onCite={onCite}
-                  onKeep={onKeep}
-                  keypoints={keypoints}
-                  onJumpKeypoint={
-                    onCite
-                      ? (item) =>
+              {value === "assistant" && onCite ? (
+                <div className={styles.stack}>
+                  <div ref={guideEl} className={styles.guide}>
+                    {paper && file && onJumpToPage ? (
+                      <GuideTab
+                        key={file.id}
+                        paper={paper}
+                        file={file}
+                        onJumpToPage={onJumpToPage}
+                        onCite={onCite}
+                        onKeep={onKeep}
+                        keypoints={keypoints}
+                        onJumpKeypoint={(item) =>
                           onCite({
                             paperId: paper.id,
                             fileId: file.id,
                             page: item.page,
                             quote: item.quote,
                           })
-                      : undefined
-                  }
-                />
-              ) : value === "assistant" && assistant && onCite ? (
-                <AssistantThread
-                  assistant={assistant}
-                  onCite={onCite}
-                  fileId={file?.id}
-                  onKeep={onKeep}
-                />
+                        }
+                      />
+                    ) : (
+                      <p className={styles.placeholder}>
+                        {t("reader.tab.assistant.empty")}
+                      </p>
+                    )}
+                  </div>
+                  {assistant && (
+                    <AssistantThread
+                      assistant={assistant}
+                      onCite={onCite}
+                      fileId={file?.id}
+                      onKeep={onKeep}
+                    />
+                  )}
+                </div>
               ) : value === "notes" && notes ? (
                 <NotesTab {...notes} />
               ) : value === "related" && paper ? (

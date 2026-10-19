@@ -26,9 +26,8 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { useI18n, type I18n } from "../../i18n/I18nProvider";
-import { Button, Spinner } from "../../ui";
+import { Button } from "../../ui";
 import { followLink, readerHash, type ReaderRoute } from "../route";
-import { AssistantEmpty } from "./AssistantEmpty";
 import { serviceWords } from "../service-error";
 import {
   CiteChip,
@@ -104,17 +103,13 @@ export function AssistantThread({
     [],
   );
 
-  if (!runs.length && assistant.loading)
-    return (
-      <div
-        className={styles.state}
-        role="status"
-        aria-label={t("common.loading")}
-      >
-        <Spinner />
-      </div>
-    );
-  if (!runs.length) return <AssistantEmpty assistant={assistant} />;
+  // Before the first question there is nothing to draw (the guide is above); a failure is said.
+  if (!runs.length)
+    return assistant.error ? (
+      <p className={styles.error} role="alert">
+        {assistant.error}
+      </p>
+    ) : null;
   return (
     <div
       ref={thread}
@@ -153,7 +148,8 @@ function scrollerOf(element: HTMLElement): HTMLElement | null {
  * neither moves it nor listens to it.
  */
 function useFollow(content: RefObject<HTMLElement | null>, count: number) {
-  const following = useRef(true);
+  // The view opens on the guide: it follows once a question is asked or the reader is at the foot.
+  const following = useRef(false);
   const shown = count > 0;
   useLayoutEffect(() => {
     const element = content.current;

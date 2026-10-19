@@ -155,7 +155,7 @@ test("what goes wrong is said in English, whatever the service says in Chinese",
   // The guide that failed, and the refusal to make it again.
   const side = panel(page);
   await expect(side.getByRole("alert")).toHaveText(en["reader.guide.failed"]);
-  await side.getByRole("button", { name: en["common.retry"] }).click();
+  await side.getByRole("button", { name: en["common.retry"] }).first().click();
   await expect(side.getByRole("alert")).toHaveText(
     en["reader.error.server"].replace("{status}", "503"),
   );

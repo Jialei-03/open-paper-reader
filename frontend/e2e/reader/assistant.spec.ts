@@ -199,7 +199,8 @@ test("a question sent with Enter is asked of the paper's discussion, and its ans
   expect(below).toBeLessThan(24);
 
   await assistantTab(page).click();
-  await expect(page.getByRole("tabpanel")).toContainText(
+  // No prompts of its own: the guide opens the view.
+  await expect(page.getByRole("tabpanel")).not.toContainText(
     "像问一位读过这篇论文的同事",
   );
 

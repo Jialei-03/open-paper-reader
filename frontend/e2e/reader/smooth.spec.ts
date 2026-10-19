@@ -76,34 +76,23 @@ const lengths = (page: Page) =>
   page.evaluate(() => (window as unknown as { __lengths: number[] }).__lengths);
 
 test.describe("before the first question", () => {
-  test("the empty view offers questions, and a press on one asks it", async ({
+  test("the view holds no prompts: no lead, no suggested questions, no key hints", async ({
     page,
   }) => {
     await signIn(page);
     const { paperId } = await createPaperWithPdf(page);
-    const server = await install(page);
+    await install(page);
     await openReader(page, { paperId });
-    await assistantTab(page).click();
 
     const panel = page.getByRole("tabpanel");
-    await expect(panel).toContainText("像问一位读过这篇论文的同事");
-    await expect(panel).toContainText("按 ↵ 就能针对它提问");
-    const chips = panel.getByRole("list", { name: "可以从这些问题开始" });
-    await expect(chips.getByRole("button")).toHaveCount(4);
+    await expect(panel).not.toContainText("像问一位读过这篇论文的同事");
+    await expect(panel).not.toContainText("按 ↵ 就能针对它提问");
     await expect(
-      chips.getByRole("button", { name: "这项工作有哪些局限？" }),
-    ).toBeEnabled();
-
-    await chips
-      .getByRole("button", { name: "这篇论文的主要贡献是什么？" })
-      .click();
-    await expect.poll(() => server.created.length).toBe(1);
-    expect(server.created[0].prompt).toBe("这篇论文的主要贡献是什么？");
-    // The conversation has begun: the suggestions are gone, the question is in the thread.
-    await expect(page.getByRole("log", { name: "与助手的对话" })).toContainText(
-      "这篇论文的主要贡献是什么？",
+      panel.getByRole("list", { name: "可以从这些问题开始" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("log", { name: "与助手的对话" })).toHaveCount(
+      0,
     );
-    await expect(chips).toHaveCount(0);
   });
 });
 

@@ -44,12 +44,14 @@ test("opens a paper in the new reader", async ({ page }) => {
   await expect(
     sidebar(page).getByRole("link", { name: title, exact: true }),
   ).toHaveAttribute("aria-current", "page");
-  for (const name of ["导读", "助手", "笔记"])
+  for (const name of ["助手", "笔记", "相关"])
     await expect(panelTabs(page).getByRole("tab", { name })).toBeVisible();
   await expect(
-    panelTabs(page).getByRole("tab", { name: "导读" }),
+    panelTabs(page).getByRole("tab", { name: "助手" }),
   ).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tabpanel")).toContainText("导读");
+  await expect(panelTabs(page).getByRole("tab", { name: "导读" })).toHaveCount(
+    0,
+  );
 
   // None of the old interface is around it, and the wide window needs no toggle.
   await expect(page.locator("#main-content")).toHaveCount(0);
@@ -84,7 +86,7 @@ test("the tabs of the side panel switch its text", async ({ page }) => {
   await expect(
     panelTabs(page).getByRole("tab", { name: "助手" }),
   ).toBeFocused();
-  await expect(page.getByRole("tabpanel")).toContainText("对话");
+  await expect(page.getByRole("tabpanel")).toContainText("导读");
 });
 
 test("an unknown paper explains and links back", async ({ page }) => {
@@ -122,7 +124,7 @@ test("a failing region shows a retry instead of a blank screen", async ({
   // The other regions carry on.
   await expect(sidebar(page).getByRole("link", { name: "文库" })).toBeVisible();
   await expect(
-    panelTabs(page).getByRole("tab", { name: "导读" }),
+    panelTabs(page).getByRole("tab", { name: "助手" }),
   ).toBeVisible();
   // Only the paper's body broke: its header stays, so on a narrow window the
   // side panel can still be opened.
@@ -270,7 +272,7 @@ test("the right panel folds away on a narrow window", async ({ page }) => {
   await show.click();
   await expect(panelTabs(page)).toBeVisible();
   await expect(
-    panelTabs(page).getByRole("tab", { name: "导读" }),
+    panelTabs(page).getByRole("tab", { name: "助手" }),
   ).toBeFocused();
   const hide = page.getByRole("button", { name: "收起右侧面板" });
   await expect(hide).toHaveAttribute("aria-expanded", "true");
@@ -517,7 +519,7 @@ test.describe("in English", () => {
     await expect(
       sidebar(page).getByRole("link", { name: "Library" }),
     ).toBeVisible();
-    for (const name of ["Guide", "Assistant", "Notes"])
+    for (const name of ["Assistant", "Notes", "Related"])
       await expect(panelTabs(page).getByRole("tab", { name })).toBeVisible();
 
     await openReader(page, { paperId: "does-not-exist" });
@@ -540,13 +542,13 @@ test("a wide window can put the panel away, and it stays away", async ({
 
   await page.getByRole("button", { name: "收起右侧面板" }).click();
   await expect(panelTabs(page)).toBeHidden();
-  // The paper takes the room, and the question box floats over it meanwhile.
+  // The paper takes the room; the docked question box goes with the panel.
   await expect
     .poll(async () => (await paper.boundingBox())!.width)
     .toBeGreaterThan(before + 300);
-  await expect(
-    paper.getByRole("textbox", { name: "向助手提问" }),
-  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "向助手提问" })).toHaveCount(
+    0,
+  );
 
   await page.reload();
   await expect(

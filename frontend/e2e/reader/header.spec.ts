@@ -820,7 +820,7 @@ test("a link to a quote gives the paper the keyboard once it is there, and where
   // Nor does a button the keyboard was put on (the side panel's tab, say) lose it to the PDF arriving.
   const other = await createPaperWithPdf(page, { pages: 3 });
   await openReader(page, { paperId: other.paperId });
-  const tab = page.getByRole("tab", { name: "导读" });
+  const tab = page.getByRole("tab", { name: "助手" });
   await tab.focus();
   await expect(tab).toBeFocused();
   await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");

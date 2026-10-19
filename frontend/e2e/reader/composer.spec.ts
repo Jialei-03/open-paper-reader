@@ -91,14 +91,9 @@ async function open(page: Page) {
   const created = await fakeAssistant(page);
   await openReader(page, { paperId: paper.paperId });
   await expect(pdfPage(page, 1)).toHaveAttribute("data-rendered", "true");
-  // In a window too narrow for the panel it is folded away, out of the accessibility tree.
-  await expect(
-    page.getByRole("textbox", {
-      name: "向助手提问",
-      exact: true,
-      includeHidden: true,
-    }),
-  ).toBeEnabled();
+  // The model is known once the box can be used (wide, it is in the panel).
+  if ((page.viewportSize()?.width ?? 0) >= 1100)
+    await expect(questionBox(page)).toBeEnabled();
   return { ...paper, created };
 }
 
@@ -110,7 +105,7 @@ async function dragGrip(page: Page, to: { x: number; y: number }) {
   await page.mouse.move(to.x, to.y, { steps: 14 });
 }
 
-test("the question box is docked in the panel's foot by default, under every tab", async ({
+test("the question box is docked in the panel's foot by default, under the assistant tab only", async ({
   page,
 }) => {
   await open(page);
@@ -125,16 +120,16 @@ test("the question box is docked in the panel's foot by default, under every tab
   expect(box.width).toBeGreaterThan(side!.width - 40);
   expect(side!.y + side!.height - (box.y + box.height)).toBeLessThan(24);
 
-  // It stays under the other tabs too.
-  for (const name of ["助手", "笔记", "导读"]) {
-    await tab(page, name).click();
-    await expect(questionBox(page)).toBeVisible();
-  }
-  // Asking from another tab shows the thread.
-  await tab(page, "笔记").click();
+  // Only the assistant's view has it; the draft waits through the other tabs.
   await questionBox(page).fill("这篇论文讲了什么？");
+  await tab(page, "笔记").click();
+  await expect(questionBox(page)).toHaveCount(0);
+  await tab(page, "相关").click();
+  await expect(questionBox(page)).toHaveCount(0);
+  await tab(page, "助手").click();
+  await expect(questionBox(page)).toBeVisible();
+  await expect(questionBox(page)).toHaveValue("这篇论文讲了什么？");
   await questionBox(page).press("Enter");
-  await expect(tab(page, "助手")).toHaveAttribute("aria-selected", "true");
   await expect(
     panel(page).getByRole("log", { name: "与助手的对话", exact: true }),
   ).toContainText("这篇论文讲了什么？");
@@ -258,10 +253,45 @@ test("in a narrow window the box is docked in the opened panel and cannot be det
   await page.setViewportSize({ width: 1000, height: 800 });
   await open(page);
   await expect(panel(page)).toBeHidden();
+  // Folded away, the panel has no question box.
+  await expect(questionBox(page)).toHaveCount(0);
   await page.getByRole("button", { name: "展开右侧面板", exact: true }).click();
   await expect(questionBox(page)).toBeVisible();
   expect(await inside(page, panel(page))).toBe(true);
   await expect(detach(page)).toHaveCount(0);
   await expect(attach(page)).toHaveCount(0);
   await expect(page.locator("[data-composer-grip]")).toHaveCount(0);
+});
+
+test("no question box while the panel is put away; the floating one stays over the paper through every state", async ({
+  page,
+}) => {
+  await open(page);
+  const hide = page.getByRole("button", { name: "收起右侧面板" });
+  const show = page.getByRole("button", { name: "展开右侧面板" });
+  // Docked, with the panel put away: nothing is drawn.
+  await hide.click();
+  await expect(questionBox(page)).toHaveCount(0);
+  await show.click();
+  await expect(questionBox(page)).toBeVisible();
+
+  // Floating: over the paper whatever the tab, and whether or not the panel is shown.
+  await questionBox(page).fill("浮着的草稿");
+  await detach(page).click();
+  await expect(attach(page)).toBeVisible();
+  for (const name of ["笔记", "相关", "助手"]) {
+    await tab(page, name).click();
+    await expect(questionBox(page)).toHaveValue("浮着的草稿");
+    expect(await inside(page, card(page))).toBe(true);
+  }
+  await hide.click();
+  await expect(questionBox(page)).toHaveValue("浮着的草稿");
+  expect(await inside(page, card(page))).toBe(true);
+
+  // Put back from there, the panel comes up on the assistant with the box in it.
+  await attach(page).click();
+  await expect(tab(page, "助手")).toHaveAttribute("aria-selected", "true");
+  await expect(detach(page)).toBeVisible();
+  await expect.poll(() => inside(page, panel(page))).toBe(true);
+  await expect(questionBox(page)).toHaveValue("浮着的草稿");
 });

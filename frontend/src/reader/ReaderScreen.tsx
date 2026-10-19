@@ -1053,7 +1053,9 @@ export function ReaderScreen({
   const [pending, setPending] = useState<AskRequest | null>(null);
   const notes = useNotes(here);
   const keypoints = useKeypoints(here?.id ?? null, hereFile?.id ?? null);
-  const [tab, setTab] = useState<PanelView>("guide");
+  const [tab, setTab] = useState<PanelView>("assistant");
+  // Bumped when something asks to see the guide: the 助手 view scrolls to it.
+  const [guideAsk, setGuideAsk] = useState(0);
   // How far up the question box reaches over the foot of the paper's card: the pages leave that room under the last.
   const [cover, setCover] = useState(0);
   // The question box: docked in the panel's foot, or floating over the paper. Its draft is kept here, out of the box.
@@ -1079,8 +1081,12 @@ export function ReaderScreen({
 
   /** Shows a view of the side panel: folded away, the panel opens over the paper with it. */
   const show = useCallback(
-    (view: PanelView) => {
-      setTab(view);
+    (view: PanelView | "guide") => {
+      // The guide is the opening block of the assistant's view.
+      if (view === "guide") {
+        setTab("assistant");
+        setGuideAsk((n) => n + 1);
+      } else setTab(view);
       if (narrowNow.current) setPanelOpen(true);
       else setPanelKept("shown");
     },
@@ -1170,8 +1176,19 @@ export function ReaderScreen({
     />
   );
 
-  // Docked in a panel that is put away, the question box floats over the paper until the panel is back.
-  const composerDocked = composerDock.mode === "docked" && !collapsed;
+  // The question box is in the assistant's view (docked) or over the paper (floating), nowhere else:
+  // docked, it is not drawn while another view shows or the panel is put away.
+  const composerDocked = composerDock.mode === "docked";
+  const composerHere = composerDocked
+    ? panelShown && tab === "assistant"
+    : true;
+
+  // A box put back in the panel (dropped on it, or by its button) is shown there, on the assistant.
+  const wasDocked = useRef(composerDocked);
+  useEffect(() => {
+    if (composerDocked && !wasDocked.current) show("assistant");
+    wasDocked.current = composerDocked;
+  }, [composerDocked, show]);
   const composer = (
     <Composer
       assistant={assistant}
@@ -1183,12 +1200,8 @@ export function ReaderScreen({
       place={composerDock.place}
       lifted={composerDock.dragging}
       boxRef={composerDock.attach}
-      onGrip={
-        composerDock.canDetach && !collapsed ? composerDock.grip : undefined
-      }
-      onToggleDock={
-        composerDock.canDetach && !collapsed ? composerDock.toggle : undefined
-      }
+      onGrip={composerDock.canDetach ? composerDock.grip : undefined}
+      onToggleDock={composerDock.canDetach ? composerDock.toggle : undefined}
       onAsk={() => show("assistant")}
     />
   );
@@ -1273,9 +1286,10 @@ export function ReaderScreen({
           }
           tab={tab}
           onTabChange={setTab}
+          guideAsk={guideAsk}
           dock={{
             footRef: footEl,
-            children: composerDocked ? composer : null,
+            children: composerDocked && composerHere ? composer : null,
             drop:
               composerDock.mode === "floating" && composerDock.dragging
                 ? composerDock.over
