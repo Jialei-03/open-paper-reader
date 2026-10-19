@@ -229,3 +229,27 @@ def test_playbook_list_and_review(env):
         == 404
     )
     assert b.get("/api/v1/research/playbook").status_code == 403
+
+
+def test_upload_and_list_workspace_files(env):
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    project = create(a, model).json()
+    url = f"{BASE}/{project['id']}/files"
+    r = a.post(url, files={"file": ("data.csv", b"f0,y\n1,0\n2,1\n", "text/csv")})
+    assert r.status_code == 200, r.text
+    assert r.json()["path"] == "data/data.csv"
+    from backend.research_sandbox import workdir
+
+    assert (
+        (workdir(settings, project["id"]) / "data" / "data.csv")
+        .read_bytes()
+        .startswith(b"f0,y")
+    )
+    listed = a.get(url).json()
+    assert [f["path"] for f in listed] == ["data/data.csv"] and listed[0]["size"] == 13
+    # Names cannot leave the data folder.
+    bad = a.post(url, files={"file": ("../escape.csv", b"x", "text/csv")})
+    assert bad.status_code == 200 and bad.json()["path"] == "data/escape.csv"
+    hidden = a.post(url, files={"file": (".ora-visible", b"x", "text/plain")})
+    assert hidden.status_code == 422

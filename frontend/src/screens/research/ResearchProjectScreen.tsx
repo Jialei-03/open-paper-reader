@@ -10,6 +10,7 @@ import {
   Spinner,
   toast,
 } from "../../ui";
+import { DataFiles } from "./DataFiles";
 import { Decisions } from "./Decisions";
 import { MetricsStrip } from "./MetricsStrip";
 import {
@@ -238,6 +239,7 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
             </p>
           )}
           {metrics && <MetricsStrip metrics={metrics} />}
+          <DataFiles projectId={id} />
           <Decisions
             projectId={id}
             decisions={decisions}

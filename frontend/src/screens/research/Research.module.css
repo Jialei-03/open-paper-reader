@@ -595,3 +595,35 @@
   align-items: center;
   gap: var(--ui-space-8);
 }
+
+/* The data the experiments run on. */
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+}
+
+.filesHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+}
+
+.filesHead .sectionTitle {
+  margin: 0;
+}
+
+.fileList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-6) var(--ui-space-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fileList li {
+  display: flex;
+  gap: var(--ui-space-6);
+  align-items: baseline;
+}

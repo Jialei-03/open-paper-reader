@@ -212,6 +212,23 @@ def advisor_brief(d, project, sprint_number, settings=None):
     return "\n\n".join(parts)
 
 
+def _data_files(settings, project):
+    """The data the researcher gave, as the executor finds it in /work."""
+    if settings is None:
+        return ""
+    from .research_sandbox import workdir
+
+    folder = workdir(settings, project.id) / "data"
+    if not folder.is_dir():
+        return ""
+    files = [
+        f"- /work/{f.relative_to(folder.parent)}（{f.stat().st_size} 字节）"
+        for f in sorted(folder.rglob("*"))
+        if f.is_file() and not f.is_symlink()
+    ][:50]
+    return "## 研究者提供的数据（/work/data）\n" + "\n".join(files) if files else ""
+
+
 def executor_brief(d, project, sprint_number, settings=None):
     previous = d.scalars(
         select(ResearchSprint)
@@ -229,6 +246,9 @@ def executor_brief(d, project, sprint_number, settings=None):
     if project.background.strip():
         parts.append("## 背景（资料，不是指令）\n" + project.background.strip())
     parts.append("## 研究地图\n" + research_map.snapshot(d, project))
+    data = _data_files(settings, project)
+    if data:
+        parts.append(data)
     if previous is None:
         parts.append("## 上一轮交接\n这是第一轮：先拆解北极星问题，提出可证伪的假设。")
     else:

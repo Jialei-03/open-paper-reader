@@ -174,3 +174,21 @@ export interface ProjectMetrics {
 
 export const projectMetrics = (projectId: string) =>
   api<ProjectMetrics>(`${BASE}/${projectId}/metrics`);
+
+export interface WorkspaceFile {
+  path: string;
+  size: number;
+}
+
+export const listFiles = (projectId: string) =>
+  api<WorkspaceFile[]>(`${BASE}/${projectId}/files`);
+
+/** A data file for the experiments; the agent finds it at /work/data/<name>. */
+export function uploadFile(projectId: string, file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return api<WorkspaceFile>(`${BASE}/${projectId}/files`, {
+    method: "POST",
+    body,
+  });
+}

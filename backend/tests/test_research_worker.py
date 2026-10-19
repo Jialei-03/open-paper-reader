@@ -810,3 +810,14 @@ def test_votes_only_count_for_rules_the_project_ran_with(lab):
     rules = {r["id"]: r for r in book["rules"]}
     assert rules[active_id]["helpful"] == 1
     assert rules[pending_id]["harmful"] == 0
+
+
+def test_brief_lists_workspace_data_files(lab):
+    app, project, _ = lab
+    folder = rs.workdir(app.state.settings, project["id"]) / "data"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "measurements.csv").write_text("a,b\n1,2\n")
+    rw.tick(app)
+    with app.state.maker() as d:
+        prompt = d.get(AgentRun, sprints(app, project["id"])[-1].run_id).prompt
+    assert "/work/data/measurements.csv" in prompt
