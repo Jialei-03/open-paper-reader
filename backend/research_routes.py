@@ -339,6 +339,44 @@ def install_research_routes(app, settings, db, auth, human, owned):
         d.commit()
         return project_out(p)
 
+    @app.get("/api/v1/research/playbook")
+    def playbook(a=Depends(auth), d=Depends(db)):
+        from . import research_playbook
+
+        allowed(a, d)
+        book = research_playbook.load(settings)
+        return {
+            "version": book["version"],
+            "rules": book["rules"],
+            "history": book["history"][-50:],
+        }
+
+    @app.post("/api/v1/research/playbook/rules/{rule_id}")
+    def review_rule(rule_id: str, body: DecisionInput, a=Depends(auth), d=Depends(db)):
+        """A person admits a pending rule (it takes effect) or retires one."""
+        from . import research_playbook
+
+        allowed(a, d)
+        book = research_playbook.load(settings)
+        rule = next((r for r in book["rules"] if r["id"] == rule_id), None)
+        if rule is None:
+            raise HTTPException(404, "Not found")
+        rule["status"] = "active" if body.approve else "retired"
+        book["version"] += 1
+        book["history"].append(
+            {
+                "version": book["version"],
+                "project": None,
+                "actor": "human",
+                "at": now(),
+                "rule": rule_id,
+                "approve": body.approve,
+                "note": body.note,
+            }
+        )
+        research_playbook.save(settings, book)
+        return rule
+
     def move(p, status, d, end_reason=None):
         p.status = status
         if end_reason is not None:

@@ -9,9 +9,18 @@ both stopped and measured.
 
 import asyncio
 
+from sqlalchemy import select
+
 from . import research_evidence, research_map, research_sandbox
 from .tool_spec import ID, tool
-from .models import ResearchJob, ResearchNode, ResearchProject, ResearchSprint, now
+from .models import (
+    ResearchEvent,
+    ResearchJob,
+    ResearchNode,
+    ResearchProject,
+    ResearchSprint,
+    now,
+)
 
 NODE = {"type": "string", "minLength": 8, "maxLength": 36}
 REASON = {"type": "string", "minLength": 1, "maxLength": 1000}
@@ -543,7 +552,21 @@ def _run(app, owner, research, name, args):
 
             book = research_playbook.load(settings)
             ops = [*args.get("ops", [])]
-            ops += [{"op": "VOTE", **vote} for vote in args.get("votes", [])]
+            # Only rules the project actually ran with can be judged by it.
+            ran = d.scalars(
+                select(ResearchEvent)
+                .where(
+                    ResearchEvent.project_id == project.id,
+                    ResearchEvent.action == "playbook_version",
+                )
+                .order_by(ResearchEvent.created_at)
+            ).first()
+            tried = set(ran.detail.get("active", [])) if ran else set()
+            ops += [
+                {"op": "VOTE", **vote}
+                for vote in args.get("votes", [])
+                if vote.get("id") in tried
+            ]
             counts = research_playbook.apply_ops(book, ops, project.id, "distiller")
             research_playbook.save(settings, book)
             research_map.event(

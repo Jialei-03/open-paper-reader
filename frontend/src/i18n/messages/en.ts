@@ -967,6 +967,20 @@ export const en = {
   "research.sprint.focus": "Working on: {title}",
   "research.sprint.next": "Next: {next}",
   "research.sprint.waiting": "Waiting for {count} experiment job(s)",
+  "research.playbook.title": "Research playbook (version {version})",
+  "research.playbook.intro":
+    "When a project ends, a distiller turns the advisor's calls, the kill decisions and any drift into judgment rules. A rule takes effect once two projects support it or you approve it, and every new project reads it.",
+  "research.playbook.empty":
+    "No rules yet. They are distilled when a project ends.",
+  "research.playbook.active": "Active",
+  "research.playbook.pending": "Pending",
+  "research.playbook.retired": "Retired",
+  "research.playbook.meta":
+    "From {sources} project(s) · helpful {helpful} · harmful {harmful}",
+  "research.playbook.when": "When:",
+  "research.playbook.do": "Do:",
+  "research.playbook.admit": "Admit",
+  "research.playbook.drop": "Drop",
   "research.metric.sprints": "Executor + advisor",
   "research.metric.sprints.hint": "Executor sprints + advisor reviews",
   "research.metric.drift": "Drift",

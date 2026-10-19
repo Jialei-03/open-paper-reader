@@ -196,3 +196,36 @@ def test_decide_is_applied_once(env):
 
     with app.state.maker() as d:
         assert len(d.query(ResearchEvent).filter_by(action="human_decision").all()) == 1
+
+
+def test_playbook_list_and_review(env):
+    from backend import research_playbook as pb
+
+    app, a, b, settings = env
+    book = pb.load(settings)
+    pb.apply_ops(
+        book,
+        [
+            {"op": "ADD", "when": "w1", "do": "d1", "why": "y1"},
+            {"op": "ADD", "when": "w2", "do": "d2", "why": "y2"},
+        ],
+        "p1",
+        "distiller",
+    )
+    pb.save(settings, book)
+    first, second = (r["id"] for r in book["rules"])
+    listed = a.get("/api/v1/research/playbook").json()
+    assert listed["version"] == 1 and len(listed["rules"]) == 2
+    assert listed["history"][-1]["added"] == 2
+    r = a.post(f"/api/v1/research/playbook/rules/{first}", json={"approve": True})
+    assert r.status_code == 200
+    a.post(f"/api/v1/research/playbook/rules/{second}", json={"approve": False})
+    rules = {x["id"]: x for x in a.get("/api/v1/research/playbook").json()["rules"]}
+    assert rules[first]["status"] == "active" and rules[second]["status"] == "retired"
+    assert (
+        a.post(
+            "/api/v1/research/playbook/rules/nope", json={"approve": True}
+        ).status_code
+        == 404
+    )
+    assert b.get("/api/v1/research/playbook").status_code == 403
