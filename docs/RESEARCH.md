@@ -89,4 +89,4 @@ python scripts/research_eval/report.py scripts/research_eval/results/*.jsonl
 
 可比较的条件：`playbook`（读研究手册）、`no-playbook`（不读）、`no-advisor`（没有导师）。
 
-已有的评测结果：[第一轮（2026-10-20）](research/2026-10-20-first-results.md)。
+已有的评测结果：[第一轮](research/2026-10-20-first-results.md)、[第二轮](research/2026-10-20-second-results.md)（2026-10-20）。

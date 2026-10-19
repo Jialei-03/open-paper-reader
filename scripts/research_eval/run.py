@@ -67,6 +67,10 @@ def texts(detail):
 
 
 MISSING_WORDS = (
+    "does not",
+    "exists=false",
+    "cannot",
+    "无法",
     "不存在",
     "缺失",
     "没有",
