@@ -9,6 +9,8 @@ COPY agent-runtime/sandbox-tools.mjs ./
 RUN curl -fsSL https://github.com/sharkdp/fd/releases/download/v10.3.0/fd-v10.3.0-$(uname -m)-unknown-linux-musl.tar.gz -o /tmp/fd.tar.gz && tar -xzf /tmp/fd.tar.gz -C /tmp && install /tmp/fd-v10.3.0-$(uname -m)-unknown-linux-musl/fd /usr/local/bin/fd && rm -rf /tmp/fd.tar.gz /tmp/fd-v10.3.0-*
 RUN pip install --no-cache-dir --break-system-packages numpy scipy pandas scikit-learn matplotlib \
  && pip install --no-cache-dir --break-system-packages torch --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+# Models often type `python`: let it mean python3 instead of failing with exit 127.
+RUN ln -s /usr/bin/python3 /usr/local/bin/python
 ENV HOME=/work LANG=C.UTF-8 MPLBACKEND=Agg PYTHONDONTWRITEBYTECODE=1
 USER 65534:65534
 WORKDIR /work

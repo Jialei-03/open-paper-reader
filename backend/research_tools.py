@@ -8,6 +8,7 @@ both stopped and measured.
 """
 
 import asyncio
+import time
 
 from sqlalchemy import select
 
@@ -23,6 +24,11 @@ from .models import (
 )
 
 NODE = {"type": "string", "minLength": 8, "maxLength": 36}
+# run_job may wait this long for a short job, so its log is citable in the same sprint
+# (below the agent worker's 150-second limit for one tool call).
+WAIT_MAX = 120
+WAIT_POLL = 2.0
+WAIT_LINES = 200
 REASON = {"type": "string", "minLength": 1, "maxLength": 1000}
 LEVEL = {"type": "string", "enum": ["high", "medium", "low"]}
 
@@ -139,10 +145,11 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "run_job",
-        "在研究工作区（/work，无网络）后台运行一条命令，适合训练和较长的实验；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。",
+        "在研究工作区（/work，无网络）运行一条命令；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。几分钟内能跑完的，设 wait_seconds 等它结束，直接拿到日志行，本轮就能 record_result；更长的实验不等，用 end_sprint(waiting_on) 结束本轮。",
         {
             "command": {"type": "string", "minLength": 1, "maxLength": 4000},
             "timeout_seconds": {"type": "integer", "minimum": 1},
+            "wait_seconds": {"type": "integer", "minimum": 0, "maximum": WAIT_MAX},
         },
         ["command"],
     ),
@@ -453,6 +460,53 @@ def _job(d, project, job_id):
     return job
 
 
+def _supported_by_record(d, project, node):
+    """Whether the node, or a live node under it, has recorded support.
+
+    Evidence for something that was later refuted or dropped supports nothing above it.
+    """
+    children = {}
+    for n in research_map.nodes(d, project):
+        children.setdefault(n.parent_id, []).append(n)
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if current is not node and current.status in research_map.DEAD:
+            continue
+        if current.evidence_for:
+            return True
+        stack.extend(children.get(current.id, []))
+    return False
+
+
+def _wait(settings, d, job, seconds):
+    """Waits up to `seconds` for a job the sweeper collects, then reports it.
+
+    Only the sweeper finishes jobs; this just watches the row, so the two never
+    race to collect the same container.
+    """
+    out = {"job_id": job.id}
+    if seconds > 0:
+        d.commit()
+        deadline = time.monotonic() + seconds
+        while job.status == "running" and time.monotonic() < deadline:
+            time.sleep(WAIT_POLL)
+            d.refresh(job)
+    if job.status == "running":
+        return out | {
+            "status": "running",
+            "hint": "作业还在运行；需要等它时，用 end_sprint(waiting_on=[job_id]) 结束本轮。",
+        }
+    log = research_sandbox.read_log(settings, job, 0, WAIT_LINES)
+    return out | {
+        "status": job.status,
+        "exit_code": job.exit_code,
+        "log_lines": job.log_lines,
+        "lines": log["lines"],
+        "hint": "作业已结束：引用这些行号用 record_result 记录结果。",
+    }
+
+
 def _run(app, owner, research, name, args):
     settings = app.state.settings
     with app.state.maker() as d:
@@ -495,9 +549,11 @@ def _run(app, owner, research, name, args):
                 )
             if not research_map.is_live(d, node):
                 raise ValueError("这个节点已关闭，或所在分支已被否定，不能再修改")
-            if args.get("status") == "supported" and not node.evidence_for:
+            if args.get("status") == "supported" and not _supported_by_record(
+                d, project, node
+            ):
                 raise ValueError(
-                    "标为已支持之前，先用 record_result 记下支持它的证据（作业日志行或原文句子）"
+                    "标为已支持之前，先用 record_result 在它或它下面的节点记下支持它的证据（作业日志行或原文句子）"
                 )
             research_map.update_node(
                 d,
@@ -556,11 +612,7 @@ def _run(app, owner, research, name, args):
                 {"job_id": job.id, "command": job.command},
                 sprint.id,
             )
-            result = {
-                "job_id": job.id,
-                "status": job.status,
-                "hint": "作业在后台运行；需要等它时，用 end_sprint(waiting_on=[job_id]) 结束本轮。",
-            }
+            result = _wait(settings, d, job, args.get("wait_seconds", 0))
         elif name == "advise":
             from .research_advice import apply
 
