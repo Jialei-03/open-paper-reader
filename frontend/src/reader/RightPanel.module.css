@@ -5,7 +5,7 @@
  * header so that the button that opened it is not covered.
  */
 .panel {
-  --panel-width: 400px;
+  --panel-width: 400px; /* The docked width is set by the screen (it can be dragged). */
   --panel-gap: var(--ui-space-8);
   /* The header strip of the paper's card (52px) and the gap under it. */
   --panel-header-offset: 52px;
@@ -64,6 +64,15 @@
   opacity: 0;
   overflow: hidden;
   box-shadow: none;
+}
+
+/* What is under the tabs: the scroller, and the button that floats over its foot. */
+.bodyArea {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
 /* What is under the tabs: this is what scrolls. */

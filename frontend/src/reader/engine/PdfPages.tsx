@@ -422,7 +422,12 @@ export function PdfPages({
     let settle = 0;
     const observer = new ResizeObserver(() => {
       window.clearTimeout(settle);
-      settle = window.setTimeout(measure, RESIZE_SETTLE_MS);
+      settle = window.setTimeout(function fit() {
+        // A panel being dragged by hand holds the fit until it is let go.
+        if (document.documentElement.hasAttribute("data-panel-resizing"))
+          settle = window.setTimeout(fit, RESIZE_SETTLE_MS);
+        else measure();
+      }, RESIZE_SETTLE_MS);
     });
     observer.observe(scroller);
     return () => {

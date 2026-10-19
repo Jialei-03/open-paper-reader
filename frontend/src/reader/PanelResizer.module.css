@@ -1,0 +1,56 @@
+/*
+ * The handle for the panel's width. The slot takes no room of its own: it sits
+ * in the shell's 8px gap between the paper's card and the panel (the margin
+ * takes back the gap the slot's own place would add), and the handle fills it.
+ * The hairline shows on hover, focus and drag only.
+ */
+.slot {
+  position: relative;
+  flex: none;
+  width: 0;
+  margin-right: calc(-1 * var(--ui-space-8));
+  z-index: 1;
+}
+
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(-1 * var(--ui-space-8));
+  width: var(--ui-space-8);
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+/* A wider reach than the gap, over the cards' edges, without drawing anything there. */
+.handle::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+
+.handle::after {
+  content: "";
+  position: absolute;
+  top: var(--ui-space-12);
+  bottom: var(--ui-space-12);
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--ui-fg-3);
+  opacity: 0;
+  transition: opacity var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.handle:hover::after,
+.handle:focus-visible::after,
+.handle[data-dragging]::after {
+  opacity: 0.6;
+}
+
+.handle[data-dragging]::after {
+  opacity: 1;
+  background: var(--ui-fg-2);
+}

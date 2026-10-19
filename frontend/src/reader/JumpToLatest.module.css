@@ -1,0 +1,75 @@
+/* Over the foot of the assistant's view, centered; hidden (and out of reach) at the bottom. */
+.jump {
+  position: absolute;
+  bottom: var(--ui-space-12);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: -16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ui-elev);
+  color: var(--ui-fg-1);
+  box-shadow: var(--ui-elev-2);
+  cursor: pointer;
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  transition:
+    opacity var(--ui-dur-2) var(--ui-ease-out),
+    transform var(--ui-dur-2) var(--ui-ease-out),
+    visibility 0s linear var(--ui-dur-2);
+}
+
+.jump[data-shown] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition-delay: 0s;
+}
+
+.jump:hover {
+  color: var(--ui-fg);
+}
+
+.jump:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-elev-2), var(--ui-focus-ring);
+}
+
+/* It bobs only while it is there to be seen. */
+.jump[data-shown] .arrow {
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(-1.5px);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jump[data-shown] .arrow {
+    animation: none;
+  }
+}
+
+/* New text is coming in below. */
+.dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ui-fg);
+  box-shadow: 0 0 0 2px var(--ui-elev);
+}

@@ -314,6 +314,8 @@ export const en = {
   "reader.panel.show": "Show side panel",
   "reader.panel.hide": "Hide side panel",
   "reader.panel.tabs": "Side panel views",
+  "reader.panel.resize": "Resize side panel",
+  "reader.panel.latest": "Jump to latest",
   "reader.tab.assistant": "Assistant",
   "reader.tab.notes": "Notes",
   "reader.guide.loading": "Loading the guide…",

@@ -4,6 +4,7 @@ import {
   useId,
   useRef,
   useState,
+  type CSSProperties,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -13,10 +14,12 @@ import { Card, CardHeader, SegmentedControl } from "../ui";
 import { GuideTab } from "./panel/GuideTab";
 import type { Keypoints } from "./keypoints";
 import { NotesTab, type NotesTabProps } from "./panel/NotesTab";
-import { AssistantThread, type Assistant } from "./assistant";
+import { AssistantThread, isActive, type Assistant } from "./assistant";
 import type { ReaderRoute } from "./route";
 import { RelatedTab } from "./related/RelatedTab";
 import { RegionBoundary } from "./RegionBoundary";
+import { JumpToLatest } from "./JumpToLatest";
+import { PanelResizer, usePanelWidth } from "./PanelResizer";
 import styles from "./RightPanel.module.css";
 
 /** The panel's views, one shown at a time. */
@@ -69,7 +72,10 @@ export function RightPanel({
   onTabChange,
   dock,
   guideAsk = 0,
+  owner = "",
 }: {
+  /** Whose width for the docked panel is kept on this device. */
+  owner?: string;
   /** What the panel is about. The views are not made from it yet. */
   paperId: string;
   /** The paper and its PDF, once they are loaded. */
@@ -106,6 +112,7 @@ export function RightPanel({
     onTabChange?.(next);
   };
   const tabs = useRef<HTMLDivElement>(null);
+  const bodyEl = useRef<HTMLDivElement>(null);
   const guideEl = useRef<HTMLDivElement>(null);
   const asked = useRef(guideAsk);
   useEffect(() => {
@@ -115,6 +122,7 @@ export function RightPanel({
   }, [guideAsk]);
 
   const floating = overlay !== undefined;
+  const sizing = usePanelWidth(owner);
   const shown = overlay?.open === true;
   const onClose = overlay?.onClose;
   const returnFocus = overlay?.returnFocus;
@@ -144,103 +152,125 @@ export function RightPanel({
   }, [shown, onClose]);
 
   return (
-    <Card
-      as="aside"
-      aria-label={t("reader.region.panel")}
-      className={clsx(
-        styles.panel,
-        floating && styles.floating,
-        floating && !shown && styles.folded,
-        !floating && collapsed && styles.collapsed,
+    <>
+      {!floating && !collapsed && (
+        <PanelResizer
+          width={sizing.width}
+          max={sizing.max}
+          onChange={sizing.choose}
+        />
       )}
-      inert={!floating && collapsed ? true : undefined}
-      aria-hidden={!floating && collapsed ? true : undefined}
-    >
-      <RegionBoundary region="panel">
-        <CardHeader>
-          <div ref={tabs}>
-            <SegmentedControl
-              kind="tabs"
-              size="sm"
-              label={t("reader.panel.tabs")}
-              options={VIEWS.map((value) => ({
-                value,
-                label: t(`reader.tab.${value}`),
-                panelId: `${ids}-${value}`,
-              }))}
-              value={view}
-              onChange={choose}
-            />
-          </div>
-        </CardHeader>
-        <div className={styles.body}>
-          {VIEWS.map((value) => (
-            <div
-              key={value}
-              role="tabpanel"
-              id={`${ids}-${value}`}
-              aria-labelledby={`${ids}-${value}-tab`}
-              hidden={view !== value}
-            >
-              {value === "assistant" && onCite ? (
-                <div className={styles.stack}>
-                  <div ref={guideEl} className={styles.guide}>
-                    {paper && file && onJumpToPage ? (
-                      <GuideTab
-                        key={file.id}
-                        paper={paper}
-                        file={file}
-                        onJumpToPage={onJumpToPage}
-                        onCite={onCite}
-                        onKeep={onKeep}
-                        keypoints={keypoints}
-                        onJumpKeypoint={(item) =>
-                          onCite({
-                            paperId: paper.id,
-                            fileId: file.id,
-                            page: item.page,
-                            quote: item.quote,
-                          })
-                        }
-                      />
-                    ) : (
-                      <p className={styles.placeholder}>
-                        {t("reader.tab.assistant.empty")}
-                      </p>
-                    )}
-                  </div>
-                  {assistant && (
-                    <AssistantThread
-                      assistant={assistant}
-                      onCite={onCite}
-                      fileId={file?.id}
-                      onKeep={onKeep}
-                    />
+      <Card
+        as="aside"
+        style={
+          floating
+            ? undefined
+            : ({ "--panel-width": `${sizing.width}px` } as CSSProperties)
+        }
+        aria-label={t("reader.region.panel")}
+        className={clsx(
+          styles.panel,
+          floating && styles.floating,
+          floating && !shown && styles.folded,
+          !floating && collapsed && styles.collapsed,
+        )}
+        inert={!floating && collapsed ? true : undefined}
+        aria-hidden={!floating && collapsed ? true : undefined}
+      >
+        <RegionBoundary region="panel">
+          <CardHeader>
+            <div ref={tabs}>
+              <SegmentedControl
+                kind="tabs"
+                size="sm"
+                label={t("reader.panel.tabs")}
+                options={VIEWS.map((value) => ({
+                  value,
+                  label: t(`reader.tab.${value}`),
+                  panelId: `${ids}-${value}`,
+                }))}
+                value={view}
+                onChange={choose}
+              />
+            </div>
+          </CardHeader>
+          <div className={styles.bodyArea}>
+            <div ref={bodyEl} className={styles.body}>
+              {VIEWS.map((value) => (
+                <div
+                  key={value}
+                  role="tabpanel"
+                  id={`${ids}-${value}`}
+                  aria-labelledby={`${ids}-${value}-tab`}
+                  hidden={view !== value}
+                >
+                  {value === "assistant" && onCite ? (
+                    <div className={styles.stack}>
+                      <div ref={guideEl} className={styles.guide}>
+                        {paper && file && onJumpToPage ? (
+                          <GuideTab
+                            key={file.id}
+                            paper={paper}
+                            file={file}
+                            onJumpToPage={onJumpToPage}
+                            onCite={onCite}
+                            onKeep={onKeep}
+                            keypoints={keypoints}
+                            onJumpKeypoint={(item) =>
+                              onCite({
+                                paperId: paper.id,
+                                fileId: file.id,
+                                page: item.page,
+                                quote: item.quote,
+                              })
+                            }
+                          />
+                        ) : (
+                          <p className={styles.placeholder}>
+                            {t("reader.tab.assistant.empty")}
+                          </p>
+                        )}
+                      </div>
+                      {assistant && (
+                        <AssistantThread
+                          assistant={assistant}
+                          onCite={onCite}
+                          fileId={file?.id}
+                          onKeep={onKeep}
+                        />
+                      )}
+                    </div>
+                  ) : value === "notes" && notes ? (
+                    <NotesTab {...notes} />
+                  ) : value === "related" && paper ? (
+                    <RelatedTab paper={paper} active={view === "related"} />
+                  ) : (
+                    <p className={styles.placeholder}>
+                      {t(`reader.tab.${value}.empty`)}
+                    </p>
                   )}
                 </div>
-              ) : value === "notes" && notes ? (
-                <NotesTab {...notes} />
-              ) : value === "related" && paper ? (
-                <RelatedTab paper={paper} active={view === "related"} />
-              ) : (
-                <p className={styles.placeholder}>
-                  {t(`reader.tab.${value}.empty`)}
-                </p>
-              )}
+              ))}
             </div>
-          ))}
-        </div>
-        {dock && (
-          <div ref={dock.footRef} className={styles.dock}>
-            {dock.children}
+            {view === "assistant" && (
+              <JumpToLatest
+                scroller={bodyEl}
+                streaming={assistant?.runs.some(isActive) ?? false}
+              />
+            )}
           </div>
-        )}
-        {dock?.drop && (
-          <div className={styles.drop} data-over={dock.drop === "over"}>
-            {t("reader.assistant.dock.drop")}
-          </div>
-        )}
-      </RegionBoundary>
-    </Card>
+          {dock && (
+            <div ref={dock.footRef} className={styles.dock}>
+              {dock.children}
+            </div>
+          )}
+          {dock?.drop && (
+            <div className={styles.drop} data-over={dock.drop === "over"}>
+              {t("reader.assistant.dock.drop")}
+            </div>
+          )}
+        </RegionBoundary>
+      </Card>
+    </>
   );
 }

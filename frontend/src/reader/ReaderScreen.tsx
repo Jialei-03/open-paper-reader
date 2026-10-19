@@ -1256,6 +1256,7 @@ export function ReaderScreen({
           {!composerDocked && composer}
         </Card>
         <RightPanel
+          owner={owner}
           paperId={paperId}
           paper={here}
           file={hereFile}

@@ -290,6 +290,8 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.panel.show": "展开右侧面板",
   "reader.panel.hide": "收起右侧面板",
   "reader.panel.tabs": "右侧面板的视图",
+  "reader.panel.resize": "调整右侧面板宽度",
+  "reader.panel.latest": "回到最新",
   "reader.tab.assistant": "助手",
   "reader.tab.notes": "笔记",
   "reader.guide.loading": "正在加载导读…",
