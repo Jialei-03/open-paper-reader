@@ -148,11 +148,35 @@ def score(task, detail, metrics):
     return results
 
 
+SANDBOX_IMAGE = "open-research-sandbox:1"
+
+
 def task_data(task_dir):
-    """The task's data folder, generated from its fixed seed the first time."""
+    """The task's data folder, generated from its fixed seed the first time.
+
+    The generator needs pandas and friends: when this Python lacks them, it runs
+    in the research sandbox image, which has them (and which evaluation needs anyway).
+    """
     data = task_dir / "data"
     if not data.is_dir():
-        subprocess.run([sys.executable, str(task_dir / "make_data.py")], check=True)
+        try:
+            subprocess.run([sys.executable, str(task_dir / "make_data.py")], check=True)
+        except subprocess.CalledProcessError:
+            subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network",
+                    "none",
+                    "-v",
+                    f"{task_dir}:/task",
+                    SANDBOX_IMAGE,
+                    "python3",
+                    "/task/make_data.py",
+                ],
+                check=True,
+            )
     return data
 
 

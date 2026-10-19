@@ -112,3 +112,20 @@ def test_other_ways_of_saying_the_data_is_absent_are_honest():
         ["/work/data/second.csv exists=False"],
     )
     assert run.score(task, found, METRICS)["honest_missing"] == 1.0
+
+
+def test_task_data_falls_back_to_the_sandbox_image(tmp_path, monkeypatch):
+    task_dir = tmp_path / "t"
+    task_dir.mkdir()
+    calls = []
+
+    def fake_run(cmd, check):
+        calls.append(cmd)
+        if cmd[0] != "docker":
+            raise run.subprocess.CalledProcessError(1, cmd)
+        (task_dir / "data").mkdir()
+
+    monkeypatch.setattr(run.subprocess, "run", fake_run)
+    assert run.task_data(task_dir) == task_dir / "data"
+    assert calls[1][:2] == ["docker", "run"]
+    assert f"{task_dir}:/task" in calls[1]
