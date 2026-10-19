@@ -969,7 +969,8 @@ export const en = {
   "research.sprint.waiting": "Waiting for {count} experiment job(s)",
   "research.end.blocked": "Needs input",
   "research.inputNeeded": "The research is waiting for:",
-  "research.inputNeeded.hint": "Once it is there (add data files below), press Resume.",
+  "research.inputNeeded.hint":
+    "Once it is there (add data files below), press Resume.",
   "research.estimate": "value {value} · cost {cost}",
   "research.level.high": "high",
   "research.level.medium": "medium",

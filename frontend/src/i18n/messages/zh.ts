@@ -904,7 +904,8 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.sprint.waiting": "等待 {count} 个实验作业结束",
   "research.end.blocked": "缺少输入",
   "research.inputNeeded": "研究在等你提供：",
-  "research.inputNeeded.hint": "补上之后（数据文件可以在下面添加），点「继续」。",
+  "research.inputNeeded.hint":
+    "补上之后（数据文件可以在下面添加），点「继续」。",
   "research.estimate": "价值{value} · 成本{cost}",
   "research.level.high": "高",
   "research.level.medium": "中",
