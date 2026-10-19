@@ -193,6 +193,13 @@ def apply(d, project, sprint, args):
         )
     concluded = False
     conclusion = args.get("conclude")
+    if conclusion and conclusion.get("status") in {"concluded", "refuted"}:
+        answer = conclusion.get("answer")
+        if answer in {"yes", "no", "other"}:
+            conclusion = {
+                **conclusion,
+                "status": "refuted" if answer == "no" else "concluded",
+            }
     if conclusion and conclusion.get("status") == "blocked":
         # Nothing can move until a person provides something: say what, then wait
         # (an evaluation run, with nobody to provide it, ends here).

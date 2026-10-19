@@ -235,6 +235,12 @@ RESEARCH_TOOLS.append(
                         "type": "string",
                         "enum": ["concluded", "refuted", "blocked"],
                     },
+                    # The answer decides between concluded and refuted: a label is easy to pick wrong.
+                    "answer": {
+                        "type": "string",
+                        "enum": ["yes", "no", "other"],
+                        "description": "北极星问题的答案：是非题答是填 yes、答否填 no；问多少、哪个、怎样的问题填 other",
+                    },
                     "summary": {"type": "string", "maxLength": 2000},
                 },
                 "required": ["status"],

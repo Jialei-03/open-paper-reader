@@ -276,6 +276,31 @@ def test_conclude_finishes_project(world):
         assert d.get(ResearchSprint, ids.advisor).status == "ended"
 
 
+def test_a_no_answer_ends_refuted_whatever_the_status_says(world):
+    """A yes/no question answered no is refuted: the answer, not the label, decides."""
+    app, maker, ids = world
+    with maker() as d:
+        node = d.get(ResearchNode, ids.hyp)
+        node.evidence_for = [{"summary": "acc=0.688", "evidence": [{"kind": "log"}]}]
+        d.commit()
+    advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {
+                "status": "concluded",
+                "answer": "no",
+                "summary": "No: leakage",
+            },
+        },
+    )
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        assert p.end_reason == "refuted"
+        assert d.get(ResearchNode, ids.root).status == "refuted"
+
+
 def test_failing_verdict_skipped_rest_applied(world):
     """Review #7: a pivot that cannot be made does not lose the other verdicts."""
     app, maker, ids = world
