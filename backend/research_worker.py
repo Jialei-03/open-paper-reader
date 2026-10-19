@@ -347,6 +347,8 @@ def _distill(app, d, project):
             .order_by(ResearchSprint.number)
         )
     )
+    if project.budget.get("distill") is False:
+        return
     mine = [s for s in history if s.role == "distiller"]
     if mine:
         sprint = mine[-1]

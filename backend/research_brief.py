@@ -197,7 +197,7 @@ def advisor_brief(d, project, sprint_number, settings=None):
                 for j in jobs
             )
         )
-    rules = _playbook(settings)
+    rules = _playbook(settings) if project.budget.get("playbook", True) else ""
     if rules:
         parts.append(rules)
     parts.append(
@@ -265,7 +265,7 @@ def executor_brief(d, project, sprint_number, settings=None):
                 for j in jobs
             )
         )
-    rules = _playbook(settings)
+    rules = _playbook(settings) if project.budget.get("playbook", True) else ""
     if rules:
         parts.append(rules)
     parts.append(

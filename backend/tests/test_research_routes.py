@@ -155,3 +155,21 @@ def test_decide_reject_keeps_node(env):
     detail = a.get(f"{BASE}/{project['id']}").json()
     assert detail["project"]["status"] == "active"
     assert next(n for n in detail["nodes"] if n["id"] == hyp)["status"] == "open"
+
+
+def test_evaluation_switches_accepted(env):
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    project = create(
+        a,
+        model,
+        budget={
+            "max_sprints": 3,
+            "auto_decide": True,
+            "playbook": False,
+            "distill": False,
+        },
+    ).json()
+    assert project["budget"]["auto_decide"] is True
+    assert project["budget"]["playbook"] is False
+    assert project["budget"]["distill"] is False

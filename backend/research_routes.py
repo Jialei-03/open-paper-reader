@@ -25,6 +25,10 @@ class Budget(BaseModel):
     max_sprints: int | None = Field(default=None, ge=1, le=500)
     max_tokens: int | None = Field(default=None, ge=1000, le=10**9)
     max_job_seconds: int | None = Field(default=None, ge=60, le=10**7)
+    # Evaluation runs: nobody is there to decide, and some must not learn or be taught.
+    auto_decide: bool | None = None
+    playbook: bool | None = None
+    distill: bool | None = None
 
 
 class DecisionInput(BaseModel):

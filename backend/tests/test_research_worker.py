@@ -659,3 +659,28 @@ def test_brief_includes_active_rules(lab):
             select(ResearchEvent).where(ResearchEvent.action == "playbook_version")
         ).one()
         assert version.detail["version"] == 1
+
+
+def test_playbook_off_and_no_distill(lab):
+    from backend import research_playbook as pb
+
+    app, project, _ = lab
+    book = pb.load(app.state.settings)
+    pb.apply_ops(
+        book, [{"op": "ADD", "when": "w", "do": "secret rule", "why": "x"}], "p0", "d"
+    )
+    book["rules"][0]["status"] = "active"
+    pb.save(app.state.settings, book)
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        p.budget = {**p.budget, "playbook": False, "distill": False}
+        d.commit()
+    rw.tick(app)
+    with app.state.maker() as d:
+        assert (
+            "secret rule"
+            not in d.get(AgentRun, sprints(app, project["id"])[-1].run_id).prompt
+        )
+    finish(app, project["id"])
+    rw.tick(app)
+    assert not [s for s in sprints(app, project["id"]) if s.role == "distiller"]
