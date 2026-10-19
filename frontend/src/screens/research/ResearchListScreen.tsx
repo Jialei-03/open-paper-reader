@@ -240,6 +240,11 @@ export function ResearchListScreen({ go }: ResearchListScreenProps) {
                     <span className={styles.projectQuestion}>
                       {project.question}
                     </span>
+                    {project.conclusion && (
+                      <span className={styles.projectConclusion}>
+                        {project.conclusion}
+                      </span>
+                    )}
                     <span className={styles.projectMeta}>
                       <span
                         className={styles.state}

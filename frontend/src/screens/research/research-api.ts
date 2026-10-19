@@ -13,6 +13,8 @@ export interface ResearchProject {
   session_id: string;
   created_at: string;
   updated_at: string;
+  /** How a finished project was answered (the list only); "" otherwise. */
+  conclusion?: string;
 }
 
 export type NodeKind = "question" | "hypothesis" | "experiment" | "finding";
