@@ -27,6 +27,8 @@ interface Artifact {
   parameters?: { page?: number; language?: string };
   result?: { paragraphs?: ParallelParagraph[] } | null;
   preview?: { paragraphs?: ParallelParagraph[] } | null;
+  /** What a new run is replacing: shown until it completes, and again if it fails. */
+  previous?: { paragraphs?: ParallelParagraph[] } | null;
 }
 
 /** What the column beside a page shows. */
@@ -36,8 +38,11 @@ export type ParallelPageView =
   /** Being translated: what has come so far. */
   | { status: "working"; paragraphs: ParallelParagraph[] }
   | { status: "done"; paragraphs: ParallelParagraph[] }
-  /** `error` is the service's own words, or "" when it gave none. */
-  | { status: "failed"; error: string };
+  /**
+   * `error` is the service's own words, or "" when it gave none; `paragraphs`
+   * is the earlier translation of the page, kept when a new one failed.
+   */
+  | { status: "failed"; error: string; paragraphs?: ParallelParagraph[] };
 
 export interface Parallel {
   /** The translations made before are still being read. */
@@ -348,20 +353,31 @@ export function useParallelTranslation({
   const page = useCallback(
     (number: number): ParallelPageView => {
       if (loadError) return { status: "failed", error: loadError };
+      const row = chosen.get(number);
+      // The translation made before stays while a new one is made, and if it fails.
+      const earlier =
+        (row?.status === "completed" ? row.result : row?.previous)
+          ?.paragraphs ?? [];
       const ask = asks[keyOf(number)];
       if (ask?.state === "failed")
-        return { status: "failed", error: ask.error };
-      const row = chosen.get(number);
+        return { status: "failed", error: ask.error, paragraphs: earlier };
       if (row?.status === "completed")
         return { status: "done", paragraphs: row.result?.paragraphs ?? [] };
       if (pending(row))
         return {
           status: "working",
-          paragraphs: row?.preview?.paragraphs ?? [],
+          paragraphs: row?.preview?.paragraphs?.length
+            ? row.preview.paragraphs
+            : earlier,
         };
       if (ask?.state === "sending")
-        return { status: "working", paragraphs: [] };
-      if (row) return { status: "failed", error: row.error ?? "" };
+        return { status: "working", paragraphs: earlier };
+      if (row)
+        return {
+          status: "failed",
+          error: row.error ?? "",
+          paragraphs: earlier,
+        };
       return { status: "waiting" };
     },
     [loadError, asks, keyOf, chosen],

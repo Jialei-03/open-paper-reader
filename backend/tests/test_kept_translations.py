@@ -456,3 +456,58 @@ def test_a_translation_with_the_readers_own_marks_is_not_removed(env):
     assert {
         row["id"] for row in a.get(f"/api/v1/papers/{paper['id']}/translations").json()
     } == {old_id, new_id}
+
+
+def test_a_failed_or_stopped_regenerate_keeps_the_earlier_result_until_a_new_one_completes(
+    env, monkeypatch
+):
+    app, a, _owner, p, f, row = page_translation(env, page=2)
+    provider(
+        monkeypatch,
+        [
+            answer(paragraph("Evidence on page 2", "旧译文")),
+            500,
+            500,
+            answer(paragraph("Evidence on page 2", "新译文")),
+        ],
+    )
+    work(app, row["run_id"])
+    endpoint = f"/api/v1/papers/{p['id']}/reading-artifacts"
+    body = {
+        "file_id": f["id"],
+        "model_config_id": row["model_config_id"],
+        "kind": "page_translation",
+        "page": 2,
+        "regenerate": True,
+    }
+
+    def kept(value):
+        assert value["previous"]["paragraphs"][0]["translation"] == "旧译文"
+        assert "_previous" not in value["parameters"]
+
+    # While the new run is waiting, the earlier result is still there.
+    waiting = a.post(endpoint, json=body).json()
+    assert waiting["id"] == row["id"] and waiting["status"] == "queued"
+    kept(waiting)
+    # It fails: the reason, and still the earlier result.
+    work(app, waiting["run_id"])
+    failed = finished(a, row)
+    assert failed["status"] == "failed" and failed["error"]
+    kept(failed)
+    # Asked again and stopped: the same.
+    again = a.post(endpoint, json=body).json()
+    kept(again)
+    with app.state.maker() as d:
+        d.get(AgentRun, again["run_id"]).status = "cancelled"
+        d.commit()
+    stopped = finished(a, row)
+    assert stopped["status"] == "cancelled"
+    kept(stopped)
+    # Only a completed run replaces it.
+    last = a.post(endpoint, json=body).json()
+    kept(last)
+    work(app, last["run_id"])
+    done = finished(a, row)
+    assert done["status"] == "completed" and "previous" not in done
+    assert done["result"]["paragraphs"][0]["translation"] == "新译文"
+    assert "_previous" not in done["parameters"]

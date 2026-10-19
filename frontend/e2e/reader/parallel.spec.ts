@@ -317,6 +317,64 @@ test("a page that failed says why, and is translated again on retry", async ({
   expect(service.posts.filter((post) => post.page === 2)).toHaveLength(1);
 });
 
+test("a regenerate that fails keeps the earlier translation beside the reason", async ({
+  page,
+}) => {
+  const earlier = { paragraphs: sentences(1) };
+  const { service } = await open(page, (fileId) => ({
+    // As after a reload: the last regenerate failed, the earlier result is kept.
+    rows: new Map([
+      [
+        "pt-1",
+        translation(fileId, 1, {
+          status: "failed",
+          error: "模型服务暂时不可用",
+          result: {},
+          previous: earlier,
+        }),
+      ],
+    ]),
+    answer: (body, service) => {
+      const row = translation(fileId, body.page as number, {
+        previous: body.page === 1 ? earlier : null,
+      });
+      service.rows.set(row.id as string, row);
+      return { status: 200, json: row };
+    },
+  }));
+  await mode(page, "对照").click();
+  await expect(status(page, 1)).toHaveText("失败");
+  await expect(column(page, 1).getByRole("alert")).toHaveText(
+    "模型服务暂时不可用",
+  );
+  await expect(column(page, 1)).toContainText("第 1 页的第一句译文。");
+
+  // Retry: the earlier translation stays while the new one is written.
+  await column(page, 1).getByRole("button", { name: "重试" }).click();
+  await expect(status(page, 1)).toHaveText("翻译中…");
+  await expect(column(page, 1)).toContainText("第 1 页的第一句译文。");
+
+  // It fails again: still there, with the reason and a retry.
+  update(service, 1, { status: "failed", error: "模型服务暂时不可用" });
+  await expect(status(page, 1)).toHaveText("失败");
+  await expect(column(page, 1)).toContainText("第 1 页的第一句译文。");
+  await expect(
+    column(page, 1).getByRole("button", { name: "重试" }),
+  ).toBeVisible();
+
+  // Only a completed one replaces it.
+  await column(page, 1).getByRole("button", { name: "重试" }).click();
+  update(service, 1, {
+    status: "completed",
+    result: {
+      paragraphs: [{ kind: "text", original: "A", translation: "新译文" }],
+    },
+    previous: null,
+  });
+  await expect(column(page, 1)).toContainText("新译文");
+  await expect(column(page, 1)).not.toContainText("第 1 页的第一句译文。");
+});
+
 test("in 对照 text on the page is still selected, a sentence hovered is marked on it, and 原文 gives the page back its width", async ({
   page,
 }) => {
