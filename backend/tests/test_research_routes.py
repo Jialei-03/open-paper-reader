@@ -1,0 +1,87 @@
+from backend.models import AgentRun, ResearchSprint
+from backend.tests.test_acceptance import env as env  # noqa: PLC0414
+from backend.tests.test_agents import configure
+
+BASE = "/api/v1/research/projects"
+
+
+def create(c, model, **extra):
+    body = {"question": "Does L2 regularization help?", "model_config_id": model}
+    body.update(extra)
+    return c.post(BASE, json=body)
+
+
+def test_create_and_get_project(env):
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    r = create(a, model, background="tabular data", budget={"max_sprints": 5})
+    assert r.status_code == 200, r.text
+    project = r.json()
+    assert project["status"] == "active"
+    assert project["spent"]["sprints"] == 0
+    assert project["budget"]["max_sprints"] == 5
+    assert project["budget"]["max_tokens"] == 2000000
+    detail = a.get(f"{BASE}/{project['id']}").json()
+    root = [n for n in detail["nodes"] if n["parent_id"] is None]
+    assert len(root) == 1 and root[0]["title"] == "Does L2 regularization help?"
+    assert detail["sprints"] == [] and detail["jobs"] == []
+    assert set(detail["docker"]) == {"available", "reason"}
+    assert [p["id"] for p in a.get(BASE).json()] == [project["id"]]
+    events = a.get(f"{BASE}/{project['id']}/events").json()
+    assert events[0]["action"] == "create_project"
+
+
+def test_create_rejects_unknown_model_and_empty_question(env):
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    assert create(a, "00000000-0000-0000-0000-000000000000").status_code == 409
+    assert create(a, model, question="  ").status_code == 422
+
+
+def test_other_user_cannot_read(env):
+    app, a, b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    project = create(a, model).json()
+    assert b.get(f"{BASE}/{project['id']}").status_code == 404
+    assert b.post(f"{BASE}/{project['id']}/stop", json={}).status_code == 404
+    assert b.get(BASE).json() == []
+
+
+def test_stop_cancels_running_sprint(env):
+    app, a, _b, settings = env
+    owner, model = configure(app, a, settings)
+    project = create(a, model).json()
+    with app.state.maker() as d:
+        run = AgentRun(
+            owner=owner,
+            session_id=project["session_id"],
+            model_config_id=model,
+            model="MiniMax-M3",
+            prompt="sprint",
+            status="running",
+            lane="research",
+        )
+        d.add(run)
+        d.flush()
+        d.add(ResearchSprint(project_id=project["id"], number=1, run_id=run.id))
+        d.commit()
+        run_id = run.id
+    assert a.post(f"{BASE}/{project['id']}/pause", json={}).json()["status"] == "paused"
+    assert (
+        a.post(f"{BASE}/{project['id']}/resume", json={}).json()["status"] == "active"
+    )
+    stopped = a.post(f"{BASE}/{project['id']}/stop", json={}).json()
+    assert stopped["status"] == "finished" and stopped["end_reason"] == "stopped"
+    with app.state.maker() as d:
+        assert d.get(AgentRun, run_id).status == "cancelled"
+    # A finished project is not started again.
+    assert a.post(f"{BASE}/{project['id']}/resume", json={}).status_code == 409
+
+
+def test_cloud_non_admin_forbidden(env):
+    _app, a, b, _settings = env
+    r = b.get(BASE)
+    assert r.status_code == 403
+    assert "本机版" in r.json()["detail"]
+    assert a.get(BASE).status_code == 200
