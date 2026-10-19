@@ -1,5 +1,5 @@
 /*
- * 纸间 design system layer. Loaded last so pages share one set of decisions:
+ * Open Paper Reader design system layer. Loaded last so pages share one set of decisions:
  * one brand blue, warm ink neutrals, three radii (8 / 14 / 20), two elevations
  * (card, lift), one page-title scale, and one empty-state pattern.
  */

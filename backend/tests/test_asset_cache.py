@@ -44,8 +44,8 @@ def test_pages_and_api_are_never_cached(path):
 
 def test_fixed_name_assets_are_cached_for_a_day():
     for path in (
-        "/assets/icons/zhijian-book-v5.svg",
-        "/assets/showcase/hero-explain.webp",
+        "/assets/icons/opr-mark.svg",
+        "/assets/site/reader-light.png",
         "/assets/pdfjs/cmaps/UniGB-UCS2-H.bcmap",
     ):
         assert static_cache_control(path) == "public, max-age=86400"

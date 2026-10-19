@@ -1,6 +1,6 @@
 # The simplest way to get HTTPS: Caddy fetches and renews the certificate itself.
 # Replace the domain, point its DNS record at this host, then:  caddy run --config Caddyfile.example
-zhijian.example.com {
+reader.example.com {
 	encode zstd gzip
 	# Uploads are limited by UPLOAD_LIMIT_MB in the application; leave some room.
 	request_body {

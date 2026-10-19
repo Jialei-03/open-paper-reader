@@ -108,7 +108,7 @@ def annotation(kind, color, points, content=""):
             ),
             NameObject("/F"): NumberObject(4),
             NameObject("/Contents"): TextStringObject(content),
-            NameObject("/T"): TextStringObject("纸间"),
+            NameObject("/T"): TextStringObject("Open Paper Reader"),
         }
     )
 

@@ -1,4 +1,4 @@
-# Zhijian (纸间) — one command to try it, a short edit to run it for real.
+# Open Paper Reader — one command to try it, a short edit to run it for real.
 #
 #   cp .env.example .env      # set POSTGRES_PASSWORD at least
 #   docker compose up -d --build
@@ -12,10 +12,10 @@
 #
 # The layout-translation worker and the assistant's code sandbox need Docker access
 # and are optional; see docs/DEPLOYMENT.md.
-name: zhijian
+name: open-paper-reader
 
 x-app: &app
-  image: zhijian:local
+  image: open-paper-reader:local
   restart: unless-stopped
   # Every variable in .env reaches the containers, so the settings in
   # docs/CONFIGURATION.md work here exactly as they do without Docker. The lines

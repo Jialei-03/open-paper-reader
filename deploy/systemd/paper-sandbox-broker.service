@@ -2,7 +2,7 @@
 # throw-away container (deploy/Dockerfile.agent-sandbox). Without it those tools
 # report that they are unavailable; nothing falls back to running on the host.
 [Unit]
-Description=Zhijian assistant sandbox broker
+Description=Open Paper Reader assistant sandbox broker
 After=docker.service
 Requires=docker.service
 

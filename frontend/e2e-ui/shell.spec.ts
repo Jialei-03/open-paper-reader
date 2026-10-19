@@ -309,12 +309,12 @@ test("a docked sidebar pushes the card and leaves Esc and clicks alone", async (
 });
 
 /**
- * The parts of an element's focus ring (it reaches 4px out) that an ancestor
+ * The parts of an element's focus ring (it reaches 3px out) that an ancestor
  * which cuts overflow would hide, one entry per side.
  */
 const clippedRing = (target: Locator) =>
   target.evaluate((element) => {
-    const reach = 4;
+    const reach = 3;
     const box = element.getBoundingClientRect();
     const hidden: string[] = [];
     for (let node = element.parentElement; node; node = node.parentElement) {
@@ -359,8 +359,8 @@ for (const collapsed of [false, true]) {
       await page.keyboard.press("Tab");
       const focused = item(page, name);
       await expect(focused).toBeFocused();
-      // The ring is really there (4px out), and nothing cuts it.
-      expect(await cssOf(focused, "box-shadow")).toMatch(/0px 0px 0px 4px/);
+      // The ring is really there (3px out), and nothing cuts it.
+      expect(await cssOf(focused, "box-shadow")).toMatch(/0px 0px 0px 3px/);
       expect(await clippedRing(focused), name).toEqual([]);
     }
   });

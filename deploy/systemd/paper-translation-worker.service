@@ -2,7 +2,7 @@
 # throw-away Docker containers (TeX; see deploy/translation/), so it runs as root
 # and needs Docker. Skip it if you do not use that feature.
 [Unit]
-Description=Zhijian translation worker
+Description=Open Paper Reader translation worker
 After=network-online.target docker.service paper-platform.service
 Requires=docker.service
 

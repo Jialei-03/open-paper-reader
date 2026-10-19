@@ -110,7 +110,7 @@ export function ProductSite({ path }: { path: string }) {
         <a href="#home" className={styles.brand}>
           <img
             className={styles.mark}
-            src="/assets/icons/zhijian-book-v5.svg"
+            src="/assets/icons/opr-mark.svg"
             alt=""
           />
           Open Paper Reader

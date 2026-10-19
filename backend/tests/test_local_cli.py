@@ -84,3 +84,16 @@ def test_start_answer_and_stop(tmp_path):
         assert (data / name).exists(), name
         with (data / name).open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def test_a_container_with_only_the_built_frontend_serves_it(tmp_path, monkeypatch):
+    from backend.local import paths
+
+    monkeypatch.delenv("OPR_FRONTEND_DIR", raising=False)
+    (tmp_path / "frontend" / "dist").mkdir(parents=True)
+    monkeypatch.setattr(paths, "CHECKOUT", tmp_path)
+    monkeypatch.setattr(paths, "BUNDLE", tmp_path / "bundle")
+    # No dist yet: the wheel's copy.
+    assert paths.frontend_dir() == tmp_path / "bundle" / "frontend"
+    (tmp_path / "frontend" / "dist" / "index.html").write_text("<div id=\"root\"></div>")
+    assert paths.frontend_dir() == tmp_path / "frontend"

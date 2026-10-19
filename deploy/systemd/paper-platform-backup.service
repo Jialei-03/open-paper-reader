@@ -2,7 +2,7 @@
 # whatever was running). ExecStopPost restarts them even if the backup is killed.
 # Install deploy/backup_production.py as /srv/paper-platform/ops/backup.py.
 [Unit]
-Description=Consistent local Zhijian backup
+Description=Consistent local Open Paper Reader backup
 After=docker.service
 
 [Service]

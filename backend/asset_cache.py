@@ -16,7 +16,7 @@ STATIC_FOLDERS = (
     "/assets/fonts/",
     "/assets/icons/",
     "/assets/pdfjs/",
-    "/assets/showcase/",
+    "/assets/site/",
 )
 
 

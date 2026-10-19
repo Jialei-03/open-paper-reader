@@ -1,5 +1,5 @@
 [Unit]
-Description=Zhijian automatic paper preparation
+Description=Open Paper Reader automatic paper preparation
 After=network-online.target paper-platform.service
 
 [Service]
