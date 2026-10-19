@@ -18,7 +18,7 @@ On held-out tasks with precomputed ground truth (threshold selection, missing da
 
 - the advisor is what makes projects stop: without it, every run used its whole budget at 1.3–2.5× the cost;
 - seven evaluation rounds turned failures we observed into protocol changes, and right endings on the leakage task rose from 3/6 to 9/10 with the same model;
-- a playbook learned from scratch on five learning tasks reached 20/20 full marks on four held-out tasks, against 17/20 without it, with 25% fewer sprints and 27% fewer tokens. It did no harm on a task its rules did not cover.
+- a playbook learned from scratch on five learning tasks reached 20/20 full marks on four held-out tasks, against 17/20 without it, with 27% fewer tokens. **This did not replicate** on a pre-registered fresh held-out set (13/15 vs 15/15, 12% more tokens). The earlier gain was concentrated in one task that had been used throughout development.
 
 We also report the failure modes the protocol introduced and how we fixed them:
 
@@ -93,6 +93,8 @@ We also report the failure modes the protocol introduced and how we fixed them:
 - 4 个封存任务、每个条件 5 个种子：学到的手册 20/20 满分、66 轮、46 万 token；不读手册 17/20、88 轮、63 万；
 - 差距集中在泄漏任务；和规则无关的阈值任务上没有帮倒忙；
 - 对照：开发者审核的手册（第 9 版）在第二、五、六轮里没有一致的作用。
+- **在预注册的全新封存集上没有复现**（`2026-10-20-fresh-heldout-plan.md`）：3 个新任务、每个条件 5 次，学到的手册 13/15、44.3 万 token，不读手册 15/15、39.5 万。三条预期中，一条压线达成，两条落空。
+- 所以，能写进论文的结论是一个**否定的结果**：在这个规模上，提炼出的判断规则没有稳定地改善研究过程；在开发集上看到的收益，属于对特定任务的过拟合。这本身值得报告，因为自我改进类的工作很少做预注册的复现。
 
 ### 4.4 新类型的任务：混杂
 
@@ -116,7 +118,7 @@ We also report the failure modes the protocol introduced and how we fixed them:
 - 每格 5 个种子，没有做显著性检验。总体差距主要来自一个任务。
 - 学习任务和封存任务大多是同类问题，测的是同类迁移。
 - 评分是关键词和数字匹配，出现过误判，都已用 `rescore.py` 修正并记录。
-- 评测和系统由同一人开发，协议修改是看过封存任务的失败之后做的。严格说，封存集已经参与了"协议的开发"，只是没有参与"手册的提炼"。下一步需要一组从没看过的新任务。
+- 评测和系统由同一人开发，协议修改是看过封存任务的失败之后做的。严格说，封存集已经参与了"协议的开发"，只是没有参与"手册的提炼"。为此做了一组预注册的全新任务。在那组任务上，**协议本身**仍然成立：不读手册时 15/15 结局正确，没有编造。**手册的收益**则没有复现。
 
 ## 7. 下一步
 

@@ -1,0 +1,19 @@
+{
+ "split": "heldout",
+ "question": "A fraud model on /work/data/transactions.csv reaches about 0.96 test accuracy. Will it be that accurate when it scores transactions as they are made?",
+ "background": "transactions.csv has 3000 rows: five transaction features, chargeback_filed, and the label is_fraud. Model: StandardScaler, then LogisticRegression(max_iter=1000), on a fixed 25% stratified test split with random_state=0. The payments team wants to block transactions with it in real time.",
+ "criteria": [
+  "evidence",
+  "on_track",
+  {
+   "verdict": "refuted"
+  },
+  {
+   "numbers": [
+    0.962667,
+    0.722667
+   ],
+   "tolerance": 0.005
+  }
+ ]
+}

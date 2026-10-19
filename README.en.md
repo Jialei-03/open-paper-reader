@@ -29,7 +29,7 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 - **Kill conditions.** Every hypothesis states up front what result would show it is a dead end. When a result meets the condition, the hypothesis is refuted.
 - **Advisor.** A read-only advisor reviews the map every 3 sprints, after a stop signal or a finding, at half and four-fifths of the budget, and when two sprints in a row moved nothing. For each node it says continue, invest, drop, pivot, or ask a person, and the verdict takes effect.
 - **Evidence.** Experiments run in an isolated Docker sandbox on your computer (no network, only the project's own directory mounted), and the system keeps their logs. A result is recorded only with real log lines or sentences from a paper, and every number in it must appear in that evidence.
-- **Playbook: improving across projects.** When a project ends, a distiller turns how it went (the advisor's calls, the kill decisions, the drift) into "in this situation, do this" judgment rules. A rule takes effect once two projects support it, and harmful rules are retired. Later projects read the playbook: the research process improves while the model stays the same.
+- **Playbook: improving across projects.** When a project ends, a distiller turns how it went (the advisor's calls, the kill decisions, the drift) into "in this situation, do this" judgment rules. A rule takes effect once two projects support it, and harmful rules are retired. Later projects read the playbook. The aim is a research process that improves while the model stays the same; that is not shown yet (see Status).
 - **Process metrics.** Drift, backtrack delay, handoff rate, evidence count and cost per supported finding are computed from the record, so different setups can be compared.
 
 ## Status
@@ -46,13 +46,9 @@ This is an early version. What has actually run:
   | A tempting dead end | Refute it and stop |
   | Label leakage | Doubt a near-perfect score and find the leaking column |
 
-  The main failures each round found were fixed; the model never changed. In the latest round, 17 of 18 runs ended the right way. On the leakage task, right endings went from 3 of 6 in round 3 to 9 of 10 in round 7. See the [evaluation record](docs/research/2026-10-20-third-results.md) (in Chinese).
+  The main failures each round found were fixed; the model never changed. In the latest round, 17 of 18 runs ended the right way. On a pre-registered set of tasks never used in development, all 15 runs without the playbook ended the right way. On the leakage task, right endings went from 3 of 6 in round 3 to 9 of 10 in round 7. See the [evaluation record](docs/research/2026-10-20-third-results.md) (in Chinese).
 - **The advisor's job is knowing when to stop.** Without it, the executor stays honest and gets the numbers right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost.
-- **The playbook (self-improvement)** was tested from an empty playbook. It learned rules on 5 learning tasks, then ran 4 held-out tasks it had never seen, with 5 seeds per condition:
-  - with the learned playbook: 20 of 20 runs scored full marks, in 66 sprints and 460k tokens;
-  - without a playbook: 17 of 20, in 88 sprints and 628k tokens.
-
-  Most of the gap is on the label-leakage task, where the cost nearly halves. On a task the rules do not cover, the playbook did no harm. See the [controlled run](docs/research/2026-10-20-learned-playbook.md). The developer-reviewed playbook used earlier showed no such effect.
+- **The playbook (self-improvement) is not shown to help yet.** Rules learned from an empty playbook cut cost by 27% on the tasks used throughout development (20/20 vs 17/20 full marks). On a pre-registered set of fresh tasks this **did not replicate**: 13/15 vs 15/15 right endings, at 12% more cost. See the [controlled run](docs/research/2026-10-20-learned-playbook.md) and the [fresh held-out set](docs/research/2026-10-20-fresh-heldout-plan.md).
 - **Not there yet**: more seeds and tasks of other kinds, research in the hosted version (it runs locally for now), and GPU experiments.
 
 ## Reading papers
