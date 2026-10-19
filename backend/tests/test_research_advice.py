@@ -290,7 +290,7 @@ def test_a_no_answer_ends_refuted_whatever_the_status_says(world):
             "verdicts": [verdict(ids.hyp, "continue")],
             "conclude": {
                 "status": "concluded",
-                "answer": "no",
+                "answer_to_question": "no",
                 "summary": "No: leakage",
             },
         },

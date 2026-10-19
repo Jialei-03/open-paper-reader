@@ -194,8 +194,8 @@ def apply(d, project, sprint, args):
     concluded = False
     conclusion = args.get("conclude")
     if conclusion and conclusion.get("status") in {"concluded", "refuted"}:
-        answer = conclusion.get("answer")
-        if answer in {"yes", "no", "other"}:
+        answer = conclusion.get("answer_to_question")
+        if answer in {"yes", "no", "not_yes_no"}:
             conclusion = {
                 **conclusion,
                 "status": "refuted" if answer == "no" else "concluded",

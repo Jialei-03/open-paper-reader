@@ -236,10 +236,10 @@ RESEARCH_TOOLS.append(
                         "enum": ["concluded", "refuted", "blocked"],
                     },
                     # The answer decides between concluded and refuted: a label is easy to pick wrong.
-                    "answer": {
+                    "answer_to_question": {
                         "type": "string",
-                        "enum": ["yes", "no", "other"],
-                        "description": "北极星问题的答案：是非题答是填 yes、答否填 no；问多少、哪个、怎样的问题填 other",
+                        "enum": ["yes", "no", "not_yes_no"],
+                        "description": "对北极星问题原文的直接回答，不是'问题有没有答完'。问题问'X 能不能/是不是/会不会……'：结论是肯定的填 yes，是否定的填 no。问题问多少、哪个、怎样，填 not_yes_no",
                     },
                     "summary": {"type": "string", "maxLength": 2000},
                 },
