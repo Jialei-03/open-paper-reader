@@ -56,7 +56,7 @@ export function useLinkedPanes({
     const count = from === "original" ? pages.translated : pages.original;
     if (count < 1) return;
     const index = Math.min(count - 1, Math.max(0, Math.floor(position)));
-    target.scrollToPage(index + 1, position - index);
+    target.scrollToPage(index + 1, position - index, { follow: true });
     echoes.current.set(target.root, {
       top: target.root.scrollTop,
       until: performance.now() + ECHO_MS,

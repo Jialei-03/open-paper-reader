@@ -40,16 +40,40 @@ const NEAR = "800px";
 /** At most this many device pixels per page (about 4000 × 4000): a high zoom sharpens no further. */
 const MAX_PIXELS = 16_000_000;
 
+/** A page's text is laid out when the page is this close to the view (about a screen). */
+const CLOSE = "100%";
+/** The view must have been still this long before pages' text is laid out. */
+const SETTLE_MS = 150;
+
 /**
  * One IntersectionObserver for all the pages of a document: it tells each page
- * whether it is near enough the view to be drawn. Pages may start watching
- * before the scroller is connected; they are observed once it is.
+ * whether it is near enough the view to be drawn (`watch`), and whether it is
+ * close enough to be worth laying its text out (`close`). Pages may start
+ * watching before the scroller is connected; they are observed once it is.
+ *
+ * Laying out a page's text is the costly part of showing a page (pdf.js
+ * measures every run of text), so it waits for the scrolling to settle and is
+ * done one page at a time, in the browser's idle time (`defer`).
  */
 export class PageWatcher {
   private callbacks = new Map<Element, (near: boolean) => void>();
+  private closeCallbacks = new Map<Element, (close: boolean) => void>();
   private observer: IntersectionObserver | null = null;
+  private closeObserver: IntersectionObserver | null = null;
+  private root: Element | null = null;
+  private lastScroll = 0;
+  private queue: (() => void)[] = [];
+  private timer = 0;
+  private idleHandle = 0;
+  private forced = new Map<number, () => void>();
+
+  private onScroll = () => {
+    this.lastScroll = performance.now();
+  };
 
   connect(root: Element) {
+    this.root = root;
+    root.addEventListener("scroll", this.onScroll, { passive: true });
     this.observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries)
@@ -57,12 +81,28 @@ export class PageWatcher {
       },
       { root, rootMargin: NEAR },
     );
+    this.closeObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries)
+          this.closeCallbacks.get(entry.target)?.(entry.isIntersecting);
+      },
+      { root, rootMargin: `${CLOSE} 0px` },
+    );
     for (const element of this.callbacks.keys()) this.observer.observe(element);
+    for (const element of this.closeCallbacks.keys())
+      this.closeObserver.observe(element);
   }
 
   disconnect() {
+    this.root?.removeEventListener("scroll", this.onScroll);
+    this.root = null;
     this.observer?.disconnect();
     this.observer = null;
+    this.closeObserver?.disconnect();
+    this.closeObserver = null;
+    window.clearTimeout(this.timer);
+    this.timer = 0;
+    this.cancelIdle();
   }
 
   watch(element: Element, onChange: (near: boolean) => void): () => void {
@@ -72,6 +112,64 @@ export class PageWatcher {
       this.callbacks.delete(element);
       this.observer?.unobserve(element);
     };
+  }
+
+  /** Whether the page is within about a screen of the view. */
+  close(element: Element, onChange: (close: boolean) => void): () => void {
+    this.closeCallbacks.set(element, onChange);
+    this.closeObserver?.observe(element);
+    return () => {
+      this.closeCallbacks.delete(element);
+      this.closeObserver?.unobserve(element);
+    };
+  }
+
+  /** Runs `task` once the view has been still a moment, in idle time, one task a slot. */
+  defer(task: () => void): () => void {
+    this.queue.push(task);
+    this.pump();
+    return () => {
+      const at = this.queue.indexOf(task);
+      if (at >= 0) this.queue.splice(at, 1);
+    };
+  }
+
+  private cancelIdle() {
+    if (!this.idleHandle) return;
+    if (typeof cancelIdleCallback === "function")
+      cancelIdleCallback(this.idleHandle);
+    else window.clearTimeout(this.idleHandle);
+    this.idleHandle = 0;
+  }
+
+  private pump() {
+    if (this.timer || this.idleHandle || !this.queue.length) return;
+    const wait = Math.max(0, SETTLE_MS - (performance.now() - this.lastScroll));
+    this.timer = window.setTimeout(() => {
+      this.timer = 0;
+      if (performance.now() - this.lastScroll < SETTLE_MS) return this.pump();
+      const run = () => {
+        this.idleHandle = 0;
+        this.queue.shift()?.();
+        this.pump();
+      };
+      this.idleHandle =
+        typeof requestIdleCallback === "function"
+          ? requestIdleCallback(run, { timeout: 400 })
+          : window.setTimeout(run, 16);
+    }, wait);
+  }
+
+  /** A page whose text is wanted at once (a jump, a find, a selection), without waiting for the view to settle. */
+  onForce(page: number, build: () => void): () => void {
+    this.forced.set(page, build);
+    return () => {
+      if (this.forced.get(page) === build) this.forced.delete(page);
+    };
+  }
+
+  force(page: number) {
+    this.forced.get(page)?.();
   }
 }
 
@@ -112,6 +210,8 @@ export interface PdfPageViewProps {
   /** The page's width at scale 1 (what "fit to width" divides by). */
   nativeWidth: number;
   watcher: PageWatcher;
+  /** The text is not laid out until something asks for it (the pointer on the page). */
+  lazy?: boolean;
   retention: PdfRenderRetention;
   /** The page's own size at scale 1, once it is known (the list guessed it from the first page until then). */
   onSize(page: number, size: PageSize): void;
@@ -134,6 +234,7 @@ export const PdfPageView = memo(function PdfPageView({
   scale,
   nativeWidth,
   watcher,
+  lazy = false,
   retention,
   onSize,
   overlays,
@@ -148,6 +249,10 @@ export const PdfPageView = memo(function PdfPageView({
   const [near, setNear] = useState(false);
   const [pdfPage, setPdfPage] = useState<PDFPageProxy | null>(null);
   const [textReady, setTextReady] = useState(false);
+  /** The page is within a screen of the view, and its text may be laid out once the view is still. */
+  const [close, setClose] = useState(false);
+  /** The text is to be laid out: the page was close and the view still, or something asked for it. */
+  const [wantText, setWantText] = useState(false);
   /** The scale of the canvas on screen; 0 while there is none. */
   const [drawnAt, setDrawnAt] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -174,6 +279,34 @@ export const PdfPageView = memo(function PdfPageView({
       retention.remove(node);
     };
   }, [watcher, retention]);
+
+  const wantNow = useRef(setWantText);
+  const lazyNow = useRef(lazy);
+  lazyNow.current = lazy;
+  // Close to the view: its text will be wanted when the view is still.
+  useEffect(() => {
+    const node = element.current!;
+    const stopClose = watcher.close(node, setClose);
+    const stopForce = watcher.onForce(page, () => {
+      if (!lazyNow.current) wantNow.current(true);
+    });
+    return () => {
+      stopClose();
+      stopForce();
+    };
+  }, [watcher, page]);
+  const wasNear = useRef(false);
+  useEffect(() => {
+    if (!near) {
+      // Let the text go only once the page has been near and is not; a request before it came is kept.
+      if (wasNear.current) setWantText(false);
+      wasNear.current = false;
+      return;
+    }
+    wasNear.current = true;
+    if (!close || wantText || !pdfPage || lazy) return;
+    return watcher.defer(() => setWantText(true));
+  }, [near, close, wantText, pdfPage, watcher, lazy]);
 
   // The page itself, the first time it is needed; its real size goes to the list.
   useEffect(() => {
@@ -254,16 +387,17 @@ export const PdfPageView = memo(function PdfPageView({
     };
   }, []);
 
-  // The text layer, made once while the page is drawn; zooming rescales it in place.
+  // The text layer, made once its page is wanted (not for every page near the view); zooming rescales it in place.
   useEffect(() => {
-    if (!near || !pdfPage) return;
+    if (!near || !pdfPage || !wantText) return;
     const container = text.current!;
     let cancelled = false;
     let built: TextLayer | undefined;
     (async () => {
+      // A stream: pdf.js lays the text out as it comes in, in pieces, not in one long task.
       const [{ TextLayer }, content] = await Promise.all([
         import("pdfjs-dist"),
-        pdfPage.getTextContent(),
+        pdfPage.streamTextContent(),
       ]);
       if (cancelled) return;
       const viewport = pdfPage.getViewport({ scale: currentScale.current });
@@ -287,7 +421,7 @@ export const PdfPageView = memo(function PdfPageView({
       container.removeAttribute("style");
       setTextReady(false);
     };
-  }, [near, pdfPage]);
+  }, [near, pdfPage, wantText]);
 
   // Before the frame is painted, so the text never stands at the old scale over the new page.
   useLayoutEffect(() => {
@@ -325,8 +459,12 @@ export const PdfPageView = memo(function PdfPageView({
       ref={element}
       className={styles.page}
       data-page={page}
-      data-rendered={rendered}
+      // A pane that waits for the pointer before laying its text out is drawn when its canvas is.
+      data-rendered={
+        rendered || (lazy && near && !wantText && drawnAt === scale)
+      }
       data-scale={scale}
+      onPointerEnter={wantText ? undefined : () => setWantText(true)}
       data-native-width={nativeWidth}
       role="group"
       aria-label={t("reader.pdf.page", { page })}
