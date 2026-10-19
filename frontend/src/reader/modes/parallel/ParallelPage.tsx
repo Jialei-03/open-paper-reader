@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { Button, Spinner } from "../../../ui";
 import type { Parallel, ParallelParagraph } from "./useParallelTranslation";
@@ -22,7 +22,7 @@ export interface ParallelPageProps {
  * says why, and can be translated again. Under the pointer, a sentence asks for
  * its original to be marked on the page.
  */
-export function ParallelPage({
+export const ParallelPage = memo(function ParallelPage({
   parallel,
   page,
   onHoverQuote,
@@ -166,4 +166,4 @@ export function ParallelPage({
       {!parallel.noModel && body}
     </div>
   );
-}
+});

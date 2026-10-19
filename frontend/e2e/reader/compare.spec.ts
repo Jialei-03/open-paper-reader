@@ -231,6 +231,8 @@ test("text is selected in either pane for the menu; the original's highlights", 
     ["original", "Page 1 of", true],
     ["translated", "Translated copy", false],
   ] as const) {
+    // The translation lays its text out once the pointer is in the pane.
+    await pane(page, which).hover();
     const line = sheet(page, which, 1).locator(".textLayer span", {
       hasText: text,
     });
@@ -310,4 +312,15 @@ test("a narrow window shows one at a time, with a switch", async ({ page }) => {
     paper.fileId,
   );
   await expect(page.locator(".opr-pdf")).toHaveCount(1);
+});
+
+test("the translation pane lays its text out only once the pointer is in it", async ({
+  page,
+}) => {
+  await open(page);
+  const text = sheet(page, "translated", 1).locator(".textLayer span");
+  await page.waitForTimeout(800);
+  await expect(text).toHaveCount(0);
+  await pane(page, "translated").hover();
+  await expect(text.first()).toBeVisible();
 });

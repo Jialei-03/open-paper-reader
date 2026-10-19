@@ -458,6 +458,7 @@ function PaperBody({
                 onRegionMode: overlays.onRegionMode,
               }}
               translated
+              lazyText
             />
           ) : translatedDocument.error ? (
             <div className={styles.state}>

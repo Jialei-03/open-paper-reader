@@ -38,7 +38,12 @@ export type PdfZoom = "auto" | "fit" | number;
  */
 export type PdfController = {
   /** Scroll so that the page's top (or `offset`, a fraction of its height, below it) is just under the top. */
-  scrollToPage(page: number, offset?: number): void;
+  scrollToPage(
+    page: number,
+    offset?: number,
+    /** `follow`: the scroll only keeps this pane in step with another; it does not lay out the page's text at once. */
+    options?: { follow?: boolean },
+  ): void;
   /** Where the reading is: the page under the top (from 0) plus how far down it is, e.g. 11.25. */
   position(): number;
   zoomIn(): void;
@@ -66,6 +71,11 @@ export interface PdfPagesProps {
     element: HTMLDivElement | null,
     rendered: boolean,
   ) => void;
+  /**
+   * Lay the pages' text out only once the pointer has come into the pages (or
+   * been pressed on them): for a pane that is mostly watched, not read.
+   */
+  lazyText?: boolean;
   /** A page has been drawn: its canvas and its text. */
   onPageRendered?: (page: number) => void;
   /**
@@ -148,6 +158,7 @@ export function PdfPages({
   onPageRendered,
   pageAside,
   onVisiblePages,
+  lazyText,
 }: PdfPagesProps) {
   const { t } = useI18n();
   const root = useRef<HTMLDivElement>(null);
@@ -163,6 +174,8 @@ export function PdfPages({
   const [first, setFirst] = useState<PageSize | null>(null);
   const sizes = useRef<(PageSize | undefined)[]>([]);
   const [measured, setMeasured] = useState(0);
+  /** A lazy pane has had the pointer in it: its pages may lay their text out. */
+  const [engaged, setEngaged] = useState(false);
   const retention = useMemo(() => new PdfRenderRetention(KEEP), []);
   const watcher = useMemo(() => new PageWatcher(), []);
 
@@ -285,7 +298,11 @@ export function PdfPages({
     onPageChangeNow.current(number);
   };
 
-  const scrollToPage = (target: number, offset = 0) => {
+  const scrollToPage = (
+    target: number,
+    offset = 0,
+    options?: { follow?: boolean },
+  ) => {
     const number = clamp(Math.floor(target) || 1, 1, doc.numPages);
     const fraction = clamp(offset, 0, 0.9999);
     // A zoom still settling must not pull the view back where it was.
@@ -298,6 +315,8 @@ export function PdfPages({
       return;
     }
     hold.current = { page: number, offset: fraction, top };
+    // A jump is made to what is on the page: its text is laid out now, not once the view is still.
+    if (!options?.follow) watcher.force(number);
     report(number);
   };
 
@@ -508,8 +527,8 @@ export function PdfPages({
   useImperativeHandle(
     controllerRef,
     () => ({
-      scrollToPage: (target, offset) =>
-        actions.current.scrollToPage(target, offset),
+      scrollToPage: (target, offset, options) =>
+        actions.current.scrollToPage(target, offset, options),
       position: () => actions.current.position(),
       zoomIn: () => {
         hold.current = null;
@@ -566,6 +585,7 @@ export function PdfPages({
           scale={scale}
           nativeWidth={native.width}
           watcher={watcher}
+          lazy={Boolean(lazyText) && !engaged}
           retention={retention}
           onSize={onSize}
           overlays={pageOverlays}
@@ -597,6 +617,8 @@ export function PdfPages({
       role="region"
       aria-label={t("reader.pdf.region")}
       onScroll={scheduleTrack}
+      onPointerEnter={lazyText && !engaged ? () => setEngaged(true) : undefined}
+      onPointerDown={lazyText && !engaged ? () => setEngaged(true) : undefined}
     >
       {/* During a pinch the pages are scaled as they are; they are drawn anew once it ends. */}
       <div
