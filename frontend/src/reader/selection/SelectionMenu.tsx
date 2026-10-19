@@ -19,6 +19,7 @@ import {
 import { serviceWords } from "../service-error";
 import type { AskRequest, ReaderAction } from "../types";
 import { outOfView, selectionSpot, spotRect, type PageSpot } from "./anchor";
+import { OPEN_HIGHLIGHT } from "../highlights/HighlightPopover";
 import { TranslatePopover } from "./TranslatePopover";
 
 /** What is kept in the note: the selection, and its translation when it comes from the translation. */
@@ -62,12 +63,19 @@ function typing(target: EventTarget | null): boolean {
   );
 }
 
-type Action = "explain" | "translate" | "highlight" | "note" | "ask";
+type Action =
+  | "explain"
+  | "translate"
+  | "highlight"
+  | "comment"
+  | "note"
+  | "ask";
 
 const shortcuts: [Action, string][] = [
   ["explain", "e"],
   ["translate", "t"],
   ["highlight", "h"],
+  ["comment", "c"],
   ["note", "n"],
   ["ask", "enter"],
 ];
@@ -103,7 +111,8 @@ export function SelectionMenu({
   } | null>(null);
   const [highlightFailed, setHighlightFailed] = useState(false);
   // Highlights asked for while one is still being saved wait their turn (the store takes one at a time).
-  const highlights = useRef<PdfSelection[]>([]);
+  // What waits to be highlighted, and whether its comment is to be written then.
+  const highlights = useRef<{ value: PdfSelection; comment: boolean }[]>([]);
   const highlighting = useRef(false);
   const [turn, setTurn] = useState(0);
   const layer = useRef<HTMLDivElement>(null);
@@ -240,19 +249,26 @@ export function SelectionMenu({
   // The next highlight waiting, once the store has let go of the last (and is drawn with that).
   useEffect(() => {
     if (highlighting.current || annotations.busy) return;
-    const value = highlights.current.shift();
-    if (!value) return;
+    const next = highlights.current.shift();
+    if (!next) return;
     highlighting.current = true;
     void annotations
-      .add(value, annotationColors[0].value, "")
+      .add(next.value, annotationColors[0].value, "")
       .then((saved) => {
-        if (saved)
+        if (!saved) setHighlightFailed(true);
+        // Its card opens on the comment, to be written now.
+        else if (next.comment && saved[0])
+          window.dispatchEvent(
+            new CustomEvent(OPEN_HIGHLIGHT, {
+              detail: { id: saved[0].id, comment: true },
+            }),
+          );
+        else
           toast.show({
             message: t("reader.selection.highlighted"),
             tone: "success",
             duration: 2000,
           });
-        else setHighlightFailed(true);
       })
       .finally(() => {
         highlighting.current = false;
@@ -278,12 +294,12 @@ export function SelectionMenu({
     const where = spot;
     const rect = anchor;
     if (!value || !where || !rect) return;
-    if (action === "highlight" && noHighlight) {
+    if ((action === "highlight" || action === "comment") && noHighlight) {
       toast.show({ message: noHighlight });
       return;
     }
     close();
-    if (action === "highlight") {
+    if (action === "highlight" || action === "comment") {
       // The service keeps the lines of at most 64 per page: said before asking, and the selection stays to be cut.
       if (
         (value.parts ?? [value]).some((part) => part.rects.length > MAX_RECTS)
@@ -296,7 +312,7 @@ export function SelectionMenu({
       }
       // The selection gives way to the highlight drawn in its place.
       window.getSelection()?.removeAllRanges();
-      highlights.current.push(value);
+      highlights.current.push({ value, comment: action === "comment" });
       setTurn((count) => count + 1);
       return;
     }
@@ -350,6 +366,7 @@ export function SelectionMenu({
     explain: t("reader.selection.explain"),
     translate: t("reader.selection.translate"),
     highlight: t("reader.selection.highlight"),
+    comment: t("reader.selection.comment"),
     note: t("reader.selection.note"),
     ask: t("reader.selection.ask"),
   };
@@ -357,7 +374,7 @@ export function SelectionMenu({
     id: action,
     label: labels[action],
     shortcut,
-    ...(action === "highlight" && noHighlight
+    ...((action === "highlight" || action === "comment") && noHighlight
       ? { disabled: true, hint: noHighlight }
       : {}),
     onSelect: () => run(action),

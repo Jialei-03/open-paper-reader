@@ -168,7 +168,8 @@ export function usePdfAnnotations(fileId: string) {
           return false;
         }
       }
-      return true;
+      // What was made, one per page it touches (true-ish for the callers that only ask whether).
+      return created;
     },
     update: (row: PdfAnnotation, color: string, comment: string) =>
       mutate(row.id, { revision: row.revision, color, comment }, "PATCH"),

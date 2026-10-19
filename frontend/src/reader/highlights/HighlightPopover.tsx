@@ -1,5 +1,5 @@
 import { Check, NotebookPen, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { annotationColors } from "../../features/PdfAnnotations";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
@@ -12,6 +12,12 @@ import {
 import styles from "./HighlightPopover.module.css";
 
 const COLOR_NAMES = ["yellow", "green", "blue", "pink", "red"] as const;
+
+/**
+ * Asks the card of a highlight to open (`detail: { id, comment }`): a highlight
+ * just made from the selection menu's "comment", opened on its comment field.
+ */
+export const OPEN_HIGHLIGHT = "opr-open-highlight";
 
 export interface HighlightPopoverProps {
   /** The pages' scroller, where a click on a highlight is listened for. */
@@ -37,7 +43,11 @@ function highlightAt(sheet: HTMLElement, x: number, y: number) {
     ),
   );
   const element = found.at(-1);
-  if (!element) return null;
+  return element ? placed(element) : null;
+}
+
+/** Where a highlight drawn on the page is, as the card's anchor. */
+function placed(element: HTMLElement) {
   const boxes = [...element.querySelectorAll("[data-annotation-rect]")].map(
     (rect) => rect.getBoundingClientRect(),
   );
@@ -68,6 +78,9 @@ export function HighlightPopover({
   const { t } = useI18n();
   const [open, setOpen] = useState<{ id: string; anchor: Rect } | null>(null);
   const [comment, setComment] = useState("");
+  const field = useRef<HTMLTextAreaElement>(null);
+  // Opened to write its comment: the field takes the keyboard.
+  const [writing, setWriting] = useState(false);
   const row = open ? store.rows.find((item) => item.id === open.id) : undefined;
 
   useEffect(() => {
@@ -90,15 +103,32 @@ export function HighlightPopover({
       if (!sheet) return;
       const hit = highlightAt(sheet, event.clientX, event.clientY);
       if (!hit) return;
+      setWriting(false);
       setOpen(hit);
     };
-    // A highlight scrolled away takes its card with it.
-    const scroll = () => setOpen(null);
+    const asked = (event: Event) => {
+      const { id, comment } = (
+        event as CustomEvent<{ id: string; comment: boolean }>
+      ).detail;
+      // Once it is drawn on its page.
+      requestAnimationFrame(() => {
+        const element = scroller.querySelector<HTMLElement>(
+          `[data-annotation-id="${CSS.escape(id)}"]`,
+        );
+        if (!element) return;
+        setWriting(comment);
+        setOpen(placed(element));
+      });
+    };
+    window.addEventListener(OPEN_HIGHLIGHT, asked);
+    // A highlight scrolled away takes its card with it (and what was typed is kept).
+    const scroll = () => closeNow.current();
     scroller.addEventListener("click", click);
     scroller.addEventListener("scroll", scroll, { passive: true });
     return () => {
       scroller.removeEventListener("click", click);
       scroller.removeEventListener("scroll", scroll);
+      window.removeEventListener(OPEN_HIGHLIGHT, asked);
     };
   }, [scroller, disabled]);
 
@@ -115,8 +145,22 @@ export function HighlightPopover({
     if (open && !row) setOpen(null);
   }, [open, row]);
 
-  const close = () => setOpen(null);
+  // Opened to write the comment: the field takes the keyboard once the card is placed.
+  const shown = !!open && !!row;
+  useEffect(() => {
+    if (!shown || !writing) return;
+    const frame = requestAnimationFrame(() => field.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [shown, writing, openId]);
+
   const changed = row ? comment.trim() !== row.comment.trim() : false;
+  // A comment typed is never lost: closing the card (Escape, a press elsewhere) keeps it.
+  const closeNow = useRef(() => {});
+  const close = () => {
+    if (row && changed) void store.update(row, row.color, comment.trim());
+    setOpen(null);
+  };
+  closeNow.current = close;
 
   return (
     <Floating
@@ -158,6 +202,7 @@ export function HighlightPopover({
             })}
           </div>
           <TextArea
+            ref={field}
             label={t("reader.highlight.comment")}
             hideLabel
             autoGrow
@@ -214,7 +259,8 @@ export function HighlightPopover({
               className={styles.remove}
               disabled={store.busy}
               onClick={() => {
-                close();
+                // Gone with its comment: nothing to keep.
+                setOpen(null);
                 void removeHighlight(store, row, {
                   removed: t("reader.highlight.removed"),
                   undo: t("reader.highlight.undo"),

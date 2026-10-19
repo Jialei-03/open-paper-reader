@@ -216,6 +216,7 @@ export const en = {
   "reader.selection.explain": "Explain",
   "reader.selection.translate": "Translate",
   "reader.selection.highlight": "Highlight",
+  "reader.selection.comment": "Comment",
   "reader.selection.note": "Add to notes",
   "reader.selection.ask": "Ask the assistant",
   "reader.selection.highlighted": "Highlighted",
