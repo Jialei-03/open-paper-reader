@@ -37,7 +37,7 @@ MIN_GAP = {
     "export.arxiv.org": 3.0,
 }
 MAX_PARALLEL = 3
-USER_AGENT = "open-paper-reader/0.2 (+https://github.com/Jialei-03/zhijian)"
+USER_AGENT = "open-paper-reader/0.2 (+https://github.com/Jialei-03/open-paper-reader)"
 
 FIELDS = (
     "title,authors,year,venue,abstract,citationCount,referenceCount,"

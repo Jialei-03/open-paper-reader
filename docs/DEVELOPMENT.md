@@ -7,7 +7,7 @@
 需要 Python 3.13 和 Node.js 22（`.nvmrc`）；CI 和 Docker 镜像用的就是这两个版本，其他版本没有验证过。
 
 ```bash
-git clone https://github.com/Jialei-03/zhijian.git
+git clone https://github.com/Jialei-03/open-paper-reader.git
 cd zhijian
 make install        # 建 .venv，安装后端（含测试依赖）、前端和助手运行时的依赖
 make env            # 没有 .env 时从 .env.example 复制

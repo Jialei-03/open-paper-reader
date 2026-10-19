@@ -1,96 +1,114 @@
-# open-paper-reader
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark-en.png">
+  <img alt="Open Paper Reader: a paper beside its guide, every claim cited to its sentence" src="docs/assets/banner-light-en.png">
+</picture>
 
-**An open-source paper reader with an AI assistant.** Import a PDF or an arXiv link, get an automatic guide, select text to explain or translate it, and ask the assistant. Citations in its answers jump back to the exact sentence in the paper.
+# Open Paper Reader
 
-[简体中文](README.md) · English · [Deployment](docs/DEPLOYMENT.md) · [Features](docs/FEATURES.md) · [All docs](docs/README.md)
+**An open-source paper reader with an AI assistant.** Import a PDF, an arXiv link or any paper URL and get a guide; select a sentence to have it explained, translated or kept in your notes; ask the assistant anything. Every claim in the guide and the answers is cited, and a click takes you to its sentence in the paper.
 
-[![CI](https://github.com/Jialei-03/zhijian/actions/workflows/verify.yml/badge.svg)](https://github.com/Jialei-03/zhijian/actions/workflows/verify.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[简体中文](README.md) · English · [Local build](docs/LOCAL.md) · [Deployment](docs/DEPLOYMENT.md) · [All docs](docs/README.md)
 
-![The reader: paper, guide and assistant side by side](docs/assets/reader.png)
+[![CI](https://github.com/Jialei-03/open-paper-reader/actions/workflows/verify.yml/badge.svg)](https://github.com/Jialei-03/open-paper-reader/actions/workflows/verify.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> The project is being renamed from "Zhijian" to open-paper-reader. The interface and docs are being updated step by step; the repository URL stays for now.
+## What it does
 
-## What it is
+**Read**
+- **Guide**: written right after import (a summary, keywords and a note per section) and shown as it streams in. Each sentence carries a small number; hover it for the sentence it stands on, click it to jump there and see it highlighted.
+- **Key sentences**: the sentences that state what is new, the method, the results and the limits are underlined in the paper, each kind can be hidden.
+- **Select**: explain, translate, highlight, keep in your notes, or ask the assistant about the selected text. Translations are kept, so the same sentence shows its translation at once next time.
+- **Box**: draw a box around a figure, a table or a formula to have it explained, or turn a formula into LaTeX.
+- **Citations**: hover a citation in the text to see the cited paper's title, authors, year, abstract and citation count; preview it or add it to your library in one click.
 
-Reading a paper usually means juggling a PDF viewer, a translator, a notes app and a chat window. open-paper-reader puts them in one window:
+**Ask**
+- **Assistant**: reads the pages you point to, or the whole paper, before answering; each step it took can be expanded. Its answers are cited sentence by sentence too, in the language you asked in.
+- **Question box**: docked under the assistant, or dragged out to float over the paper.
 
-- **Guide**: generated automatically after import, streaming in as it is written.
-- **Selection**: select text to explain it, translate it, highlight it, save it to your notes, or ask the assistant about it.
-- **Assistant**: reads the page you point at, or the whole paper, before answering. Every step (which pages it read, what it searched) can be expanded. Page citations in answers jump to the sentence in the paper and highlight it.
-- **Reading modes**: original, side-by-side paragraph translation, and a layout-preserving translated PDF (experimental).
-- **Notes**: one Markdown note per paper, with the paper's highlights and comments listed below it; click one to jump back to the text.
+**Translate**
+- **Parallel**: each page's translation beside it.
+- **Translated PDF**, two methods, both kept:
+  - **Source recompile**: translates the LaTeX source of an arXiv paper and compiles it, for the best typesetting. If the compile fails, the assistant reads the error and tries to fix it.
+  - **Layout translation**: translates the PDF itself and keeps its layout; works for any PDF (built on BabelDOC).
+- **Side by side**: original and translation next to each other, scrolling page for page.
+
+**Keep**
+- **Notes**: one Markdown note per paper, with its highlights and annotations listed below; guide passages and answers can be kept in it with their citations.
+- **Library**: cards with a first-page thumbnail or a list, sorted by progress, citations and more. A paper's details show venue, DOI and citation count, and copy BibTeX, APA or GB/T 7714, or export a .bib for several papers.
+- **Related and Discover**: a paper's references and the papers citing it; Discover suggests papers from your library and says why.
+- **Any URL**: the import box takes arXiv, publisher pages and direct PDF links; the [browser extension](extension/README.md) opens the page you are on in one click.
 
 ## Principles
 
-- **Local first.** Meant to run on your own computer; papers and notes stay there. No background crawling, no telemetry.
-- **[Pi](https://github.com/earendil-works/pi) is built in** as the assistant. Connect your own API keys (OpenAI-compatible, Anthropic and others) or a local model (Ollama, LM Studio).
-- **Claude Code and Codex are not integrated yet.** The plan for v2 is to expose the reader's abilities (read pages, search full text, read and write notes) as an MCP server so the Claude Code or Codex you already run and sign in to locally can read papers with it. That is a plan only; the current version does not do it. This project is not affiliated with Anthropic or OpenAI.
-- **The cloud version is optional.** The maintainer runs a hosted service ([papers.dougao.online](https://papers.dougao.online)) for people who would rather not install anything. The hosted version only accepts your own API keys; it does not offer subscription-account sign-in.
+- **Local first.** Meant to run on your own computer: papers and notes stay there, no sign-in, no background crawling, no telemetry.
+- **Your own model.** The built-in [Pi](https://github.com/earendil-works/pi) assistant works with API keys from many providers (OpenAI-compatible, Anthropic and more) or with local models (Ollama, LM Studio).
+- **Citations are checked before they are shown.** Every citation in a guide or an answer is looked up in the paper: a wrong page is corrected, and a sentence that is not there is dropped rather than pointing to the wrong place.
+- **Claude Code and Codex are not connected yet.** The plan is an MCP server with the reader's abilities (reading pages, searching the paper, reading and writing notes) so the Claude Code or Codex on your computer can read papers. It is not in this version. This project is not affiliated with Anthropic or OpenAI.
+- **The hosted version is optional.** The maintainer runs one at [papers.dougao.online](https://papers.dougao.online) for people who would rather not install anything; it also uses your own API key.
 
-## Quick start
+## Getting started
 
-One command on your machine (provided from 0.2.0, not released yet; until then use Docker or run from source below):
+### On your own computer
 
 ```bash
-uvx open-paper-reader        # alias: opr
+uvx open-paper-reader        # short name: opr; or pipx install open-paper-reader
 ```
 
-It starts the server locally and opens your browser. On first launch, add a model (an API key or a local model); once the connection test passes you can import papers.
+It starts the service on your computer and opens your browser. Add a model the first time (an API key or a local model); once its connection test passes, import a paper. Layout translation and the LaTeX compiler are installed from Settings the first time you need them. See [Local build](docs/LOCAL.md).
 
-### Self-host with Docker (available now)
+> The 0.2.0 package is not on PyPI yet; until it is, use Docker or the source below.
+
+### With Docker
 
 Needs Docker with Compose v2.24 or newer and about 2 GB of free memory.
 
 ```bash
-git clone https://github.com/Jialei-03/zhijian.git
-cd zhijian
+git clone https://github.com/Jialei-03/open-paper-reader.git
+cd open-paper-reader
 cp .env.example .env
 # Replace POSTGRES_PASSWORD with a random alphanumeric string:
 sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env    # on macOS: sed -i ''
 docker compose up -d --build
 ```
 
-Open <http://localhost:8765>, register the first account, then add a model in Settings. Public deployment, invite-only registration, backups and upgrades are in [Deployment](docs/DEPLOYMENT.md) (currently Chinese).
+Open <http://localhost:8765>, create the first account, and add a model in Settings. Public deployment, invite-only registration, backups and upgrades are in [Deployment](docs/DEPLOYMENT.md).
 
-For safety, a Docker or cloud deployment only calls model services that are HTTPS, public and on an allow-list (see [Configuration](docs/CONFIGURATION.md#模型)). Connecting to a local model is a feature of the local version.
+For safety, a Docker or hosted server only calls model services that are HTTPS, public and on its allow-list (see [Configuration](docs/CONFIGURATION.md)); the local build can use any HTTPS model service and local models.
 
 ### Browser extension
 
-The home import box takes any paper address (arXiv, a publisher page, a direct PDF link). The Chrome / Edge
-extension in [`extension/`](extension/README.md) ("Load unpacked") opens the current page or a PDF link in
-open-paper-reader from the toolbar or the right-click menu, and sends only the address.
+[`extension/`](extension/README.md) holds a Chrome / Edge extension (install with "Load unpacked"): on any page or PDF link, the toolbar button or the context menu opens it in Open Paper Reader. The extension sends only the URL and never reads the page.
 
 ## Development
 
 ```bash
-make install   # .venv + backend, frontend and agent-runtime dependencies
-make db        # database migrations (SQLite by default locally)
+make install   # .venv plus backend, frontend and assistant runtime dependencies
+make db        # database migrations (SQLite by default on your computer)
 make build     # build the frontend
 make run       # http://127.0.0.1:8765
 make worker    # in another terminal: the assistant worker (needs Node.js 22)
-make help      # all commands
+make help      # every command
 ```
 
-See [Development](docs/DEVELOPMENT.md) for the layout, tests and conventions, and [Architecture](docs/ARCHITECTURE.md) for the design. Most of the long-form docs are in Chinese for now.
+Layout, tests and conventions are in [Development](docs/DEVELOPMENT.md); the overall design is in [Architecture](docs/ARCHITECTURE.md).
 
 ## Status and limits
 
-- The new interface is replacing the old one in stages. Knowledge graph, paper discovery, share links and similar features of the old interface do not appear in the new one; existing data is kept.
-- **Check model output yourself.** The assistant, explanations, translations and guides are generated by models. The server verifies that quoted passages really come from the paper, which does not guarantee factual or translation quality.
-- Layout translation is experimental: quality varies by paper, and scanned or formula-heavy pages are not validated.
-- Code execution for the assistant needs a separately deployed sandbox; without one those tools report that they are unavailable.
-- Database migrations are one-way: back up before upgrading.
+- **Check what the model writes.** The assistant, explanations, translations and the guide are model output; citations are checked against the paper, but that does not guarantee facts or translation quality.
+- **Source recompile** needs the paper's LaTeX to compile with XeLaTeX. Common incompatibilities are handled automatically and a failed compile is handed to the assistant to fix; if it still fails, use layout translation. The local build compiles with Tectonic, which lacks a few journal templates that the hosted and Docker builds (full TeX Live) have.
+- **Layout translation** quality varies by paper; scanned papers and formula-heavy pages have not been specifically validated.
+- Code execution for the assistant needs a separately deployed sandbox; without one those tools say they are unavailable.
+- Database migrations go one way: back up before upgrading.
 
 ## Privacy
 
-Your data stays on your machine or server; the author does not receive it. The software contacts external services only for: the model service you configure (it receives the paper content needed for the task), arXiv, Semantic Scholar, Crossref, and quick translation of a selection (sends the selected text to `translate.googleapis.com`; you can block it at the firewall). The full list is in [Architecture](docs/ARCHITECTURE.md#对外的网络访问).
+Your data stays on your own machine or server; the author receives nothing. The program reaches outside services only for: the model service you configure (with the paper content a task needs), arXiv, Semantic Scholar, OpenAlex, Crossref, and the paper URLs you import. Selection translation in the interface uses your configured model; the backend also keeps a quick-translation endpoint, used only when called through the API, which sends text to `translate.googleapis.com`. The full list is in [Architecture](docs/ARCHITECTURE.md).
 
 ## Contributing
 
-Issues and pull requests are welcome; see [CONTRIBUTING](CONTRIBUTING.md). Report security problems privately as described in [SECURITY](SECURITY.md).
+Issues and pull requests are welcome; see [CONTRIBUTING](CONTRIBUTING.md). Please report security issues privately as described in [SECURITY](SECURITY.md).
 
 ## License
 
-[MIT](LICENSE). Third-party licenses are in [NOTICE](NOTICE.md); BabelDOC, used for layout translation, is AGPL-3.0 and only lives in the optional, separately built image.
+[MIT](LICENSE). Third-party licenses are listed in [NOTICE](NOTICE.md); BabelDOC, used by layout translation, is AGPL-3.0 and is installed only when needed, or lives in an optional, separately built image.
 
-Built on [PDF.js](https://github.com/mozilla/pdf.js), [Pi](https://github.com/earendil-works/pi), [BabelDOC](https://github.com/funstory-ai/BabelDOC), [LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans), [TipTap](https://tiptap.dev), [KaTeX](https://katex.org), [FastAPI](https://fastapi.tiangolo.com) and [SQLAlchemy](https://www.sqlalchemy.org).
+Built on the shoulders of [PDF.js](https://github.com/mozilla/pdf.js), [Pi](https://github.com/earendil-works/pi), [BabelDOC](https://github.com/funstory-ai/BabelDOC), [LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans), [Tectonic](https://tectonic-typesetting.github.io), [TipTap](https://tiptap.dev), [KaTeX](https://katex.org), [FastAPI](https://fastapi.tiangolo.com) and [SQLAlchemy](https://www.sqlalchemy.org).

@@ -61,4 +61,4 @@
 - 单机部署：登录限流与共享模型并发限制都在本机进程内。
 - 普通 PDF 的版面翻译为实验性，扫描件和公式密集的页面没有验收。
 
-[0.1.0]: https://github.com/Jialei-03/zhijian/releases/tag/v0.1.0
+[0.1.0]: https://github.com/Jialei-03/open-paper-reader/releases/tag/v0.1.0

@@ -6,9 +6,9 @@ import { useAppearance } from "../ui/theme";
 import { LanguageSwitch } from "./LanguageSwitch";
 import styles from "./product-site.module.css";
 
-export const REPOSITORY = "https://github.com/Jialei-03/zhijian";
+export const REPOSITORY = "https://github.com/Jialei-03/open-paper-reader";
 
-export const INSTALL = "uvx open-paper-reader";
+export const INSTALL = "uvx Open Paper Reader";
 
 const steps = [
   ["import", "01", null],
@@ -86,7 +86,7 @@ export function ProductSite({ path }: { path: string }) {
   const { theme } = useAppearance();
   const root = useReveal();
   useEffect(() => {
-    document.title = `open-paper-reader · ${t("site.hero.title")}`;
+    document.title = `Open Paper Reader · ${t("site.hero.title")}`;
   }, [t]);
   useEffect(() => {
     if (path !== "how") return;
@@ -113,7 +113,7 @@ export function ProductSite({ path }: { path: string }) {
             src="/assets/icons/zhijian-book-v5.svg"
             alt=""
           />
-          open-paper-reader
+          Open Paper Reader
         </a>
         <nav aria-label={t("site.nav")} className={styles.nav}>
           <a href="#how" className={styles.navLink}>
@@ -249,7 +249,7 @@ export function ProductSite({ path }: { path: string }) {
         </section>
       </main>
       <footer className={styles.footer}>
-        <span>open-paper-reader</span>
+        <span>Open Paper Reader</span>
         <span>{t("site.footer")}</span>
       </footer>
     </div>

@@ -1,6 +1,6 @@
-# open-paper-reader 浏览器扩展
+# Open Paper Reader 浏览器扩展
 
-在任何网页或 PDF 链接上，一键用 open-paper-reader 打开。适用于 Chrome、Edge 等
+在任何网页或 PDF 链接上，一键用 Open Paper Reader 打开。适用于 Chrome、Edge 等
 Chromium 内核浏览器（Manifest V3）。纯 JavaScript，无需构建，没有外部依赖。
 
 ## 安装（加载已解压的扩展程序）
@@ -16,7 +16,7 @@ Chromium 内核浏览器（Manifest V3）。纯 JavaScript，无需构建，没�
 ## 使用
 
 - 点工具栏按钮：打开当前页面。
-- 在页面或链接上点右键，选「在 open-paper-reader 中打开」：打开页面，或打开你点的那个链接（比如一个 PDF 链接）。
+- 在页面或链接上点右键，选「在 Open Paper Reader 中打开」：打开页面，或打开你点的那个链接（比如一个 PDF 链接）。
 
 扩展会新开一个标签页 `<服务地址>/#open?url=<网址>`。应用收到后下载这篇论文、显示导入进度，
 然后进入阅读器；已经在文库里的论文直接打开。还没登录在线版时，先走登录，登录后继续。

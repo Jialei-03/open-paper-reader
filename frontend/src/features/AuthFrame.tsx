@@ -25,7 +25,7 @@ export function AuthFrame({
           src="/assets/icons/zhijian-book-v5.svg"
           alt=""
         />
-        open-paper-reader
+        Open Paper Reader
       </a>
       <section className={styles.card}>
         <h1 className={styles.title}>{title}</h1>

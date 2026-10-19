@@ -1,22 +1,21 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdirSync, copyFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { en } from "../src/i18n/messages/en";
 import { zh } from "../src/i18n/messages/zh";
 import { openReader, saveHighlight, signIn } from "./reader/fixtures";
 
 /*
- * Takes the pictures of the reader that the public page and the README show:
+ * Takes the pictures of the reader that the public page shows (the README banner is made from them):
  * the guide, a selection with its menu, the assistant's answer with citations,
  * and 对照 mode, each in light and dark, in both languages.
  * It is not part of the suite: `SITE_SHOTS=1 npx playwright test e2e/site-shots.spec.ts`
- * rewrites frontend/public/assets/site/ and docs/assets/reader.png.
+ * rewrites frontend/public/assets/site/.
  */
 test.skip(!process.env.SITE_SHOTS, "only when the pictures are being remade");
 test.use({ viewport: { width: 1440, height: 900 } });
 
 const OUT = resolve(process.cwd(), "public/assets/site");
-const README = resolve(process.cwd(), "../docs/assets/reader.png");
 
 type Line = { y: number; text: string; size?: number; bold?: boolean };
 
@@ -222,26 +221,27 @@ const COPY = {
       `因为长上下文里真正被反复查找的内容很集中。论文发现，检索头占全部注意力头不到 5%，却承担了大部分查找${link}。只让它们看完整上下文，其余的头只看短窗口，质量下降不到一个点，显存降到四分之一。`,
     cite: "p.1",
     guide: {
+      cited: true,
       keywords: ["长上下文", "检索头", "稀疏注意力"],
       summary: [
         "长文档阅读里，真正被反复查找的内容很集中。",
-        "不到 5% 的注意力头承担了大部分查找，称为检索头。",
-        "只让检索头看完整上下文，质量下降不到一个点，显存降到四分之一。",
+        '不到 5% 的注意力头承担了大部分查找，称为检索头。[[p1: "Retrieval heads account for under 5% of attention heads but carry most of the lookups."]]',
+        '只让检索头看完整上下文，质量下降不到一个点，显存降到四分之一。[[p2: "by a factor of four on the longest inputs."]]',
       ],
       sections: [
         {
           title: "研究问题",
-          body: "长上下文的大部分开销花在查找**从未用到**的文字上。",
+          body: '长上下文的大部分开销花在查找**从未用到**的文字上。[[p1: "text that is never used."]]',
           pages: [1],
         },
         {
           title: "方法",
-          body: "按“是否复制远处的内容”给每个头打分，高分的头组成检索集。",
+          body: '按“是否复制远处的内容”给每个头打分，高分的头组成检索集。[[p2: "Heads above a threshold form the retrieval set."]]',
           pages: [2],
         },
         {
           title: "适用边界",
-          body: "只在英文文本上验证；需要整篇聚合的任务可能要保留更多头。",
+          body: '只在英文文本上验证；需要整篇聚合的任务可能要保留更多头。[[p3: "The retrieval set is found on English text; we have not tested other scripts."]]',
           pages: [3],
         },
       ],
@@ -254,26 +254,27 @@ const COPY = {
       `Because the lookups that long context needs are concentrated. The paper finds that retrieval heads are under 5% of all heads but carry most of the lookups ${link}. Letting only those see the full context, while the rest see a short window, costs under one point of quality and cuts memory fourfold.`,
     cite: "p.1",
     guide: {
+      cited: true,
       keywords: ["long context", "retrieval heads", "sparse attention"],
       summary: [
         "In long documents, the text that gets looked up again and again is concentrated.",
-        "Under 5% of attention heads do most of the lookups: the retrieval heads.",
-        "Letting only them see the full context costs under one point of quality and cuts memory fourfold.",
+        'Under 5% of attention heads do most of the lookups: the retrieval heads.[[p1: "Retrieval heads account for under 5% of attention heads but carry most of the lookups."]]',
+        'Letting only them see the full context costs under one point of quality and cuts memory fourfold.[[p2: "by a factor of four on the longest inputs."]]',
       ],
       sections: [
         {
           title: "The question",
-          body: "Most of the cost of long context goes to looking up text that is **never used**.",
+          body: 'Most of the cost of long context goes to looking up text that is **never used**.[[p1: "text that is never used."]]',
           pages: [1],
         },
         {
           title: "Method",
-          body: "Score each head by how often it copies from far away; the top scorers form the retrieval set.",
+          body: 'Score each head by how often it copies from far away; the top scorers form the retrieval set.[[p2: "Heads above a threshold form the retrieval set."]]',
           pages: [2],
         },
         {
           title: "Limits",
-          body: "Tested on English only; tasks that aggregate the whole document may need more heads.",
+          body: 'Tested on English only; tasks that aggregate the whole document may need more heads.[[p3: "The retrieval set is found on English text; we have not tested other scripts."]]',
           pages: [3],
         },
       ],
@@ -457,7 +458,7 @@ for (const language of ["zh", "en"] as const) {
         return file;
       };
       const pageOne = page.locator('[data-page="1"]');
-      const tab = (key: "guide" | "assistant") =>
+      const tab = (key: "assistant" | "notes") =>
         page
           .getByRole("tablist")
           .getByRole("tab", { name: words[`reader.tab.${key}`] });
@@ -465,7 +466,8 @@ for (const language of ["zh", "en"] as const) {
       // 1. The guide, written for the paper.
       await openReader(page, { paperId, fileId, page: 1 });
       await expect(pageOne).toHaveAttribute("data-rendered", "true");
-      await tab("guide").click();
+      // The guide opens the assistant's view.
+      await tab("assistant").click();
       await expect(page.getByText(copy.guide.summary[0])).toBeVisible();
       await shoot("guide");
 
@@ -496,8 +498,7 @@ for (const language of ["zh", "en"] as const) {
       await expect(pageOne).toHaveAttribute("data-rendered", "true");
       await tab("assistant").click();
       await expect(page.getByText(copy.ask)).toBeVisible();
-      const hero = await shoot("reader");
-      if (language === "en" && theme === "light") copyFileSync(hero, README);
+      await shoot("reader");
 
       // 4. 对照: the translation beside each page.
       await openReader(page, { paperId, fileId, page: 1 });

@@ -742,7 +742,7 @@ export const en = {
     "One paper, three ways to read it. Switch at the top of the reader at any time.",
   "site.open.title": "Open source",
   "site.open.body":
-    "open-paper-reader is open source under the MIT license. To run it yourself, use the command above; if you would rather not install anything, use the hosted version, also with your own key. Chinese and English interface, light and dark.",
+    "Open Paper Reader is open source under the MIT license. To run it yourself, use the command above; if you would rather not install anything, use the hosted version, also with your own key. Chinese and English interface, light and dark.",
   "site.nav.modes": "Reading modes",
   "site.nav.local": "Local-first",
   "site.hero.install": "Run it on your own computer",
@@ -781,7 +781,7 @@ export const en = {
     "Letting the Claude Code or Codex on your machine read papers. Only a plan for now; it is not in the current version.",
   "site.open.source": "View on GitHub",
   "site.footer": "MIT license. Not affiliated with Anthropic or OpenAI.",
-  "login.home": "open-paper-reader home",
+  "login.home": "Open Paper Reader home",
   "login.title": "Welcome back",
   "login.title.register": "Create an account",
   "login.lead": "Sign in to keep reading.",

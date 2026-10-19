@@ -14,7 +14,7 @@
 **前提**：Docker 和 Compose v2.24 或更新（`docker compose version` 查看；`docker-compose.yml` 用到了 `env_file` 的 `required` 选项）；约 2 GB 空闲内存；足够放论文的磁盘。
 
 ```bash
-git clone https://github.com/Jialei-03/zhijian.git
+git clone https://github.com/Jialei-03/open-paper-reader.git
 cd zhijian
 cp .env.example .env
 # 把 POSTGRES_PASSWORD 换成一串随机的字母数字：
@@ -117,7 +117,7 @@ install -d -o paper-platform -g paper-platform -m 0750 /var/lib/paper-platform/f
 install -d -m 0755 /srv/paper-platform /etc/paper-platform
 
 # 代码与依赖（Python 3.13，Node.js 22）
-git clone https://github.com/Jialei-03/zhijian.git /srv/paper-platform/app
+git clone https://github.com/Jialei-03/open-paper-reader.git /srv/paper-platform/app
 cd /srv/paper-platform/app
 python3 -m venv /srv/paper-platform/venv
 /srv/paper-platform/venv/bin/pip install -r backend/requirements.txt

@@ -9,7 +9,7 @@
 
 ## 1. 为什么做
 
-纸间现在是一个功能很多的论文阅读工作台，已经开源（MIT，`Jialei-03/zhijian`），也有线上服务（papers.dougao.online）。但维护者自己读论文时用的是别人的产品 Moonlight，原因有两个：
+纸间现在是一个功能很多的论文阅读工作台，已经开源（MIT，`Jialei-03/open-paper-reader`），也有线上服务（papers.dougao.online）。但维护者自己读论文时用的是别人的产品 Moonlight，原因有两个：
 
 - **纸间不够稳定**，经常出错；
 - **界面不如 Moonlight 好看**。
@@ -33,7 +33,7 @@
 - 英文名 **open-paper-reader**。GitHub 上只有 3 个零星同名小项目，npm 未被占用。命令名 `open-paper-reader`，短别名 `opr`（我定的）。
 - **不再保留中文名「纸间」**。所有地方统一用英文名，中文 README 写成「open-paper-reader：开源的论文阅读器」。
 - 名字和 Logo 里**不能出现** Claude、Claude Code、Anthropic，这是 Anthropic 条款的要求。文字里可以如实写「可配合 Claude Code 使用」。Codex 同理，只在说明文字里出现。
-- 仓库改名（`Jialei-03/zhijian` → `Jialei-03/open-paper-reader`）、GitHub 简介和话题标签（paper-reader、claude-code、codex、pi、ai-agent、arxiv、pdf、research）放在第 5 阶段，和 README 一起做。
+- 仓库改名（`Jialei-03/open-paper-reader` → `Jialei-03/open-paper-reader`）、GitHub 简介和话题标签（paper-reader、claude-code、codex、pi、ai-agent、arxiv、pdf、research）放在第 5 阶段，和 README 一起做。
 
 ## 3. 目标、非目标、反目标
 

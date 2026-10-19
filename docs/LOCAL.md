@@ -1,4 +1,4 @@
-# open-paper-reader on your own computer
+# Open Paper Reader on your own computer
 
 Read papers with an AI assistant: import a PDF or an arXiv link, get a guide,
 select a sentence to have it explained or translated, ask the assistant, and

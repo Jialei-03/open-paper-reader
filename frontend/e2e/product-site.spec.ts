@@ -141,7 +141,10 @@ for (const [locale, words] of [
       ).toBeVisible();
       await expect(
         page.getByRole("link", { name: words["site.open.source"] }),
-      ).toHaveAttribute("href", "https://github.com/Jialei-03/zhijian");
+      ).toHaveAttribute(
+        "href",
+        "https://github.com/Jialei-03/open-paper-reader",
+      );
       // Nothing on the page names a product from Claude or Anthropic as its own.
       await expect(page.locator("header")).not.toContainText(
         /claude|anthropic/i,

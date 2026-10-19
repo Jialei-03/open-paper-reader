@@ -4,7 +4,7 @@ about: 软件没有按预期工作
 labels: bug
 ---
 
-**安全问题请不要在这里报告**，见 [SECURITY](https://github.com/Jialei-03/zhijian/blob/main/SECURITY.md)。
+**安全问题请不要在这里报告**，见 [SECURITY](https://github.com/Jialei-03/open-paper-reader/blob/main/SECURITY.md)。
 
 ## 发生了什么
 

@@ -686,7 +686,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.modes.body": "同一篇论文，三种读法，在阅读器顶部随时切换。",
   "site.open.title": "开源",
   "site.open.body":
-    "open-paper-reader 以 MIT 许可开源。想自己装，用上面的命令；不想装，可以直接用在线版，同样用你自己的密钥。中文和英文界面，浅色和深色。",
+    "Open Paper Reader 以 MIT 许可开源。想自己装，用上面的命令；不想装，可以直接用在线版，同样用你自己的密钥。中文和英文界面，浅色和深色。",
   "site.nav.modes": "阅读方式",
   "site.nav.local": "本地优先",
   "site.hero.install": "在自己的电脑上运行",
@@ -722,7 +722,7 @@ export const zh: { [K in keyof typeof en]: string } = {
     "让你本机的 Claude Code 或 Codex 来读论文，目前只是计划，现在的版本里没有。",
   "site.open.source": "在 GitHub 上查看",
   "site.footer": "MIT 许可。与 Anthropic、OpenAI 无关联。",
-  "login.home": "open-paper-reader 首页",
+  "login.home": "Open Paper Reader 首页",
   "login.title": "欢迎回来",
   "login.title.register": "创建账户",
   "login.lead": "登录后继续阅读。",
