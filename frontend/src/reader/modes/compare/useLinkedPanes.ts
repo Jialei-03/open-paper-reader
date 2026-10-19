@@ -7,10 +7,25 @@ const ECHO_MS = 200;
 /** After a zoom the panes lay themselves out again; their own scrolls then are not the person's. */
 const SETTLE_MS = 450;
 
-const sameZoom = (a: PdfZoom, b: PdfZoom) =>
-  typeof a === "number" && typeof b === "number"
-    ? Math.abs(a - b) < 0.001
-    : a === b;
+/**
+ * How far a pane is zoomed relative to its own fit (its page as wide as its
+ * room): the two PDFs may have pages of different sizes, and sit in panes of
+ * different widths, so the same scale is not the same zoom.
+ */
+const relative = (pane: PdfController) =>
+  pane.fit > 0 ? pane.percent / 100 / pane.fit : pane.percent / 100;
+
+const sameZoom = (a: PdfController, b: PdfController) =>
+  typeof a.zoom === "number" && typeof b.zoom === "number"
+    ? Math.abs(relative(a) - relative(b)) < 0.002
+    : a.zoom === b.zoom;
+
+/** Puts `to` at the zoom `from` has: the same word ("fit", "auto"), or the same multiple of its own fit. */
+const matchZoom = (from: PdfController, to: PdfController) => {
+  if (typeof from.zoom === "number" && to.fit > 0)
+    to.setZoom(Math.min(8, Math.max(0.1, relative(from) * to.fit)));
+  else to.setZoom(from.zoom);
+};
 
 interface Panes {
   original: PdfController | null;
@@ -104,12 +119,11 @@ export function useLinkedPanes({
     }
     const before = zooms.current;
     zooms.current = { original: original.zoom, translated: translated.zoom };
-    if (sameZoom(original.zoom, translated.zoom)) return;
+    if (sameZoom(original, translated)) return;
     const originalMoved =
-      before.original === undefined ||
-      !sameZoom(original.zoom, before.original);
-    if (originalMoved) translated.setZoom(original.zoom);
-    else original.setZoom(translated.zoom);
+      before.original === undefined || original.zoom !== before.original;
+    if (originalMoved) matchZoom(original, translated);
+    else matchZoom(translated, original);
     quietUntil.current = performance.now() + SETTLE_MS;
     if (linked) {
       const side = leader.current;

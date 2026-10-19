@@ -18,6 +18,9 @@ import {
 import { useI18n } from "../../i18n/I18nProvider";
 import type { PdfRenderRetention } from "../../lib/pdf-render-retention";
 import styles from "./PdfPages.module.css";
+import { enqueueRender } from "./render-queue";
+
+type TextContent = Awaited<ReturnType<PDFPageProxy["getTextContent"]>>;
 
 /** A page's size in CSS pixels. */
 export type PageSize = { width: number; height: number };
@@ -42,6 +45,8 @@ const MAX_PIXELS = 16_000_000;
 
 /** A page's text is laid out when the page is this close to the view (about a screen). */
 const CLOSE = "100%";
+/** A view moving faster than this many pixels a millisecond is being flung, not read. */
+const HURRY_SPEED = 0.8;
 /** The view must have been still this long before pages' text is laid out. */
 const SETTLE_MS = 150;
 
@@ -67,9 +72,27 @@ export class PageWatcher {
   private idleHandle = 0;
   private forced = new Map<number, () => void>();
 
+  /** Where the view was a moment ago, to tell a fling from a slow read. */
+  private trail: { at: number; top: number }[] = [];
+
   private onScroll = () => {
-    this.lastScroll = performance.now();
+    const at = performance.now();
+    this.lastScroll = at;
+    const top = this.root?.scrollTop ?? 0;
+    this.trail.push({ at, top });
+    while (this.trail.length > 1 && at - this.trail[0].at > 150)
+      this.trail.shift();
   };
+
+  /** The view moved more than a screenful's worth in the last moments: pages passing by are not drawn. */
+  hurried() {
+    const now = performance.now();
+    if (now - this.lastScroll > 80 || this.trail.length < 2) return false;
+    const first = this.trail[0];
+    const last = this.trail[this.trail.length - 1];
+    const span = Math.max(1, last.at - first.at);
+    return Math.abs(last.top - first.top) / span > HURRY_SPEED;
+  }
 
   connect(root: Element) {
     this.root = root;
@@ -171,6 +194,86 @@ export class PageWatcher {
   force(page: number) {
     this.forced.get(page)?.();
   }
+
+  /** How long the view has been still, in milliseconds. */
+  quietFor() {
+    return performance.now() - this.lastScroll;
+  }
+
+  /** Whether the page is in the view itself (not only near it). */
+  visible(element: Element) {
+    if (!this.root) return false;
+    const view = this.root.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    return box.bottom > view.top && box.top < view.bottom;
+  }
+
+  /** How far the middle of the page is from the middle of the view. */
+  distance(element: Element) {
+    if (!this.root) return 0;
+    const view = this.root.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    return Math.abs((box.top + box.bottom) / 2 - (view.top + view.bottom) / 2);
+  }
+}
+
+/** How long pdf.js's text layer may work on one slice of a page's text, in milliseconds. */
+const TEXT_BUDGET_MS = 3;
+
+/**
+ * A page's text, handed to pdf.js's text layer a few runs at a time. The
+ * layer measures every run as it receives it, and pdf.js sends them in big
+ * chunks: one chunk of a dense page is a task of a hundred milliseconds or
+ * more. In slices, sized so that each takes about `TEXT_BUDGET_MS` on this
+ * machine, with the thread given back between them (and given back for longer
+ * while the view is moving), no task is long.
+ */
+function slicedText(
+  source: ReadableStream<TextContent>,
+  moving: () => boolean,
+): ReadableStream<TextContent> {
+  const upstream = source.getReader();
+  let pending: TextContent | null = null;
+  let at = 0;
+  let size = 4;
+  let sent = 0;
+  let count = 0;
+  return new ReadableStream<TextContent>({
+    async pull(controller) {
+      if (count) {
+        const before = performance.now();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        // What the layer spent on the slice before this one (the timer's own delay is a few ms).
+        const spent = performance.now() - before - 2;
+        if (count > 1 && sent > 0)
+          size = Math.max(
+            1,
+            Math.min(
+              200,
+              Math.round(sent * (TEXT_BUDGET_MS / Math.max(1, spent))),
+            ),
+          );
+        while (moving())
+          await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+      while (!pending || at >= pending.items.length) {
+        const { done, value } = await upstream.read();
+        if (done) return controller.close();
+        pending = value;
+        at = 0;
+      }
+      const items = pending.items.slice(at, at + size);
+      at += items.length;
+      sent = items.length;
+      count++;
+      controller.enqueue({
+        items,
+        styles: pending.styles,
+        lang: pending.lang,
+      } as TextContent);
+    },
+    cancel: (reason) => upstream.cancel(reason),
+  });
 }
 
 /** Gives a canvas's memory back at once (Safari holds on to it otherwise) and takes it off the page. */
@@ -340,34 +443,51 @@ export const PdfPageView = memo(function PdfPageView({
       2,
       Math.sqrt(MAX_PIXELS / (viewport.width * viewport.height)),
     );
+    const node = element.current!;
     const canvas = document.createElement("canvas");
     canvas.className = styles.canvas;
     canvas.width = Math.floor(viewport.width * ratio);
     canvas.height = Math.floor(viewport.height * ratio);
-    const task: RenderTask = pdfPage.render({
-      canvas,
-      canvasContext: canvas.getContext("2d")!,
-      viewport,
-      transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
-    });
-    task.promise.then(
-      () => {
-        const holder = raster.current;
-        if (cancelled || !holder) return release(canvas);
-        for (const old of [...holder.children]) release(old);
-        holder.append(canvas);
-        setDrawnAt(scale);
+    // Drawn when its turn comes: pages in the view first, the others once the view is still.
+    let task: RenderTask | undefined;
+    const stopWaiting = enqueueRender(
+      {
+        visible: () => watcher.visible(node),
+        distance: () => watcher.distance(node),
+        quietFor: () => watcher.quietFor(),
+        hurried: () => watcher.hurried(),
       },
-      (error: unknown) => {
-        release(canvas);
-        if (!cancelled && !stopped(error)) setFailed(true);
+      () => {
+        task = pdfPage.render({
+          canvas,
+          canvasContext: canvas.getContext("2d")!,
+          viewport,
+          transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
+        });
+        task.promise.then(
+          () => {
+            const holder = raster.current;
+            if (cancelled || !holder) return release(canvas);
+            for (const old of [...holder.children]) release(old);
+            holder.append(canvas);
+            setDrawnAt(scale);
+          },
+          (error: unknown) => {
+            release(canvas);
+            if (!cancelled && !stopped(error)) setFailed(true);
+          },
+        );
+        return { done: task.promise, cancel: () => task?.cancel() };
       },
     );
     return () => {
       cancelled = true;
-      task.cancel();
+      stopWaiting();
+      task?.cancel();
+      // Never drawn: nothing took the canvas's memory yet, but it is not kept either.
+      if (!task) release(canvas);
     };
-  }, [near, pdfPage, scale]);
+  }, [near, pdfPage, scale, watcher]);
 
   // Let the drawing go when the page is let go (and when it leaves the page),
   // with what pdf.js kept to draw it (its images and fonts): reading on through
@@ -397,12 +517,12 @@ export const PdfPageView = memo(function PdfPageView({
       // A stream: pdf.js lays the text out as it comes in, in pieces, not in one long task.
       const [{ TextLayer }, content] = await Promise.all([
         import("pdfjs-dist"),
-        pdfPage.streamTextContent(),
+        Promise.resolve(pdfPage.streamTextContent()),
       ]);
       if (cancelled) return;
       const viewport = pdfPage.getViewport({ scale: currentScale.current });
       built = new TextLayer({
-        textContentSource: content,
+        textContentSource: slicedText(content, () => watcher.quietFor() < 60),
         container,
         viewport,
       });
@@ -421,7 +541,7 @@ export const PdfPageView = memo(function PdfPageView({
       container.removeAttribute("style");
       setTextReady(false);
     };
-  }, [near, pdfPage, wantText]);
+  }, [near, pdfPage, wantText, watcher]);
 
   // Before the frame is painted, so the text never stands at the old scale over the new page.
   useLayoutEffect(() => {

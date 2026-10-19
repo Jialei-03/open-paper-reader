@@ -16,12 +16,18 @@ export async function paperWithTranslation(
     /** The job's `alignment`: empty, as a layout translation leaves it. */
     alignment?: Row[];
     engine?: "latex" | "pdf";
+    /** The pages' width and height in points of each PDF; letter-sized if left out. */
+    originalSize?: [number, number];
+    translatedSize?: [number, number];
     /** Leave the job running: there is no translated PDF to read. */
     unfinished?: boolean;
   },
 ) {
   await signIn(page);
-  const paper = await createPaperWithPdf(page, { pages: options.pages });
+  const paper = await createPaperWithPdf(page, {
+    pages: options.pages,
+    size: options.originalSize,
+  });
   const record = await (
     await page.request.get(`/api/v1/papers/${paper.paperId}`)
   ).json();
@@ -42,6 +48,7 @@ export async function paperWithTranslation(
           mimeType: "application/pdf",
           buffer: pdfWithPages(options.translatedPages, [], {
             words: { 1: "Translated copy" },
+            size: options.translatedSize,
           }),
         },
       },

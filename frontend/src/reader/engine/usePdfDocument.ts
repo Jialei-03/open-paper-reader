@@ -66,9 +66,11 @@ export function usePdfDocument(
           url: url ?? "/api/v1/files/" + fileId + "/content",
           withCredentials: true,
           isEvalSupported: false,
-          disableAutoFetch: true,
+          // A far server costs a round trip for every range: ask for big ones, and once the first
+          // pages are shown let pdf.js go on and fetch the rest of the file in the background.
+          disableAutoFetch: false,
           disableStream: true,
-          rangeChunkSize: 256 * 1024,
+          rangeChunkSize: 1024 * 1024,
           cMapUrl: "/assets/pdfjs/cmaps/",
           cMapPacked: true,
           standardFontDataUrl: "/assets/pdfjs/standard_fonts/",

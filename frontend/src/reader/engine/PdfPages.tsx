@@ -52,6 +52,8 @@ export type PdfController = {
   zoom: PdfZoom;
   /** The scale in percent, e.g. 122.2. */
   percent: number;
+  /** The scale at which the first page is as wide as the room (what "fit" is here); 0 until known. */
+  fit: number;
   /** The scroller. */
   root: HTMLElement | null;
 };
@@ -101,6 +103,8 @@ const MIN_WIDTH = 160;
 const PAGE_SHARE = 0.56;
 /** A room narrower than this has no space for a column beside a page: it goes under the page. */
 const STACK_BELOW = 620;
+/** How long the room must stay the same before the pages are fitted to it again. */
+const RESIZE_SETTLE_MS = 150;
 
 const ZOOM_IN = ["mod+=", "mod++", "mod+shift++"];
 const ZOOM_OUT = ["mod+-"];
@@ -413,9 +417,18 @@ export function PdfPages({
       setWidth(room);
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    // A card that is being resized (a window dragged, a panel moving) is fitted once it has stopped,
+    // not at every size on the way: each fit draws every page near the view again.
+    let settle = 0;
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(settle);
+      settle = window.setTimeout(measure, RESIZE_SETTLE_MS);
+    });
     observer.observe(scroller);
-    return () => observer.disconnect();
+    return () => {
+      window.clearTimeout(settle);
+      observer.disconnect();
+    };
   }, []);
 
   // The first page's size, before any page is laid out.
@@ -524,6 +537,7 @@ export function PdfPages({
   const zoomValue: PdfZoom =
     zoom.zoom === "auto" || zoom.zoom === "fit" ? zoom.zoom : Number(zoom.zoom);
   const percent = Number(zoom.percent) || 100;
+  const fitScale = first ? basis / (sizes.current[0] ?? first).width : 0;
   useImperativeHandle(
     controllerRef,
     () => ({
@@ -547,11 +561,12 @@ export function PdfPages({
       },
       zoom: zoomValue,
       percent,
+      fit: fitScale,
       get root() {
         return root.current;
       },
     }),
-    [zoomValue, percent],
+    [zoomValue, percent, fitScale],
   );
 
   const onText = useCallback(

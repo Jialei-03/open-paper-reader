@@ -88,6 +88,9 @@
   background: var(--ui-paper);
   box-shadow: var(--ui-elev-1);
   filter: var(--ui-page-filter);
+  /* A page's text and drawing are laid out apart from the rest, and not at all while far from the view. */
+  contain: layout style;
+  content-visibility: auto;
 }
 
 .raster {
