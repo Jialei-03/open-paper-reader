@@ -300,3 +300,26 @@ def test_report_downloads_as_markdown(env):
     assert "attachment" in r.headers["content-disposition"]
     assert r.text.startswith("# Does L2 regularization help?")
     assert b.get(f"{BASE}/{project['id']}/report").status_code == 404
+
+
+def test_list_shows_how_each_finished_project_was_answered(env):
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    project = create(a, model).json()
+    from backend import research_map
+    from backend.models import ResearchProject
+
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        research_map.event(
+            d,
+            p,
+            None,
+            "advisor",
+            "concluded",
+            {"status": "refuted", "summary": "No: L2 hurts."},
+        )
+        p.status, p.end_reason = "finished", "refuted"
+        d.commit()
+    listed = a.get(BASE).json()
+    assert listed[0]["conclusion"] == "No: L2 hurts."

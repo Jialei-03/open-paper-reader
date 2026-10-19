@@ -48,11 +48,11 @@ This is an early version. What has actually run:
 
   The main failures each round found were fixed; the model never changed. In the latest round, 17 of 18 runs ended the right way. On the leakage task, right endings went from 3 of 6 in round 3 to 9 of 10 in round 7. See the [evaluation record](docs/research/2026-10-20-third-results.md) (in Chinese).
 - **The advisor's job is knowing when to stop.** Without it, the executor stays honest and gets the numbers right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost.
-- **The playbook (self-improvement)** was tested from an empty playbook. It learned rules on 5 learning tasks, then ran held-out tasks it had never seen:
-  - with the learned playbook: 9 of 9 runs scored full marks, in 22 sprints and 160k tokens;
-  - without a playbook: 6 of 9, in 40 sprints and 263k tokens.
+- **The playbook (self-improvement)** was tested from an empty playbook. It learned rules on 5 learning tasks, then ran 4 held-out tasks it had never seen, with 5 seeds per condition:
+  - with the learned playbook: 20 of 20 runs scored full marks, in 66 sprints and 460k tokens;
+  - without a playbook: 17 of 20, in 88 sprints and 628k tokens.
 
-  That is 3 seeds per condition. See the [controlled run](docs/research/2026-10-20-learned-playbook.md). The developer-reviewed playbook used earlier showed no such effect.
+  Most of the gap is on the label-leakage task, where the cost nearly halves. On a task the rules do not cover, the playbook did no harm. See the [controlled run](docs/research/2026-10-20-learned-playbook.md). The developer-reviewed playbook used earlier showed no such effect.
 - **Not there yet**: more seeds and tasks of other kinds, research in the hosted version (it runs locally for now), and GPU experiments.
 
 ## Reading papers

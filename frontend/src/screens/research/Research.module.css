@@ -154,6 +154,17 @@
   font-weight: var(--ui-weight-strong);
 }
 
+/* The answer, in the advisor's words: two lines are enough to tell projects apart. */
+.projectConclusion {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .projectMeta {
   display: flex;
   flex-wrap: wrap;

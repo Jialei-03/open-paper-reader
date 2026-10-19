@@ -169,6 +169,21 @@ def input_needed(d, p):
     return last.detail.get("summary", "") if last else ""
 
 
+def conclusion(d, p):
+    """How a finished project was answered, in the advisor's words; "" if it was not."""
+    if p.status != "finished":
+        return ""
+    last = d.scalars(
+        select(ResearchEvent)
+        .where(
+            ResearchEvent.project_id == p.id,
+            ResearchEvent.action.in_(("concluded", "input_needed")),
+        )
+        .order_by(ResearchEvent.created_at.desc())
+    ).first()
+    return last.detail.get("summary", "") if last else ""
+
+
 def install_research_routes(app, settings, db, auth, human, owned):
     def allowed(a, d):
         """Research runs code and spends model budget: local edition, or admins."""
@@ -204,7 +219,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
     def projects(a=Depends(auth), d=Depends(db)):
         allowed(a, d)
         return [
-            project_out(p)
+            project_out(p) | {"conclusion": conclusion(d, p)[:300]}
             for p in d.scalars(
                 select(ResearchProject)
                 .where(ResearchProject.owner == a["id"])
