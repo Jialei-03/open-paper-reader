@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -110,9 +111,49 @@ def _ready():
         raise ValueError(status["reason"])
 
 
+NOT_SHARED = (
+    "实验环境看不到项目工作区：Docker 没有共享这个目录"
+    "（colima 等默认只共享主目录）。请把数据目录放在主目录下，或在 Docker 设置里共享它"
+)
+_visible = set()
+
+
+def _check_visible(settings, project_id):
+    """The container must see the project's files, not an empty folder in its own VM."""
+    if project_id in _visible:
+        return
+    work = workdir(settings, project_id)
+    token = uuid.uuid4().hex
+    marker = work / ".ora-visible"
+    marker.write_text(token)
+    try:
+        seen = run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                *_user(),
+                "-v",
+                f"{work}:/work",
+                IMAGE,
+                "cat",
+                "/work/.ora-visible",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    finally:
+        marker.unlink(missing_ok=True)
+    if (seen.stdout or "").strip() != token:
+        raise ValueError(NOT_SHARED)
+    _visible.add(project_id)
+
+
 def pi_call(settings, project_id, name, args):
     """One file or shell tool call (read, bash, edit, write, grep, find, ls) in /work."""
     _ready()
+    _check_visible(settings, project_id)
     command = [
         "docker",
         "run",
@@ -154,6 +195,7 @@ def _size(path):
 def start_job(settings, d, project, node, sprint, command, timeout_seconds):
     """Starts a background experiment bound to the node being worked on."""
     _ready()
+    _check_visible(settings, project.id)
     command = (command or "").strip()
     if not command:
         raise ValueError("命令不能为空")

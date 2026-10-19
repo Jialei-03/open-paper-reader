@@ -130,3 +130,32 @@ export const stopProject = (id: string) => move(id, "stop");
 
 export const jobLog = (projectId: string, jobId: string, offset = 0) =>
   api<LogLines>(`${BASE}/${projectId}/jobs/${jobId}/log?offset=${offset}`);
+
+/** Something the advisor asked a person to decide (backend research_routes.py `decisions`). */
+export interface Decision {
+  id: string;
+  node_id: string | null;
+  sprint_id: string | null;
+  detail: {
+    node_id: string;
+    proposal: "continue" | "invest" | "kill" | "pivot";
+    reason: string;
+    new_hypothesis?: { title: string; kill_if: string } | null;
+  };
+  created_at: string;
+  open: boolean;
+}
+
+export const listDecisions = (projectId: string) =>
+  api<Decision[]>(`${BASE}/${projectId}/decisions`);
+
+export const decide = (
+  projectId: string,
+  decisionId: string,
+  approve: boolean,
+  note: string,
+) =>
+  send(`${BASE}/${projectId}/decisions/${decisionId}`, {
+    approve,
+    note,
+  }) as Promise<ResearchProject>;

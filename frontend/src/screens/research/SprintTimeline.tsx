@@ -25,10 +25,16 @@ export function SprintTimeline({
           key={sprint.id}
           className={styles.sprint}
           data-status={sprint.status}
+          data-role={sprint.role}
         >
           <div className={styles.sprintHead}>
             <span className={styles.sprintNumber}>
               {t("research.sprint", { number: sprint.number })}
+              {sprint.role === "advisor" && (
+                <span className={styles.role}>
+                  {t("research.role.advisor")}
+                </span>
+              )}
             </span>
             <span className={styles.sprintState}>
               {t(

@@ -10,12 +10,15 @@ import {
   Spinner,
   toast,
 } from "../../ui";
+import { Decisions } from "./Decisions";
 import {
   getProject,
+  listDecisions,
   jobLog,
   pauseProject,
   resumeProject,
   stopProject,
+  type Decision,
   type LogLines,
   type ProjectDetail,
 } from "./research-api";
@@ -40,6 +43,7 @@ export interface ResearchProjectScreenProps {
 export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
   const { t } = useI18n();
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
+  const [decisions, setDecisions] = useState<Decision[]>([]);
   const [failed, setFailed] = useState("");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ jobId: string; lines: LogLines } | null>(
@@ -55,6 +59,9 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
       (value) => {
         setDetail(value);
         setFailed("");
+        if (value.project.status === "waiting")
+          listDecisions(id).then(setDecisions, () => setDecisions([]));
+        else setDecisions([]);
       },
       (error: unknown) => {
         if (!controller.signal.aborted)
@@ -225,6 +232,12 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
               {t("research.noDocker", { reason: docker.reason })}
             </p>
           )}
+          <Decisions
+            projectId={id}
+            decisions={decisions}
+            nodes={nodes}
+            onDecided={() => setReads((n) => n + 1)}
+          />
           <div className={styles.columns}>
             <section className={styles.column} aria-labelledby="research-map">
               <h2 id="research-map" className={styles.sectionTitle}>

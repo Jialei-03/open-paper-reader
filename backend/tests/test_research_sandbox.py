@@ -18,6 +18,8 @@ class FakeDocker:
         self.containers = {}  # name -> {"running": bool, "exit": int, "logs": str}
         self.up = True
         self.image = True
+        # Whether Docker sees the host's workspace (colima shares only $HOME by default).
+        self.shared = True
 
     def __call__(
         self, args, input=None, capture_output=True, text=True, timeout=None, **kw
@@ -35,6 +37,11 @@ class FakeDocker:
             name = args[args.index("--name") + 1]
             self.containers[name] = {"running": True, "exit": 0, "logs": ""}
             out = "cid\n"
+        elif verb == "run" and "cat" in args:
+            mount = args[args.index("-v") + 1].split(":")[0]
+            marker = __import__("pathlib").Path(mount) / ".ora-visible"
+            out = marker.read_text() if self.shared and marker.exists() else ""
+            code = 0 if out else 1
         elif verb == "run":
             request = json.loads(input)
             out = json.dumps({"result": {"echo": request}}) + "\n"
@@ -189,3 +196,14 @@ def test_docker_unavailable_gives_reason(setup):
     rs._status_cache.clear()
     docker.up, docker.image = True, False
     assert "make research-image" in rs.docker_status()["reason"]
+
+
+def test_workspace_not_shared_is_explained(setup):
+    settings, maker, docker, ids = setup
+    rs._visible.clear()
+    docker.shared = False
+    with pytest.raises(ValueError, match="看不到项目工作区"):
+        rs.pi_call(settings, ids[0], "bash", {"command": "ls"})
+    rs._visible.clear()
+    docker.shared = True
+    assert rs.pi_call(settings, ids[0], "bash", {"command": "ls"})
