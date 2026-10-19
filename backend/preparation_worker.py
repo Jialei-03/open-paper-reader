@@ -119,6 +119,9 @@ def save_artifact(
             if kind == "page_translation"
             else list(range(1, (file.pages or 0) + 1))
         )
+        from .reading_artifacts import drop_older_page_translations
+
+        drop_older_page_translations(d, value)
         d.commit()
 
 

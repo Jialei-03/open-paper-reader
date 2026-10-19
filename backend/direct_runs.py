@@ -530,6 +530,15 @@ def run(app, job_id, cfg):
                 # Saving while it streamed is throttled; keep the whole draft.
                 current.response = partial[0]
             finish_artifact(d, settings, current, answer=answer)
+            if not failed and current.status == "completed" and not artifact:
+                from .saved_translations import save
+
+                try:
+                    with d.begin_nested():
+                        save(d, settings, current, context, answer)
+                        d.flush()
+                except Exception:  # noqa: BLE001, S110 - keeping it is a courtesy; the answer is already the run's
+                    pass
             current.runtime = {
                 k: v
                 for k, v in (current.runtime or {}).items()

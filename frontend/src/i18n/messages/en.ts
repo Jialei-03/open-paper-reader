@@ -226,6 +226,7 @@ export const en = {
     "That's more than 64 lines. Highlight it in parts.",
   "reader.translate.region": "Translation",
   "reader.translate.working": "Translating…",
+  "reader.translate.again": "Translate again",
   "reader.translate.copy": "Copy",
   "reader.translate.copied": "Copied",
   "reader.translate.copyFailed":

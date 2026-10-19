@@ -252,6 +252,10 @@ def process(settings, maker, job_id):
             for file_id in created:
                 (Path(settings.storage) / file_id).unlink(missing_ok=True)
             raise
+        # Only now, with the new one saved, does the previous one go.
+        from .translation_keep import supersede_quietly
+
+        supersede_quietly(settings, maker, job_id)
     except Cancelled:
         pass
     except Exception as error:  # noqa: BLE001 -- isolate failed jobs from the worker loop

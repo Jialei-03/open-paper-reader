@@ -124,3 +124,7 @@ def process_layout(settings, maker, job_id, config, work, progress):
         if created:
             (Path(settings.storage) / created).unlink(missing_ok=True)
         raise
+    # Only now, with the new one saved, does the previous one go.
+    from .translation_keep import supersede_quietly
+
+    supersede_quietly(settings, maker, job_id)

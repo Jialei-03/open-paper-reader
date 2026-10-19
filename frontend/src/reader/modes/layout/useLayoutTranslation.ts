@@ -12,6 +12,7 @@ import {
   isArxivVersion,
   layoutState,
   lacksSource,
+  keptJob,
   pickJob,
   readChoice,
   writeChoice,
@@ -155,8 +156,9 @@ export function useLayoutTranslation({
           pdf: null,
         };
         for (const engine of ENGINES) {
-          const job = jobs[engine];
-          if (!job || layoutState(job) !== "done") continue;
+          // The kept translation, also while a newer one is being made.
+          const job = keptJob(rows, fileId, versionId, engine);
+          if (!job) continue;
           if (known[engine]?.id !== job.translated_file) {
             const files = await api<SourceFile[]>(`/papers/${id}/files`, {
               signal,
@@ -273,7 +275,8 @@ export function useLayoutTranslation({
           return {
             key,
             jobs: { ...(same?.jobs ?? NONE), [engine]: job },
-            translated: { ...(same?.translated ?? NONE), [engine]: null },
+            // The previous result stays (to download) until the new one has completed.
+            translated: same?.translated ?? NONE,
             failure: "",
           };
         });
@@ -311,7 +314,8 @@ export function useLayoutTranslation({
     selected,
     select,
     job: jobs[selected],
-    translatedFile: files[selected],
+    // Shown to read only once the method is at rest: while a newer one runs the panel shows its progress.
+    translatedFile: states[selected] === "done" ? files[selected] : null,
     arxiv,
     latexInstallable: settings.latexInstallable,
     layoutAvailable: settings.layoutEnabled,

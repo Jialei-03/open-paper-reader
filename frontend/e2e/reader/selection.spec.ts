@@ -505,6 +505,68 @@ test("T translates beside the selection as the translation is written", async ({
   expect(cancelled[0]).toContain(`/agent/runs/translate-run-3/cancel`);
 });
 
+test("a translation made before is shown at once, and can be made again", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/translation-settings", (route) =>
+    route.fulfill({ json: fixtureModels }),
+  );
+  const paper = await openPaper(page);
+  const asked: Record<string, any>[] = [];
+  const created: Record<string, any>[] = [];
+  let kept = "已保存的译文。";
+  await page.route("**/api/v1/files/*/saved-translation", (route) => {
+    asked.push(route.request().postDataJSON());
+    return route.fulfill({ json: { translation: kept } });
+  });
+  await page.route("**/api/v1/agent/sessions/*/runs", (route: Route) => {
+    if (route.request().method() === "POST") {
+      created.push(route.request().postDataJSON());
+      return route.fulfill({
+        json: {
+          id: "again-run",
+          status: "completed",
+          response: "新的译文。",
+          error: "",
+        },
+      });
+    }
+    return route.fulfill({ json: [] });
+  });
+
+  const words = line(page, 1, WORDS);
+  await selectLine(page, words);
+  await page.keyboard.press("t");
+  // Shown from what was kept: the model is not asked.
+  await expect(popover(page)).toContainText("已保存的译文。");
+  await expect(popover(page).getByRole("status")).toHaveCount(0);
+  expect(asked).toEqual([{ quote: WORDS }]);
+  expect(created).toHaveLength(0);
+
+  // Notes work from it as from a new one.
+  await popover(page).getByRole("button", { name: "记到笔记" }).click();
+  await expect(keptToast(page)).toBeVisible();
+  expect(await noteBody(page, paper.paperId)).toContain("已保存的译文。");
+
+  // Asked again, it replaces what was kept.
+  await selectLine(page, words);
+  await page.keyboard.press("t");
+  await expect(popover(page)).toContainText("已保存的译文。");
+  kept = "新的译文。";
+  await popover(page).getByRole("button", { name: "重新翻译" }).click();
+  await expect(popover(page)).toContainText("新的译文。");
+  expect(created).toHaveLength(1);
+  expect(created[0]).toMatchObject({
+    reader_context: { action: "translate", quote: WORDS },
+  });
+  // Selecting it later shows the new one, again without the model.
+  await page.keyboard.press("Escape");
+  await selectLine(page, words);
+  await page.keyboard.press("t");
+  await expect(popover(page)).toContainText("新的译文。");
+  expect(created).toHaveLength(1);
+});
+
 test("a read of the translation that fails for a moment is tried again", async ({
   page,
 }) => {

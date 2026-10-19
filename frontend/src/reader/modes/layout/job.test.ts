@@ -5,6 +5,7 @@ import {
   lacksSource,
   layoutState,
   percentOf,
+  keptJob,
   pickJob,
   type LayoutJob,
   type LayoutState,
@@ -132,5 +133,15 @@ describe("defaultEngine", () => {
     expect(defaultEngine(states("idle", "running"), true, null)).toBe("pdf");
     expect(defaultEngine(states("idle", "idle"), true, null)).toBe("latex");
     expect(defaultEngine(states("idle", "idle"), false, null)).toBe("pdf");
+  });
+});
+
+describe("keptJob", () => {
+  it("keeps the newest completed translation while a newer one runs or fails", () => {
+    const running = job({ id: "running", status: "running" });
+    const done = job({ id: "done", translated_file: "t1" });
+    expect(keptJob([running, done], "f1")?.id).toBe("done");
+    expect(pickJob([running, done], "f1")?.id).toBe("running");
+    expect(keptJob([running], "f1")).toBeNull();
   });
 });

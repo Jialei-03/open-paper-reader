@@ -209,6 +209,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.selection.tooManyLines": "所选内容超过 64 行，请分段高亮。",
   "reader.translate.region": "译文",
   "reader.translate.working": "正在翻译…",
+  "reader.translate.again": "重新翻译",
   "reader.translate.copy": "复制",
   "reader.translate.copied": "已复制",
   "reader.translate.copyFailed": "没能复制，请选中文字后自己复制。",

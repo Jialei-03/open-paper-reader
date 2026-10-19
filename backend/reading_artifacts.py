@@ -634,6 +634,31 @@ def failure_reason(error):
     return str(error)[:500]
 
 
+def drop_older_page_translations(d, row):
+    """A page keeps one translation per language: the one that just completed.
+
+    Translations of the same page made with another model (or by the paper's
+    preparation) are older; once this one is complete they only pile up. A
+    translation still being made is left alone.
+    """
+    if row.kind != "page_translation":
+        return
+    page, language = row.parameters.get("page"), row.parameters.get("language")
+    for other in d.scalars(
+        select(ReadingArtifact).where(
+            ReadingArtifact.owner == row.owner,
+            ReadingArtifact.file_id == row.file_id,
+            ReadingArtifact.kind == "page_translation",
+            ReadingArtifact.id != row.id,
+            ReadingArtifact.status.in_(["completed", "failed", "cancelled"]),
+        )
+    ):
+        if other.parameters.get("page") == page and other.parameters.get(
+            "language"
+        ) == language:
+            d.delete(other)
+
+
 def finish_artifact(d, settings, run, answer=None):
     artifact_id = (run.runtime or {}).get("reading_artifact_id")
     row = d.get(ReadingArtifact, artifact_id) if artifact_id else None
@@ -662,6 +687,7 @@ def finish_artifact(d, settings, run, answer=None):
         row.status, row.error = "completed", ""
         row.evidence_text = {}
         row.size = len(json.dumps(row.result, ensure_ascii=False).encode()) + 2048
+        drop_older_page_translations(d, row)
     except (ValueError, ValidationError, StorageBudgetExceeded) as exc:
         row.status = run.status = "failed"
         row.error = run.error = failure_reason(exc)
@@ -678,7 +704,12 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
             artifact_output(d, row)
             for row in d.scalars(
                 select(ReadingArtifact)
-                .where(ReadingArtifact.owner == a["id"], ReadingArtifact.paper_id == id)
+                .where(
+                    ReadingArtifact.owner == a["id"],
+                    ReadingArtifact.paper_id == id,
+                    # Saved selection translations have their own lookup.
+                    ReadingArtifact.kind != "text_translation",
+                )
                 .order_by(ReadingArtifact.updated_at.desc())
             )
         ]
@@ -822,7 +853,10 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
             count = d.scalar(
                 select(func.count())
                 .select_from(ReadingArtifact)
-                .where(ReadingArtifact.owner == a["id"])
+                .where(
+                    ReadingArtifact.owner == a["id"],
+                    ReadingArtifact.kind != "text_translation",
+                )
             )
             if count >= 2000:
                 raise HTTPException(409, "阅读产物已达上限，请清理后再生成")
