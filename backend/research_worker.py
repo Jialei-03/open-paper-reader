@@ -83,6 +83,17 @@ def _settle(d, project, sprint):
     run = d.get(AgentRun, sprint.run_id)
     if run is None or run.status not in DONE:
         return False
+    if (
+        sprint.role == "executor"
+        and run.status == "completed"
+        and (run.response or "").strip()
+    ):
+        # It handed over in words instead of with end_sprint: those words are the handoff.
+        sprint.status = "ended"
+        sprint.summary = run.response.strip()[:4000]
+        sprint.updated_at = now()
+        event(d, project, None, "system", "handoff_from_reply", {}, sprint.id)
+        return True
     sprint.status = "abnormal"
     sprint.summary = fallback_summary(run)
     sprint.updated_at = now()
