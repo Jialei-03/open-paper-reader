@@ -2,7 +2,9 @@ import { useEffect, useId, useRef } from "react";
 import type { Paper, SourceFile } from "../../api";
 import { usePdfAnnotations } from "../../features/PdfAnnotations";
 import { useI18n } from "../../i18n/I18nProvider";
-import { Button, Spinner } from "../../ui";
+import { NotebookPen, Trash2 } from "lucide-react";
+import { Button, IconButton, Spinner, toast } from "../../ui";
+import { highlightMarkdown, removeHighlight } from "../highlights/actions";
 import { NoteEditor } from "../notes/NoteEditor";
 import type { Notes } from "../notes/useNotes";
 import type { ReaderRoute } from "../route";
@@ -61,11 +63,14 @@ function Highlights({
   file,
   annotations,
   onJump,
+  onNote,
 }: {
   paper: Paper;
   file: SourceFile;
   annotations: ReturnType<typeof usePdfAnnotations>;
   onJump(route: ReaderRoute): void;
+  /** Keeps a highlight in the note above. */
+  onNote(markdown: string): void;
 }) {
   const { t } = useI18n();
   const heading = useId();
@@ -87,7 +92,7 @@ function Highlights({
       ) : (
         <ul className={styles.list}>
           {rows.map((row) => (
-            <li key={row.id}>
+            <li key={row.id} className={styles.row}>
               <button
                 type="button"
                 className={styles.item}
@@ -116,6 +121,35 @@ function Highlights({
                   </span>
                 </span>
               </button>
+              <span className={styles.rowActions}>
+                <IconButton
+                  icon={NotebookPen}
+                  size="sm"
+                  label={t("reader.highlight.toNotes")}
+                  onClick={() =>
+                    onNote(
+                      highlightMarkdown(
+                        row,
+                        paper.id,
+                        t("reader.notes.source", { page: row.page }),
+                      ),
+                    )
+                  }
+                />
+                <IconButton
+                  icon={Trash2}
+                  size="sm"
+                  label={t("reader.highlight.remove")}
+                  disabled={annotations.busy}
+                  onClick={() =>
+                    void removeHighlight(annotations, row, {
+                      removed: t("reader.highlight.removed"),
+                      undo: t("reader.highlight.undo"),
+                      failed: t("reader.highlight.removeFailed"),
+                    })
+                  }
+                />
+              </span>
             </li>
           ))}
         </ul>
@@ -129,6 +163,7 @@ function OwnHighlights(props: {
   paper: Paper;
   file: SourceFile;
   onJump(route: ReaderRoute): void;
+  onNote(markdown: string): void;
 }) {
   const annotations = usePdfAnnotations(props.file.id);
   const reload = useRef(annotations.reload);
@@ -155,6 +190,27 @@ export function NotesTab({
   onJump,
 }: NotesTabProps) {
   const { t, locale } = useI18n();
+  // Added to the end of the note, which is right above: it says so, or why not.
+  const keep = (markdown: string) =>
+    notes.append(markdown).then(
+      (added) =>
+        toast.show({
+          message: t(
+            added === "saved"
+              ? "reader.highlight.noted"
+              : "reader.notes.appendUnsaved",
+          ),
+          tone: added === "saved" ? "success" : "error",
+        }),
+      (reason: unknown) =>
+        toast.show({
+          message:
+            reason instanceof Error && reason.message
+              ? reason.message
+              : t("reader.notes.appendFailed"),
+          tone: "error",
+        }),
+    );
   return (
     <div className={styles.tab}>
       {notes.loading ? (
@@ -202,9 +258,15 @@ export function NotesTab({
             file={file}
             annotations={annotations}
             onJump={onJump}
+            onNote={keep}
           />
         ) : (
-          <OwnHighlights paper={paper} file={file} onJump={onJump} />
+          <OwnHighlights
+            paper={paper}
+            file={file}
+            onJump={onJump}
+            onNote={keep}
+          />
         ))}
     </div>
   );

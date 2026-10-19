@@ -142,3 +142,34 @@
   font-size: var(--ui-text-12);
   line-height: var(--ui-leading);
 }
+
+/* A highlight of the list, with what can be done with it at its right end. */
+.row {
+  position: relative;
+}
+
+.row .item {
+  padding-right: calc(var(--ui-space-8) + 2 * 26px + var(--ui-space-2));
+}
+
+/* Shown under the pointer or the keyboard; always on a screen without hover. */
+.rowActions {
+  position: absolute;
+  top: var(--ui-space-4);
+  right: var(--ui-space-4);
+  display: flex;
+  gap: var(--ui-space-2);
+  opacity: 0;
+  transition: opacity var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.row:hover .rowActions,
+.row:focus-within .rowActions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .rowActions {
+    opacity: 1;
+  }
+}

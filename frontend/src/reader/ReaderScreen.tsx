@@ -58,6 +58,7 @@ import { RegionBoundary } from "./RegionBoundary";
 import { RightPanel, type PanelView } from "./RightPanel";
 import { RegionTool } from "./regions/RegionTool";
 import { SelectionMenu, type SelectionNote } from "./selection/SelectionMenu";
+import { HighlightPopover } from "./highlights/HighlightPopover";
 import { Composer, useAssistant } from "./assistant";
 import { useComposerDock, useComposerDraft } from "./assistant/useComposerDock";
 import { excerptMarkdown } from "./notes/excerpt";
@@ -153,6 +154,15 @@ function PaperPages({
   const { doc, file } = props;
   const store = usePdfAnnotations(file.id);
   const annotations = store.rows;
+  // Changed from the notes' list (or the old reader): the pages read them again.
+  const reloadHighlights = useRef(store.reload);
+  reloadHighlights.current = store.reload;
+  useEffect(() => {
+    const changed = () => void reloadHighlights.current();
+    window.addEventListener("reading-activity-changed", changed);
+    return () =>
+      window.removeEventListener("reading-activity-changed", changed);
+  }, []);
   const strokes = usePdfInk(file.id).strokes;
   const { hover, close, describedBy, key: previewKey } = preview;
   const pageOverlays = useCallback(
@@ -220,6 +230,24 @@ function PaperPages({
           onNote={onNote}
           noHighlight={
             translated ? t("reader.selection.highlightTranslated") : undefined
+          }
+        />
+      )}
+      {paper && !translated && (
+        <HighlightPopover
+          scroller={scroller}
+          store={store}
+          paperId={paper.id}
+          disabled={regionMode}
+          onNote={(markdown) =>
+            onNote({
+              paperId: paper.id,
+              fileId: file.id,
+              page: 1,
+              source: "selection",
+              action: "ask",
+              markdown,
+            })
           }
         />
       )}
