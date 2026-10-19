@@ -67,6 +67,8 @@ async function open(
     alignment?: Row[];
     engine?: "latex" | "pdf";
     translatedPages?: number;
+    originalSize?: [number, number];
+    translatedSize?: [number, number];
   } = {},
 ) {
   const paper = await paperWithTranslation(page, {
@@ -323,4 +325,96 @@ test("the translation pane lays its text out only once the pointer is in it", as
   await expect(text).toHaveCount(0);
   await pane(page, "translated").hover();
   await expect(text.first()).toBeVisible();
+});
+
+test("pages of different sizes each fit their own pane, and zoom in proportion", async ({
+  page,
+}) => {
+  // A landscape original beside a portrait A4 translation, in a window where both panes are wide.
+  await page.setViewportSize({ width: 1500, height: 900 });
+  await open(page, {
+    originalSize: [900, 600],
+    translatedSize: [595, 842],
+  });
+  const geometry = (which: "original" | "translated") =>
+    page.evaluate((side) => {
+      const desk = document.querySelector<HTMLElement>(
+        `[data-pane="${side}"] .opr-pdf`,
+      )!;
+      const sheet = desk.querySelector<HTMLElement>('[data-page="1"]')!;
+      const d = desk.getBoundingClientRect();
+      const r = sheet.getBoundingClientRect();
+      return {
+        room: desk.clientWidth,
+        width: r.width,
+        overflow: desk.scrollWidth - desk.clientWidth,
+        right: d.right - r.right,
+        left: r.left - d.left,
+      };
+    }, which);
+  for (const which of ["original", "translated"] as const) {
+    const g = await geometry(which);
+    expect(g.overflow, `${which} fits its pane`).toBeLessThanOrEqual(1);
+    expect(g.left).toBeGreaterThanOrEqual(0);
+    expect(g.right).toBeGreaterThanOrEqual(0);
+  }
+  const before = [
+    (await geometry("original")).width,
+    (await geometry("translated")).width,
+  ];
+  await main(page)
+    .getByRole("button", { name: /^缩放 / })
+    .click();
+  await page.getByRole("menuitem", { name: "放大", exact: true }).click();
+  await expect
+    .poll(async () => (await geometry("original")).width / before[0])
+    .toBeGreaterThan(1.05);
+  await expect
+    .poll(async () => {
+      const [o, t] = [
+        (await geometry("original")).width / before[0],
+        (await geometry("translated")).width / before[1],
+      ];
+      return Math.abs(o - t);
+    })
+    .toBeLessThan(0.03);
+});
+
+test("the follower is in the same place as the leader in the same frame", async ({
+  page,
+}) => {
+  await open(page);
+  const worst = await page.evaluate(async () => {
+    const [a, b] = ["original", "translated"].map(
+      (side) =>
+        document.querySelector<HTMLElement>(`[data-pane="${side}"] .opr-pdf`)!,
+    );
+    // Where the reading is: the page under the top of the desk, plus how far down it is.
+    const position = (desk: HTMLElement) => {
+      const top = desk.getBoundingClientRect().top + 20;
+      const pages = [...desk.querySelectorAll<HTMLElement>("[data-page]")];
+      let index = 0;
+      pages.forEach((el, i) => {
+        if (el.getBoundingClientRect().top <= top) index = i;
+      });
+      const box = pages[index].getBoundingClientRect();
+      // A page's row runs on to the next page's top (the gap between belongs to it).
+      const next = pages[index + 1]?.getBoundingClientRect().top ?? box.bottom;
+      const height = next - box.top;
+      return { at: index + (top - box.top) / height, pages: pages.length };
+    };
+    let worst = 0;
+    for (let i = 0; i < 40; i++) {
+      a.scrollTop += 37;
+      // The leader's scroll event runs before the next frame; so must the follower's move.
+      await new Promise((r) => requestAnimationFrame(r));
+      const [from, to] = [position(a), position(b)];
+      worst = Math.max(
+        worst,
+        Math.abs((from.at * to.pages) / from.pages - to.at),
+      );
+    }
+    return worst;
+  });
+  expect(worst).toBeLessThan(0.01);
 });

@@ -731,6 +731,8 @@ test("in a narrow card zoom and find move into the more menu", async ({
     await expect(
       menu.getByRole("menuitem", { name, exact: true }),
     ).toBeVisible();
+  // The pages are fitted to a card that has stopped resizing, a moment after it has.
+  await page.waitForTimeout(400);
   const before = (await pdfPage(page, 1).boundingBox())!.width;
   await menu.getByRole("menuitem", { name: "放大", exact: true }).click();
   await expect

@@ -49,13 +49,13 @@
 /*
  * Docked and put away: it narrows to nothing beside the paper (taking the 8px
  * gap with it), so the paper's card grows into the room. Kept mounted, so its
- * views keep their place and the assistant its thread.
+ * views keep their place and the assistant its thread. The width does not
+ * animate: a card that changes its width every frame makes both PDFs fit and
+ * draw their pages again every frame. It changes once; only the panel's own
+ * contents fade.
  */
 .panel:not(.floating) {
-  transition:
-    width var(--ui-dur-3) var(--ui-ease-out),
-    margin var(--ui-dur-3) var(--ui-ease-out),
-    opacity var(--ui-dur-2) var(--ui-ease-out);
+  transition: opacity var(--ui-dur-2) var(--ui-ease-out);
 }
 
 .panel.collapsed {
