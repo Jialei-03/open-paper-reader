@@ -35,7 +35,18 @@ export {
 export { Toaster, toast } from "./Toaster";
 export { Card, CardHeader, Shell, type CardProps } from "./Shell";
 export {
+  RESIZING_ATTRIBUTE,
+  Resizer,
+  useResizableWidth,
+  type ResizableWidth,
+  type ResizerProps,
+} from "./Resizer";
+export {
   Sidebar,
+  SIDEBAR_DEFAULT,
+  SIDEBAR_MIN,
+  sidebarMax,
+  useSidebarWidth,
   SidebarItem,
   SidebarSection,
   type SidebarItemProps,

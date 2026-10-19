@@ -11,6 +11,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "toast.region": "通知",
   "sidebar.collapse": "收起侧栏",
   "sidebar.expand": "展开侧栏",
+  "sidebar.resize": "调整侧栏宽度",
   "errorBoundary.title": "{label}出了问题",
   "reader.region.paper": "论文",
   "reader.region.sidebar": "侧栏",

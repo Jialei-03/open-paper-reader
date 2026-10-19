@@ -19,6 +19,7 @@ import {
   Sidebar,
   SidebarItem,
   SidebarSection,
+  useSidebarWidth,
 } from "../ui";
 import type { AppScreen } from "./routes";
 import styles from "./AppSidebar.module.css";
@@ -75,7 +76,8 @@ export function AppSidebar({
   go,
 }: AppSidebarProps) {
   const { t } = useI18n();
-  const { quickOpen, signOut } = useContext(AppActions);
+  const { owner, quickOpen, signOut } = useContext(AppActions);
+  const sizing = useSidebarWidth(owner);
   // Two answers, one for each kind of window: what was chosen on a wide one is not lost on a narrow one.
   const [collapsed, setCollapsed] = useState(false);
   const [opened, setOpened] = useState(false);
@@ -108,6 +110,7 @@ export function AppSidebar({
         floating ? setOpened(!shut) : setCollapsed(shut)
       }
       overlay={floating}
+      resizable={sizing}
       footer={
         <>
           <SidebarItem

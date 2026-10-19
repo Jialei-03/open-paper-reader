@@ -112,15 +112,60 @@ test("the window shrinking clamps the panel to half of it", async ({
   await expect.poll(() => widthOf(page)).toBeCloseTo(600, 0);
 });
 
-test("the pages are fitted once the drag is over, not on the way", async ({
+test("the pages follow the drag live, and are drawn crisp once it is over", async ({
   page,
 }) => {
-  await open(page);
+  await open(page, { width: 1200, height: 900 });
   const before = await pageWidth(page);
-  await drag(page, -200, false);
-  // Held on, longer than the settle time: the pages have not been fitted.
-  await page.waitForTimeout(600);
-  expect(await pageWidth(page)).toBe(before);
+  await drag(page, -120, false);
+  // Held, with no wait for the settle: the pages are already scaled to the card.
+  const during = await pageWidth(page);
+  expect(during).toBeLessThan(before - 40);
+  const crisp = (await canvasWidth(page)) / (await ratio(page));
+  expect(crisp).toBeGreaterThan(during + 10);
   await page.mouse.up();
-  await expect.poll(() => pageWidth(page)).toBeLessThan(before - 50);
+  await expect
+    .poll(async () =>
+      Math.abs(
+        (await canvasWidth(page)) / (await ratio(page)) -
+          (await pageWidth(page)),
+      ),
+    )
+    .toBeLessThan(2);
+  expect(await pageWidth(page)).toBeCloseTo(during, -1);
 });
+
+test("a drag keeps the page under the middle of the view in place", async ({
+  page,
+}) => {
+  await signIn(page);
+  const paper = await createPaperWithPdf(page, { pages: 8 });
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await openReader(page, { paperId: paper.paperId, page: 5 });
+  await expect(page.locator('[data-page="5"]')).toHaveAttribute(
+    "data-rendered",
+    "true",
+  );
+  const middle = async () => {
+    const scroller = page.locator(".opr-pdf");
+    const box = (await scroller.boundingBox())!;
+    const target = page.locator('[data-page="5"]');
+    const rect = (await target.boundingBox())!;
+    return (box.y + box.height / 2 - rect.y) / rect.height;
+  };
+  const start = await middle();
+  await drag(page, -150, false);
+  expect(Math.abs((await middle()) - start)).toBeLessThan(0.03);
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+  expect(Math.abs((await middle()) - start)).toBeLessThan(0.04);
+});
+
+async function canvasWidth(page: Page) {
+  return page.evaluate(
+    () =>
+      document.querySelector<HTMLCanvasElement>('[data-page="1"] canvas')
+        ?.width ?? 0,
+  );
+}
+const ratio = (page: Page) => page.evaluate(() => window.devicePixelRatio);

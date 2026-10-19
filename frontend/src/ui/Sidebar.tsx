@@ -9,6 +9,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type MouseEvent,
   type ReactNode,
   type RefObject,
@@ -21,6 +22,7 @@ import {
   currentPlatformIsMac,
   matchesShortcut,
 } from "./shortcut";
+import { Resizer, useResizableWidth, type ResizableWidth } from "./Resizer";
 import { Tooltip } from "./Tooltip";
 import styles from "./Sidebar.module.css";
 
@@ -29,6 +31,28 @@ const TOGGLE_SHORTCUT = "mod+\\";
 
 /** A collapsed item has no room for its label, so the tooltip goes to the right of it. */
 const beside: Placement = { side: "right", align: "center" };
+
+/** The open sidebar's width: where it starts, and the least and most it can be. */
+export const SIDEBAR_DEFAULT = 220;
+export const SIDEBAR_MIN = 180;
+const SIDEBAR_MAX = 360;
+
+/** The most it can be in a window this wide: the cards keep at least two thirds. */
+export const sidebarMax = (windowWidth: number) =>
+  Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, Math.floor(windowWidth / 3)));
+
+/**
+ * The open sidebar's width, kept per person on this device (`owner` says
+ * whose), for `Sidebar`'s `resizable`.
+ */
+export function useSidebarWidth(owner = ""): ResizableWidth {
+  return useResizableWidth({
+    key: `paper-sidebar-width:${owner}`,
+    fallback: SIDEBAR_DEFAULT,
+    min: SIDEBAR_MIN,
+    maxFor: sidebarMax,
+  });
+}
 
 const SidebarContext = createContext<{
   collapsed: boolean;
@@ -70,6 +94,12 @@ export interface SidebarProps {
    * leaving it and choosing an item close it (`onCollapsedChange(true)`).
    */
   overlay?: boolean;
+  /**
+   * The width the person has chosen (`useSidebarWidth`): with it the open
+   * sidebar has a handle on its right edge. A collapsed sidebar and one that
+   * floats (`overlay`) keep their own widths and have no handle.
+   */
+  resizable?: ResizableWidth;
   /** A mark or a name above the items. Hidden while the sidebar is collapsed. */
   header?: ReactNode;
   /** Items kept at the bottom, out of the scrolling list. */
@@ -81,7 +111,8 @@ export interface SidebarProps {
 /**
  * The navigation down the left of the window. It has no surface of its own: it
  * sits on the shell, and its items are lit only when the pointer is on them or
- * they are current. 220px wide, 56px once collapsed, when only the icons are
+ * they are current. 220px wide (or as wide as the person drags it, 180 to
+ * 360px), 56px once collapsed, when only the icons are
  * left (the change is at once; the text that returns fades in). Ctrl+\ (Command+\ on a Mac) collapses and expands it, from anywhere but
  * a text field. With `overlay` the opened sidebar floats over the cards rather
  * than pushing them.
@@ -91,6 +122,7 @@ export function Sidebar({
   collapsed,
   onCollapsedChange,
   overlay = false,
+  resizable,
   header,
   footer,
   children,
@@ -119,6 +151,8 @@ export function Sidebar({
 
   // Open and floating: over the cards, and closed by whatever the person does elsewhere.
   const floating = overlay && !collapsed;
+  // Only the open sidebar that sits in the shell is sized by hand.
+  const sized = resizable !== undefined && !overlay && !collapsed;
   const close = useCallback(() => onCollapsedChange(true), [onCollapsedChange]);
   useEffect(() => {
     if (!floating) return;
@@ -152,6 +186,11 @@ export function Sidebar({
         <nav
           ref={nav}
           aria-label={label}
+          style={
+            sized
+              ? ({ "--sidebar-width": `${resizable.width}px` } as CSSProperties)
+              : undefined
+          }
           className={clsx(
             styles.sidebar,
             collapsed && styles.collapsed,
@@ -172,6 +211,19 @@ export function Sidebar({
           <div className={styles.body}>{children}</div>
           {footer && <div className={styles.footer}>{footer}</div>}
         </nav>
+        {sized && (
+          <Resizer
+            sizes="previous"
+            width={resizable.width}
+            min={SIDEBAR_MIN}
+            max={resizable.max}
+            fallback={SIDEBAR_DEFAULT}
+            maxNow={() => sidebarMax(window.innerWidth)}
+            property="--sidebar-width"
+            label={t("sidebar.resize")}
+            onChange={resizable.choose}
+          />
+        )}
       </div>
     </SidebarContext.Provider>
   );

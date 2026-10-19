@@ -16,6 +16,7 @@ import { useI18n } from "../../i18n/I18nProvider";
 import { PdfRenderRetention } from "../../lib/pdf-render-retention";
 import { usePdfTouchPan } from "../../lib/use-pdf-touch-pan";
 import { usePdfZoom } from "../../lib/use-pdf-zoom";
+import { RESIZING_ATTRIBUTE } from "../../ui/Resizer";
 import { currentPlatformIsMac, matchesShortcut } from "../../ui/shortcut";
 import {
   PageWatcher,
@@ -140,6 +141,17 @@ export function zoomShortcut(
 }
 
 type Row = { top: number; height: number };
+
+/** The room the pages have: the scroller's width less the padding around them. */
+function roomOf(scroller: HTMLElement, pages: HTMLElement) {
+  const style = getComputedStyle(pages);
+  return Math.max(
+    MIN_WIDTH,
+    scroller.clientWidth -
+      (parseFloat(style.paddingLeft) || 0) -
+      (parseFloat(style.paddingRight) || 0),
+  );
+}
 
 const clamp = (value: number, low: number, high: number) =>
   Math.max(low, Math.min(high, value));
@@ -397,6 +409,54 @@ export function PdfPages({
   };
   trackNow.current = track;
 
+  /**
+   * While a sidebar or the panel is dragged the pages follow the card live, and
+   * cheaply: the pages already drawn are scaled to the width they will have
+   * (the same scale the zoom of a pinch uses), and the reading stays on the
+   * point that was at the middle of the view. They are drawn at that width once,
+   * after the pointer is let go.
+   */
+  const liveAnchor = useRef<{ index: number; fraction: number } | null>(null);
+  const liveFactor = useRef(1);
+  const liveFit = useRef<(room: number) => number>(() => 1);
+  const previewNow = useRef(1);
+  const follows = () => {
+    const scroller = root.current;
+    const pages = list.current;
+    if (!scroller || !pages || !widthNow.current) return;
+    const factor = liveFit.current(roomOf(scroller, pages));
+    if (!liveAnchor.current) {
+      const all = metrics();
+      if (!all.length) return;
+      const middle = scroller.scrollTop + scroller.clientHeight / 2;
+      const index = rowAt(all, middle);
+      liveAnchor.current = {
+        index,
+        fraction: clamp((middle - all[index].top) / all[index].height, 0, 1),
+      };
+    }
+    if (Math.abs(factor - liveFactor.current) < 0.0005) return;
+    liveFactor.current = factor;
+    pages.style.zoom = String(previewNow.current * factor);
+    rows.current = null;
+    const row = metrics()[liveAnchor.current.index];
+    if (row)
+      scroller.scrollTop =
+        row.top +
+        liveAnchor.current.fraction * row.height -
+        scroller.clientHeight / 2;
+  };
+  const followsNow = useRef(follows);
+  followsNow.current = follows;
+  /** Back to the pages' own size (the pinch's preview, if any, stays). */
+  const unfollow = () => {
+    liveAnchor.current = null;
+    liveFactor.current = 1;
+    if (list.current) list.current.style.zoom = String(previewNow.current);
+  };
+  const unfollowNow = useRef(unfollow);
+  unfollowNow.current = unfollow;
+
   // The room the pages have: the scroller's width less the padding around them.
   useLayoutEffect(() => {
     const scroller = root.current!;
@@ -405,26 +465,37 @@ export function PdfPages({
       const style = getComputedStyle(pages);
       inset.current = parseFloat(style.paddingTop) || 0;
       setAsideGap(parseFloat(style.getPropertyValue("--aside-gap")) || 0);
-      const room = Math.max(
-        MIN_WIDTH,
-        scroller.clientWidth -
-          (parseFloat(style.paddingLeft) || 0) -
-          (parseFloat(style.paddingRight) || 0),
-      );
-      if (room === widthNow.current) return;
+      const room = roomOf(scroller, pages);
+      if (room === widthNow.current) {
+        // Dragged back to where it began: the pages are as they were drawn.
+        if (liveAnchor.current) {
+          const index = liveAnchor.current.index;
+          const fraction = liveAnchor.current.fraction;
+          unfollowNow.current();
+          rows.current = null;
+          const row = metrics()[index];
+          if (row)
+            scroller.scrollTop =
+              row.top + fraction * row.height - scroller.clientHeight / 2;
+        }
+        return;
+      }
       if (widthNow.current) keepNow.current();
       widthNow.current = room;
       setWidth(room);
     };
     measure();
-    // A card that is being resized (a window dragged, a panel moving) is fitted once it has stopped,
-    // not at every size on the way: each fit draws every page near the view again.
+    // A card that is being resized by hand (a sidebar or the panel dragged) is followed live, the pages
+    // scaled as they are. Any other change (a window dragged) is fitted once it has stopped, not at every
+    // size on the way: each fit draws every page near the view again.
     let settle = 0;
     const observer = new ResizeObserver(() => {
+      if (document.documentElement.hasAttribute(RESIZING_ATTRIBUTE))
+        followsNow.current();
       window.clearTimeout(settle);
       settle = window.setTimeout(function fit() {
         // A panel being dragged by hand holds the fit until it is let go.
-        if (document.documentElement.hasAttribute("data-panel-resizing"))
+        if (document.documentElement.hasAttribute(RESIZING_ATTRIBUTE))
           settle = window.setTimeout(fit, RESIZE_SETTLE_MS);
         else measure();
       }, RESIZE_SETTLE_MS);
@@ -435,6 +506,11 @@ export function PdfPages({
       observer.disconnect();
     };
   }, []);
+
+  // The pages are drawn at their new width: the preview that stood in for it goes, in the same frame.
+  useLayoutEffect(() => {
+    unfollowNow.current();
+  }, [width]);
 
   // The first page's size, before any page is laid out.
   useEffect(() => {
@@ -542,6 +618,21 @@ export function PdfPages({
   const zoomValue: PdfZoom =
     zoom.zoom === "auto" || zoom.zoom === "fit" ? zoom.zoom : Number(zoom.zoom);
   const percent = Number(zoom.percent) || 100;
+  previewNow.current = zoom.preview;
+  // The scale the first page would have in a room this wide, against the one it has: how much to scale the pages by.
+  liveFit.current = (room) => {
+    const native = (sizes.current[0] ?? first)?.width;
+    if (!native || typeof zoomValue === "number") return 1;
+    const scaleIn = (space: number) => {
+      const wide = columns
+        ? Math.max(MIN_WIDTH, (space - asideGap) * PAGE_SHARE)
+        : space;
+      return zoomValue === "auto" && !columns
+        ? Math.min(1, wide / native)
+        : wide / native;
+    };
+    return scaleIn(room) / scaleIn(widthNow.current);
+  };
   const fitScale = first ? basis / (sizes.current[0] ?? first).width : 0;
   useImperativeHandle(
     controllerRef,
