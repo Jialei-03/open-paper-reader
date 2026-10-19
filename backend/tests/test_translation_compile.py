@@ -323,3 +323,14 @@ def test_tectonic_missing_glyphs_are_named_from_their_code_points(tmp_path, monk
     monkeypatch.setattr(engine.subprocess, 'run', lambda *a, **kw: SimpleNamespace(returncode=0, stdout=log, stderr=b''))
     with pytest.raises(ValueError, match='缺失字形：유'):
         engine.compile_project(tmp_path, tectonic='tectonic', tex_env={})
+
+
+def test_icml_running_head_of_one_chinese_line_is_not_suppressed(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text('\\documentclass{article}\n\\usepackage{icml2026}\n\\begin{document}x\\end{document}\n')
+    style = tmp_path / 'icml2026.sty'
+    style.write_text('    \\else \\ifdim\\ht\\titrun>6.25pt\n    \\gdef\\@runningtitleerror{2}%\n')
+    engine.prepare_compile_source(main)
+    assert '\\ifdim\\ht\\titrun>12pt' in style.read_text()
+    engine.prepare_compile_source(main)
+    assert style.read_text().count('12pt') == 1

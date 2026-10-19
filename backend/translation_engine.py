@@ -587,6 +587,20 @@ def cjk_fallback_fonts(main):
     main.write_text(tex[:begin] + block + tex[begin:])
 
 
+# ICML styles take a running head taller than 6.25pt for one that broke onto
+# two lines; one line of Chinese is taller than that, so it was suppressed.
+RUNNING_TITLE_HEIGHT = re.compile(r"(\\ifdim\\ht\\titrun\s*>\s*)6\.25pt")
+
+
+def running_title_height(main):
+    """A one-line Chinese running head kept, not replaced by "Title Suppressed..."."""
+    for path in [*main.parent.rglob("*.sty"), *main.parent.rglob("*.cls")]:
+        text = path.read_text(errors="replace")
+        repaired = RUNNING_TITLE_HEIGHT.sub(r"\g<1>12pt", text)
+        if repaired != text:
+            path.write_text(repaired)
+
+
 def resolve_subfigure_packages(main):
     """subcaption refuses to load beside subfig; drop whichever one the paper never uses.
 
@@ -659,6 +673,7 @@ def prepare_compile_source(main):
         if repaired != content:
             path.write_text(repaired)
     resolve_subfigure_packages(main)
+    running_title_height(main)
     cjk_fallback_fonts(main)
     legacy_font_punctuation(main)
     tex = main.read_text()
