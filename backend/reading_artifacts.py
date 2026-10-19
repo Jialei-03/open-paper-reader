@@ -643,6 +643,7 @@ def drop_older_page_translations(d, row):
     """
     if row.kind != "page_translation":
         return
+    d.flush()  # a new row has no id until then
     page, language = row.parameters.get("page"), row.parameters.get("language")
     for other in d.scalars(
         select(ReadingArtifact).where(
