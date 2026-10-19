@@ -20,6 +20,7 @@ import {
   listProjects,
   type ResearchProject,
 } from "./research-api";
+import { PlaybookPanel } from "./PlaybookPanel";
 import styles from "./Research.module.css";
 
 export interface ResearchListScreenProps {
@@ -244,6 +245,7 @@ export function ResearchListScreen({ go }: ResearchListScreenProps) {
               ))}
             </ul>
           )}
+          {projects && projects.length > 0 && <PlaybookPanel />}
         </div>
       </div>
     </Card>
