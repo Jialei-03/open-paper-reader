@@ -334,3 +334,22 @@ def test_icml_running_head_of_one_chinese_line_is_not_suppressed(tmp_path):
     assert '\\ifdim\\ht\\titrun>12pt' in style.read_text()
     engine.prepare_compile_source(main)
     assert style.read_text().count('12pt') == 1
+
+
+def test_untranslated_lines_such_as_references_become_alignment_anchors():
+    source = [
+        'Introduction text in English that will be translated.',
+        'References\nVaswani, A., Shazeer, N., and Parmar, N. Attention is all you need.\n'
+        'Devlin, J., Chang, M., Lee, K., and Toutanova, K. BERT: pre-training deep.\n短',
+    ]
+    target = [
+        '引言文字' * 20,
+        '正文继续' * 20,
+        '参考文献\nVaswani, A., Shazeer, N., and Parmar, N. Attention is all you need.\n'
+        'Devlin, J., Chang, M., Lee, K., and Toutanova, K. BERT: pre-training deep.',
+    ]
+    anchors = engine.verbatim_anchors(source, target)
+    assert {(a['source']['page'], a['translated']['page']) for a in anchors} == {(2, 3)}
+    assert all(a['id'].startswith('same-') for a in anchors)
+    # A line that is not found exactly once on both sides gives nothing.
+    assert engine.verbatim_anchors(source, ['参考文献']) == []

@@ -16,7 +16,7 @@ from sqlalchemy import select
 from backend.arxiv_import import extract_source
 from backend.config import Settings, database
 from backend.models import File, TranslationJob
-from backend.translation_engine import align, plain, protect
+from backend.translation_engine import align, extract_pdf_pages, plain, protect, verbatim_anchors
 
 
 def recover_archives(source_archive, target_archive):
@@ -57,6 +57,11 @@ def recover_archives(source_archive, target_archive):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument(
+        "--add-verbatim",
+        action="store_true",
+        help="Append anchors for untranslated passages (references) to existing mappings.",
+    )
     args = parser.parse_args()
     settings = Settings.env()
     _, maker = database(settings)
@@ -69,7 +74,29 @@ def main():
     for job_id in ids:
         with maker() as db:
             job = db.get(TranslationJob, job_id)
-            if not job or job.alignment:
+            if not job:
+                continue
+            if args.add_verbatim:
+                if not job.alignment or any(
+                    str(row.get("id", "")).startswith("same-") for row in job.alignment
+                ):
+                    continue
+                files = (db.get(File, job.source_file), db.get(File, job.translated_file))
+                if not all(files) or any(
+                    f.owner != job.owner or f.paper_id != job.paper_id or f.version_id != job.version_id
+                    for f in files
+                ):
+                    print(job_id, "skipped: PDF unavailable or mismatched")
+                    continue
+                extra = verbatim_anchors(
+                    *(extract_pdf_pages(Path(settings.storage) / f.id) for f in files)
+                )
+                print(job_id, f"+{len(extra)} verbatim anchors", "apply" if args.apply else "dry-run")
+                if args.apply and extra:
+                    job.alignment = [*job.alignment, *extra]
+                    db.commit()
+                continue
+            if job.alignment:
                 continue
             cache = (
                 Path(settings.storage).parent

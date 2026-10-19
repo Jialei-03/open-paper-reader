@@ -1039,7 +1039,7 @@ def locate(text, pages):
 def align(units, source_pdf, translated_pdf):
     source = extract_pdf_pages(source_pdf)
     target = extract_pdf_pages(translated_pdf)
-    return [
+    anchors = [
         {
             "id": u["id"],
             "source_text": u["source_text"],
@@ -1049,3 +1049,54 @@ def align(units, source_pdf, translated_pdf):
         }
         for u in units
     ]
+    return anchors + verbatim_anchors(source, target)
+
+
+VERBATIM_PER_PAGE = 6
+CJK_TEXT = re.compile(r"[\u3000-\u303f\u3400-\u9fff\uff00-\uffef]")
+
+
+def verbatim_candidates(page):
+    """Lines of a page that a translation leaves as they are: long enough, Latin, no Chinese.
+
+    Single lines, not joined ones: the two PDFs break and hyphenate lines in
+    different places, so text that crosses a line end rarely matches exactly.
+    """
+    latin = []
+    for line in page.splitlines():
+        line = line.strip().rstrip("-")
+        if (
+            len(line.replace(" ", "")) >= 40
+            and not CJK_TEXT.search(line)
+            and sum(c.isascii() and c.isalpha() for c in line) >= 0.6 * len(line)
+        ):
+            latin.append(line)
+    if len(latin) <= VERBATIM_PER_PAGE:
+        return latin
+    step = (len(latin) - 1) / (VERBATIM_PER_PAGE - 1)
+    return [latin[round(i * step)] for i in range(VERBATIM_PER_PAGE)]
+
+
+def verbatim_anchors(source, target):
+    """Anchors where the translation kept the original's words (references, code, names).
+
+    Passages that were translated give the anchors above; long untranslated
+    stretches give none, so the reference list drifted apart. The same unique,
+    long-match rule decides here too: an uncertain place stays unset.
+    """
+    anchors = []
+    for number, page in enumerate(source, 1):
+        for index, chunk in enumerate(verbatim_candidates(page)):
+            where = locate(chunk, source)
+            there = locate(chunk, target)
+            if where and there and where["page"] == number:
+                anchors.append(
+                    {
+                        "id": f"same-{number}-{index}",
+                        "source_text": chunk,
+                        "translated_text": chunk,
+                        "source": where,
+                        "translated": there,
+                    }
+                )
+    return anchors
