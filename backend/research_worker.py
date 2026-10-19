@@ -16,9 +16,16 @@ from sqlalchemy import select
 from . import research_sandbox
 from .config import Settings, database
 from .filelock import lock_nowait
-from .models import AgentRun, ResearchJob, ResearchProject, ResearchSprint, now
+from .models import (
+    AgentRun,
+    ResearchEvent,
+    ResearchJob,
+    ResearchProject,
+    ResearchSprint,
+    now,
+)
 from .parent_watch import watch_parent
-from .research_brief import executor_brief
+from .research_brief import advisor_brief, executor_brief
 from .research_map import event
 from .translation_settings import read_config
 
@@ -87,7 +94,75 @@ def _settle(d, project, sprint):
         {"run_status": run.status},
         sprint.id,
     )
+    if sprint.role == "advisor":
+        # An advisor that said nothing changes nothing; the executor carries on.
+        event(d, project, None, "system", "advisor_silent", {}, sprint.id)
     return True
+
+
+ADVISOR_EVERY = 3
+PROGRESS = {"add_node", "update_node", "record_result"}
+MARKS = (0.5, 0.8)
+
+
+def _events(d, sprint):
+    return list(
+        d.scalars(select(ResearchEvent).where(ResearchEvent.sprint_id == sprint.id))
+    )
+
+
+def _progressed(d, sprint):
+    return any(row.action in PROGRESS for row in _events(d, sprint))
+
+
+def next_role(d, project, history):
+    """Who works next: the advisor when a judgment is due, else the executor.
+
+    A judgment is due every few executor sprints, after a result that may
+    meet a kill condition, after a claimed finding, when the budget crosses
+    half and four fifths, and when two sprints in a row moved nothing on the
+    map. Never two advisor sprints in a row.
+    """
+    if not history or history[-1].role == "advisor":
+        return "executor"
+    since = []
+    for sprint in reversed(history):
+        if sprint.role == "advisor":
+            break
+        since.append(sprint)
+    if len(since) >= ADVISOR_EVERY:
+        return "advisor"
+    for row in _events(d, history[-1]):
+        if row.action == "record_result" and row.detail.get("kill_triggered") in {
+            "yes",
+            "unsure",
+        }:
+            return "advisor"
+        if row.action == "add_node" and row.detail.get("kind") == "finding":
+            return "advisor"
+    budget, spent = project.budget, project.spent
+    ratio = max(
+        spent.get("sprints", 0) / max(budget.get("max_sprints", 1), 1),
+        spent.get("tokens", 0) / max(budget.get("max_tokens", 1), 1),
+    )
+    marked = {
+        row.detail.get("mark")
+        for row in d.scalars(
+            select(ResearchEvent).where(
+                ResearchEvent.project_id == project.id,
+                ResearchEvent.action == "budget_mark",
+            )
+        )
+    }
+    for mark in MARKS:
+        if ratio >= mark and mark not in marked:
+            event(d, project, None, "system", "budget_mark", {"mark": mark})
+            return "advisor"
+    if len(since) >= 2 and all(
+        not s.waiting_on and not _progressed(d, s) for s in since[:2]
+    ):
+        return "advisor"
+    return "executor"
 
 
 def _plan(app, d, project):
@@ -120,8 +195,16 @@ def _plan(app, d, project):
         project.status = "paused"
         event(d, project, None, "system", "paused", {"reason": "模型配置不可用"})
         return
+    history = list(
+        d.scalars(
+            select(ResearchSprint)
+            .where(ResearchSprint.project_id == project.id)
+            .order_by(ResearchSprint.number)
+        )
+    )
+    role = next_role(d, project, history)
     number = (latest.number if latest else 0) + 1
-    sprint = ResearchSprint(project_id=project.id, number=number, run_id="")
+    sprint = ResearchSprint(project_id=project.id, number=number, role=role, run_id="")
     d.add(sprint)
     d.flush()
     run = AgentRun(
@@ -129,7 +212,9 @@ def _plan(app, d, project):
         session_id=project.session_id,
         model_config_id=project.model_config_id,
         model=config["model"],
-        prompt=executor_brief(d, project, number),
+        prompt=(advisor_brief if role == "advisor" else executor_brief)(
+            d, project, number
+        ),
         context="research/" + project.id,
         writable=True,
         lane="research",
@@ -137,7 +222,7 @@ def _plan(app, d, project):
             "research": {
                 "project_id": project.id,
                 "sprint_id": sprint.id,
-                "role": "executor",
+                "role": role,
             }
         },
     )
@@ -146,7 +231,15 @@ def _plan(app, d, project):
     sprint.run_id = run.id
     project.spent = {**project.spent, "sprints": project.spent.get("sprints", 0) + 1}
     project.updated_at = now()
-    event(d, project, None, "system", "sprint_planned", {"number": number}, sprint.id)
+    event(
+        d,
+        project,
+        None,
+        "system",
+        "sprint_planned",
+        {"number": number, "role": role},
+        sprint.id,
+    )
 
 
 def tick(app):

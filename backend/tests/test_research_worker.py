@@ -341,3 +341,161 @@ def test_paused_project_gets_no_sprint(lab):
         d.commit()
     rw.tick(app)
     assert sprints(app, project["id"]) == []
+
+
+def past_sprint(app, project_id, number, role="executor", events=(), waiting=()):
+    """A sprint that already ran: its run completed and it handed over."""
+    from backend.research_map import event
+
+    with app.state.maker() as d:
+        project = d.get(ResearchProject, project_id)
+        run = AgentRun(
+            owner=project.owner,
+            session_id=project.session_id,
+            model_config_id=project.model_config_id,
+            model="MiniMax-M3",
+            prompt="past",
+            status="completed",
+            lane="research",
+        )
+        d.add(run)
+        d.flush()
+        sprint = ResearchSprint(
+            project_id=project_id,
+            number=number,
+            role=role,
+            run_id=run.id,
+            status="ended",
+            summary=f"sprint {number} summary",
+            waiting_on=list(waiting),
+        )
+        d.add(sprint)
+        d.flush()
+        for action, detail in events:
+            event(d, project, None, role, action, detail, sprint.id)
+        project.spent = {**project.spent, "sprints": number}
+        d.commit()
+        return sprint.id
+
+
+def planned(app, project_id):
+    latest = sprints(app, project_id)[-1]
+    with app.state.maker() as d:
+        return latest, d.get(AgentRun, latest.run_id)
+
+
+PROGRESS = [("add_node", {"kind": "hypothesis"})]
+
+
+def test_advisor_every_three_sprints(lab):
+    app, project, _ = lab
+    for n in (1, 2, 3):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    rw.tick(app)
+    sprint, run = planned(app, project["id"])
+    assert sprint.role == "advisor" and sprint.number == 4
+    assert run.runtime["research"]["role"] == "advisor"
+    assert "advise" in run.prompt and "sprint 3 summary" in run.prompt
+
+
+def test_no_advisor_twice_in_a_row(lab):
+    app, project, _ = lab
+    for n in (1, 2, 3):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    past_sprint(app, project["id"], 4, role="advisor")
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "executor"
+
+
+def test_kill_unsure_triggers_advisor(lab):
+    app, project, _ = lab
+    past_sprint(
+        app, project["id"], 1, events=[("record_result", {"kill_triggered": "unsure"})]
+    )
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "advisor"
+
+
+def test_finding_triggers_advisor(lab):
+    app, project, _ = lab
+    past_sprint(app, project["id"], 1, events=[("add_node", {"kind": "finding"})])
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "advisor"
+
+
+def test_stall_triggers_advisor(lab):
+    app, project, _ = lab
+    past_sprint(app, project["id"], 1)
+    past_sprint(app, project["id"], 2)
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "advisor"
+
+
+def test_waiting_on_jobs_is_not_a_stall(lab):
+    app, project, _ = lab
+    past_sprint(app, project["id"], 1, waiting=["j1"])
+    past_sprint(app, project["id"], 2)
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "executor"
+
+
+def test_budget_half_triggers_advisor_once(lab):
+    app, project, _ = lab
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        p.budget = {**p.budget, "max_sprints": 4}
+        d.commit()
+    past_sprint(app, project["id"], 1, events=PROGRESS)
+    past_sprint(app, project["id"], 2, events=PROGRESS)
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "advisor"
+
+
+def test_silent_advisor_does_not_block(lab):
+    app, project, run_sprint = lab
+    for n in (1, 2, 3):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    rw.tick(app)
+    run_sprint([("tool", "research_map_read", {}), ("text", "I have no opinion")])
+    rw.tick(app)
+    advisor, executor = sprints(app, project["id"])[-2:]
+    assert advisor.role == "advisor" and advisor.status == "abnormal"
+    assert executor.role == "executor"
+    from backend.models import ResearchEvent
+
+    with app.state.maker() as d:
+        assert d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "advisor_silent")
+        ).first()
+
+
+def test_advisor_run_uses_advisor_skill_and_tools(lab):
+    app, project, run_sprint = lab
+    for n in (1, 2, 3):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    rw.tick(app)
+    root = newest(app, project["id"], "question")
+    model = run_sprint(
+        [
+            (
+                "tool",
+                "advise",
+                {
+                    "verdicts": [
+                        {"node_id": root.id, "verdict": "continue", "reason": "fine"}
+                    ],
+                    "assessment": "keep going on the sweep",
+                },
+            ),
+            ("text", "done"),
+        ]
+    )
+    first = model.requests[0]
+    assert "# 研究导师" in first["messages"][0]["content"]
+    names = {t["function"]["name"] for t in first["tools"]}
+    assert "advise" in names and "bash" not in names and "run_job" not in names
+    rw.tick(app)
+    executor = sprints(app, project["id"])[-1]
+    with app.state.maker() as d:
+        brief = d.get(AgentRun, executor.run_id).prompt
+    assert "导师意见" in brief and "keep going on the sweep" in brief

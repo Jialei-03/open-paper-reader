@@ -39,7 +39,10 @@ from .local.paths import agent_runtime_dir
 ROOT = Path(__file__).resolve().parents[1]
 
 
-RESEARCH_SKILL = agent_runtime_dir() / "skills" / "research-executor" / "SKILL.md"
+RESEARCH_SKILLS = {
+    role: agent_runtime_dir() / "skills" / f"research-{role}" / "SKILL.md"
+    for role in ("executor", "advisor")
+}
 # What a research sprint may use besides its own tools: files, shell, literature.
 RESEARCH_BASE = {
     "search_papers",
@@ -53,11 +56,23 @@ RESEARCH_BASE = {
 }
 
 
-def research_tools():
+def research_tools(role="executor"):
+    """The executor works (files, shell, jobs, the map); the advisor only reads and judges."""
+    from .research_tools import ADVISOR_TOOLS
+
+    if role == "advisor":
+        return [
+            t
+            for t in TOOLS
+            if (t.get("research") and t["name"] in ADVISOR_TOOLS)
+            or t["name"] in RESEARCH_BASE
+        ]
     return [
         t
         for t in TOOLS
-        if t.get("research") or t["name"] in PI_NAMES or t["name"] in RESEARCH_BASE
+        if (t.get("research") and t["name"] != "advise")
+        or t["name"] in PI_NAMES
+        or t["name"] in RESEARCH_BASE
     ]
 
 
@@ -252,7 +267,7 @@ def _process(app, job_id, cfg):
                 if r.attachment_ids
                 else ""
             ),
-            "tools": research_tools()
+            "tools": research_tools(research.get("role", "executor"))
             if research
             else [
                 t
@@ -267,7 +282,9 @@ def _process(app, job_id, cfg):
         }
     payload["context"] += selection_context(app, owner, session_id, job_id, snapshot)
     if research:
-        payload["system_prompt"] = RESEARCH_SKILL.read_text()
+        payload["system_prompt"] = RESEARCH_SKILLS[
+            research.get("role", "executor")
+        ].read_text()
     # The pictures asked about go with the question itself, to a model that sees.
     if not resume_from and cfg.get("vision"):
         payload["images"] = prompt_images(
