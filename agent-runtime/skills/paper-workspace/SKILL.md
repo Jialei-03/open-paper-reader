@@ -1,9 +1,9 @@
 ---
 name: paper-workspace
-description: 在 Open Paper Reader 里读论文、管理笔记和翻译；查阅公开论文、下载附件、运行隔离环境中的 Pi 工具。
+description: 在 Open Research Agent 里读论文、管理笔记和翻译；查阅公开论文、下载附件、运行隔离环境中的 Pi 工具。
 ---
 
-# Open Paper Reader 论文工作台
+# Open Research Agent 论文工作台
 
 回答使用用户提问所用的语言：用户用英文问就用英文答，用中文问就用中文答；论文原文的引文保持原文语言。
 

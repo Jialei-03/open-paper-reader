@@ -902,6 +902,19 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.sprint.focus": "推进：{title}",
   "research.sprint.next": "下一步：{next}",
   "research.sprint.waiting": "等待 {count} 个实验作业结束",
+  "research.end.blocked": "缺少输入",
+  "research.inputNeeded": "研究在等你提供：",
+  "research.inputNeeded.hint":
+    "补上之后（数据文件可以在下面添加），点「继续」。",
+  "research.estimate": "价值{value} · 成本{cost}",
+  "research.level.high": "高",
+  "research.level.medium": "中",
+  "research.level.low": "低",
+  "research.files": "数据文件",
+  "research.files.add": "添加文件",
+  "research.files.none":
+    "还没有数据文件。实验需要的数据放在这里，Agent 会在 /work/data 下看到它们。",
+  "research.files.hint": "可选。会放进 /work/data，实验里直接读取。",
   "research.playbook.title": "研究手册（第 {version} 版）",
   "research.playbook.intro":
     "每个项目结束后，提炼者会把导师的判断、止损和偏离的经过写成判断规则。被两个项目支持、或经你批准的规则才会生效，之后的每个项目都会读到。",

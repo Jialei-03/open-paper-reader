@@ -110,7 +110,7 @@ def install_account_routes(app, settings, db, auth, human, rate):
             tasks.add_task(
                 deliver,
                 body.email,
-                "Open Paper Reader：验证找回邮箱",
+                "Open Research Agent：验证找回邮箱",
                 f"请打开以下链接并确认绑定邮箱，30 分钟内有效：\n{settings.origin}/#verify-email?token={token}\n如非本人操作，请忽略。",
             )
         return {"message": "验证邮件已请求发送，请查收。再次发送需间隔 60 秒。"}
@@ -162,7 +162,7 @@ def install_account_routes(app, settings, db, auth, human, rate):
                 tasks.add_task(
                     deliver,
                     body.email,
-                    "Open Paper Reader：找回账号与密码",
+                    "Open Research Agent：找回账号与密码",
                     f"你的用户名：{user.username}\n重置密码链接（30 分钟内有效，只能使用一次）：\n{settings.origin}/#reset-password?token={token}\n如非本人操作，请忽略。",
                 )
         return {

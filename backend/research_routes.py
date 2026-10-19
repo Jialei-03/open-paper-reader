@@ -1,7 +1,9 @@
 # ruff: noqa: B008
 """The research projects API: create, read, and pause, resume or stop a project."""
 
-from fastapi import Depends, HTTPException
+from pathlib import Path
+
+from fastapi import Depends, HTTPException, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 
@@ -19,6 +21,7 @@ from .models import (
 from .translation_settings import read_config
 
 LOCAL_ONLY = "研究功能目前只在本机版提供"
+UPLOAD_BYTES = 200 * 1024 * 1024
 
 
 class Budget(BaseModel):
@@ -29,6 +32,7 @@ class Budget(BaseModel):
     auto_decide: bool | None = None
     playbook: bool | None = None
     distill: bool | None = None
+    advisor: bool | None = None
 
 
 class DecisionInput(BaseModel):
@@ -78,6 +82,8 @@ def node_out(n):
             "confidence",
             "kill_if",
             "budget_tokens",
+            "value",
+            "cost",
             "evidence_for",
             "evidence_against",
             "doubts",
@@ -151,6 +157,18 @@ def docker_state():
     return docker_status()
 
 
+def input_needed(d, p):
+    """What the advisor said the project waits for, while it waits for it."""
+    if p.status != "waiting":
+        return ""
+    last = d.scalars(
+        select(ResearchEvent)
+        .where(ResearchEvent.project_id == p.id, ResearchEvent.action == "input_needed")
+        .order_by(ResearchEvent.created_at.desc())
+    ).first()
+    return last.detail.get("summary", "") if last else ""
+
+
 def install_research_routes(app, settings, db, auth, human, owned):
     def allowed(a, d):
         """Research runs code and spends model budget: local edition, or admins."""
@@ -215,6 +233,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "sprints": [sprint_out(s) for s in sprints],
             "jobs": [job_out(j) for j in jobs],
             "docker": docker_state(),
+            "input_needed": input_needed(d, p),
         }
 
     @app.get("/api/v1/research/projects/{id}/metrics")
@@ -339,6 +358,51 @@ def install_research_routes(app, settings, db, auth, human, owned):
         d.commit()
         return project_out(p)
 
+    @app.get("/api/v1/research/projects/{id}/files")
+    def workspace_files(id: str, a=Depends(auth), d=Depends(db)):
+        """What the researcher put in the project's data folder."""
+        from .research_sandbox import workdir
+
+        p = project_of(d, id, a)
+        root = workdir(settings, p.id)
+        folder = root / "data"
+        if not folder.is_dir():
+            return []
+        return [
+            {"path": str(f.relative_to(root)), "size": f.stat().st_size}
+            for f in sorted(folder.rglob("*"))
+            if f.is_file() and not f.is_symlink()
+        ]
+
+    @app.post("/api/v1/research/projects/{id}/files")
+    async def upload_file(id: str, file: UploadFile, a=Depends(auth), d=Depends(db)):
+        """A data file for the experiments, kept at /work/data/<name>."""
+        from .research_sandbox import WORKSPACE_BYTES, _size, workdir
+
+        p = project_of(d, id, a)
+        name = Path(file.filename or "").name.strip()
+        if not name or name.startswith(".") or len(name) > 200:
+            raise HTTPException(422, "文件名不合法")
+        data = await file.read(UPLOAD_BYTES + 1)
+        if len(data) > UPLOAD_BYTES:
+            raise HTTPException(413, "单个文件最多 200 MB")
+        root = workdir(settings, p.id)
+        if _size(root) + len(data) > WORKSPACE_BYTES:
+            raise HTTPException(413, "工作区空间不够")
+        folder = root / "data"
+        folder.mkdir(exist_ok=True)
+        (folder / name).write_bytes(data)
+        research_map.event(
+            d,
+            p,
+            None,
+            "human",
+            "file_added",
+            {"path": f"data/{name}", "size": len(data)},
+        )
+        d.commit()
+        return {"path": f"data/{name}", "size": len(data)}
+
     @app.get("/api/v1/research/playbook")
     def playbook(a=Depends(auth), d=Depends(db)):
         from . import research_playbook
@@ -404,7 +468,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
         p = project_of(d, id, a)
         if p.status == "finished":
             raise HTTPException(409, "研究已结束，不能继续")
-        if p.status == "waiting":
+        if any(x["open"] for x in decisions_of(d, p)):
             raise HTTPException(409, WAITING)
         return move(p, "active", d)
 

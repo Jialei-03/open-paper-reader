@@ -39,7 +39,7 @@ NODE_HELP = (
     "  Windows: winget install OpenJS.NodeJS.LTS\n"
     "  Linux:   your package manager, or https://nodejs.org\n"
     "Reading, highlights and notes work without it; the assistant, guides and\n"
-    "translations start once Node.js is installed and Open Paper Reader restarts."
+    "translations start once Node.js is installed and Open Research Agent restarts."
 )
 
 
@@ -235,13 +235,13 @@ def main(argv=None):
     instance, other = claim_instance(data, url)
     if instance is None:
         say(
-            f"Open Paper Reader is already running at {other or 'another address'} "
+            f"Open Research Agent is already running at {other or 'another address'} "
             f"(this data folder is in use: {data}). Stop it first, or use another --data folder."
         )
         return 1
     if running(url):
         instance.close()
-        say(f"Open Paper Reader is already running at {url}")
+        say(f"Open Research Agent is already running at {url}")
         if not args.no_browser:
             webbrowser.open(url)
         return 0
@@ -279,7 +279,7 @@ def main(argv=None):
         threading.Thread(
             target=open_when_ready, args=(url, stopping), daemon=True
         ).start()
-    say(f"Open Paper Reader is running at {url} as “{reader}”. Press Ctrl+C to stop.")
+    say(f"Open Research Agent is running at {url} as “{reader}”. Press Ctrl+C to stop.")
     server = Server(
         uvicorn.Config(
             app,

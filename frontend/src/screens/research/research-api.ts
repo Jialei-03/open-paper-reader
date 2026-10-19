@@ -7,7 +7,7 @@ export interface ResearchProject {
   background: string;
   model_config_id: string;
   status: "active" | "waiting" | "paused" | "finished";
-  end_reason: "" | "concluded" | "refuted" | "budget" | "stopped";
+  end_reason: "" | "concluded" | "refuted" | "blocked" | "budget" | "stopped";
   budget: { max_sprints: number; max_tokens: number; max_job_seconds: number };
   spent: { sprints: number; tokens: number; job_seconds: number };
   session_id: string;
@@ -57,6 +57,9 @@ export interface ResearchNode {
   confidence: number;
   kill_if: string;
   budget_tokens: number;
+  /** Estimates: what working on it may teach, and what it costs ("" when none). */
+  value: "" | "high" | "medium" | "low";
+  cost: "" | "high" | "medium" | "low";
   evidence_for: ResultEntry[];
   evidence_against: ResultEntry[];
   doubts: string[];
@@ -100,6 +103,8 @@ export interface ProjectDetail {
   sprints: ResearchSprint[];
   jobs: ResearchJob[];
   docker: { available: boolean; reason: string };
+  /** What the advisor said the project waits for (a file, a definition); "" otherwise. */
+  input_needed: string;
 }
 
 export interface LogLines {
@@ -174,3 +179,21 @@ export interface ProjectMetrics {
 
 export const projectMetrics = (projectId: string) =>
   api<ProjectMetrics>(`${BASE}/${projectId}/metrics`);
+
+export interface WorkspaceFile {
+  path: string;
+  size: number;
+}
+
+export const listFiles = (projectId: string) =>
+  api<WorkspaceFile[]>(`${BASE}/${projectId}/files`);
+
+/** A data file for the experiments; the agent finds it at /work/data/<name>. */
+export function uploadFile(projectId: string, file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return api<WorkspaceFile>(`${BASE}/${projectId}/files`, {
+    method: "POST",
+    body,
+  });
+}

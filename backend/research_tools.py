@@ -24,6 +24,7 @@ from .models import (
 
 NODE = {"type": "string", "minLength": 8, "maxLength": 36}
 REASON = {"type": "string", "minLength": 1, "maxLength": 1000}
+LEVEL = {"type": "string", "enum": ["high", "medium", "low"]}
 
 # What may be done before saying what is being worked on: looking, not doing.
 FOCUS_FREE = {
@@ -66,13 +67,15 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "add_node",
-        "在地图上新增节点（question、hypothesis、experiment、finding）。假设必须写 kill_if（什么结果说明这条路不通）。",
+        "在地图上新增节点（question、hypothesis、experiment、finding）。假设必须写 kill_if（什么结果说明这条路不通）。可估计 value（做它能多大程度改变对北极星问题的判断）和 cost（要花多少），high / medium / low。",
         {
             "parent_id": NODE,
             "kind": {"type": "string", "enum": sorted(research_map.KINDS)},
             "title": {"type": "string", "minLength": 1, "maxLength": 300},
             "kill_if": {"type": "string", "maxLength": 500},
             "budget_tokens": {"type": "integer", "minimum": 0},
+            "value": LEVEL,
+            "cost": LEVEL,
             "reason": REASON,
         },
         ["parent_id", "kind", "title", "reason"],
@@ -162,7 +165,7 @@ RESEARCH_TOOLS = [
 RESEARCH_TOOLS.append(
     _research(
         "advise",
-        "（仅导师）对地图上的开放节点给出判断并结束本轮：continue / invest（加注）/ kill（放弃）/ pivot（转向，须给新假设和 kill_if）/ ask_human（请人拍板，可附 proposal）。可逐轮判断执行者是否跑偏（drift），并评估这条研究线值不值得发表（assessment）。北极星问题已得到回答时用 conclude。",
+        "（仅导师）对地图上的开放节点给出判断并结束本轮：continue / invest（加注）/ kill（放弃）/ pivot（转向，须给新假设和 kill_if）/ ask_human（请人拍板，可附 proposal）。可逐轮判断执行者是否跑偏（drift），并评估这条研究线值不值得发表（assessment）。北极星问题已得到回答时用 conclude（concluded / refuted）；缺少只有人能提供的东西（数据、权限、定义）而无法推进时，用 conclude 的 blocked，并在 summary 里写清需要什么。",
         {
             "verdicts": {
                 "type": "array",
@@ -183,6 +186,8 @@ RESEARCH_TOOLS.append(
                             ],
                         },
                         "reason": {"type": "string", "maxLength": 1000},
+                        "value": LEVEL,
+                        "cost": LEVEL,
                         "proposal": {
                             "type": "string",
                             "enum": ["continue", "invest", "kill", "pivot"],
@@ -218,7 +223,10 @@ RESEARCH_TOOLS.append(
             "conclude": {
                 "type": "object",
                 "properties": {
-                    "status": {"type": "string", "enum": ["concluded", "refuted"]},
+                    "status": {
+                        "type": "string",
+                        "enum": ["concluded", "refuted", "blocked"],
+                    },
                     "summary": {"type": "string", "maxLength": 2000},
                 },
                 "required": ["status"],
@@ -468,6 +476,8 @@ def _run(app, owner, research, name, args):
                 args["title"],
                 kill_if=args.get("kill_if", ""),
                 budget_tokens=args.get("budget_tokens", 0),
+                value=args.get("value", ""),
+                cost=args.get("cost", ""),
                 actor="executor",
                 sprint_id=sprint.id,
                 reason=args["reason"],

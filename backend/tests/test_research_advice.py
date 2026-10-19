@@ -256,6 +256,10 @@ def test_executor_cannot_advise(world):
 
 def test_conclude_finishes_project(world):
     app, maker, ids = world
+    with maker() as d:
+        node = d.get(ResearchNode, ids.hyp)
+        node.evidence_for = [{"summary": "acc=0.9", "evidence": [{"kind": "log"}]}]
+        d.commit()
     out = advise(
         app,
         ids,
@@ -312,3 +316,76 @@ def test_advise_does_not_revive_a_stopped_project(world):
     advise(app, ids, {"verdicts": [verdict(ids.hyp, "ask_human")]})
     with maker() as d:
         assert d.get(ResearchProject, ids.project).status == "finished"
+
+
+def test_conclude_needs_recorded_evidence(world):
+    """A project ends on results recorded on its map, not on what the advisor read."""
+    app, maker, ids = world
+    out = advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {"status": "concluded", "summary": "looks answered"},
+        },
+    )
+    assert out["concluded"] is False
+    with maker() as d:
+        assert d.get(ResearchProject, ids.project).status == "active"
+        rejected = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "conclude_rejected")
+        ).one()
+        assert "record_result" in rejected.detail["why"]
+
+
+def test_advisor_reestimates_value(world):
+    app, maker, ids = world
+    advise(
+        app, ids, {"verdicts": [verdict(ids.hyp, "continue", value="low", cost="high")]}
+    )
+    with maker() as d:
+        node = d.get(ResearchNode, ids.hyp)
+        assert node.value == "low" and node.cost == "high"
+
+
+def test_blocked_waits_for_input(world):
+    """Nothing can move until a person provides something: say what, and wait."""
+    app, maker, ids = world
+    out = advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {
+                "status": "blocked",
+                "summary": "/work/data/second.csv is missing",
+            },
+        },
+    )
+    assert out["concluded"] is False
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        assert p.status == "waiting"
+        request = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "input_needed")
+        ).one()
+        assert "second.csv" in request.detail["summary"]
+
+
+def test_blocked_ends_an_evaluation_run(world):
+    app, maker, ids = world
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        p.budget = {**p.budget, "auto_decide": True}
+        d.commit()
+    advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {"status": "blocked", "summary": "missing"},
+        },
+    )
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        assert p.status == "finished" and p.end_reason == "blocked"

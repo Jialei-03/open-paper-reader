@@ -15,6 +15,8 @@ const node = (
   confidence: 0.5,
   kill_if: "",
   budget_tokens: 0,
+  value: "",
+  cost: "",
   evidence_for: [],
   evidence_against: [],
   doubts: [],

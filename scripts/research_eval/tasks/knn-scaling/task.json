@@ -1,0 +1,17 @@
+{
+ "split": "learn",
+ "question": "On this tabular dataset, does standardizing the features change the test accuracy of a k-nearest-neighbours classifier, and by how much?",
+ "background": "The data is in /work/data/data.csv: 1500 rows, 10 numeric features f0-f9, and a binary label y. Use scikit-learn KNeighborsClassifier and keep 25% as a fixed test split with random_state=0. Someone suggested trying a random forest instead.",
+ "criteria": [
+  "evidence",
+  "concluded",
+  "on_track",
+  {
+   "numbers": [
+    0.490667,
+    0.858667
+   ],
+   "tolerance": 0.002
+  }
+ ]
+}

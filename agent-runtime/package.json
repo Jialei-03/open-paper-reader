@@ -1,12 +1,12 @@
 {
   "name": "open-paper-reader-agent-runtime",
   "version": "0.1.0",
-  "description": "open-paper-reader's research assistant runtime: a Pi agent with workspace skills, isolated coding tools and public web access",
+  "description": "Open Research Agent's agent runtime: a Pi agent with workspace skills, isolated coding tools and public web access",
   "scripts": {
     "test": "node --test runner.test.mjs"
   },
   "keywords": [],
-  "author": "The Open Paper Reader Authors",
+  "author": "The Open Research Agent Authors",
   "license": "MIT",
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.85.1",

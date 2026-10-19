@@ -967,6 +967,20 @@ export const en = {
   "research.sprint.focus": "Working on: {title}",
   "research.sprint.next": "Next: {next}",
   "research.sprint.waiting": "Waiting for {count} experiment job(s)",
+  "research.end.blocked": "Needs input",
+  "research.inputNeeded": "The research is waiting for:",
+  "research.inputNeeded.hint":
+    "Once it is there (add data files below), press Resume.",
+  "research.estimate": "value {value} · cost {cost}",
+  "research.level.high": "high",
+  "research.level.medium": "medium",
+  "research.level.low": "low",
+  "research.files": "Data files",
+  "research.files.add": "Add files",
+  "research.files.none":
+    "No data files yet. Put the data the experiments need here; the agent finds it under /work/data.",
+  "research.files.hint":
+    "Optional. Placed in /work/data for the experiments to read.",
   "research.playbook.title": "Research playbook (version {version})",
   "research.playbook.intro":
     "When a project ends, a distiller turns the advisor's calls, the kill decisions and any drift into judgment rules. A rule takes effect once two projects support it or you approve it, and every new project reads it.",

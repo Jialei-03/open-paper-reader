@@ -170,3 +170,25 @@ def test_node_by_prefix_tolerates_invented_suffix(db):
     project, root = project_with_root(d, owner)
     invented = root.id[:8] + "-0000-0000-0000-000000000000"
     assert rm.node_by_prefix(d, project, invented).id == root.id
+
+
+def test_value_and_cost_estimates_shown(db):
+    d, owner = db
+    project, root = project_with_root(d, owner)
+    rm.add_node(
+        d,
+        project,
+        root.id,
+        "hypothesis",
+        "Cheap and telling",
+        kill_if="k",
+        value="high",
+        cost="low",
+        actor="executor",
+    )
+    with pytest.raises(ValueError):
+        rm.add_node(
+            d, project, root.id, "experiment", "E", value="huge", actor="executor"
+        )
+    text = rm.snapshot(d, project)
+    assert "value=high cost=low" in text

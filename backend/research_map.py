@@ -16,6 +16,7 @@ from .models import (
 )
 
 KINDS = {"question", "hypothesis", "experiment", "finding"}
+LEVELS = {"", "high", "medium", "low"}
 STATUSES = {"open", "active", "supported", "refuted", "abandoned", "parked"}
 # A node in one of these is done with; nothing more is added under it.
 CLOSED = {"supported", "refuted", "abandoned"}
@@ -94,6 +95,8 @@ def add_node(
     *,
     kill_if="",
     budget_tokens=0,
+    value="",
+    cost="",
     actor,
     sprint_id=None,
     reason="",
@@ -113,6 +116,8 @@ def add_node(
         raise ValueError("父节点已关闭，不能在它下面继续添加")
     if budget_tokens < 0:
         raise ValueError("预算不能为负数")
+    if value not in LEVELS or cost not in LEVELS:
+        raise ValueError("价值和成本的估计只能是 high、medium 或 low")
     node = ResearchNode(
         project_id=project.id,
         parent_id=parent.id,
@@ -120,6 +125,8 @@ def add_node(
         title=title[:300],
         kill_if=kill_if,
         budget_tokens=budget_tokens,
+        value=value,
+        cost=cost,
     )
     d.add(node)
     d.flush()
@@ -225,6 +232,8 @@ def _lines(node, depth, full):
         f"{pad}[{node.id[:PREFIX]}] {node.kind}/{node.status} "
         f"conf={node.confidence:.2f} spent={_thousands(node.spent_tokens)}  {node.title}"
     )
+    if node.value or node.cost:
+        head += f"  [value={node.value or '?'} cost={node.cost or '?'}]"
     if not full:
         return [head]
     lines = [head]

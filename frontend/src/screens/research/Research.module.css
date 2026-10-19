@@ -86,7 +86,8 @@
 .formRow {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  /* Labels in one line, whatever the height of the control under each. */
+  align-items: flex-start;
   gap: var(--ui-space-16);
 }
 
@@ -594,4 +595,46 @@
   display: flex;
   align-items: center;
   gap: var(--ui-space-8);
+}
+
+/* The data the experiments run on. */
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+}
+
+.filesHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+}
+
+.filesHead .sectionTitle {
+  margin: 0;
+}
+
+.fileList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-6) var(--ui-space-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fileList li {
+  display: flex;
+  gap: var(--ui-space-6);
+  align-items: baseline;
+}
+
+/* What a node may teach and what it costs, as the agent and the advisor estimate it. */
+.estimate {
+  flex: none;
+  padding: 0 var(--ui-space-6);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-selected);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
 }

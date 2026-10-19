@@ -79,6 +79,14 @@ def act(d, project, sprint, node, kind, item):
     return False
 
 
+def _estimate(node, item):
+    """The advisor's own view of what a node is worth and costs, when it gives one."""
+    for field in ("value", "cost"):
+        level = item.get(field)
+        if level in {"high", "medium", "low"}:
+            setattr(node, field, level)
+
+
 def apply(d, project, sprint, args):
     """Applies an `advise` call; {"applied", "skipped", "concluded"}."""
     applied = skipped = 0
@@ -102,6 +110,7 @@ def apply(d, project, sprint, args):
             )
             skipped += 1
             continue
+        _estimate(node, item)
         if kind == "ask_human":
             proposal = item.get("proposal", "continue")
             if auto:
@@ -184,6 +193,37 @@ def apply(d, project, sprint, args):
         )
     concluded = False
     conclusion = args.get("conclude")
+    if conclusion and conclusion.get("status") == "blocked":
+        # Nothing can move until a person provides something: say what, then wait
+        # (an evaluation run, with nobody to provide it, ends here).
+        summary = conclusion.get("summary", "")[:1000]
+        if project.status in {"active", "waiting"}:
+            if project.budget.get("auto_decide"):
+                project.status, project.end_reason = "finished", "blocked"
+            else:
+                project.status = "waiting"
+        research_map.event(
+            d, project, None, "advisor", "input_needed", {"summary": summary}, sprint.id
+        )
+        conclusion = None
+    recorded = any(
+        n.evidence_for or n.evidence_against for n in research_map.nodes(d, project)
+    )
+    if conclusion and not recorded:
+        # What the advisor read in the logs must first be recorded on the map.
+        research_map.event(
+            d,
+            project,
+            None,
+            "advisor",
+            "conclude_rejected",
+            {
+                "why": "地图上还没有记录过结果：先让执行者用 record_result 记下支持结论的证据",
+                "summary": conclusion.get("summary", "")[:500],
+            },
+            sprint.id,
+        )
+        conclusion = None
     if (
         conclusion
         and conclusion.get("status") in {"concluded", "refuted"}

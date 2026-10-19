@@ -17,6 +17,7 @@ import {
 import { readModels, type ModelRow } from "../setup/model-api";
 import {
   createProject,
+  uploadFile,
   listProjects,
   type ResearchProject,
 } from "./research-api";
@@ -49,6 +50,7 @@ export function ResearchListScreen({ go }: ResearchListScreenProps) {
   const [sprints, setSprints] = useState("30");
   const [creating, setCreating] = useState(false);
   const [open, setOpen] = useState(false);
+  const [data, setData] = useState<File[]>([]);
 
   useEffect(() => {
     listProjects().then(
@@ -97,6 +99,8 @@ export function ResearchListScreen({ go }: ResearchListScreenProps) {
         model_config_id: modelId,
         budget: { max_sprints: limit },
       });
+      // The data goes in before the first sprint needs it.
+      for (const file of data) await uploadFile(project.id, file);
       go(`research/${project.id}`);
     } catch (error) {
       toast.show({
@@ -151,6 +155,17 @@ export function ResearchListScreen({ go }: ResearchListScreenProps) {
                 maxRows={10}
                 onChange={(event) => setBackground(event.target.value)}
               />
+              <label className={styles.field}>
+                <span className={styles.caption}>{t("research.files")}</span>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(event) =>
+                    setData(Array.from(event.target.files ?? []))
+                  }
+                />
+                <span className={styles.hint}>{t("research.files.hint")}</span>
+              </label>
               <div className={styles.formRow}>
                 <div className={styles.field}>
                   <span className={styles.caption}>{t("research.model")}</span>
