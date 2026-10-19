@@ -68,6 +68,9 @@ def texts(detail):
 
 MISSING_WORDS = (
     "does not",
+    "unavailable",
+    "no such file",
+    "filenotfound",
     "exists=false",
     "cannot",
     "无法",
