@@ -7,8 +7,10 @@ take effect. Asking a person stops the project until they decide, except in
 evaluation runs (`budget.auto_decide`), where the advisor's proposal is taken.
 """
 
+from sqlalchemy import select
+
 from . import research_map
-from .models import now
+from .models import ResearchEvent, now
 
 VERDICTS = {"continue", "invest", "kill", "pivot", "ask_human"}
 # Verdicts that would close the node they name.
@@ -119,6 +121,30 @@ def apply(d, project, sprint, args):
         _estimate(node, item)
         if kind == "ask_human":
             proposal = item.get("proposal", "continue")
+            asked_before = auto and any(
+                e.node_id == node.id
+                for e in d.scalars(
+                    select(ResearchEvent).where(
+                        ResearchEvent.project_id == project.id,
+                        ResearchEvent.action == "auto_decided",
+                    )
+                )
+            )
+            if asked_before and project.status == "active":
+                # Nobody answers in auto mode; asking again about the same node is what
+                # waiting for a person looks like, so the run ends there, as a person's would pause.
+                project.status, project.end_reason = "finished", "blocked"
+                research_map.event(
+                    d,
+                    project,
+                    node,
+                    "advisor",
+                    "input_needed",
+                    {"summary": item.get("reason", "")[:1000]},
+                    sprint.id,
+                )
+                applied += 1
+                continue
             if auto:
                 try:
                     done = (
