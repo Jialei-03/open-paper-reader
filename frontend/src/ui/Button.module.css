@@ -129,3 +129,9 @@
 .iconButton:hover:not(:disabled) {
   color: var(--ui-fg);
 }
+
+/* A tool that is on (find, box select): it stays filled, so it reads as on without a hover. */
+.iconButton[aria-pressed="true"] {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+}

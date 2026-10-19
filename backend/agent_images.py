@@ -205,3 +205,33 @@ def list_images(app, owner, paper_id):
 
 def image_bytes(value):
     return base64.b64decode(value["data"], validate=True)
+
+
+def prompt_images(app, owner, attachment_ids, snapshot, limit):
+    """The pictures a question carries to a model that sees: the images the
+    reader attached, then the region they boxed. One that cannot be read is left
+    out (the question still goes, with its text)."""
+    sources = []
+    for id in attachment_ids or []:
+        try:
+            f = owned_file(app, owner, id)
+        except ValueError:
+            continue
+        if f.mime.startswith("image/"):
+            sources.append((f.id, 1, None))
+    if snapshot and snapshot.get("source") == "region" and snapshot.get("rect"):
+        try:
+            f = owned_file(app, owner, snapshot["file_id"])
+            sources.append((f.id, snapshot["page"], snapshot["rect"]))
+        except (ValueError, KeyError):
+            pass
+    blocks = []
+    for file_id, page, rect in sources[:limit]:
+        try:
+            value = inspect(app.state.settings, file_id, page=page, rect=rect)
+        except ValueError:
+            continue
+        blocks.append(
+            {"type": "image", "mimeType": value["mimeType"], "data": value["data"]}
+        )
+    return blocks

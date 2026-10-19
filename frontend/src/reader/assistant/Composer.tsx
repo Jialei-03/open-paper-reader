@@ -1,5 +1,7 @@
 import {
   ArrowUp,
+  ImagePlus,
+  LoaderCircle,
   PanelRight,
   PictureInPicture2,
   RotateCcw,
@@ -10,13 +12,25 @@ import clsx from "clsx";
 import {
   useEffect,
   useRef,
+  useState,
+  type ClipboardEvent,
   type CSSProperties,
+  type DragEvent,
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, IconButton, TextArea, Tooltip } from "../../ui";
 import type { AskRequest } from "../types";
+import { regionImageUrl } from "../regions/geometry";
+import {
+  IMAGE_TYPES,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES,
+  imageFiles,
+  uploadImage,
+  type ComposerImage,
+} from "./images";
 import { conversation, isActive, shorten } from "./runs";
 import type { Assistant } from "./useAssistant";
 import type { ComposerDraft, Place } from "./useComposerDock";
@@ -76,7 +90,18 @@ export function Composer({
   onAsk,
 }: ComposerProps) {
   const { t } = useI18n();
-  const { text: draft, setText: setDraft, unsent, setUnsent } = kept;
+  const {
+    text: draft,
+    setText: setDraft,
+    unsent,
+    setUnsent,
+    images,
+    setImages,
+  } = kept;
+  const picker = useRef<HTMLInputElement>(null);
+  // Why a picture was not taken (too many, too large), or that the pictures are still going up.
+  const [imageNotice, setImageNotice] = useState("");
+  const [dropping, setDropping] = useState(false);
   const floating = placement === "floating";
   const field = useRef<HTMLTextAreaElement>(null);
   const box = useRef<HTMLDivElement | null>(null);
@@ -123,20 +148,108 @@ export function Composer({
 
   if (!shown) return null;
 
+  const sees =
+    assistant.models.find((row) => row.id === assistant.modelId)?.vision ??
+    false;
+
+  // Shown at once from the file itself, and sent to the service meanwhile.
+  const addImages = (files: File[]) => {
+    if (!files.length || unavailable) return;
+    const room = MAX_IMAGES - images.length;
+    const fitting = files.filter((file) => file.size <= MAX_IMAGE_BYTES);
+    const taken = fitting.slice(0, Math.max(0, room));
+    setImageNotice(
+      fitting.length < files.length
+        ? t("reader.assistant.image.tooLarge")
+        : taken.length < fitting.length
+          ? t("reader.assistant.image.tooMany", { count: MAX_IMAGES })
+          : "",
+    );
+    const added: ComposerImage[] = taken.map((file) => ({
+      key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      name: file.name,
+      preview: URL.createObjectURL(file),
+      status: "uploading",
+    }));
+    if (!added.length) return;
+    setImages((old) => [...old, ...added]);
+    added.forEach((image, index) => {
+      uploadImage(taken[index]).then(
+        (id) =>
+          setImages((old) =>
+            old.map((row) =>
+              row.key === image.key ? { ...row, id, status: "ready" } : row,
+            ),
+          ),
+        () =>
+          setImages((old) =>
+            old.map((row) =>
+              row.key === image.key ? { ...row, status: "failed" } : row,
+            ),
+          ),
+      );
+    });
+  };
+  const removeImage = (key: string) => {
+    setImages((old) => {
+      const gone = old.find((row) => row.key === key);
+      if (gone) URL.revokeObjectURL(gone.preview);
+      return old.filter((row) => row.key !== key);
+    });
+    setImageNotice("");
+    field.current?.focus();
+  };
+  const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = imageFiles(event.clipboardData);
+    if (!files.length) return;
+    event.preventDefault();
+    addImages(files);
+  };
+  const carriesFiles = (event: DragEvent) =>
+    Array.from(event.dataTransfer.types).includes("Files");
+  const onDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!carriesFiles(event) || unavailable) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDropping(true);
+  };
+  const onDrop = (event: DragEvent<HTMLDivElement>) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDropping(false);
+    addImages(imageFiles(event.dataTransfer));
+  };
+
   const submit = async () => {
     const prompt = draft.trim();
     if (!prompt || unavailable || assistant.sending || answering) return;
+    if (images.some((image) => image.status !== "ready")) {
+      setImageNotice(
+        t(
+          images.some((image) => image.status === "failed")
+            ? "reader.assistant.image.failed"
+            : "reader.assistant.image.wait",
+        ),
+      );
+      return;
+    }
     const request = pending ? { ...pending, question: prompt } : undefined;
+    const sent = images;
+    const attachments = sent.flatMap((image) => (image.id ? [image.id] : []));
     onAsk?.();
     setDraft("");
-    if (await assistant.send({ prompt, request })) {
+    setImages([]);
+    setImageNotice("");
+    if (await assistant.send({ prompt, request, attachments })) {
       setUnsent(false);
+      sent.forEach((image) => URL.revokeObjectURL(image.preview));
       if (request) onClearPending();
     }
     // Not sent: the question comes back, unless something new has been typed meanwhile.
     else {
       setUnsent(true);
       setDraft((typed) => typed || draft);
+      setImages((added) => [...sent, ...added]);
     }
   };
   // What the error is about, again: the question in the box if it was this box's, else the hook's.
@@ -171,7 +284,14 @@ export function Composer({
         styles.composer,
         floating ? styles.floating : styles.docked,
         lifted && styles.lifted,
+        dropping && styles.dropping,
       )}
+      onDragOver={onDragOver}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+          setDropping(false);
+      }}
+      onDrop={onDrop}
       style={
         floating && place
           ? ({
@@ -189,6 +309,67 @@ export function Composer({
           onPointerDown={onGrip}
         />
       )}
+      {(images.length > 0 ||
+        (pending?.source === "region" && pending.rect)) && (
+        <ul className={styles.tray}>
+          {pending?.source === "region" && pending.rect && (
+            <li className={styles.thumb} data-region="">
+              <img
+                src={regionImageUrl(pending.fileId, pending.page, {
+                  x: pending.rect[0],
+                  y: pending.rect[1],
+                  w: pending.rect[2],
+                  h: pending.rect[3],
+                })}
+                alt={t("reader.assistant.context.region", {
+                  page: pending.page,
+                })}
+                title={t("reader.assistant.context.region", {
+                  page: pending.page,
+                })}
+              />
+              <button
+                type="button"
+                className={styles.thumbRemove}
+                aria-label={t("reader.assistant.context.remove")}
+                onClick={() => {
+                  onClearPending();
+                  field.current?.focus();
+                }}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </li>
+          )}
+          {images.map((image) => (
+            <li
+              key={image.key}
+              className={styles.thumb}
+              data-status={image.status}
+              title={
+                image.status === "failed"
+                  ? t("reader.assistant.image.failed")
+                  : image.name
+              }
+            >
+              <img src={image.preview} alt={t("reader.assistant.image.alt")} />
+              {image.status === "uploading" && (
+                <span className={styles.thumbBusy} aria-hidden="true">
+                  <LoaderCircle size={16} />
+                </span>
+              )}
+              <button
+                type="button"
+                className={styles.thumbRemove}
+                aria-label={t("reader.assistant.image.remove")}
+                onClick={() => removeImage(image.key)}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <TextArea
         ref={field}
         label={t("reader.assistant.input")}
@@ -201,10 +382,38 @@ export function Composer({
         disabled={unavailable}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
       />
+      <input
+        ref={picker}
+        type="file"
+        accept={IMAGE_TYPES.join(",")}
+        multiple
+        hidden
+        onChange={(event) => {
+          addImages(Array.from(event.target.files ?? []));
+          event.target.value = "";
+        }}
+      />
+      {(imageNotice ||
+        (!sees &&
+          !unavailable &&
+          (images.length > 0 || pending?.source === "region"))) && (
+        <p className={styles.hint} role="status">
+          {imageNotice || t("reader.assistant.image.noVision")}
+        </p>
+      )}
       <div className={styles.tools}>
+        <IconButton
+          icon={ImagePlus}
+          label={t("reader.assistant.image.add")}
+          size="sm"
+          disabled={unavailable || images.length >= MAX_IMAGES}
+          onClick={() => picker.current?.click()}
+        />
         <ComposerPickers assistant={assistant} />
-        {pending && (
+        {/* A boxed region is shown as its picture above. */}
+        {pending && pending.source !== "region" && (
           <span className={styles.chip}>
             <span className={styles.chipText}>{context}</span>
             <button

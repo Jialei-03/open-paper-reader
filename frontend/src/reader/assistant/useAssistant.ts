@@ -33,7 +33,12 @@ export interface Assistant {
    */
   recover: (() => void) | null;
   /** Asks the assistant; whether the run was created (`error` says why not). */
-  send(input: { prompt: string; request?: AskRequest }): Promise<boolean>;
+  send(input: {
+    prompt: string;
+    request?: AskRequest;
+    /** Pictures uploaded to go with the question (attachment ids). */
+    attachments?: string[];
+  }): Promise<boolean>;
   cancel(runId: string): void;
   /** Asks the same question again, with the same context. */
   retry(runId: string): void;
@@ -276,7 +281,11 @@ export function useAssistant({
   }, []);
 
   const create = useCallback(
-    async (prompt: string, context?: Record<string, unknown>) => {
+    async (
+      prompt: string,
+      context?: Record<string, unknown>,
+      attachments: string[] = [],
+    ) => {
       const {
         paperId: forPaper,
         session,
@@ -286,7 +295,7 @@ export function useAssistant({
       const question = prompt.trim();
       if (!forPaper || !question) return false;
       // Asked again by hand, the same question about the same words.
-      const again = () => void createNow.current(prompt, context);
+      const again = () => void createNow.current(prompt, context, attachments);
       if (!modelId || !session) {
         setFailure({
           paperId: forPaper,
@@ -307,6 +316,7 @@ export function useAssistant({
             model_config_id: modelId,
             ...(options ? { model_options: options } : {}),
             ...(context ? { reader_context: context } : {}),
+            ...(attachments.length ? { attachment_ids: attachments } : {}),
             writable: false,
             context: `paper/${forPaper}`,
           },
@@ -338,15 +348,28 @@ export function useAssistant({
   createNow.current = create;
 
   const send = useCallback(
-    ({ prompt, request }: { prompt: string; request?: AskRequest }) =>
-      create(prompt, request ? readerContext(request) : undefined),
+    ({
+      prompt,
+      request,
+      attachments,
+    }: {
+      prompt: string;
+      request?: AskRequest;
+      attachments?: string[];
+    }) =>
+      create(prompt, request ? readerContext(request) : undefined, attachments),
     [create],
   );
 
   const retry = useCallback(
     (runId: string) => {
       const run = now.current.runs.find((row) => row.id === runId);
-      if (run) void create(run.prompt, resendable(run.runtime?.reader_context));
+      if (run)
+        void create(
+          run.prompt,
+          resendable(run.runtime?.reader_context),
+          (run.attachments ?? []).map((attachment) => attachment.id),
+        );
     },
     [create],
   );

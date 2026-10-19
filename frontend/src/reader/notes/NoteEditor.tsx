@@ -3,7 +3,7 @@ import type { Transaction } from "@tiptap/pm/state";
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { noteExtensions, type FormulaClick } from "../../lib/note-editor";
-import { Button, Dialog, TextArea } from "../../ui";
+import { Button, Dialog, TextArea, TextField } from "../../ui";
 import {
   CiteProvider,
   NoteCitation,
@@ -15,6 +15,13 @@ import {
 import type { ReaderRoute } from "../route";
 import { serviceReason } from "../service-error";
 import { readerRouteOf } from "./noteLink";
+import { NoteToolbar } from "./NoteToolbar";
+import {
+  pageMarkdown,
+  quoteMarkdown,
+  shownPage,
+  usePaperQuote,
+} from "./paperQuote";
 import styles from "./NoteEditor.module.css";
 
 /** What an image may weigh and how many may come at once, as the service allows. */
@@ -56,6 +63,14 @@ export function NoteEditor({
   const [formula, setFormula] = useState<FormulaClick | null>(null);
   const [problem, setProblem] = useState("");
   const [uploading, setUploading] = useState(false);
+  // The link being written: its address and, with nothing selected, its words.
+  const [link, setLink] = useState<{
+    href: string;
+    text: string;
+    bare: boolean;
+  } | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const paperQuote = usePaperQuote();
 
   // What the editor's handlers call; they are made once, so they read these.
   const latest = useRef({ onChange, onFlush, onJump, onImage });
@@ -203,6 +218,22 @@ export function NoteEditor({
 
   const saveFormula = () => {
     if (!formula || !editor) return;
+    // A new one, from the bar: put in where the caret is.
+    if (formula.pos < 0) {
+      const latex = formula.latex.trim();
+      if (latex)
+        editor
+          .chain()
+          .focus()
+          .insertContent(
+            formula.block
+              ? { type: "blockMath", attrs: { latex } }
+              : { type: "inlineMath", attrs: { latex } },
+          )
+          .run();
+      setFormula(null);
+      return;
+    }
     const node = editor.state.doc.nodeAt(formula.pos);
     if (node?.type.name === (formula.block ? "blockMath" : "inlineMath"))
       editor
@@ -219,6 +250,46 @@ export function NoteEditor({
     setFormula(null);
   };
 
+  const openLink = () => {
+    if (!editor) return;
+    const { from, to, empty } = editor.state.selection;
+    setLink({
+      href: (editor.getAttributes("link").href as string | undefined) ?? "",
+      text: empty ? "" : editor.state.doc.textBetween(from, to, " "),
+      bare: empty,
+    });
+  };
+  const saveLink = () => {
+    if (!link || !editor) return;
+    const href = link.href.trim();
+    const chain = editor.chain().focus().extendMarkRange("link");
+    if (!href) chain.unsetLink().run();
+    else if (!/^(https?:\/\/|#|mailto:)/i.test(href)) return;
+    else if (link.bare)
+      chain
+        .insertContent({
+          type: "text",
+          text: link.text.trim() || href,
+          marks: [{ type: "link", attrs: { href } }],
+        })
+        .insertContent(" ")
+        .run();
+    else chain.setLink({ href }).run();
+    setLink(null);
+  };
+  const linkValid =
+    !link?.href.trim() || /^(https?:\/\/|#|mailto:)/i.test(link.href.trim());
+
+  const insertMarkdown = (markdown: string) => {
+    editor
+      ?.chain()
+      .focus()
+      .insertContent(markdown, { contentType: "markdown" })
+      .run();
+    latest.current.onFlush();
+  };
+  const paperOf = cite ? { paperId: cite.paperId, fileId: cite.fileId } : null;
+
   return (
     <div
       className={styles.surface}
@@ -230,6 +301,56 @@ export function NoteEditor({
         ),
       }}
     >
+      {editor && (
+        <NoteToolbar
+          editor={editor}
+          onImage={() => picker.current?.click()}
+          onLink={openLink}
+          onFormula={() =>
+            setFormula({
+              pos: -1,
+              latex: "",
+              block: editor.state.selection.empty,
+            })
+          }
+          paper={
+            paperOf
+              ? {
+                  quote: paperQuote,
+                  page: shownPage,
+                  onCite: (quote) =>
+                    insertMarkdown(
+                      quoteMarkdown(
+                        quote,
+                        paperOf,
+                        t("reader.notes.source", { page: quote.page }),
+                      ),
+                    ),
+                  onPage: (at) =>
+                    insertMarkdown(
+                      pageMarkdown(
+                        at,
+                        paperOf,
+                        t("reader.notes.source", { page: at }),
+                      ),
+                    ),
+                }
+              : undefined
+          }
+        />
+      )}
+      <input
+        ref={picker}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        multiple
+        hidden
+        onChange={(event) => {
+          const files = images(event.target.files);
+          event.target.value = "";
+          if (files.length) upload.current(files);
+        }}
+      />
       <CiteProvider target={cite ?? null}>
         <EditorContent editor={editor} />
       </CiteProvider>
@@ -244,10 +365,62 @@ export function NoteEditor({
         </p>
       )}
       <Dialog
+        open={link !== null}
+        onClose={() => setLink(null)}
+        title={t("reader.notes.link.title")}
+        footer={
+          <>
+            <Button onClick={() => setLink(null)}>{t("common.cancel")}</Button>
+            <Button variant="primary" disabled={!linkValid} onClick={saveLink}>
+              {t("reader.notes.link.save")}
+            </Button>
+          </>
+        }
+      >
+        <form
+          className={styles.linkForm}
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveLink();
+          }}
+        >
+          <TextField
+            label={t("reader.notes.link.href")}
+            value={link?.href ?? ""}
+            placeholder="https://"
+            autoFocus
+            error={linkValid ? undefined : t("reader.notes.link.invalid")}
+            onChange={(event) => {
+              const href = event.target.value;
+              setLink((old) => old && { ...old, href });
+            }}
+          />
+          {link?.bare && (
+            <TextField
+              label={t("reader.notes.link.text")}
+              value={link.text}
+              onChange={(event) => {
+                const text = event.target.value;
+                setLink((old) => old && { ...old, text });
+              }}
+            />
+          )}
+          <button type="submit" hidden />
+        </form>
+      </Dialog>
+      <Dialog
         open={formula !== null}
         onClose={() => setFormula(null)}
-        title={t("reader.notes.formula.title")}
-        description={t("reader.notes.formula.description")}
+        title={t(
+          formula && formula.pos < 0
+            ? "reader.notes.formula.new"
+            : "reader.notes.formula.title",
+        )}
+        description={
+          formula && formula.pos < 0
+            ? undefined
+            : t("reader.notes.formula.description")
+        }
         footer={
           <>
             <Button onClick={() => setFormula(null)}>

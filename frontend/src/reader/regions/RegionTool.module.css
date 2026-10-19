@@ -3,18 +3,36 @@
  * in either theme, so the ink is fixed, not the theme's text colour.
  */
 .box {
-  --region-ink: #292524;
+  --region-ink: #2563eb;
   position: absolute;
   z-index: 3;
   box-sizing: border-box;
-  border: 1.5px solid var(--region-ink);
+  border: 2px solid var(--region-ink);
   border-radius: var(--ui-r-4);
-  background: color-mix(in srgb, var(--region-ink) 5%, transparent);
+  background: color-mix(in srgb, var(--region-ink) 8%, transparent);
+  /* The rest of the page dims, so what was boxed stands out. */
+  box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.18);
   pointer-events: none;
+  animation: region-settle var(--ui-dur-2, 180ms) var(--ui-ease-out, ease-out);
 }
 
+/* Being drawn: dashed, and the page not dimmed yet. */
 .dragging {
   border-style: dashed;
+  box-shadow: none;
+  animation: none;
+}
+
+@keyframes region-settle {
+  from {
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box {
+    animation: none;
+  }
 }
 
 .popover {

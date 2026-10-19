@@ -19,6 +19,7 @@ from . import agent_budget, agent_limits, translation_settings
 from .agent_attachments import attachments as chat_attachments
 from .agent_budget import RunBudget
 from .agent_checkpoint import fingerprint, previous_write
+from .agent_images import prompt_images
 from .agent_prefetch import selection_context
 from .agent_reading import read_region
 from .agent_response import clean_response
@@ -64,6 +65,7 @@ def _process(app, job_id, cfg):
         r = d.get(AgentRun, job_id)
         owner, session_id, writable = r.owner, r.session_id, r.writable
         resume_from = (r.runtime or {}).get("resume_from")
+        attached = list(r.attachment_ids or [])
         cfg = {**cfg, **(r.runtime or {}).get("model_options", {})}
         cfg["_request_options"] = request_options(cfg)
         validate_endpoint(cfg.get("base_url", ""))
@@ -233,6 +235,20 @@ def _process(app, job_id, cfg):
             },
         }
     payload["context"] += selection_context(app, owner, session_id, job_id, snapshot)
+    # The pictures asked about go with the question itself, to a model that sees.
+    if not resume_from and cfg.get("vision"):
+        payload["images"] = prompt_images(
+            app,
+            owner,
+            attached,
+            snapshot,
+            agent_limits.IMAGES_PER_RUN,
+        )
+    elif not resume_from and (attached or (snapshot or {}).get("source") == "region"):
+        payload["context"] += (
+            "\n当前模型未开启视觉输入：用户附带的图片或框选区域的图像没有传给你，"
+            "只能依据文字资料回答，不得声称看到了图片。"
+        )
     if resume_from:
         checkpoint = asyncio.run(
             execute(
@@ -255,7 +271,7 @@ def _process(app, job_id, cfg):
     failed = ""
     done = False
     calls = 0
-    image_count = 0
+    image_count = len(payload.get("images", []))
     # Read when the run starts, so the budget is one setting, also in tests.
     budget = RunBudget(agent_budget.EXECUTION_SECONDS, agent_budget.WAIT_SECONDS)
 

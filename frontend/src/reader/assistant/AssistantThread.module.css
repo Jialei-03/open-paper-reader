@@ -377,3 +377,30 @@
   margin-top: var(--ui-space-4);
   margin-left: calc(-1 * var(--ui-space-8));
 }
+
+/* The pictures that went with the question, above it in the bubble. */
+.pictures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-6);
+  margin-bottom: var(--ui-space-6);
+}
+
+.pictures > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.picture {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 160px;
+  border-radius: var(--ui-r-10);
+  object-fit: contain;
+}
+
+.picture[data-region] {
+  background: #fff;
+}

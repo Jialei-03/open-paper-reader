@@ -1,4 +1,5 @@
 import { parseReaderRoute, type ReaderRoute } from "../route";
+import type { RunAttachment } from "./images";
 
 /**
  * A run of the assistant as the service lists it (`GET /agent/sessions/{id}/runs`,
@@ -52,6 +53,8 @@ export interface AgentRun {
   status: RunStatus | (string & {});
   error: string;
   steps: AgentStep[];
+  /** What the reader attached to the question (pictures). */
+  attachments?: RunAttachment[];
   runtime?: {
     phase?: string;
     execution_seconds?: number;
