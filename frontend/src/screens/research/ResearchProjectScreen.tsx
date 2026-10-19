@@ -11,14 +11,17 @@ import {
   toast,
 } from "../../ui";
 import { Decisions } from "./Decisions";
+import { MetricsStrip } from "./MetricsStrip";
 import {
   getProject,
   listDecisions,
+  projectMetrics,
   jobLog,
   pauseProject,
   resumeProject,
   stopProject,
   type Decision,
+  type ProjectMetrics,
   type LogLines,
   type ProjectDetail,
 } from "./research-api";
@@ -44,6 +47,7 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
   const { t } = useI18n();
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [metrics, setMetrics] = useState<ProjectMetrics | null>(null);
   const [failed, setFailed] = useState("");
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<{ jobId: string; lines: LogLines } | null>(
@@ -59,6 +63,7 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
       (value) => {
         setDetail(value);
         setFailed("");
+        projectMetrics(id).then(setMetrics, () => setMetrics(null));
         if (value.project.status === "waiting")
           listDecisions(id).then(setDecisions, () => setDecisions([]));
         else setDecisions([]);
@@ -232,6 +237,7 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
               {t("research.noDocker", { reason: docker.reason })}
             </p>
           )}
+          {metrics && <MetricsStrip metrics={metrics} />}
           <Decisions
             projectId={id}
             decisions={decisions}

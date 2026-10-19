@@ -159,3 +159,18 @@ export const decide = (
     approve,
     note,
   }) as Promise<ResearchProject>;
+
+/** How the project went, from its record (backend research_metrics.py). */
+export interface ProjectMetrics {
+  sprints: { executor: number; advisor: number };
+  hard_drift_blocks: number;
+  soft_drift_rate: number | null;
+  backtrack_latency: number | null;
+  abnormal_rate: number | null;
+  evidence_count: number;
+  tokens_per_supported: number | null;
+  tokens: number;
+}
+
+export const projectMetrics = (projectId: string) =>
+  api<ProjectMetrics>(`${BASE}/${projectId}/metrics`);

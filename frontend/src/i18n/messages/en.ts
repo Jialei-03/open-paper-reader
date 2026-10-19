@@ -945,6 +945,20 @@ export const en = {
   "research.sprint.focus": "Working on: {title}",
   "research.sprint.next": "Next: {next}",
   "research.sprint.waiting": "Waiting for {count} experiment job(s)",
+  "research.metric.sprints": "Executor + advisor",
+  "research.metric.sprints.hint": "Executor sprints + advisor reviews",
+  "research.metric.drift": "Drift",
+  "research.metric.drift.hint":
+    "Share of sprints the advisor judged off the question; plus {blocked} steps blocked for having no focus",
+  "research.metric.backtrack": "Backtrack delay",
+  "research.metric.backtrack.hint":
+    "Sprints from a stop signal to dropping the hypothesis, on average",
+  "research.metric.handoff": "Handoffs",
+  "research.metric.handoff.hint":
+    "Share of executor sprints that handed over properly",
+  "research.metric.evidence": "Evidence",
+  "research.metric.evidence.hint":
+    "Log excerpts and source sentences cited on the map",
   "research.decisions": "Needs your call",
   "research.proposal.continue": "The advisor suggests continuing",
   "research.proposal.invest": "The advisor suggests investing more",
