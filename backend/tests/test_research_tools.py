@@ -269,3 +269,19 @@ def test_tools_after_end_sprint_rejected(world):
         assert sprint.status == "ended" and sprint.summary == "split the question"
     with pytest.raises(ValueError, match="本轮已结束"):
         call(app, ids, research, "research_map_read", {})
+
+
+def test_supported_needs_recorded_evidence(world):
+    app, maker, research, ids, calls = world
+    hyp = add_hypothesis(app, ids, research)
+    call(app, ids, research, "focus", {"node_id": hyp, "intent": "conclude"})
+    with pytest.raises(ValueError, match="record_result"):
+        call(
+            app,
+            ids,
+            research,
+            "update_node",
+            {"node_id": hyp, "status": "supported", "reason": "looks right"},
+        )
+    with maker() as d:
+        assert d.get(ResearchNode, hyp).status == "active"

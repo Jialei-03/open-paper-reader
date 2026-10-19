@@ -398,6 +398,10 @@ def _run(app, owner, research, name, args):
             result = {"node": _node_out(node)}
         elif name == "update_node":
             node = research_map.node_by_prefix(d, project, args["node_id"])
+            if args.get("status") == "supported" and not node.evidence_for:
+                raise ValueError(
+                    "标为已支持之前，先用 record_result 记下支持它的证据（作业日志行或原文句子）"
+                )
             research_map.update_node(
                 d,
                 node,
