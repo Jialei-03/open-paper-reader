@@ -30,8 +30,12 @@ export function ParallelPage({
   const { t } = useI18n();
   const view = parallel.page(page);
   const paragraphs =
-    view.status === "working" || view.status === "done"
-      ? view.paragraphs.filter((paragraph) => paragraph.kind !== "page_number")
+    view.status === "working" ||
+    view.status === "done" ||
+    view.status === "failed"
+      ? (view.paragraphs ?? []).filter(
+          (paragraph) => paragraph.kind !== "page_number",
+        )
       : [];
   const [hovered, setHovered] = useState(-1);
   const hoverNow = useRef(onHoverQuote);

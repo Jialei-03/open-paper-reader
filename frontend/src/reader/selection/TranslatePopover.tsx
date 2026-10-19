@@ -1,4 +1,4 @@
-import { Copy, MessageSquare, NotebookPen } from "lucide-react";
+import { Copy, MessageSquare, NotebookPen, RefreshCw } from "lucide-react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, Floating, Spinner, toast, type Rect } from "../../ui";
 import type { AskRequest } from "../types";
@@ -110,6 +110,14 @@ export function TranslatePopover({
                   onClick={onAsk}
                 >
                   {t("reader.selection.ask")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={RefreshCw}
+                  onClick={retry}
+                >
+                  {t("reader.translate.again")}
                 </Button>
               </div>
             )}

@@ -468,6 +468,9 @@ def create_app(settings=None):
     from .reading_artifacts import install_reading_artifact_routes
 
     install_reading_artifact_routes(app, settings, db, auth, human, owned)
+    from .saved_translations import install_saved_translation_routes
+
+    install_saved_translation_routes(app, db, auth, owned)
     from .citation_marks import install_cite_check_route
 
     install_cite_check_route(app, settings, db, auth, owned)

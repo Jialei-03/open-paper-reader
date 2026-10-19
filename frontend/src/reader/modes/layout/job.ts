@@ -74,6 +74,21 @@ export function pickJob(
   );
 }
 
+/**
+ * The translation kept for this method: the newest that has completed, even
+ * while a newer one is being made (the service removes the older one only once
+ * the newer one has fully succeeded), so it can still be downloaded meanwhile.
+ */
+export function keptJob(
+  jobs: LayoutJob[],
+  fileId: string,
+  versionId = "",
+  engine?: Engine,
+): LayoutJob | null {
+  const picked = pickJob(jobs.filter(isDone), fileId, versionId, engine);
+  return picked;
+}
+
 /** What the paper area says about the translation. */
 export type LayoutState =
   /** Nothing is going on: it can be started. */

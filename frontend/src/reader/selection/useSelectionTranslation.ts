@@ -28,7 +28,8 @@ type Run = {
 
 export type Translation =
   | { status: "working"; text: string }
-  | { status: "done"; text: string }
+  /** `saved` when it is the translation kept from before rather than one just made. */
+  | { status: "done"; text: string; saved?: boolean }
   /** `error` is why, in a sentence (empty for the reader's own words); `stopped` when it was cancelled. */
   | { status: "failed"; text: string; error: string; stopped: boolean }
   /** There is no model to translate with. */
@@ -70,6 +71,10 @@ export function useSelectionTranslation(
     text: "",
   });
   const [attempt, setAttempt] = useState(0);
+  /** The translation kept for these words, shown again if the new one fails. */
+  const kept = useRef("");
+  const keeping =
+    request.source === "selection" && request.action === "translate";
 
   useEffect(() => {
     if (!model.known) return;
@@ -86,11 +91,14 @@ export function useSelectionTranslation(
       setTranslation((old) => (same(old, next) ? old : next));
     const shown = (run: Run): Translation => {
       if (pending(run)) return { status: "working", text: run.response ?? "" };
-      if (run.status === "completed")
+      if (run.status === "completed") {
+        kept.current = run.response ?? "";
         return { status: "done", text: run.response ?? "" };
+      }
       return {
         status: "failed",
-        text: run.response ?? "",
+        // A new translation that did not come leaves the kept one in place.
+        text: run.response || kept.current,
         error: serviceWords(run.error, i18nNow.current),
         stopped: run.status === "cancelled",
       };
@@ -136,6 +144,20 @@ export function useSelectionTranslation(
     setTranslation({ status: "working", text: "" });
     void (async () => {
       try {
+        // Words translated before are shown as they were kept, with no model asked.
+        if (keeping && attempt === 0) {
+          const found: { translation: string | null } = await send(
+            `/files/${request.fileId}/saved-translation`,
+            { quote: request.quote },
+          ).catch(() => ({ translation: null }));
+          if (!live) return;
+          if (found.translation) {
+            kept.current = found.translation;
+            settled = true;
+            show({ status: "done", text: found.translation, saved: true });
+            return;
+          }
+        }
         const session = await send(`/papers/${request.paperId}/discussion`, {});
         if (!live) return;
         const run: Run = await send(`/agent/sessions/${session.id}/runs`, {
@@ -164,7 +186,7 @@ export function useSelectionTranslation(
       window.clearTimeout(timer);
       if (runId && !settled) cancel(runId);
     };
-  }, [request, prompt, failed, attempt, model.known, model.id]);
+  }, [request, prompt, failed, attempt, keeping, model.known, model.id]);
 
   return { translation, retry: () => setAttempt((count) => count + 1) };
 }

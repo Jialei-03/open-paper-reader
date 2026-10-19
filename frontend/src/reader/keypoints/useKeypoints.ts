@@ -169,7 +169,13 @@ export function useKeypoints(
 
   const items = useMemo(
     () =>
-      artifact?.status === "completed" ? readKeypoints(artifact.result) : [],
+      artifact
+        ? readKeypoints(
+            artifact.status === "completed"
+              ? artifact.result
+              : artifact.previous,
+          )
+        : [],
     [artifact],
   );
   const visible = useMemo(() => shown(items, hidden), [items, hidden]);

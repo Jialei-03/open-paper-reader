@@ -405,19 +405,19 @@ def artifact_prompt(file, body, direct=False):
             "关键词1–12个，摘要恰好3句，四个章节顺序及标题固定。"
             + CITATION_RULES
             + (
-            "事实核对要求：先完成四个章节，再依据这些章节写摘要；最终输出前逐项核对摘要、主要结果、"
-            "适用边界中的数字与比较结论，不能出现摘要称某方法最优、正文却列出更优基线的矛盾。"
-            "每个定量结论必须核对原始表格/正文中的方法、数据集、任务子类、指标名、数值、单位、"
-            "统计口径（均值/中位数/p95等）和比较集合；有疑问时重新 read_file 读取证据页，"
-            "表格列对应不清且具备视觉能力时用 view_image 核对表格，仍不清楚就省略数字并说明不确定。"
-            "使用‘最高/最优/领先/全部’前，检查同一指标同一任务的所有相关基线，包括全文上下文基线；"
-            "只在某一类方法或子任务内领先，必须在原句中明确限定该比较范围，不能扩大为全表或总体。"
-            "不把不同表格、任务或指标的数值合并排名，不把局部问题类型的优势推广为总体优势。"
-            "百分比相对改善=(新值-基准值)/基准值，百分点差值是直接相减，延迟降低使用反向差值；"
-            "必须注明比较基准，无法核算时保留原始数值而不另造提升幅度。"
-            "特别区分检索/召回后传入模型的上下文 token、持久记忆存储 token、输入/输出 token，"
-            "不要统称为‘记忆规模’或把不同口径直接比较；区分检索延迟、端到端延迟、预处理/写入成本。"
-            "作者解释或推测必须标明，不能把单次基准结果写成普遍规律；保留重要反例与适用边界。"
+                "事实核对要求：先完成四个章节，再依据这些章节写摘要；最终输出前逐项核对摘要、主要结果、"
+                "适用边界中的数字与比较结论，不能出现摘要称某方法最优、正文却列出更优基线的矛盾。"
+                "每个定量结论必须核对原始表格/正文中的方法、数据集、任务子类、指标名、数值、单位、"
+                "统计口径（均值/中位数/p95等）和比较集合；有疑问时重新 read_file 读取证据页，"
+                "表格列对应不清且具备视觉能力时用 view_image 核对表格，仍不清楚就省略数字并说明不确定。"
+                "使用‘最高/最优/领先/全部’前，检查同一指标同一任务的所有相关基线，包括全文上下文基线；"
+                "只在某一类方法或子任务内领先，必须在原句中明确限定该比较范围，不能扩大为全表或总体。"
+                "不把不同表格、任务或指标的数值合并排名，不把局部问题类型的优势推广为总体优势。"
+                "百分比相对改善=(新值-基准值)/基准值，百分点差值是直接相减，延迟降低使用反向差值；"
+                "必须注明比较基准，无法核算时保留原始数值而不另造提升幅度。"
+                "特别区分检索/召回后传入模型的上下文 token、持久记忆存储 token、输入/输出 token，"
+                "不要统称为‘记忆规模’或把不同口径直接比较；区分检索延迟、端到端延迟、预处理/写入成本。"
+                "作者解释或推测必须标明，不能把单次基准结果写成普遍规律；保留重要反例与适用边界。"
             )
         )
     difficulty = (
@@ -436,6 +436,10 @@ def artifact_prompt(file, body, direct=False):
 def artifact_output(d, row):
     value = public(row)
     value.pop("evidence_text", None)
+    previous = (row.parameters or {}).get("_previous")
+    value["parameters"] = {
+        k: v for k, v in (value.get("parameters") or {}).items() if k != "_previous"
+    }
     if (row.parameters or {}).get("preparation_id"):
         from .models import PaperPreparation
 
@@ -473,6 +477,9 @@ def artifact_output(d, row):
         draft = (run.runtime or {}).get("artifact_preview")
         if isinstance(draft, dict) and draft:
             value["preview"] = draft
+    if previous and value["status"] != "completed":
+        # What a new run is replacing: shown until it completes, and after it fails.
+        value["previous"] = previous
     return value
 
 
@@ -634,6 +641,33 @@ def failure_reason(error):
     return str(error)[:500]
 
 
+def drop_older_page_translations(d, row):
+    """A page keeps one translation per language: the one that just completed.
+
+    Translations of the same page made with another model (or by the paper's
+    preparation) are older; once this one is complete they only pile up. A
+    translation still being made is left alone.
+    """
+    if row.kind != "page_translation":
+        return
+    d.flush()  # a new row has no id until then
+    page, language = row.parameters.get("page"), row.parameters.get("language")
+    for other in d.scalars(
+        select(ReadingArtifact).where(
+            ReadingArtifact.owner == row.owner,
+            ReadingArtifact.file_id == row.file_id,
+            ReadingArtifact.kind == "page_translation",
+            ReadingArtifact.id != row.id,
+            ReadingArtifact.status.in_(["completed", "failed", "cancelled"]),
+        )
+    ):
+        if (
+            other.parameters.get("page") == page
+            and other.parameters.get("language") == language
+        ):
+            d.delete(other)
+
+
 def finish_artifact(d, settings, run, answer=None):
     artifact_id = (run.runtime or {}).get("reading_artifact_id")
     row = d.get(ReadingArtifact, artifact_id) if artifact_id else None
@@ -660,8 +694,12 @@ def finish_artifact(d, settings, run, answer=None):
             evidence_text=row.evidence_text,
         )
         row.status, row.error = "completed", ""
+        row.parameters = {
+            k: v for k, v in (row.parameters or {}).items() if k != "_previous"
+        }
         row.evidence_text = {}
         row.size = len(json.dumps(row.result, ensure_ascii=False).encode()) + 2048
+        drop_older_page_translations(d, row)
     except (ValueError, ValidationError, StorageBudgetExceeded) as exc:
         row.status = run.status = "failed"
         row.error = run.error = failure_reason(exc)
@@ -678,7 +716,12 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
             artifact_output(d, row)
             for row in d.scalars(
                 select(ReadingArtifact)
-                .where(ReadingArtifact.owner == a["id"], ReadingArtifact.paper_id == id)
+                .where(
+                    ReadingArtifact.owner == a["id"],
+                    ReadingArtifact.paper_id == id,
+                    # Saved selection translations have their own lookup.
+                    ReadingArtifact.kind != "text_translation",
+                )
                 .order_by(ReadingArtifact.updated_at.desc())
             )
         ]
@@ -822,7 +865,10 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
             count = d.scalar(
                 select(func.count())
                 .select_from(ReadingArtifact)
-                .where(ReadingArtifact.owner == a["id"])
+                .where(
+                    ReadingArtifact.owner == a["id"],
+                    ReadingArtifact.kind != "text_translation",
+                )
             )
             if count >= 2000:
                 raise HTTPException(409, "阅读产物已达上限，请清理后再生成")
@@ -872,9 +918,18 @@ def install_reading_artifact_routes(app, settings, db, auth, human, owned):
                 )[:100],
             )
             d.add(session)
-        row.parameters = (
-            {**parameters, "_regenerate": now()} if body.regenerate else parameters
+        # The result being replaced stays (in the row's parameters) until the new
+        # one has completed; a failed or stopped run shows it again.
+        previous = (
+            row.result
+            if row.status == "completed" and row.result
+            else (row.parameters or {}).get("_previous")
         )
+        row.parameters = {
+            **parameters,
+            **({"_regenerate": now()} if body.regenerate else {}),
+            **({"_previous": previous} if previous else {}),
+        }
         row.status, row.error, row.result, row.evidence_pages = "queued", "", {}, []
         row.evidence_text = {}
         row.size, row.updated_at = RESERVE, now()

@@ -22,6 +22,8 @@ export type KeypointArtifact = {
   status: string;
   error?: string;
   result?: unknown;
+  /** What a new run is replacing: still used until the new one completes. */
+  previous?: unknown;
 };
 
 const isCategory = (value: unknown): value is Category =>
