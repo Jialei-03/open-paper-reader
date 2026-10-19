@@ -37,11 +37,23 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 This is an early version. What has actually run:
 
 - **The full research loop**, end to end with a real model (gpt-6-luna): local Docker experiments, the research map, the advisor, evidence checks, the playbook and the research report.
-- **Second evaluation round**: 3 held-out tasks × 3 conditions × 2 seeds. See [second results](docs/research/2026-10-20-second-results.md) (in Chinese).
-  - With the advisor, all 12 runs ended the right way. Where there was an answer, the numbers matched the precomputed truth. With data missing, the agent reported it and stopped to wait for a person; no run synthesized data. A tempting dead end ("polynomial features add 2 points"; in truth they cost 2.5) was refuted every time, after 3 sprints on average. Drift was 0.
-  - Without the advisor, the executor stayed honest and got the numbers right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost. The advisor's main contribution is knowing when to stop.
-  - The playbook made no visible difference on these tasks: they are too easy, and its rules were admitted by developer review. There is no evidence yet that it helps.
-- **Not there yet**: harder tasks and more seeds, research in the hosted version (it runs locally for now), and GPU experiments.
+- **Seven evaluation rounds** on held-out tasks covering four kinds of research judgment:
+
+  | Task | The right move |
+  |---|---|
+  | Find a threshold | Numbers that match the truth |
+  | Missing data | Say so and stop to ask |
+  | A tempting dead end | Refute it and stop |
+  | Label leakage | Doubt a near-perfect score and find the leaking column |
+
+  The main failures each round found were fixed; the model never changed. In the latest round, 17 of 18 runs ended the right way. On the leakage task, right endings went from 3 of 6 in round 3 to 9 of 10 in round 7. See the [evaluation record](docs/research/2026-10-20-third-results.md) (in Chinese).
+- **The advisor's job is knowing when to stop.** Without it, the executor stays honest and gets the numbers right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost.
+- **The playbook (self-improvement)** was tested from an empty playbook. It learned rules on 5 learning tasks, then ran held-out tasks it had never seen:
+  - with the learned playbook: 9 of 9 runs scored full marks, in 22 sprints and 160k tokens;
+  - without a playbook: 6 of 9, in 40 sprints and 263k tokens.
+
+  That is 3 seeds per condition. See the [controlled run](docs/research/2026-10-20-learned-playbook.md). The developer-reviewed playbook used earlier showed no such effect.
+- **Not there yet**: more seeds and tasks of other kinds, research in the hosted version (it runs locally for now), and GPU experiments.
 
 ## Reading papers
 

@@ -790,7 +790,7 @@ export const en = {
   "site.research.playbook.body":
     "When a project ends, the advisor's calls and the kill decisions become judgment rules; a rule supported by two projects takes effect, and later projects read it.",
   "site.research.result":
-    "In the second evaluation round, all 12 runs with the advisor ended the right way: answers matched the precomputed truth, missing data led to a stop and a question, and a tempting dead end was refuted. Without the advisor, all 6 runs used the whole budget.",
+    "In the latest evaluation round, 17 of 18 runs ended the right way: answers matched the precomputed truth, and a tempting dead end and a label leak were both refuted. With data missing, it stops to ask and never makes data up. Without the advisor, every project used its whole budget.",
   "site.research.resultLink": "Evaluation record",
   "site.research.alt":
     "The research page: research map, sprint timeline and process metrics.",

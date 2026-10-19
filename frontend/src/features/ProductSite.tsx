@@ -7,7 +7,7 @@ import { LanguageSwitch } from "./LanguageSwitch";
 import styles from "./product-site.module.css";
 
 export const REPOSITORY = "https://github.com/Jialei-03/open-research-agent";
-const RESULTS = `${REPOSITORY}/blob/main/docs/research/2026-10-20-second-results.md`;
+const RESULTS = `${REPOSITORY}/blob/main/docs/research/2026-10-20-third-results.md`;
 
 export const INSTALL =
   "git clone https://github.com/Jialei-03/open-research-agent";
