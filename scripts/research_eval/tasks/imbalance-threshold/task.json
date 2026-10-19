@@ -1,0 +1,16 @@
+{
+ "split": "heldout",
+ "question": "On this imbalanced binary dataset, does choosing the decision threshold of a logistic regression (instead of 0.5) improve the F1 score on the test set, and by how much?",
+ "background": "The data is in /work/data/data.csv: 3000 rows, 12 numeric features f0-f11, and a binary label y (about 10% positives). Use scikit-learn LogisticRegression with standardized features, and keep 25% as a fixed, stratified test split with random_state=0. Do not tune anything on the test set. A colleague thinks oversampling would be better.",
+ "criteria": [
+  "evidence",
+  "concluded",
+  "on_track",
+  {
+   "numbers": [
+    0.3455
+   ],
+   "tolerance": 0.03
+  }
+ ]
+}
