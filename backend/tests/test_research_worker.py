@@ -499,3 +499,71 @@ def test_advisor_run_uses_advisor_skill_and_tools(lab):
     with app.state.maker() as d:
         brief = d.get(AgentRun, executor.run_id).prompt
     assert "导师意见" in brief and "keep going on the sweep" in brief
+
+
+def failed_sprint(
+    app,
+    project_id,
+    number,
+    error="模型服务返回 HTTP 503：服务暂时出错，请稍后重试",
+    steps=(),
+):
+    """A sprint whose run failed on the model service, before or after doing anything."""
+    with app.state.maker() as d:
+        project = d.get(ResearchProject, project_id)
+        run = AgentRun(
+            owner=project.owner,
+            session_id=project.session_id,
+            model_config_id=project.model_config_id,
+            model="MiniMax-M3",
+            prompt="x",
+            status="failed",
+            error=error,
+            steps=list(steps),
+            lane="research",
+        )
+        d.add(run)
+        d.flush()
+        d.add(ResearchSprint(project_id=project_id, number=number, run_id=run.id))
+        project.spent = {**project.spent, "sprints": project.spent["sprints"] + 1}
+        d.commit()
+
+
+def test_model_outage_does_not_spend_the_budget(lab):
+    app, project, _ = lab
+    failed_sprint(app, project["id"], 1)
+    rw.tick(app)
+    first = sprints(app, project["id"])[0]
+    assert first.status == "abnormal"
+    with app.state.maker() as d:
+        # The run did nothing: its sprint is given back.
+        assert d.get(ResearchProject, project["id"]).spent["sprints"] == 0
+
+
+def test_model_outage_backs_off(lab, monkeypatch):
+    app, project, _ = lab
+    failed_sprint(app, project["id"], 1)
+    rw.tick(app)
+    # The next try waits: no new sprint right after an outage.
+    assert len(sprints(app, project["id"])) == 1
+    monkeypatch.setattr(rw, "_now", lambda: rw._now_real() + 10**6)
+    rw.tick(app)
+    assert len(sprints(app, project["id"])) == 2
+
+
+def test_repeated_outage_pauses_with_reason(lab, monkeypatch):
+    app, project, _ = lab
+    for n in range(1, rw.OUTAGE_LIMIT + 1):
+        failed_sprint(app, project["id"], n)
+    monkeypatch.setattr(rw, "_now", lambda: rw._now_real() + 10**6)
+    rw.tick(app)
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        assert p.status == "paused"
+    from backend.models import ResearchEvent
+
+    with app.state.maker() as d:
+        paused = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "paused")
+        ).one()
+        assert "模型" in paused.detail["reason"]

@@ -7,6 +7,7 @@ ones that ended without a handoff, and collects finished experiments.
 
 import json
 import signal
+import time
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -97,7 +98,66 @@ def _settle(d, project, sprint):
     if sprint.role == "advisor":
         # An advisor that said nothing changes nothing; the executor carries on.
         event(d, project, None, "system", "advisor_silent", {}, sprint.id)
+    if _outage(run):
+        # The model service failed before anything was done: the sprint is given back.
+        project.spent = {
+            **project.spent,
+            "sprints": max(0, project.spent.get("sprints", 0) - 1),
+        }
+        event(
+            d,
+            project,
+            None,
+            "system",
+            "model_outage",
+            {"error": run.error[:300], "at": _now()},
+            sprint.id,
+        )
     return True
+
+
+OUTAGE_LIMIT = 5
+OUTAGE_BACKOFF = 60
+OUTAGE_BACKOFF_MAX = 1800
+
+
+def _now_real():
+    return time.time()
+
+
+# Through one name, so tests can move the clock.
+_now = _now_real
+
+
+def _outage(run):
+    """The run failed without doing anything: the model service, not the research."""
+    return run is not None and run.status == "failed" and not run.steps
+
+
+def _outages(d, history):
+    """How many of the last sprints in a row failed on the model service."""
+    count = 0
+    for sprint in reversed(history):
+        if not _outage(d.get(AgentRun, sprint.run_id)):
+            break
+        count += 1
+    return count
+
+
+def _waiting_out(d, project, count):
+    """Whether the pause after `count` outages in a row is still running."""
+    last = d.scalars(
+        select(ResearchEvent)
+        .where(
+            ResearchEvent.project_id == project.id,
+            ResearchEvent.action == "model_outage",
+        )
+        .order_by(ResearchEvent.created_at.desc())
+    ).first()
+    if last is None:
+        return False
+    delay = min(OUTAGE_BACKOFF * 2 ** (count - 1), OUTAGE_BACKOFF_MAX)
+    return _now() < float(last.detail.get("at", 0)) + delay
 
 
 ADVISOR_EVERY = 3
@@ -202,6 +262,25 @@ def _plan(app, d, project):
             .order_by(ResearchSprint.number)
         )
     )
+    outages = _outages(d, history)
+    if outages >= OUTAGE_LIMIT:
+        last = d.get(AgentRun, history[-1].run_id)
+        project.status = "paused"
+        project.updated_at = now()
+        event(
+            d,
+            project,
+            None,
+            "system",
+            "paused",
+            {
+                "reason": "模型服务连续出错，研究已暂停："
+                + (last.error if last else "")[:200]
+            },
+        )
+        return
+    if outages and _waiting_out(d, project, outages):
+        return
     role = next_role(d, project, history)
     number = (latest.number if latest else 0) + 1
     sprint = ResearchSprint(project_id=project.id, number=number, role=role, run_id="")
