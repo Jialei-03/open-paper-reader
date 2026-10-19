@@ -23,7 +23,7 @@ async function open(target) {
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: MENU,
-    title: "在 Open Paper Reader 中打开",
+    title: "在 Open Research Agent 中打开",
     contexts: ["page", "link"],
   });
 });

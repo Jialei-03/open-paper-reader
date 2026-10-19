@@ -21,7 +21,7 @@ export function AuthFrame({
       </div>
       <a href="#home" className={styles.brand} aria-label={t("login.home")}>
         <img className={styles.mark} src="/assets/icons/opr-mark.svg" alt="" />
-        Open Paper Reader
+        Open Research Agent
       </a>
       <section className={styles.card}>
         <h1 className={styles.title}>{title}</h1>

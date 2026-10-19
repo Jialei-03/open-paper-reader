@@ -713,16 +713,37 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.nav": "站点导航",
   "site.nav.how": "工作方式",
   "site.nav.github": "GitHub",
-  "site.nav.start": "打开在线版",
+  "site.nav.research": "研究怎么推进",
+  "site.research.title": "研究怎么推进",
+  "site.research.body":
+    "自动科研 Agent 常常能把工程做完，却推进不了研究：不知道什么值得做、走进死胡同不回头、做着做着偏离目标。这里每一步都为这些问题而设计。",
+  "site.research.map.title": "研究地图",
+  "site.research.map.body":
+    "方向不放在聊天记录里，而是一棵持久的树：问题、可证伪的假设、实验、发现。每一轮都从地图出发，中断后接着做。",
+  "site.research.focus.title": "先聚焦再动手",
+  "site.research.focus.body":
+    "运行代码、写文件、改地图之前，必须说明在推进哪个节点；跑偏的动作会被拦下并记录。",
+  "site.research.advisor.title": "独立导师",
+  "site.research.advisor.body":
+    "只读的导师定期审视地图，按日志核对数字，决定继续、加注、放弃、转向或请你拍板。",
+  "site.research.evidence.title": "证据",
+  "site.research.evidence.body":
+    "实验在本机隔离环境里跑，日志由系统保存。结论只能引用真实的日志行或论文原句，数字必须对得上。",
+  "site.research.playbook.title": "研究手册",
+  "site.research.playbook.body":
+    "项目结束后，把导师的判断和止损的经过提炼成判断规则；被两个项目支持的规则才会生效，之后的项目都会读到。",
+  "site.research.alt": "研究页：研究地图、轮次时间线和过程指标。",
+  "site.nav.start": "在线读论文",
   "site.language": "语言",
-  "site.hero.title": "和一位同样读过论文的 AI 助手，一起读论文。",
+  "site.hero.title":
+    "给它一个研究问题，它会守住方向、一轮一轮推进，并拿出能核对的证据。",
   "site.hero.lead":
-    "导入 PDF 或粘贴 arXiv 链接，自动得到导读；划选一句话就能解释或翻译；有问题直接问助手。每个回答都能点回原文那一句。",
-  "site.hero.start": "打开在线版",
+    "Open Research Agent 是开源的研究 Agent：研究地图、独立导师、止损条件、隔离环境里的真实实验，以及跨项目自我改进的研究手册。研究在你自己的电脑上运行；读论文的部分可以直接在线使用。",
+  "site.hero.start": "在线读论文",
   "site.hero.source": "查看源码",
   "site.shot.alt":
-    "阅读器：左边是论文，右边的助手回答带着页码标签，点一下回到原文那一句。",
-  "site.how.title": "从一份 PDF，到一个能核对的回答",
+    "研究页：左边是研究地图（问题、假设、发现及其置信度），右边是每一轮的交接和导师的判断，上方是轮次、花费和过程指标。",
+  "site.how.title": "读论文：从一份 PDF，到一个能核对的回答",
   "site.how.import.title": "导入",
   "site.how.import.body":
     "上传 PDF 或粘贴 arXiv 链接，论文在后台自动准备好。⌘K 可以随时打开另一篇。",
@@ -741,13 +762,14 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.modes.body": "同一篇论文，三种读法，在阅读器顶部随时切换。",
   "site.open.title": "开源",
   "site.open.body":
-    "Open Paper Reader 以 MIT 许可开源。想自己装，用上面的命令；不想装，可以直接用在线版，同样用你自己的密钥。中文和英文界面，浅色和深色。",
+    "Open Research Agent 以 MIT 许可开源。研究功能需要在自己电脑上运行（需要 Docker）；只想读论文，可以直接用在线版，同样用你自己的密钥。中文和英文界面，浅色和深色。",
   "site.nav.modes": "阅读方式",
   "site.nav.local": "本地优先",
   "site.hero.install": "在自己的电脑上运行",
   "site.hero.copy": "复制命令",
   "site.hero.copied": "已复制",
-  "site.hero.note": "需要 uv 或 pipx。第一次打开时添加一个模型，之后不用登录。",
+  "site.hero.note":
+    "研究功能需要 Docker。第一次打开时添加一个模型，之后不用登录。",
   "site.how.guide.alt":
     "右侧导读标签：三句摘要、关键词和按章节的导读，每节后面有页码标签。",
   "site.how.select.alt":
@@ -777,7 +799,7 @@ export const zh: { [K in keyof typeof en]: string } = {
     "让你本机的 Claude Code 或 Codex 来读论文，目前只是计划，现在的版本里没有。",
   "site.open.source": "在 GitHub 上查看",
   "site.footer": "MIT 许可。与 Anthropic、OpenAI 无关联。",
-  "login.home": "Open Paper Reader 首页",
+  "login.home": "Open Research Agent 首页",
   "login.title": "欢迎回来",
   "login.title.register": "创建账户",
   "login.lead": "登录后继续阅读。",

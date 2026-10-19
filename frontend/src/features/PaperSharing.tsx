@@ -196,7 +196,7 @@ export function SharedPaper({ token }: { token: string }) {
         <a
           href="#home"
           className="shared-brand"
-          aria-label="Open Paper Reader 首页"
+          aria-label="Open Research Agent 首页"
         >
           <Brand />
         </a>
@@ -208,7 +208,7 @@ export function SharedPaper({ token }: { token: string }) {
       {error ? (
         <div role="alert" className="shared-state">
           <p>{error}</p>
-          <a href="#home">了解 Open Paper Reader</a>
+          <a href="#home">了解 Open Research Agent</a>
         </div>
       ) : !paper ? (
         <div role="status" className="shared-state" aria-busy="true">

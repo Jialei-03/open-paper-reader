@@ -6,9 +6,10 @@ import { useAppearance } from "../ui/theme";
 import { LanguageSwitch } from "./LanguageSwitch";
 import styles from "./product-site.module.css";
 
-export const REPOSITORY = "https://github.com/Jialei-03/open-paper-reader";
+export const REPOSITORY = "https://github.com/Jialei-03/open-research-agent";
 
-export const INSTALL = "uvx Open Paper Reader";
+export const INSTALL =
+  "git clone https://github.com/Jialei-03/open-research-agent";
 
 const steps = [
   ["import", "01", null],
@@ -18,6 +19,7 @@ const steps = [
 ] as const;
 
 const modes = ["original", "parallel", "translated"] as const;
+const research = ["map", "focus", "advisor", "evidence", "playbook"] as const;
 const local = ["data", "account", "models", "planned"] as const;
 
 function InstallCommand() {
@@ -86,7 +88,7 @@ export function ProductSite({ path }: { path: string }) {
   const { theme } = useAppearance();
   const root = useReveal();
   useEffect(() => {
-    document.title = `Open Paper Reader · ${t("site.hero.title")}`;
+    document.title = `Open Research Agent · ${t("site.hero.title")}`;
   }, [t]);
   useEffect(() => {
     if (path !== "how") return;
@@ -113,9 +115,12 @@ export function ProductSite({ path }: { path: string }) {
             src="/assets/icons/opr-mark.svg"
             alt=""
           />
-          Open Paper Reader
+          Open Research Agent
         </a>
         <nav aria-label={t("site.nav")} className={styles.nav}>
+          <a href="#research" className={styles.navLink}>
+            {t("site.nav.research")}
+          </a>
           <a href="#how" className={styles.navLink}>
             {t("site.nav.how")}
           </a>
@@ -157,8 +162,28 @@ export function ProductSite({ path }: { path: string }) {
             </a>
           </div>
           <figure className={styles.shot}>
-            {picture("reader", t("site.shot.alt"), false)}
+            {picture("research", t("site.shot.alt"), false)}
           </figure>
+        </section>
+        <section
+          id="research"
+          className={styles.section}
+          aria-labelledby="research-title"
+        >
+          <h2 id="research-title" className={styles.heading} data-reveal>
+            {t("site.research.title")}
+          </h2>
+          <p className={styles.body} data-reveal>
+            {t("site.research.body")}
+          </p>
+          <div className={styles.modes} data-reveal>
+            {research.map((name) => (
+              <div key={name} className={styles.mode}>
+                <h3>{t(`site.research.${name}.title` as MessageKey)}</h3>
+                <p>{t(`site.research.${name}.body` as MessageKey)}</p>
+              </div>
+            ))}
+          </div>
         </section>
         <section
           id="how"
@@ -249,7 +274,7 @@ export function ProductSite({ path }: { path: string }) {
         </section>
       </main>
       <footer className={styles.footer}>
-        <span>Open Paper Reader</span>
+        <span>Open Research Agent</span>
         <span>{t("site.footer")}</span>
       </footer>
     </div>

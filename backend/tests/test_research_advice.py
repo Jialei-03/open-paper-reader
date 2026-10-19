@@ -268,6 +268,7 @@ def test_conclude_finishes_project(world):
     with maker() as d:
         p = d.get(ResearchProject, ids.project)
         assert p.status == "finished" and p.end_reason == "concluded"
+        assert d.get(ResearchNode, ids.root).status == "supported"
         assert d.get(ResearchSprint, ids.advisor).status == "ended"
 
 

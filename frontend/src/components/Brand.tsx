@@ -7,7 +7,7 @@ export function Brand() {
         alt=""
         aria-hidden="true"
       />
-      <span className="font-semibold tracking-tight">Open Paper Reader</span>
+      <span className="font-semibold tracking-tight">Open Research Agent</span>
     </span>
   );
 }

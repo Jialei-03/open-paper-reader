@@ -133,7 +133,7 @@ function Tokens() {
       <div className={styles.texts}>
         {texts.map((name) => (
           <p key={name} style={{ color: `var(${name})` }}>
-            Open Paper Reader <code>{name}</code>
+            Open Research Agent <code>{name}</code>
           </p>
         ))}
       </div>
@@ -141,7 +141,7 @@ function Tokens() {
       <div className={styles.texts}>
         {sizes.map((size) => (
           <p key={size} style={{ fontSize: `var(--ui-text-${size})` }}>
-            Open Paper Reader {size}
+            Open Research Agent {size}
           </p>
         ))}
       </div>

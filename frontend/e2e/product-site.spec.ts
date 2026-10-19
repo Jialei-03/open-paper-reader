@@ -58,10 +58,10 @@ for (const [locale, words] of [
           ),
         )
         .toBeTruthy();
-      await expect(page).toHaveTitle(/^open-paper-reader/);
+      await expect(page).toHaveTitle(/^Open Research Agent/);
       // The install command, a button that copies it, and the way to the hosted version.
       await expect(page.locator("main code").first()).toHaveText(
-        "uvx open-paper-reader",
+        "git clone https://github.com/Jialei-03/open-research-agent",
       );
       await expect(
         page.getByRole("button", { name: words["site.hero.copy"] }),
@@ -143,7 +143,7 @@ for (const [locale, words] of [
         page.getByRole("link", { name: words["site.open.source"] }),
       ).toHaveAttribute(
         "href",
-        "https://github.com/Jialei-03/open-paper-reader",
+        "https://github.com/Jialei-03/open-research-agent",
       );
       // Nothing on the page names a product from Claude or Anthropic as its own.
       await expect(page.locator("header")).not.toContainText(
@@ -171,7 +171,7 @@ for (const [locale, words] of [
         page.getByRole("status").filter({ hasText: words["site.hero.copied"] }),
       ).toBeVisible();
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
-        "uvx open-paper-reader",
+        "git clone https://github.com/Jialei-03/open-research-agent",
       );
     });
   });
