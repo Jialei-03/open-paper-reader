@@ -684,3 +684,71 @@ def test_playbook_off_and_no_distill(lab):
     finish(app, project["id"])
     rw.tick(app)
     assert not [s for s in sprints(app, project["id"]) if s.role == "distiller"]
+
+
+def test_resume_after_outage_pause_plans_again(lab, monkeypatch):
+    """Review #1: a resumed project is not paused again by the same old outages."""
+    app, project, _ = lab
+    for n in range(1, rw.OUTAGE_LIMIT + 1):
+        failed_sprint(app, project["id"], n)
+    monkeypatch.setattr(rw, "_now", lambda: rw._now_real() + 10**6)
+    rw.tick(app)
+    with app.state.maker() as d:
+        assert d.get(ResearchProject, project["id"]).status == "paused"
+    from backend.research_map import event
+
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        p.status = "active"
+        event(d, p, None, "human", "active", {})
+        d.commit()
+    rw.tick(app)
+    assert sprints(app, project["id"])[-1].number == rw.OUTAGE_LIMIT + 1
+
+
+def test_sweep_failure_does_not_stop_planning(lab, monkeypatch):
+    """Review #2: Docker trouble while sweeping must not stall every project."""
+    app, project, _ = lab
+
+    def broken(settings, maker):
+        raise OSError("docker: command not found")
+
+    monkeypatch.setattr(rs, "sweep", broken)
+    rw.tick(app)
+    assert len(sprints(app, project["id"])) == 1
+
+
+def test_no_sprint_while_docker_unavailable(lab, monkeypatch):
+    """Review #3: without Docker, executor sprints would only spend tokens."""
+    app, project, _ = lab
+    monkeypatch.setattr(
+        rs,
+        "docker_status",
+        lambda: {"available": False, "reason": "未安装或未启动 Docker"},
+    )
+    rw.tick(app)
+    rw.tick(app)
+    assert sprints(app, project["id"]) == []
+    from backend.models import ResearchEvent
+
+    with app.state.maker() as d:
+        events = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "docker_unavailable")
+        ).all()
+        assert len(events) == 1
+
+
+def test_budget_end_does_not_override_a_stop(lab):
+    """Review #6: only an active project is moved by the scheduler."""
+    app, project, _ = lab
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        p.budget = {**p.budget, "max_sprints": 1}
+        p.spent = {**p.spent, "sprints": 1}
+        d.commit()
+        project_row = d.get(ResearchProject, project["id"])
+        project_row.status = "paused"
+        d.commit()
+    rw.tick(app)
+    with app.state.maker() as d:
+        assert d.get(ResearchProject, project["id"]).status == "paused"

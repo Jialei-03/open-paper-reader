@@ -269,3 +269,45 @@ def test_conclude_finishes_project(world):
         p = d.get(ResearchProject, ids.project)
         assert p.status == "finished" and p.end_reason == "concluded"
         assert d.get(ResearchSprint, ids.advisor).status == "ended"
+
+
+def test_failing_verdict_skipped_rest_applied(world):
+    """Review #7: a pivot that cannot be made does not lose the other verdicts."""
+    app, maker, ids = world
+    with maker() as d:
+        node = d.get(ResearchNode, ids.root)
+        node.status = "supported"  # its children can no longer get siblings
+        d.commit()
+    out = advise(
+        app,
+        ids,
+        {
+            "verdicts": [
+                verdict(
+                    ids.hyp, "pivot", new_hypothesis={"title": "X", "kill_if": "k"}
+                ),
+                verdict(ids.hyp, "invest"),
+            ]
+        },
+    )
+    assert out["applied"] == 1 and out["skipped"] == 1
+
+
+def test_root_cannot_be_killed(world):
+    """Review #8: closing the root would leave nothing to work on."""
+    app, maker, ids = world
+    out = advise(app, ids, {"verdicts": [verdict(ids.root, "kill")]})
+    assert out["skipped"] == 1
+    with maker() as d:
+        assert d.get(ResearchNode, ids.root).status == "open"
+
+
+def test_advise_does_not_revive_a_stopped_project(world):
+    """Review #6: a stop wins over an advisor still finishing."""
+    app, maker, ids = world
+    with maker() as d:
+        d.get(ResearchProject, ids.project).status = "finished"
+        d.commit()
+    advise(app, ids, {"verdicts": [verdict(ids.hyp, "ask_human")]})
+    with maker() as d:
+        assert d.get(ResearchProject, ids.project).status == "finished"

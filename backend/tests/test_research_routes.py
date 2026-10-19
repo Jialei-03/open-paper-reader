@@ -173,3 +173,26 @@ def test_evaluation_switches_accepted(env):
     assert project["budget"]["auto_decide"] is True
     assert project["budget"]["playbook"] is False
     assert project["budget"]["distill"] is False
+
+
+def test_waiting_project_cannot_be_resumed(env):
+    """Review #4: an open decision is answered, not skipped by resume."""
+    app, a, _b, settings = env
+    project, _ = waiting_project(app, a, settings)
+    assert a.post(f"{BASE}/{project['id']}/resume", json={}).status_code == 409
+    assert a.post(f"{BASE}/{project['id']}/pause", json={}).status_code == 409
+
+
+def test_decide_is_applied_once(env):
+    """Review #5: the same decision posted twice acts once."""
+    app, a, _b, settings = env
+    project, _ = waiting_project(app, a, settings)
+    [decision] = a.get(f"{BASE}/{project['id']}/decisions").json()
+    url = f"{BASE}/{project['id']}/decisions/{decision['id']}"
+    first = a.post(url, json={"approve": True})
+    second = a.post(url, json={"approve": True})
+    assert first.status_code == 200 and second.status_code == 409
+    from backend.models import ResearchEvent
+
+    with app.state.maker() as d:
+        assert len(d.query(ResearchEvent).filter_by(action="human_decision").all()) == 1

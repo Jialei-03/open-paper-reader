@@ -286,7 +286,11 @@ def install_research_routes(app, settings, db, auth, human, owned):
     ):
         from .research_advice import act
 
-        p = project_of(d, id, a)
+        project_of(d, id, a)
+        # One answer at a time: a second click waits, then finds it answered.
+        p = d.scalars(
+            select(ResearchProject).where(ResearchProject.id == id).with_for_update()
+        ).one()
         request = d.get(ResearchEvent, event_id)
         if (
             request is None
@@ -346,11 +350,15 @@ def install_research_routes(app, settings, db, auth, human, owned):
         d.commit()
         return project_out(p)
 
+    WAITING = "有待你拍板的事，先在研究页面上回答"
+
     @app.post("/api/v1/research/projects/{id}/pause")
     def pause(id: str, a=Depends(auth), d=Depends(db)):
         p = project_of(d, id, a)
         if p.status == "finished":
             raise HTTPException(409, "研究已结束")
+        if p.status == "waiting":
+            raise HTTPException(409, WAITING)
         return move(p, "paused", d)
 
     @app.post("/api/v1/research/projects/{id}/resume")
@@ -358,6 +366,8 @@ def install_research_routes(app, settings, db, auth, human, owned):
         p = project_of(d, id, a)
         if p.status == "finished":
             raise HTTPException(409, "研究已结束，不能继续")
+        if p.status == "waiting":
+            raise HTTPException(409, WAITING)
         return move(p, "active", d)
 
     @app.post("/api/v1/research/projects/{id}/stop")
@@ -381,4 +391,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 )
                 .values(status="cancelled", updated_at=now())
             )
+        from .research_sandbox import stop_jobs
+
+        stop_jobs(settings, d, p.id)
         return move(p, "finished", d, "stopped")

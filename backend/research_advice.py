@@ -11,6 +11,8 @@ from . import research_map
 from .models import now
 
 VERDICTS = {"continue", "invest", "kill", "pivot", "ask_human"}
+# Verdicts that would close the node they name.
+CLOSING = {"kill", "pivot"}
 
 
 def _node(d, project, node_id):
@@ -103,7 +105,12 @@ def apply(d, project, sprint, args):
         if kind == "ask_human":
             proposal = item.get("proposal", "continue")
             if auto:
-                done = act(d, project, sprint, node, proposal, item)
+                try:
+                    done = (
+                        not (node.parent_id is None and proposal in CLOSING)
+                    ) and act(d, project, sprint, node, proposal, item)
+                except ValueError:
+                    done = False
                 research_map.event(
                     d,
                     project,
@@ -113,7 +120,7 @@ def apply(d, project, sprint, args):
                     {"proposal": proposal, "applied": done},
                     sprint.id,
                 )
-            else:
+            elif project.status == "active":
                 project.status = "waiting"
                 research_map.event(
                     d,
@@ -131,7 +138,15 @@ def apply(d, project, sprint, args):
                 )
             applied += 1
             continue
-        if not act(d, project, sprint, node, kind, item):
+        if node.parent_id is None and kind in CLOSING:
+            # The question itself is not dropped; when it is answered, the advisor concludes.
+            done = False
+        else:
+            try:
+                done = act(d, project, sprint, node, kind, item)
+            except ValueError:
+                done = False
+        if not done:
             research_map.event(
                 d,
                 project,
@@ -169,7 +184,11 @@ def apply(d, project, sprint, args):
         )
     concluded = False
     conclusion = args.get("conclude")
-    if conclusion and conclusion.get("status") in {"concluded", "refuted"}:
+    if (
+        conclusion
+        and conclusion.get("status") in {"concluded", "refuted"}
+        and project.status in {"active", "waiting"}
+    ):
         project.status = "finished"
         project.end_reason = conclusion["status"]
         research_map.event(

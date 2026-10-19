@@ -154,3 +154,14 @@ def test_job_id_prefix_accepted(world):
         [{"kind": "log", "job_id": invented, "from_line": 1, "to_line": 1}],
     )
     assert out[0]["job_id"] == j.id
+
+
+def test_sign_and_scientific_notation_checked(world):
+    """Review #10: -0.5 is not 0.5; 1e-3 is one number."""
+    app, d, owner, project, job = world
+    j = job(text="delta=-0.5 lr=1e-3\n")
+    with pytest.raises(ValueError):
+        ev.check(app, d, owner, project, "gain of 0.5", [log(j, 1, 1)])
+    assert ev.check(app, d, owner, project, "delta -0.5 at lr 1e-3", [log(j, 1, 1)])
+    with pytest.raises(ValueError):
+        ev.check(app, d, owner, project, "best lr 1e-4", [log(j, 1, 1)])

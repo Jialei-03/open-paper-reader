@@ -285,3 +285,30 @@ def test_supported_needs_recorded_evidence(world):
         )
     with maker() as d:
         assert d.get(ResearchNode, hyp).status == "active"
+
+
+def test_executor_cannot_close_root_or_touch_dead_nodes(world):
+    """Review #8: the root stays open; a refuted branch is not reopened."""
+    app, maker, research, ids, calls = world
+    hyp = add_hypothesis(app, ids, research)
+    with pytest.raises(ValueError, match="北极星"):
+        call(
+            app,
+            ids,
+            research,
+            "update_node",
+            {"node_id": ids.root, "status": "abandoned", "reason": "x"},
+        )
+    with maker() as d:
+        rm.update_node(
+            d, d.get(ResearchNode, hyp), status="refuted", actor="advisor", reason="x"
+        )
+        d.commit()
+    with pytest.raises(ValueError, match="关闭"):
+        call(
+            app,
+            ids,
+            research,
+            "update_node",
+            {"node_id": hyp, "status": "active", "reason": "retry"},
+        )

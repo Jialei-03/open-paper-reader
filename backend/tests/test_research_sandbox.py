@@ -38,7 +38,8 @@ class FakeDocker:
             self.containers[name] = {"running": True, "exit": 0, "logs": ""}
             out = "cid\n"
         elif verb == "run" and "cat" in args:
-            mount = args[args.index("-v") + 1].split(":")[0]
+            spec = args[args.index("--mount") + 1]
+            mount = spec.split("source=")[1].split(",target=")[0]
             marker = __import__("pathlib").Path(mount) / ".ora-visible"
             out = marker.read_text() if self.shared and marker.exists() else ""
             code = 0 if out else 1
@@ -105,8 +106,8 @@ def test_pi_call_mounts_project_workdir_without_network(setup):
     assert args[:2] == ["docker", "run"] and "--rm" in args and "-i" in args
     assert args[args.index("--network") + 1] == "none"
     assert "--read-only" in args
-    mount = args[args.index("-v") + 1]
-    assert mount == f"{rs.workdir(settings, ids[0])}:/work"
+    mount = args[args.index("--mount") + 1]
+    assert mount == f"type=bind,source={rs.workdir(settings, ids[0])},target=/work"
     assert rs.IMAGE in args
 
 
@@ -207,3 +208,66 @@ def test_workspace_not_shared_is_explained(setup):
     rs._visible.clear()
     docker.shared = True
     assert rs.pi_call(settings, ids[0], "bash", {"command": "ls"})
+
+
+def test_sweep_keeps_jobs_when_docker_is_briefly_down(setup):
+    """Review #2: a daemon hiccup is not a lost job."""
+    settings, maker, docker, ids = setup
+    with maker() as d:
+        project, node, sprint = objects(d, ids)
+        job = rs.start_job(settings, d, project, node, sprint, "sleep 5", 60)
+        d.commit()
+        job_id = job.id
+    docker.up = False
+    rs.sweep(settings, maker)
+    with maker() as d:
+        assert d.get(ResearchJob, job_id).status == "running"
+
+
+def test_sweep_kills_job_over_quota(setup, monkeypatch):
+    """Review #9: a job that fills the workspace is stopped."""
+    settings, maker, docker, ids = setup
+    with maker() as d:
+        project, node, sprint = objects(d, ids)
+        job = rs.start_job(settings, d, project, node, sprint, "dd", 60)
+        d.commit()
+        job_id, container = job.id, job.container
+    monkeypatch.setattr(rs, "WORKSPACE_BYTES", 10)
+    (rs.workdir(settings, ids[0]) / "big.bin").write_bytes(b"x" * 100)
+    rs.sweep(settings, maker)
+    with maker() as d:
+        job = d.get(ResearchJob, job_id)
+        assert job.status == "failed"
+        assert "配额" in rs.read_log(settings, job, 0, 50)["lines"][-1]["text"]
+    assert ["docker", "kill", container] in docker.calls
+
+
+def test_pi_call_containers_are_named_and_removed_on_timeout(setup, monkeypatch):
+    """Review #11: a call that times out does not leave its container running."""
+    settings, maker, docker, ids = setup
+    original = docker.__call__
+
+    def slow(args, **kw):
+        if args[:2] == ["docker", "run"] and "-i" in args:
+            raise subprocess.TimeoutExpired(args, 75)
+        return original(args, **kw)
+
+    monkeypatch.setattr(rs, "run", slow)
+    with pytest.raises(ValueError, match="超时"):
+        rs.pi_call(settings, ids[0], "bash", {"command": "sleep 100"})
+    removed = [c for c in docker.calls if c[:3] == ["docker", "rm", "-f"]]
+    assert removed and removed[-1][-1].startswith("ora-pi-")
+
+
+def test_stop_project_kills_its_jobs(setup):
+    """Review #11: stopping a project stops its experiments."""
+    settings, maker, docker, ids = setup
+    with maker() as d:
+        project, node, sprint = objects(d, ids)
+        job = rs.start_job(settings, d, project, node, sprint, "sleep 100", 600)
+        d.commit()
+        container = job.container
+    with maker() as d:
+        rs.stop_jobs(settings, d, ids[0])
+        d.commit()
+    assert ["docker", "kill", container] in docker.calls

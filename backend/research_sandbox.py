@@ -42,10 +42,19 @@ LIMITS = [
 STATUS_SECONDS = 30
 NO_DOCKER = "未安装或未启动 Docker，实验暂时不能运行"
 NO_IMAGE = "需要先构建研究沙箱镜像：make research-image"
+NOT_SHARED = (
+    "实验环境看不到项目工作区：Docker 没有共享这个目录"
+    "（colima 等默认只共享主目录）。请把数据目录放在主目录下，或在 Docker 设置里共享它"
+)
+QUOTA_NOTE = "[系统] 工作区超过配额，作业被终止"
+STOPPED_NOTE = "[系统] 研究已停止，作业被终止"
 
 # The CLI, through one name so tests can stand in for it.
 run = subprocess.run
 _status_cache = {}
+_visible = set()
+# Docker says a container does not exist (as opposed to: Docker cannot be asked now).
+GONE = object()
 
 
 def _root(settings, project_id):
@@ -71,6 +80,14 @@ def _user():
     if hasattr(os, "getuid"):
         return ["--user", f"{os.getuid()}:{os.getgid()}"]
     return []
+
+
+def _mount(settings, project_id):
+    # --mount, not -v: a path with a colon in it cannot turn into extra options.
+    return [
+        "--mount",
+        f"type=bind,source={workdir(settings, project_id)},target=/work",
+    ]
 
 
 def docker_status():
@@ -111,13 +128,6 @@ def _ready():
         raise ValueError(status["reason"])
 
 
-NOT_SHARED = (
-    "实验环境看不到项目工作区：Docker 没有共享这个目录"
-    "（colima 等默认只共享主目录）。请把数据目录放在主目录下，或在 Docker 设置里共享它"
-)
-_visible = set()
-
-
 def _check_visible(settings, project_id):
     """The container must see the project's files, not an empty folder in its own VM."""
     if project_id in _visible:
@@ -132,9 +142,9 @@ def _check_visible(settings, project_id):
                 "docker",
                 "run",
                 "--rm",
+                *LIMITS,
                 *_user(),
-                "-v",
-                f"{work}:/work",
+                *_mount(settings, project_id),
                 IMAGE,
                 "cat",
                 "/work/.ora-visible",
@@ -143,6 +153,8 @@ def _check_visible(settings, project_id):
             text=True,
             timeout=60,
         )
+    except subprocess.TimeoutExpired:
+        raise ValueError("实验环境启动超时，请稍后重试") from None
     finally:
         marker.unlink(missing_ok=True)
     if (seen.stdout or "").strip() != token:
@@ -154,15 +166,19 @@ def pi_call(settings, project_id, name, args):
     """One file or shell tool call (read, bash, edit, write, grep, find, ls) in /work."""
     _ready()
     _check_visible(settings, project_id)
+    container = "ora-pi-" + uuid.uuid4().hex[:12]
     command = [
         "docker",
         "run",
         "--rm",
         "-i",
+        "--name",
+        container,
+        "--label",
+        f"ora.project={project_id}",
         *LIMITS,
         *_user(),
-        "-v",
-        f"{workdir(settings, project_id)}:/work",
+        *_mount(settings, project_id),
         IMAGE,
         "node",
         "/app/sandbox-tools.mjs",
@@ -176,6 +192,13 @@ def pi_call(settings, project_id, name, args):
             timeout=75,
         )
     except subprocess.TimeoutExpired:
+        # The CLI was stopped; the container was not, unless it is removed.
+        run(
+            ["docker", "rm", "-f", container],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         raise ValueError(
             "实验环境命令超时（单条命令最长 60 秒，长任务请用 run_job）"
         ) from None
@@ -189,7 +212,10 @@ def pi_call(settings, project_id, name, args):
 
 
 def _size(path):
-    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+    # Links are not followed: a link the container made may point anywhere.
+    return sum(
+        f.lstat().st_size for f in path.rglob("*") if f.is_file() and not f.is_symlink()
+    )
 
 
 def start_job(settings, d, project, node, sprint, command, timeout_seconds):
@@ -201,8 +227,7 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
         raise ValueError("命令不能为空")
     if not 1 <= timeout_seconds <= JOB_MAX_SECONDS:
         raise ValueError(f"作业超时时间须在 1 到 {JOB_MAX_SECONDS} 秒之间")
-    work = workdir(settings, project.id)
-    if _size(work) > WORKSPACE_BYTES:
+    if _size(workdir(settings, project.id)) > WORKSPACE_BYTES:
         raise ValueError("工作区已超过配额，先清理不需要的文件再启动作业")
     job = ResearchJob(
         project_id=project.id,
@@ -227,8 +252,7 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
             f"ora.project={project.id}",
             *LIMITS,
             *_user(),
-            "-v",
-            f"{work}:/work",
+            *_mount(settings, project.id),
             "-w",
             "/work",
             IMAGE,
@@ -251,6 +275,11 @@ def _elapsed(job):
 
 
 def _inspect(container):
+    """The container's state, or GONE when Docker says there is no such container.
+
+    Any other failure (the daemon restarting, the CLI missing) raises, so the
+    job is looked at again later instead of being written off as lost.
+    """
     done = run(
         ["docker", "inspect", "--format", "{{json .State}}", container],
         capture_output=True,
@@ -258,7 +287,9 @@ def _inspect(container):
         timeout=15,
     )
     if done.returncode != 0:
-        return None
+        if "no such" in (done.stderr or "").lower():
+            return GONE
+        raise ValueError("Docker 暂时不可用：" + (done.stderr or "")[-200:])
     return json.loads(done.stdout)
 
 
@@ -274,8 +305,16 @@ def _logs(container):
     return done.stdout or ""
 
 
-def _finish(settings, d, job, status, exit_code):
+def _kill(job):
+    run(["docker", "kill", job.container], capture_output=True, text=True, timeout=30)
+
+
+def _finish(settings, d, job, status, exit_code, note=""):
     text = _logs(job.container)
+    if note:
+        if text and not text.endswith("\n"):
+            text += "\n"
+        text += note + "\n"
     (logdir(settings, job.project_id) / f"{job.id}.log").write_text(text)
     job.log_lines = len(text.splitlines())
     job.status = status
@@ -301,32 +340,63 @@ def _charge(d, job):
     }
 
 
+def _sweep_one(settings, d, job):
+    state = _inspect(job.container)
+    if state is GONE:
+        job.status = "lost"
+        job.finished_at = now()
+        _charge(d, job)
+    elif not state.get("Running"):
+        code = state.get("ExitCode", 1)
+        _charge(d, job)
+        _finish(settings, d, job, "succeeded" if code == 0 else "failed", code)
+    elif _elapsed(job) > job.timeout_seconds:
+        _kill(job)
+        _charge(d, job)
+        _finish(settings, d, job, "timeout", None)
+    elif _size(workdir(settings, job.project_id)) > WORKSPACE_BYTES:
+        # A job may not fill the disk: it is stopped, and its log says why.
+        _kill(job)
+        _charge(d, job)
+        _finish(settings, d, job, "failed", None, note=QUOTA_NOTE)
+
+
 def sweep(settings, maker):
-    """Collects finished jobs, stops overdue ones, and notes the ones that vanished."""
+    """Collects finished jobs, stops overdue ones, and notes the ones that vanished.
+
+    Each job is looked at on its own: one that cannot be checked now (Docker
+    busy or restarting) stays running and is looked at again next time.
+    """
     with maker() as d:
-        jobs = list(
-            d.scalars(select(ResearchJob).where(ResearchJob.status == "running"))
+        ids = list(
+            d.scalars(select(ResearchJob.id).where(ResearchJob.status == "running"))
         )
-        for job in jobs:
-            state = _inspect(job.container)
-            if state is None:
-                job.status = "lost"
-                job.finished_at = now()
-                _charge(d, job)
-            elif not state.get("Running"):
-                code = state.get("ExitCode", 1)
-                _charge(d, job)
-                _finish(settings, d, job, "succeeded" if code == 0 else "failed", code)
-            elif _elapsed(job) > job.timeout_seconds:
-                run(
-                    ["docker", "kill", job.container],
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                _charge(d, job)
-                _finish(settings, d, job, "timeout", None)
-            d.commit()
+    for job_id in ids:
+        with maker() as d:
+            job = d.get(ResearchJob, job_id)
+            try:
+                _sweep_one(settings, d, job)
+                d.commit()
+            except (ValueError, OSError, subprocess.TimeoutExpired):
+                d.rollback()
+
+
+def stop_jobs(settings, d, project_id):
+    """Stops a project's running experiments (the project was stopped)."""
+    for job in list(
+        d.scalars(
+            select(ResearchJob).where(
+                ResearchJob.project_id == project_id, ResearchJob.status == "running"
+            )
+        )
+    ):
+        try:
+            _kill(job)
+            _charge(d, job)
+            _finish(settings, d, job, "failed", None, note=STOPPED_NOTE)
+        except (ValueError, OSError, subprocess.TimeoutExpired):
+            job.status = "lost"
+            job.finished_at = now()
 
 
 def job_status(job):
@@ -339,10 +409,13 @@ def job_status(job):
     }
 
 
+LOG_BYTES = 8 * 1024 * 1024
+
+
 def read_log(settings, job, offset, limit):
     """Lines of a job's output, numbered from 1; a running job's, up to now."""
     if job.status == "running":
-        text = _logs(job.container)
+        text = _logs(job.container)[-LOG_BYTES:]
     else:
         path = logdir(settings, job.project_id) / f"{job.id}.log"
         text = path.read_text() if path.exists() else ""

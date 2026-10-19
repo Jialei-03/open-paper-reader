@@ -30,6 +30,8 @@ FOCUS_FREE = {
     "read_paper",
     "read_file",
     "search_file",
+    "read_region",
+    "list_figures",
     "web_read",
 }
 
@@ -373,6 +375,10 @@ def _focus(d, project, sprint, args):
 
 def _record(app, d, owner, project, sprint, args):
     node = research_map.node_by_prefix(d, project, args["node_id"])
+    if not research_map.is_live(d, node):
+        raise ValueError(
+            "这个节点已关闭，或所在分支已被否定，结果请记到仍在进行的节点上"
+        )
     checked = research_evidence.check(
         app,
         d,
@@ -461,6 +467,15 @@ def _run(app, owner, research, name, args):
             result = {"node": _node_out(node)}
         elif name == "update_node":
             node = research_map.node_by_prefix(d, project, args["node_id"])
+            if node.parent_id is None and args.get("status") in {
+                *research_map.CLOSED,
+                "parked",
+            }:
+                raise ValueError(
+                    "北极星问题本身不能关闭或搁置；它得到回答时由导师结束项目"
+                )
+            if not research_map.is_live(d, node):
+                raise ValueError("这个节点已关闭，或所在分支已被否定，不能再修改")
             if args.get("status") == "supported" and not node.evidence_for:
                 raise ValueError(
                     "标为已支持之前，先用 record_result 记下支持它的证据（作业日志行或原文句子）"

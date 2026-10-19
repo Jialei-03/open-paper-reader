@@ -134,10 +134,24 @@ def _outage(run):
     return run is not None and run.status == "failed" and not run.steps
 
 
-def _outages(d, history):
-    """How many of the last sprints in a row failed on the model service."""
+def _outages(d, project, history):
+    """How many of the last sprints in a row failed on the model service.
+
+    Counting starts again when a person resumes the project.
+    """
+    resumed = d.scalars(
+        select(ResearchEvent.created_at)
+        .where(
+            ResearchEvent.project_id == project.id,
+            ResearchEvent.actor == "human",
+            ResearchEvent.action == "active",
+        )
+        .order_by(ResearchEvent.created_at.desc())
+    ).first()
     count = 0
     for sprint in reversed(history):
+        if resumed and sprint.created_at <= resumed:
+            break
         if not _outage(d.get(AgentRun, sprint.run_id)):
             break
         count += 1
@@ -262,7 +276,7 @@ def _plan(app, d, project):
             .order_by(ResearchSprint.number)
         )
     )
-    outages = _outages(d, history)
+    outages = _outages(d, project, history)
     if outages >= OUTAGE_LIMIT:
         last = d.get(AgentRun, history[-1].run_id)
         project.status = "paused"
@@ -282,6 +296,20 @@ def _plan(app, d, project):
     if outages and _waiting_out(d, project, outages):
         return
     role = next_role(d, project, history)
+    if role == "executor" and not research_sandbox.docker_status()["available"]:
+        # The executor's work is experiments: without Docker a sprint only spends tokens.
+        reason = research_sandbox.docker_status()["reason"]
+        said = d.scalars(
+            select(ResearchEvent)
+            .where(
+                ResearchEvent.project_id == project.id,
+                ResearchEvent.action == "docker_unavailable",
+            )
+            .order_by(ResearchEvent.created_at.desc())
+        ).first()
+        if said is None or (history and said.created_at < history[-1].created_at):
+            event(d, project, None, "system", "docker_unavailable", {"reason": reason})
+        return
     number = (latest.number if latest else 0) + 1
     sprint = ResearchSprint(project_id=project.id, number=number, role=role, run_id="")
     d.add(sprint)
@@ -399,7 +427,12 @@ def _distill(app, d, project):
 
 def tick(app):
     """One round of planning over every active project."""
-    research_sandbox.sweep(app.state.settings, app.state.maker)
+    try:
+        research_sandbox.sweep(app.state.settings, app.state.maker)
+    except Exception as e:  # noqa: BLE001 — collecting jobs must not stop planning
+        print(
+            json.dumps({"research_worker": "sweep", "error": str(e)[:300]}), flush=True
+        )
     with app.state.maker() as d:
         ids = list(
             d.scalars(

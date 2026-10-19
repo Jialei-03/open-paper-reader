@@ -13,7 +13,8 @@ from .citation_marks import check_quote
 from .models import File, ResearchJob
 from .research_sandbox import read_log
 
-NUMBER = re.compile(r"-?\d+(?:\.\d+)?%?")
+# A sign counts only where it is one (after a space or "="), not as a range dash: 0.03-1e4.
+NUMBER = re.compile(r"(?:(?<![\w.])[-+])?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?%?")
 MAX_LINES = 50
 KEPT_LINES = 20
 
@@ -28,7 +29,9 @@ def pages_of(app, owner, file_id):
 
 def _numbers(text):
     # One- to three-digit whole numbers are mostly counts and seeds ("3 个种子").
-    return [n for n in NUMBER.findall(text or "") if not re.fullmatch(r"-?\d{1,3}", n)]
+    return [
+        n for n in NUMBER.findall(text or "") if not re.fullmatch(r"[-+]?\d{1,3}", n)
+    ]
 
 
 def _value(token):
