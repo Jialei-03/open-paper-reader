@@ -72,7 +72,6 @@ import {
   EngineSwitch,
   LayoutPanel,
   ModeControls,
-  alignedUnits,
   useTranslatedView,
   useWide,
   type AlignmentUnit,
@@ -680,7 +679,6 @@ function PaperCard({
             onLinked={setLinked}
             swapped={swapped}
             onSwap={() => setSwapped((on) => !on)}
-            aligned={alignedUnits(layout.job?.alignment) > 0}
           />
         ),
       }

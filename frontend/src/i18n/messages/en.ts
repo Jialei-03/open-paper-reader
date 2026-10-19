@@ -102,7 +102,6 @@ export const en = {
   "reader.compare.switch": "Version shown",
   "reader.compare.original": "Original",
   "reader.compare.translated": "Translation",
-  "reader.compare.aligned": "Scrolling follows matching passages",
   "reader.compare.byPages": "Scrolling follows page position",
   "reader.compare.link": "Link scrolling",
   "reader.compare.swap": "Swap sides",

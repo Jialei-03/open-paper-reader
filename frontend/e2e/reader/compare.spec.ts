@@ -131,31 +131,33 @@ test("译文 opens beside the original, each a whole PDF", async ({ page }) => {
   await expect(main(page)).toContainText("按页码位置滚动");
 });
 
-test("scrolling the original moves the translation by page proportion when nothing is aligned", async ({
+test("scrolling the original keeps the translation page for page", async ({
   page,
 }) => {
   await open(page);
-  // Half as many pages: page 5 of 8 is at the top of page 3 of 4.
-  await jumpTo(page, 5);
-  await expectAtTop(page, "translated", 3);
+  // Page N of the original beside page N of the translation, whatever their lengths.
   await jumpTo(page, 3);
+  await expectAtTop(page, "translated", 3);
+  await jumpTo(page, 2);
   await expectAtTop(page, "translated", 2);
   await jumpTo(page, 1);
   await expectAtTop(page, "translated", 1);
 });
 
-test("the job's alignment decides where the translation goes", async ({
+test("page numbers, not the job's alignment, decide where the translation goes", async ({
   page,
 }) => {
-  // Page 3 of the original is on page 4 of the translation (by proportion, of 6 pages, it would be page 3).
+  // The alignment puts page 3 on page 4; the panes stay page for page all the same.
   await open(page, {
     engine: "latex",
     translatedPages: 6,
     alignment: [unit(1, 1), unit(3, 4), unit(3, 4), unit(8, 6)],
   });
-  await expect(main(page)).toContainText("按原译文对应段落滚动");
+  await expect(main(page)).toContainText("按页码位置滚动");
   await jumpTo(page, 3);
-  await expectAtTop(page, "translated", 4);
+  await expectAtTop(page, "translated", 3);
+  await jumpTo(page, 5);
+  await expectAtTop(page, "translated", 5);
   await jumpTo(page, 1);
   await expectAtTop(page, "translated", 1);
 });
@@ -171,7 +173,7 @@ test("scrolling the translation moves the original: whichever is scrolled leads"
   await desk(page, "translated").evaluate((el, to) => {
     el.scrollTop = to;
   }, target);
-  await expectAtTop(page, "original", 5);
+  await expectAtTop(page, "original", 3);
 });
 
 test("unlinking stops one following the other, linking again brings them together", async ({
@@ -182,13 +184,13 @@ test("unlinking stops one following the other, linking again brings them togethe
   await link(page).click();
   await expect(link(page)).toHaveAttribute("aria-pressed", "false");
 
-  await jumpTo(page, 5);
+  await jumpTo(page, 3);
   await page.waitForTimeout(500);
   expect(await scrolled(desk(page, "translated"))).toBe(0);
 
   await link(page).click();
   await expect(link(page)).toHaveAttribute("aria-pressed", "true");
-  // The translation goes to where the original is.
+  // The translation goes to the original's page.
   await expectAtTop(page, "translated", 3);
 });
 
@@ -203,7 +205,7 @@ test("swapping puts the translation on the left, and they still keep step", asyn
   ]);
   expect(left!.x).toBeGreaterThan(right!.x);
   await jumpTo(page, 3);
-  await expectAtTop(page, "translated", 2);
+  await expectAtTop(page, "translated", 3);
 });
 
 test("the zoom applies to both panes", async ({ page }) => {
@@ -409,10 +411,9 @@ test("the follower is in the same place as the leader in the same frame", async 
       // The leader's scroll event runs before the next frame; so must the follower's move.
       await new Promise((r) => requestAnimationFrame(r));
       const [from, to] = [position(a), position(b)];
-      worst = Math.max(
-        worst,
-        Math.abs((from.at * to.pages) / from.pages - to.at),
-      );
+      // Page for page, until the shorter one has reached its end and cannot scroll further.
+      const atEnd = b.scrollTop >= b.scrollHeight - b.clientHeight - 1;
+      if (!atEnd) worst = Math.max(worst, Math.abs(from.at - to.at));
     }
     return worst;
   });

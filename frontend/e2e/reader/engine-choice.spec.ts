@@ -388,7 +388,7 @@ test("the side by side view follows the selected result", async ({ page }) => {
 
   const translated = page.locator('[data-pane="translated"] .opr-pdf');
   await expect(translated).toHaveAttribute("data-file", service.files.latex);
-  await expect(main(page)).toContainText("按原译文对应段落滚动");
+  await expect(main(page)).toContainText("按页码位置滚动");
   await engineSwitch(page).getByRole("radio", { name: "版面翻译" }).click();
   await expect(translated).toHaveAttribute("data-file", service.files.pdf);
   await expect(main(page)).toContainText("按页码位置滚动");

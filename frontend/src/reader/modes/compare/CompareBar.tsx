@@ -23,8 +23,6 @@ export interface CompareBarProps {
   onLinked(linked: boolean): void;
   swapped: boolean;
   onSwap(): void;
-  /** Side by side: whether the places are matched by the job's alignment, or by the pages' proportion. */
-  aligned: boolean;
 }
 
 /**
@@ -43,7 +41,6 @@ export function CompareBar({
   onLinked,
   swapped,
   onSwap,
-  aligned,
 }: CompareBarProps) {
   const { t } = useI18n();
   const together = wide && view === "compare";
@@ -77,9 +74,7 @@ export function CompareBar({
       )}
       {together && (
         <>
-          <span className={styles.basis}>
-            {t(aligned ? "reader.compare.aligned" : "reader.compare.byPages")}
-          </span>
+          <span className={styles.basis}>{t("reader.compare.byPages")}</span>
           <div className={styles.tools}>
             <IconButton
               icon={Link2}

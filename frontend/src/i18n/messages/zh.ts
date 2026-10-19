@@ -97,7 +97,6 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.compare.switch": "显示哪一份",
   "reader.compare.original": "原文",
   "reader.compare.translated": "译文",
-  "reader.compare.aligned": "按原译文对应段落滚动",
   "reader.compare.byPages": "按页码位置滚动",
   "reader.compare.link": "联动滚动",
   "reader.compare.swap": "交换左右",
