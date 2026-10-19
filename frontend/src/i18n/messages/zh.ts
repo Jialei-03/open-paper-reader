@@ -201,6 +201,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "reader.selection.explain": "解释",
   "reader.selection.translate": "翻译",
   "reader.selection.highlight": "高亮",
+  "reader.selection.comment": "批注",
   "reader.selection.note": "记到笔记",
   "reader.selection.ask": "问助手",
   "reader.selection.highlighted": "已高亮",
