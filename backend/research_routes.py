@@ -82,6 +82,8 @@ def node_out(n):
             "confidence",
             "kill_if",
             "budget_tokens",
+            "value",
+            "cost",
             "evidence_for",
             "evidence_against",
             "doubts",

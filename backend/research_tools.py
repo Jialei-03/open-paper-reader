@@ -24,6 +24,7 @@ from .models import (
 
 NODE = {"type": "string", "minLength": 8, "maxLength": 36}
 REASON = {"type": "string", "minLength": 1, "maxLength": 1000}
+LEVEL = {"type": "string", "enum": ["high", "medium", "low"]}
 
 # What may be done before saying what is being worked on: looking, not doing.
 FOCUS_FREE = {
@@ -66,13 +67,15 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "add_node",
-        "在地图上新增节点（question、hypothesis、experiment、finding）。假设必须写 kill_if（什么结果说明这条路不通）。",
+        "在地图上新增节点（question、hypothesis、experiment、finding）。假设必须写 kill_if（什么结果说明这条路不通）。可估计 value（做它能多大程度改变对北极星问题的判断）和 cost（要花多少），high / medium / low。",
         {
             "parent_id": NODE,
             "kind": {"type": "string", "enum": sorted(research_map.KINDS)},
             "title": {"type": "string", "minLength": 1, "maxLength": 300},
             "kill_if": {"type": "string", "maxLength": 500},
             "budget_tokens": {"type": "integer", "minimum": 0},
+            "value": LEVEL,
+            "cost": LEVEL,
             "reason": REASON,
         },
         ["parent_id", "kind", "title", "reason"],
@@ -183,6 +186,8 @@ RESEARCH_TOOLS.append(
                             ],
                         },
                         "reason": {"type": "string", "maxLength": 1000},
+                        "value": LEVEL,
+                        "cost": LEVEL,
                         "proposal": {
                             "type": "string",
                             "enum": ["continue", "invest", "kill", "pivot"],
@@ -468,6 +473,8 @@ def _run(app, owner, research, name, args):
                 args["title"],
                 kill_if=args.get("kill_if", ""),
                 budget_tokens=args.get("budget_tokens", 0),
+                value=args.get("value", ""),
+                cost=args.get("cost", ""),
                 actor="executor",
                 sprint_id=sprint.id,
                 reason=args["reason"],

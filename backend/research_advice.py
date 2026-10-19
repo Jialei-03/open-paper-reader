@@ -79,6 +79,14 @@ def act(d, project, sprint, node, kind, item):
     return False
 
 
+def _estimate(node, item):
+    """The advisor's own view of what a node is worth and costs, when it gives one."""
+    for field in ("value", "cost"):
+        level = item.get(field)
+        if level in {"high", "medium", "low"}:
+            setattr(node, field, level)
+
+
 def apply(d, project, sprint, args):
     """Applies an `advise` call; {"applied", "skipped", "concluded"}."""
     applied = skipped = 0
@@ -102,6 +110,7 @@ def apply(d, project, sprint, args):
             )
             skipped += 1
             continue
+        _estimate(node, item)
         if kind == "ask_human":
             proposal = item.get("proposal", "continue")
             if auto:

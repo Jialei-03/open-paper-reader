@@ -336,3 +336,13 @@ def test_conclude_needs_recorded_evidence(world):
             select(ResearchEvent).where(ResearchEvent.action == "conclude_rejected")
         ).one()
         assert "record_result" in rejected.detail["why"]
+
+
+def test_advisor_reestimates_value(world):
+    app, maker, ids = world
+    advise(
+        app, ids, {"verdicts": [verdict(ids.hyp, "continue", value="low", cost="high")]}
+    )
+    with maker() as d:
+        node = d.get(ResearchNode, ids.hyp)
+        assert node.value == "low" and node.cost == "high"

@@ -502,6 +502,9 @@ class ResearchNode(Base):
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
     kill_if: Mapped[str] = mapped_column(Text, default="")
     budget_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    # Estimates, high / medium / low ("" when none): what working on it may teach, and what it costs.
+    value: Mapped[str] = mapped_column(String(8), default="", server_default="")
+    cost: Mapped[str] = mapped_column(String(8), default="", server_default="")
     evidence_for: Mapped[list] = mapped_column(JSON, default=list)
     evidence_against: Mapped[list] = mapped_column(JSON, default=list)
     doubts: Mapped[list] = mapped_column(JSON, default=list)

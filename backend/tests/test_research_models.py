@@ -129,3 +129,26 @@ def test_migration_0027_upgrades(tmp_path, monkeypatch):
     command.downgrade(Config("alembic.ini"), "0026")
     assert not TABLES & set(inspect(engine).get_table_names())
     engine.dispose()
+
+
+def test_migration_0028_adds_estimates(tmp_path, monkeypatch):
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import text
+
+    url = "sqlite:///" + str(tmp_path / "m28.db")
+    monkeypatch.setenv("DATABASE_URL", url)
+    settings = Settings(database_url=url, storage=str(tmp_path / "files"), testing=True)
+    engine, _ = database(settings)
+    Base.metadata.create_all(engine)
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE research_nodes DROP COLUMN value"))
+        conn.execute(text("ALTER TABLE research_nodes DROP COLUMN cost"))
+        conn.execute(
+            text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
+        )
+        conn.execute(text("INSERT INTO alembic_version VALUES ('0027')"))
+    command.upgrade(Config("alembic.ini"), "head")
+    columns = {c["name"] for c in inspect(engine).get_columns("research_nodes")}
+    assert {"value", "cost"} <= columns
+    engine.dispose()
