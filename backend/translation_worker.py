@@ -13,14 +13,15 @@ from pathlib import Path
 
 from sqlalchemy import select, update
 
-from .filelock import lock_nowait
-from .parent_watch import watch_parent
 from .arxiv_import import NO_PDF, NO_SOURCE, ArxivNotFound, download, extract_source
 from .config import Settings, database
+from .filelock import lock_nowait
 from .latex_install import latex_runtime, tex_env
+from .latex_repair import compile_with_repair
 from .models import File, Paper, TranslationJob, now
+from .parent_watch import watch_parent
 from .translation_dispatch import TaskExecutor
-from .translation_engine import align, compile_project, translate_project
+from .translation_engine import align, translate_project
 from .translation_resources import rendering_memory
 from .translation_settings import read_config
 from .translations import store_file
@@ -213,7 +214,15 @@ def process(settings, maker, job_id):
             cancelled,
             lambda: progress(len(units), len(units), "等待编译运行内存"),
         ):
-            translated = compile_project(work / "translated", **compiler(settings))
+            translated = compile_with_repair(
+                work / "translated",
+                config,
+                compiler(settings),
+                progress=lambda attempt: progress(
+                    len(units), len(units), f"编译失败，正在由 AI 修复（第 {attempt} 次）"
+                ),
+                cancelled=cancelled,
+            )
         progress(len(units), len(units), "保存中文 PDF")
         progress(len(units), len(units), "建立原译文对照")
         alignment = align(units, Path(settings.storage) / source_file, translated)

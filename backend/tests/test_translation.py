@@ -310,12 +310,14 @@ def test_worker_publishes_files_and_alignment_and_backup_roundtrips(
 
     monkeypatch.setattr(worker, "translate_project", translate)
 
-    def compile_(directory):
+    def compile_(directory, **kwargs):
         target = directory / "main.pdf"
         target.write_bytes(raw.getvalue())
         return target
 
-    monkeypatch.setattr(worker, "compile_project", compile_)
+    from backend import latex_repair
+
+    monkeypatch.setattr(latex_repair, "compile_project", compile_)
     worker.process(settings, app.state.maker, job["id"])
     result = a.get(f"/api/v1/papers/{p['id']}/translations").json()[0]
     assert result["status"] == "completed"
