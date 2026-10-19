@@ -68,7 +68,7 @@ def metrics(d, project):
     return {
         "sprints": {
             "executor": len(executors),
-            "advisor": len(sprints) - len(executors),
+            "advisor": sum(1 for s in sprints if s.role == "advisor"),
         },
         "hard_drift_blocks": sum(1 for e in events if e.action == "drift_blocked"),
         "soft_drift_rate": _ratio(len(off_track), len(judged)),

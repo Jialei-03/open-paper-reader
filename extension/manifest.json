@@ -1,14 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Open Paper Reader",
+  "name": "Open Research Agent",
   "short_name": "paper-reader",
   "version": "0.1.0",
-  "description": "把当前网页或 PDF 链接交给 Open Paper Reader 打开。只传送网址，不读取页面内容。",
+  "description": "把当前网页或 PDF 链接交给 Open Research Agent 打开。只传送网址，不读取页面内容。",
   "minimum_chrome_version": "110",
   "permissions": ["activeTab", "contextMenus", "storage"],
   "background": { "service_worker": "background.js" },
   "action": {
-    "default_title": "在 Open Paper Reader 中打开",
+    "default_title": "在 Open Research Agent 中打开",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"

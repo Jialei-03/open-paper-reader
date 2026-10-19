@@ -191,6 +191,16 @@ def apply(d, project, sprint, args):
     ):
         project.status = "finished"
         project.end_reason = conclusion["status"]
+        # The question itself is now answered, one way or the other.
+        root = research_map.root(d, project)
+        research_map.update_node(
+            d,
+            root,
+            status="supported" if conclusion["status"] == "concluded" else "refuted",
+            actor="advisor",
+            sprint_id=sprint.id,
+            reason="导师结束项目：" + conclusion.get("summary", "")[:300],
+        )
         research_map.event(
             d,
             project,

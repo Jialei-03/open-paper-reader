@@ -770,16 +770,38 @@ export const en = {
   "site.nav": "Site",
   "site.nav.how": "How it works",
   "site.nav.github": "GitHub",
-  "site.nav.start": "Open hosted version",
+  "site.nav.research": "How the research moves",
+  "site.research.title": "How the research moves",
+  "site.research.body":
+    "Automated research agents often finish the engineering yet fail to move the research: they misjudge what is worth doing, do not back off dead ends, and drift from the goal. Each part here is built against those failures.",
+  "site.research.map.title": "Research map",
+  "site.research.map.body":
+    "The direction lives in a persistent tree, not a chat: questions, hypotheses that can fail, experiments, findings. Every sprint starts from the map and picks up after any interruption.",
+  "site.research.focus.title": "Focus before acting",
+  "site.research.focus.body":
+    "Before running code, writing files or changing the map, the agent says which node it advances; actions that stray are refused and logged.",
+  "site.research.advisor.title": "Independent advisor",
+  "site.research.advisor.body":
+    "A read-only advisor reviews the map on a schedule, checks numbers against the logs, and decides: continue, invest, drop, pivot, or ask you.",
+  "site.research.evidence.title": "Evidence",
+  "site.research.evidence.body":
+    "Experiments run in an isolated sandbox on your computer and the system keeps their logs. A result can only cite real log lines or a paper's own sentences, and the numbers must match.",
+  "site.research.playbook.title": "Playbook",
+  "site.research.playbook.body":
+    "When a project ends, the advisor's calls and the kill decisions become judgment rules; a rule supported by two projects takes effect, and later projects read it.",
+  "site.research.alt":
+    "The research page: research map, sprint timeline and process metrics.",
+  "site.nav.start": "Read papers online",
   "site.language": "Language",
-  "site.hero.title": "Read papers with an AI assistant that has read them too.",
+  "site.hero.title":
+    "Give it a research question. It keeps its direction, moves forward sprint by sprint, and shows evidence you can check.",
   "site.hero.lead":
-    "Import a PDF or paste an arXiv link and get a guide. Select a sentence to have it explained or translated. Ask the assistant anything. Every answer points back to the exact sentence in the paper.",
-  "site.hero.start": "Open hosted version",
+    "Open Research Agent is an open-source research agent: a research map, an independent advisor, kill conditions, real experiments in an isolated sandbox, and a playbook that improves across projects. Research runs on your own computer; the paper-reading part works online right away.",
+  "site.hero.start": "Read papers online",
   "site.hero.source": "View source",
   "site.shot.alt":
-    "The reader: a paper on the left; on the right the assistant's answer, with a page chip that returns to the exact sentence.",
-  "site.how.title": "From a PDF to an answer you can check",
+    "The research page: the research map on the left (questions, hypotheses, findings and their confidence), each sprint's handoff and the advisor's calls on the right, sprints, cost and process metrics on top.",
+  "site.how.title": "Reading papers: from a PDF to an answer you can check",
   "site.how.import.title": "Import",
   "site.how.import.body":
     "Upload a PDF or paste an arXiv link. The paper is prepared in the background. ⌘K opens another one at any time.",
@@ -799,14 +821,14 @@ export const en = {
     "One paper, three ways to read it. Switch at the top of the reader at any time.",
   "site.open.title": "Open source",
   "site.open.body":
-    "Open Paper Reader is open source under the MIT license. To run it yourself, use the command above; if you would rather not install anything, use the hosted version, also with your own key. Chinese and English interface, light and dark.",
+    "Open Research Agent is open source under the MIT license. Research runs on your own computer (it needs Docker); to just read papers, use the hosted version with your own key. Chinese and English, light and dark.",
   "site.nav.modes": "Reading modes",
   "site.nav.local": "Local-first",
   "site.hero.install": "Run it on your own computer",
   "site.hero.copy": "Copy command",
   "site.hero.copied": "Copied",
   "site.hero.note":
-    "Needs uv or pipx. Add a model the first time you open it; there is no sign-in after that.",
+    "Research needs Docker. Add a model the first time you open it; no sign-in after that.",
   "site.how.guide.alt":
     "The guide tab: a three-line summary, keywords and a guide by section, each with page chips.",
   "site.how.select.alt":
@@ -838,7 +860,7 @@ export const en = {
     "Letting the Claude Code or Codex on your machine read papers. Only a plan for now; it is not in the current version.",
   "site.open.source": "View on GitHub",
   "site.footer": "MIT license. Not affiliated with Anthropic or OpenAI.",
-  "login.home": "Open Paper Reader home",
+  "login.home": "Open Research Agent home",
   "login.title": "Welcome back",
   "login.title.register": "Create an account",
   "login.lead": "Sign in to keep reading.",
@@ -969,6 +991,7 @@ export const en = {
   "research.approve": "Agree",
   "research.reject": "Disagree",
   "research.role.advisor": "Advisor",
+  "research.role.distiller": "Distiller",
   "reader.tab.related": "Related",
   "reader.tab.related.empty": "Related papers appear here.",
   "reader.related.relation": "Which related papers",

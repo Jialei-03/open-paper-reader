@@ -310,7 +310,7 @@ def test_scripted_sprint_end_to_end(lab):
 def test_abnormal_end_gets_fallback_summary(lab):
     app, project, run_sprint = lab
     rw.tick(app)
-    run_sprint([("tool", "research_map_read", {}), ("text", "I forgot to hand over")])
+    run_sprint([("tool", "research_map_read", {}), ("text", "")])
     rw.tick(app)
     first, second = sprints(app, project["id"])
     assert first.status == "abnormal"
@@ -752,3 +752,19 @@ def test_budget_end_does_not_override_a_stop(lab):
     rw.tick(app)
     with app.state.maker() as d:
         assert d.get(ResearchProject, project["id"]).status == "paused"
+
+
+def test_reply_without_end_sprint_is_the_handoff(lab):
+    """A sprint that answered in words (not end_sprint) handed over in those words."""
+    app, project, run_sprint = lab
+    rw.tick(app)
+    run_sprint(
+        [
+            ("tool", "research_map_read", {}),
+            ("text", "Scaling raised accuracy from 49% to 86%; next: test k."),
+        ]
+    )
+    rw.tick(app)
+    first = sprints(app, project["id"])[0]
+    assert first.status == "ended"
+    assert first.summary.startswith("Scaling raised accuracy")

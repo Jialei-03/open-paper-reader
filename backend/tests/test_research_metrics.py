@@ -107,3 +107,11 @@ def test_metrics_from_events(world):
     assert m["abnormal_rate"] == 0.5
     assert m["evidence_count"] == 2
     assert m["tokens_per_supported"] == 3000
+
+
+def test_distiller_not_counted_as_advisor(world):
+    d, project = world
+    sprint(d, project, 1)
+    sprint(d, project, 2, role="advisor")
+    sprint(d, project, 3, role="distiller")
+    assert metrics(d, project)["sprints"] == {"executor": 1, "advisor": 1}

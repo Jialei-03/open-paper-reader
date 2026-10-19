@@ -30,9 +30,13 @@ export function SprintTimeline({
           <div className={styles.sprintHead}>
             <span className={styles.sprintNumber}>
               {t("research.sprint", { number: sprint.number })}
-              {sprint.role === "advisor" && (
+              {sprint.role !== "executor" && (
                 <span className={styles.role}>
-                  {t("research.role.advisor")}
+                  {t(
+                    sprint.role === "distiller"
+                      ? "research.role.distiller"
+                      : "research.role.advisor",
+                  )}
                 </span>
               )}
             </span>

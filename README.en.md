@@ -1,105 +1,82 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark-en.png">
-  <img alt="Open Paper Reader: a paper beside its guide, every claim cited to its sentence" src="docs/assets/banner-light-en.png">
-</picture>
-
-# Open Paper Reader
+# Open Research Agent
 
 <p align="center">
   <a href="https://papers.dougao.online"><img alt="Use it online at papers.dougao.online" src="https://img.shields.io/badge/Use%20it%20online-papers.dougao.online-1c1917?style=for-the-badge"></a>
 </p>
-<p align="center"><b>Open <a href="https://papers.dougao.online">papers.dougao.online</a> and start reading; nothing to install.</b> To keep your papers on your own computer, run it locally (below).</p>
+<p align="center"><b>Read papers right away at <a href="https://papers.dougao.online">papers.dougao.online</a>, nothing to install; the research agent runs on your own computer.</b></p>
 
-**An open-source paper reader with an AI assistant.** Import a PDF, an arXiv link or any paper URL and get a guide; select a sentence to have it explained, translated or kept in your notes; ask the assistant anything. Every claim in the guide and the answers is cited, and a click takes you to its sentence in the paper.
+**An open-source research agent: give it a research question and it keeps its direction, makes progress sprint after sprint, knows when to back off, and backs every result with evidence you can check.** Built on the [Pi](https://github.com/earendil-works/pi) agent; you choose the model.
 
 [简体中文](README.md) · English · [Use it online](https://papers.dougao.online) · [Local build](docs/LOCAL.md) · [All docs](docs/README.md)
 
-[![CI](https://github.com/Jialei-03/open-paper-reader/actions/workflows/verify.yml/badge.svg)](https://github.com/Jialei-03/open-paper-reader/actions/workflows/verify.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## What it does
+## Why
 
-**Read**
-- **Guide**: written right after import (a summary, keywords and a note per section) and shown as it streams in. Each sentence carries a small number; hover it for the sentence it stands on, click it to jump there and see it highlighted.
-- **Key sentences**: the sentences that state what is new, the method, the results and the limits are underlined in the paper, each kind can be hidden.
-- **Select**: explain, translate, highlight, keep in your notes, or ask the assistant about the selected text. Translations are kept, so the same sentence shows its translation at once next time.
-- **Box**: draw a box around a figure, a table or a formula to have it explained, or turn a formula into LaTeX.
-- **Citations**: hover a citation in the text to see the cited paper's title, authors, year, abstract and citation count; preview it or add it to your library in one click.
+Recent work finds that automated research agents can do the **engineering** of research but not move the **research** forward:
 
-**Ask**
-- **Assistant**: reads the pages you point to, or the whole paper, before answering; each step it took can be expanded. Its answers are cited sentence by sentence too, in the language you asked in.
-- **Question box**: docked under the assistant, or dragged out to float over the paper.
+- Given six days and thousands of dollars on two unpublished NeurIPS papers, frontier agents finished the engineering and made no substantial research progress. The failure modes include poor judgment about what is worth doing, not backing off dead ends, ignoring resources, and drifting from the goal (Kirgis, Narayanan et al., [2607.27191](https://arxiv.org/abs/2607.27191)).
+- With data missing, all seven frontier models tested synthesized data instead of saying the task could not be done (SciIntegrity-Bench, [2605.10246](https://arxiv.org/abs/2605.10246)).
+- Of 24 runnable automated-research systems, none has an externally validated check inside its loop ([2608.05179](https://arxiv.org/abs/2608.05179)).
 
-**Translate**
-- **Parallel**: each page's translation beside it.
-- **Translated PDF**, two methods, both kept:
-  - **Source recompile**: translates the LaTeX source of an arXiv paper and compiles it, for the best typesetting. If the compile fails, the assistant reads the error and tries to fix it.
-  - **Layout translation**: translates the PDF itself and keeps its layout; works for any PDF (built on BabelDOC).
-- **Side by side**: original and translation next to each other, scrolling page for page.
+Open Research Agent goes after exactly these: **research judgment**, **staying on the goal**, and, as the floor, **results that can be checked**.
 
-**Keep**
-- **Notes**: one Markdown note per paper, with its highlights and annotations listed below; guide passages and answers can be kept in it with their citations.
-- **Library**: cards with a first-page thumbnail or a list, sorted by progress, citations and more. A paper's details show venue, DOI and citation count, and copy BibTeX, APA or GB/T 7714, or export a .bib for several papers.
-- **Related and Discover**: a paper's references and the papers citing it; Discover suggests papers from your library and says why.
-- **Any URL**: the import box takes arXiv, publisher pages and direct PDF links; the [browser extension](extension/README.md) opens the page you are on in one click.
+## How it works
 
-## Principles
+- **Research map.** The direction of the research lives in a persistent tree, not in a chat: the north-star question, sub-questions, hypotheses, experiments, findings. Each node has a status, a confidence, evidence and doubts, and every change records who made it and why.
+- **Sprints.** Each sprint starts from the map and the last handoff, with no chat history. Work can go on for many sprints, across days, and picks up from the map after any interruption.
+- **Focus before acting.** Before running code, writing files or changing the map, the agent must say which node of the map it is advancing. Without that, or on a branch already refuted, the action is refused and logged. That both prevents drift and measures it.
+- **Kill conditions.** Every hypothesis states up front what result would show it is a dead end. When a result meets the condition, the hypothesis is refuted.
+- **Advisor.** A read-only advisor reviews the map every 3 sprints, after a stop signal or a finding, at half and four-fifths of the budget, and when two sprints in a row moved nothing. For each node it says continue, invest, drop, pivot, or ask a person, and the verdict takes effect.
+- **Evidence.** Experiments run in an isolated Docker sandbox on your computer (no network, only the project's own directory mounted), and the system keeps their logs. A result is recorded only with real log lines or sentences from a paper, and every number in it must appear in that evidence.
+- **Playbook: improving across projects.** When a project ends, a distiller turns how it went (the advisor's calls, the kill decisions, the drift) into "in this situation, do this" judgment rules. A rule takes effect once two projects support it, and harmful rules are retired. Later projects read the playbook: the research process improves while the model stays the same.
+- **Process metrics.** Drift, backtrack delay, handoff rate, evidence count and cost per supported finding are computed from the record, so different setups can be compared.
 
-- **Local first.** Meant to run on your own computer: papers and notes stay there, no sign-in, no background crawling, no telemetry.
-- **Your own model.** The built-in [Pi](https://github.com/earendil-works/pi) assistant works with API keys from many providers (OpenAI-compatible, Anthropic and more) or with local models (Ollama, LM Studio).
-- **Citations are checked before they are shown.** Every citation in a guide or an answer is looked up in the paper: a wrong page is corrected, and a sentence that is not there is dropped rather than pointing to the wrong place.
-- **Claude Code and Codex are not connected yet.** The plan is an MCP server with the reader's abilities (reading pages, searching the paper, reading and writing notes) so the Claude Code or Codex on your computer can read papers. It is not in this version. This project is not affiliated with Anthropic or OpenAI.
-- **Online whenever you want it.** [papers.dougao.online](https://papers.dougao.online) needs no install: sign up, add your own API key and read.
+## Status
 
-## Getting started
+This is an early version. What has actually run:
 
-### Online
+- Two small research projects, run locally end to end with real models. In one, the data was not mounted into the sandbox: the agent reported it and refused to synthesize data, and the advisor asked a person. Once the data was back, the agent ran a 17-point regularization sweep as a background job. The advisor checked the numbers against log line numbers and judged the kill condition not met (0.0096 < 0.01). It also judged every sprint on track: the tempting "try gradient-boosted trees" side road in the background was not taken.
+- The distiller wrote four judgment rules from those two projects. They are pending confirmation.
+- Not there yet: systematic evaluation numbers (the harness is being built), research in the hosted version (it runs locally for now), and GPU experiments.
 
-Open [papers.dougao.online](https://papers.dougao.online), sign up, add a model in Settings (your own API key) and import a paper.
+## Reading papers
 
-### On your own computer
+The other half of the agent is reading papers. That part also works on its own, and the [online version](https://papers.dougao.online) is exactly that:
+
+- Import a PDF, an arXiv link or any paper URL and get a guide. Every sentence is cited, and a click takes you back to its sentence.
+- Select text to explain, translate, highlight, comment or keep in notes. Box a figure or formula to ask about it.
+- The assistant can see attached images and boxed regions, with a model that has vision.
+- Parallel translation, layout translation and LaTeX recompilation.
+- Markdown notes, a library, related papers and recommendations.
+
+## Run it on your computer
 
 ```bash
-uvx open-paper-reader        # short name: opr; or pipx install open-paper-reader
+git clone https://github.com/Jialei-03/open-research-agent
+cd open-research-agent
+make install   # .venv plus backend, frontend and agent runtime dependencies
+make build     # build the frontend
+python -m backend.local --port 8765   # local edition, no sign-in, open http://127.0.0.1:8765
 ```
 
-It starts the service on your computer and opens your browser, with no sign-in. Add a model the first time (an API key, or a local model such as Ollama or LM Studio); once its connection test passes, import a paper. Layout translation and the LaTeX compiler are installed from Settings the first time you need them. Papers and notes live in `~/.open-paper-reader/`. See [Local build](docs/LOCAL.md).
+Research needs Docker and a one-time sandbox build:
 
-> The 0.2.0 package is not on PyPI yet; until it is, run it from source (see Development below).
+```bash
+make research-image
+```
 
-### Browser extension
-
-[`extension/`](extension/README.md) holds a Chrome / Edge extension (install with "Load unpacked"): on any page or PDF link, the toolbar button or the context menu opens it in Open Paper Reader, online or local. The extension sends only the URL and never reads the page.
+With colima on macOS, Docker sees only your home directory by default. The data directory is `~/.open-paper-reader/`, so nothing needs changing. Add a model in Settings the first time (an API key or a local model). See [Local build](docs/LOCAL.md).
 
 ## Development
 
 ```bash
-make install   # .venv plus backend, frontend and assistant runtime dependencies
-make db        # database migrations (SQLite by default on your computer)
-make build     # build the frontend
-make run       # http://127.0.0.1:8765
-make worker    # in another terminal: the assistant worker (needs Node.js 22)
 make help      # every command
+make test      # backend tests
 ```
 
-Layout, tests and conventions are in [Development](docs/DEVELOPMENT.md); the overall design is in [Architecture](docs/ARCHITECTURE.md).
-
-## Status and limits
-
-- **Check what the model writes.** The assistant, explanations, translations and the guide are model output; citations are checked against the paper, but that does not guarantee facts or translation quality.
-- **Source recompile** needs the paper's LaTeX to compile with XeLaTeX. Common incompatibilities are handled automatically and a failed compile is handed to the assistant to fix; if it still fails, use layout translation. The local build compiles with Tectonic, which lacks a few journal templates; the online version uses full TeX Live.
-- **Layout translation** quality varies by paper; scanned papers and formula-heavy pages have not been specifically validated.
-- Database migrations go one way: back up before upgrading.
-
-## Privacy
-
-With the local build your data stays on your own computer; the author receives nothing. The program reaches outside services only for: the model service you configure (with the paper content a task needs), arXiv, Semantic Scholar, OpenAlex, Crossref, and the paper URLs you import. Selection translation in the interface uses your configured model; the backend also keeps a quick-translation endpoint, used only when called through the API, which sends text to `translate.googleapis.com`. The full list is in [Architecture](docs/ARCHITECTURE.md).
-
-## Contributing
-
-Issues and pull requests are welcome; see [CONTRIBUTING](CONTRIBUTING.md). Please report security issues privately as described in [SECURITY](SECURITY.md).
+Layout, tests and conventions are in [Development](docs/DEVELOPMENT.md). The research design and plans are in [`docs/superpowers/`](docs/superpowers/).
 
 ## License
 
-[MIT](LICENSE). Third-party licenses are listed in [NOTICE](NOTICE.md); BabelDOC, used by layout translation, is AGPL-3.0 and is installed only when needed, or lives in an optional, separately built image.
-
-Built on the shoulders of [PDF.js](https://github.com/mozilla/pdf.js), [Pi](https://github.com/earendil-works/pi), [BabelDOC](https://github.com/funstory-ai/BabelDOC), [LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans), [Tectonic](https://tectonic-typesetting.github.io), [TipTap](https://tiptap.dev), [KaTeX](https://katex.org), [FastAPI](https://fastapi.tiangolo.com) and [SQLAlchemy](https://www.sqlalchemy.org).
+[MIT](LICENSE). Third-party licenses are in [NOTICE](NOTICE.md). Not affiliated with Anthropic or OpenAI.

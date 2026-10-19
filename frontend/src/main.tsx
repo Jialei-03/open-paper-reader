@@ -85,7 +85,7 @@ function StaleNotice() {
   const { t } = useI18n();
   return (
     <div className="boot">
-      Open Paper Reader <span>{t("boot.stale")}</span>
+      Open Research Agent <span>{t("boot.stale")}</span>
     </div>
   );
 }
@@ -94,7 +94,7 @@ function Boot() {
   const { t } = useI18n();
   return (
     <div className="boot">
-      Open Paper Reader <span>{t("boot.opening")}</span>
+      Open Research Agent <span>{t("boot.opening")}</span>
     </div>
   );
 }
