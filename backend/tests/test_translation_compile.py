@@ -353,3 +353,27 @@ def test_untranslated_lines_such_as_references_become_alignment_anchors():
     assert all(a['id'].startswith('same-') for a in anchors)
     # A line that is not found exactly once on both sides gives nothing.
     assert engine.verbatim_anchors(source, ['参考文献']) == []
+
+
+def test_forced_pdftex_or_dvi_drivers_are_dropped_for_xetex(tmp_path):
+    main = tmp_path / 'main.tex'
+    main.write_text(
+        '\\documentclass[pdftex,11pt]{article}\n'
+        '\\usepackage[pdftex]{graphicx}\n'
+        '\\usepackage[pdftex,colorlinks]{hyperref}\n'
+        '\\usepackage[dvipsnames]{xcolor}\n'
+        '\\PassOptionsToPackage{pdftex}{graphicx}\n'
+        '\\usepackage[pdftex]{somethingelse}\n'
+        '% \\usepackage[pdftex]{graphicx}\n'
+        '\\begin{document}x\\end{document}\n'
+    )
+    engine.prepare_compile_source(main)
+    tex = main.read_text()
+    assert '\\documentclass[11pt]{article}' in tex
+    assert '\\usepackage{graphicx}' in tex
+    assert '\\usepackage[colorlinks]{hyperref}' in tex
+    assert '\\usepackage[dvipsnames]{xcolor}' in tex
+    assert '% \\PassOptionsToPackage{pdftex}{graphicx}' in tex
+    # Packages that are not about output drivers, and comments, are left as they were.
+    assert '\\usepackage[pdftex]{somethingelse}' in tex
+    assert '% \\usepackage[pdftex]{graphicx}' in tex

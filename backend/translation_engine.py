@@ -601,6 +601,57 @@ def running_title_height(main):
             path.write_text(repaired)
 
 
+# Output drivers a paper may name for pdfTeX or DVI; under XeTeX each package
+# picks its own (xetex) driver when none is named. graphicx's option is passed on
+# to pgf/TikZ, which then loads pgfsys-pdftex.def and stops on \\pdfobj.
+DRIVER_OPTIONS = {"pdftex", "dvips", "dvipdfm", "dvipdfmx", "dvipsone", "dviwindo", "vtex", "luatex"}
+DRIVER_PACKAGES = {"graphicx", "graphics", "color", "xcolor", "hyperref", "geometry", "pict2e", "tikz", "pgf", "rotating"}
+PACKAGE_WITH_OPTIONS = re.compile(r"(?m)^(?P<lead>[^%\n]*?)\\(?P<cmd>usepackage|RequirePackage|PassOptionsToPackage)\[(?P<opts>[^\]]*)\]\{(?P<names>[^{}]*)\}")
+PASSED_OPTIONS = re.compile(r"(?m)^(?P<lead>[^%\n]*?)\\PassOptionsToPackage\{(?P<opts>[^{}]*)\}\{(?P<names>[^{}]*)\}")
+CLASS_WITH_OPTIONS = re.compile(r"(?m)^(?P<lead>[^%\n]*?)\\documentclass\[(?P<opts>[^\]]*)\]")
+
+
+def strip_driver_options(main):
+    """No pdfTeX/DVI driver forced on graphics, colour or links when XeTeX compiles."""
+
+    def kept(options):
+        return ",".join(o for o in options.split(",") if o.strip().lower() not in DRIVER_OPTIONS)
+
+    def package(m):
+        names = {n.strip() for n in m["names"].split(",")}
+        if not names & DRIVER_PACKAGES:
+            return m[0]
+        options = kept(m["opts"])
+        if options == m["opts"]:
+            return m[0]
+        bracket = f"[{options}]" if options.strip() else ""
+        if m["cmd"] == "PassOptionsToPackage" and not options.strip():
+            return m["lead"] + "% " + m[0][len(m["lead"]):]
+        return f"{m['lead']}\\{m['cmd']}{bracket}{{{m['names']}}}"
+
+    def document_class(m):
+        options = kept(m["opts"])
+        return m[0] if options == m["opts"] else f"{m['lead']}\\documentclass[{options}]"
+
+    def passed(m):
+        names = {n.strip() for n in m["names"].split(",")}
+        if not names & DRIVER_PACKAGES:
+            return m[0]
+        options = kept(m["opts"])
+        if options == m["opts"]:
+            return m[0]
+        if not options.strip():
+            return m["lead"] + "% " + m[0][len(m["lead"]):]
+        return f"{m['lead']}\\PassOptionsToPackage{{{options}}}{{{m['names']}}}"
+
+    for path in [*main.parent.rglob("*.tex"), *main.parent.rglob("*.sty"), *main.parent.rglob("*.cls")]:
+        text = path.read_text(errors="replace")
+        repaired = CLASS_WITH_OPTIONS.sub(document_class, PACKAGE_WITH_OPTIONS.sub(package, text))
+        repaired = PASSED_OPTIONS.sub(passed, repaired)
+        if repaired != text:
+            path.write_text(repaired)
+
+
 def resolve_subfigure_packages(main):
     """subcaption refuses to load beside subfig; drop whichever one the paper never uses.
 
@@ -673,6 +724,7 @@ def prepare_compile_source(main):
         if repaired != content:
             path.write_text(repaired)
     resolve_subfigure_packages(main)
+    strip_driver_options(main)
     running_title_height(main)
     cjk_fallback_fonts(main)
     legacy_font_punctuation(main)
