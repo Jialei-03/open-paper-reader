@@ -212,4 +212,43 @@ describe("guideView", () => {
       }),
     ).toEqual({ kind: "failed", message: "离线" });
   });
+
+  it("keeps the earlier guide while a new one is made, and when making it fails", () => {
+    const earlier = { summary: ["Earlier summary."], sections: [] };
+    const base = {
+      id: "g",
+      file_id: "f",
+      kind: "guide",
+      error: "",
+      previous: earlier,
+    };
+    const state = {
+      loaded: true,
+      loadError: null,
+      models: 1,
+      preparation: null,
+    };
+    const working = guideView({
+      ...state,
+      artifact: { ...base, status: "running", preview: {} },
+    });
+    expect(working).toMatchObject({
+      kind: "working",
+      content: { summary: ["Earlier summary."] },
+    });
+    const failed = guideView({
+      ...state,
+      artifact: { ...base, status: "failed", error: "model busy" },
+    });
+    expect(failed).toMatchObject({
+      kind: "ready",
+      content: { summary: ["Earlier summary."] },
+      failed: "model busy",
+    });
+    const none = guideView({
+      ...state,
+      artifact: { ...base, previous: undefined, status: "failed", error: "x" },
+    });
+    expect(none).toEqual({ kind: "failed", message: "x" });
+  });
 });

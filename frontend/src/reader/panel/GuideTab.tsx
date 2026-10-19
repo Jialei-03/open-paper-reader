@@ -269,6 +269,18 @@ export function GuideTab({
               {t("reader.guide.working")}
             </p>
           )}
+          {view.kind === "ready" && view.failed !== undefined && (
+            <div className={styles.message}>
+              <p className={styles.error} role="alert">
+                {guide.error || view.failed || t("reader.guide.failed")}
+              </p>
+              <div>
+                <Button size="sm" loading={guide.busy} onClick={guide.retry}>
+                  {t("common.retry")}
+                </Button>
+              </div>
+            </div>
+          )}
           <CiteProvider
             target={
               onCite ? { paperId: paper.id, fileId: file.id, onCite } : null

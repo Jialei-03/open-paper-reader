@@ -24,6 +24,8 @@ export type GuideArtifact = {
   error: string;
   result?: unknown;
   preview?: unknown;
+  /** The last finished guide, kept while a new one is made (and if making it fails). */
+  previous?: unknown;
 };
 
 /** What the tab shows. */
@@ -32,7 +34,8 @@ export type GuideView =
   | { kind: "noModel" }
   /** Being made; `content` is what has arrived (nothing yet, at first). */
   | { kind: "working"; content: GuideContent }
-  | { kind: "ready"; content: GuideContent }
+  /** `failed`: making a newer guide failed, with this reason; the earlier one is shown meanwhile. */
+  | { kind: "ready"; content: GuideContent; failed?: string }
   /** `message` is the service's own words, `""` when it gave none. */
   | { kind: "failed"; message: string }
   /**
@@ -149,8 +152,20 @@ export function guideView(state: {
     const content = readGuide(artifact.result);
     if (hasContent(content)) return { kind: "ready", content };
   }
-  if (artifact && running(artifact))
-    return { kind: "working", content: readGuide(artifact.preview) };
+  const earlier = artifact ? readGuide(artifact.previous) : EMPTY_GUIDE;
+  if (artifact && running(artifact)) {
+    const preview = readGuide(artifact.preview);
+    return {
+      kind: "working",
+      content: hasContent(preview) ? preview : earlier,
+    };
+  }
+  if (
+    artifact &&
+    (artifact.status === "failed" || artifact.status === "cancelled") &&
+    hasContent(earlier)
+  )
+    return { kind: "ready", content: earlier, failed: artifact.error };
   if (!state.loaded) return { kind: "loading" };
   if (state.loadError !== null)
     return { kind: "failed", message: state.loadError };
