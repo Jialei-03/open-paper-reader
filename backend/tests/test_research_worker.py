@@ -420,6 +420,32 @@ def test_advisor_with_budget_left_is_not_hurried(lab):
     assert sprint.role == "advisor" and "最后一次评审" not in run.prompt
 
 
+def test_advisor_reads_why_its_last_verdicts_did_not_apply(lab):
+    app, project, _ = lab
+    past_sprint(app, project["id"], 1, events=PROGRESS)
+    past_sprint(
+        app,
+        project["id"],
+        2,
+        role="advisor",
+        events=[
+            (
+                "advice_skipped",
+                {
+                    "verdict": "kill",
+                    "note": "北极星问题本身不能放弃；用 conclude 结束项目",
+                },
+            )
+        ],
+    )
+    for n in (3, 4, 5):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    rw.tick(app)
+    sprint, run = planned(app, project["id"])
+    assert sprint.role == "advisor"
+    assert "上次没有生效" in run.prompt and "用 conclude 结束项目" in run.prompt
+
+
 def test_no_advisor_twice_in_a_row(lab):
     app, project, _ = lab
     for n in (1, 2, 3):

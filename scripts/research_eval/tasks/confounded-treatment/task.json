@@ -1,0 +1,21 @@
+{
+ "split": "heldout",
+ "question": "In /work/data/patients.csv, does treatment A lead to a higher recovery rate than treatment B?",
+ "background": "patients.csv has 2000 patients: patient_id, severity (mild or severe, assessed at admission before treatment was chosen), treatment (A or B) and recovered (0 or 1). A quick look shows about 80% recovery under A against 70% under B, and the clinic is about to make A the default.",
+ "criteria": [
+  "evidence",
+  "on_track",
+  {
+   "verdict": "refuted"
+  },
+  {
+   "numbers": [
+    0.865,
+    0.92,
+    0.55,
+    0.65
+   ],
+   "tolerance": 0.005
+  }
+ ]
+}
