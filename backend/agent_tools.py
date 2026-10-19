@@ -10,24 +10,7 @@ import httpx
 from . import agent_limits
 from .models import File, Paper, TranslationJob
 
-TEXT = {"type": "string", "maxLength": 100000}
-ID = {"type": "string", "pattern": r"^[0-9a-f-]{36}$"}
-REV = {"type": "integer", "minimum": 1}
-
-
-def tool(name, description, properties=None, required=None, write=False):
-    return {
-        "name": name,
-        "label": description.split("。")[0],
-        "description": description,
-        "parameters": {
-            "type": "object",
-            "properties": properties or {},
-            "required": required or [],
-            "additionalProperties": False,
-        },
-        "write": write,
-    }
+from .tool_spec import ID, REV, TEXT, tool
 
 
 PAGING = {
@@ -78,7 +61,7 @@ TOOLS = [
     ),
     tool(
         "read_file",
-        f"读取论文附件文本。id 必须为附件 ID；只有论文 ID 时用 paper_id，自动选择原版 PDF。每次最多 {agent_limits.PAGES_PER_READ} 页，返回明确页码。要引用时从返回的页文字里逐字复制一个连续片段，写成 [[p页码: \"原文\"]]（见技能「逐句出处」）。",
+        f'读取论文附件文本。id 必须为附件 ID；只有论文 ID 时用 paper_id，自动选择原版 PDF。每次最多 {agent_limits.PAGES_PER_READ} 页，返回明确页码。要引用时从返回的页文字里逐字复制一个连续片段，写成 [[p页码: "原文"]]（见技能「逐句出处」）。',
         {
             "id": ID,
             "paper_id": ID,
@@ -278,11 +261,24 @@ TOOLS.extend(
 from .agent_extended import PI_NAMES, definitions
 
 TOOLS.extend(definitions(tool, TEXT, ID))
+
+from .research_tools import RESEARCH_TOOLS
+
+# Only research runs are given these (agent_worker leaves them out elsewhere).
+TOOLS.extend(RESEARCH_TOOLS)
 TOOL_MAP = {t["name"]: t for t in TOOLS}
 
 
 async def execute(
-    app, owner, session_id, name, args, key, writable=True, sandbox_id=None
+    app,
+    owner,
+    session_id,
+    name,
+    args,
+    key,
+    writable=True,
+    sandbox_id=None,
+    research=None,
 ):
     if name not in TOOL_MAP:
         raise ValueError("不支持的工具")
@@ -298,6 +294,18 @@ async def execute(
     for field in ("id", "paper_id"):
         if field in args and not re.fullmatch(r"[0-9a-f-]{36}", str(args[field])):
             raise ValueError("对象 ID 不合法")
+
+    if spec.get("research") and research is None:
+        raise ValueError("研究工具只能在研究任务里使用")
+    if research is not None:
+        from .research_tools import gate, run_pi, run_research_tool
+
+        # Doing anything needs a live node of the map to be in focus first.
+        await asyncio.to_thread(gate, app, research, name)
+        if spec.get("research"):
+            return await run_research_tool(app, owner, research, name, args)
+        if name in PI_NAMES:
+            return await run_pi(app, research, name, args)
 
     if name == "workspace_api":
         from .workspace_api import describe

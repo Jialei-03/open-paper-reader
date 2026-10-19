@@ -26,7 +26,12 @@ from ..filelock import lock_nowait
 from .paths import PACKAGE, agent_runtime_dir, data_dir
 from .supervisor import Supervisor
 
-WORKERS = ("agent_worker", "preparation_worker", "translation_worker")
+WORKERS = (
+    "agent_worker",
+    "preparation_worker",
+    "translation_worker",
+    "research_worker",
+)
 NODE_MAJOR = 20
 NODE_HELP = (
     "The assistant needs Node.js {major} or newer, and {found}.\n"
@@ -209,7 +214,9 @@ def parse(argv):
         help="Loopback address to listen on (the local build never listens on a network)",
     )
     parser.add_argument("--data", type=Path, help="Data folder (default: %(default)s)")
-    parser.add_argument("--no-browser", action="store_true", help="Do not open a browser")
+    parser.add_argument(
+        "--no-browser", action="store_true", help="Do not open a browser"
+    )
     parser.add_argument("--version", action="version", version=version())
     args = parser.parse_args(argv)
     from ..config import is_loopback
@@ -255,7 +262,9 @@ def main(argv=None):
     else:
         say(NODE_HELP.format(major=NODE_MAJOR, found=problem.lower()))
     if not shutil.which("docker"):
-        say("Docker was not found: the assistant's code sandbox (terminal tools) is off.")
+        say(
+            "Docker was not found: the assistant's code sandbox (terminal tools) is off."
+        )
 
     from ..main import app
 

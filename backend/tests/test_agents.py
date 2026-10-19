@@ -631,8 +631,13 @@ def test_all_advertised_business_tools(env, monkeypatch):
         "materialize_file",
         "export_file",
     }
-    assert used == set(TOOL_MAP) - extra
-    assert len(a.get("/api/v1/agent/capabilities").json()["tools"]) == len(TOOL_MAP)
+    from backend.research_tools import RESEARCH_NAMES
+
+    # Research tools are only given to research runs (test_research_tools).
+    assert used == set(TOOL_MAP) - extra - RESEARCH_NAMES
+    assert len(a.get("/api/v1/agent/capabilities").json()["tools"]) == len(
+        TOOL_MAP
+    ) - len(RESEARCH_NAMES)
     scan = attach(a, p, "scan.pdf", pdf_bytes(False))
     assert "OCR" in run("read_file", {"id": scan["id"]})["notice"]
     assert run("read_file", {"paper_id": p["id"]})["needs_file_selection"]

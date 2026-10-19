@@ -40,6 +40,8 @@ class Settings:
     translation_active_limit: int = 0
     agent_worker_concurrency: int = 0
     agent_translation_workers: int = 0
+    # Research sprints at a time; each can run for many minutes.
+    agent_research_workers: int = 1
     # "open": anyone can create an account. "invite": an account needs an
     # invitation code made by an administrator.
     registration: str = "open"
@@ -97,6 +99,7 @@ class Settings:
             translation_active_limit=budget_value("AGENT_TRANSLATION_ACTIVE", 0),
             agent_worker_concurrency=budget_value("AGENT_WORKER_CONCURRENCY", 0),
             agent_translation_workers=budget_value("AGENT_TRANSLATION_WORKERS", 0),
+            agent_research_workers=budget_value("AGENT_RESEARCH_WORKERS", 1),
             shared_daily_tokens=budget_value("SHARED_MODEL_DAILY_TOKENS", 0),
             private_daily_tokens=budget_value("PRIVATE_MODEL_DAILY_TOKENS", 0),
             model_request_reserve=budget_value(

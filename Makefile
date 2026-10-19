@@ -3,7 +3,7 @@ PY ?= .venv/bin/python
 PIP ?= .venv/bin/pip
 
 .DEFAULT_GOAL := help
-.PHONY: help install env db run web worker test check build e2e docker-up docker-down
+.PHONY: help install env db run web worker research-image test check build e2e docker-up docker-down
 
 help: ## Show this list
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -31,6 +31,9 @@ web: ## Run the frontend dev server with hot reload on http://127.0.0.1:5173
 
 worker: env ## Run the assistant worker (reading guides, quizzes, page translation, the assistant)
 	set -a; . ./.env; set +a; $(PY) -m backend.agent_worker
+
+research-image: ## Build the research sandbox image (Docker; needed to run experiments)
+	docker build -f deploy/Dockerfile.research-sandbox -t open-research-sandbox:1 .
 
 test: ## Backend tests
 	$(PY) -m pytest -q
