@@ -1,0 +1,343 @@
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import pytest
+from sqlalchemy import select
+
+import backend.agent_worker as worker
+from backend import research_sandbox as rs
+from backend import research_worker as rw
+from backend.agent_worker import process
+from backend.models import (
+    AgentRun,
+    ResearchJob,
+    ResearchNode,
+    ResearchProject,
+    ResearchSprint,
+)
+from backend.tests.test_acceptance import env as env  # noqa: PLC0414
+from backend.tests.test_agents import configure
+
+SKILL_FIRST_LINE = "# 研究执行者"
+
+
+class ScriptedModel:
+    """An OpenAI-compatible model that answers each request from a script.
+
+    A script entry is ("tool", name, args), ("text", words), or a callable
+    returning one of those (to use ids only known while the run goes on).
+    """
+
+    def __init__(self, script):
+        self.script = list(script)
+        self.requests = []
+        model = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                model.requests.append(body)
+                step = model.script.pop(0) if model.script else ("text", "done")
+                if callable(step):
+                    step = step()
+                if step[0] == "tool":
+                    delta = {
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": f"call_{len(model.requests)}",
+                                "type": "function",
+                                "function": {
+                                    "name": step[1],
+                                    "arguments": json.dumps(step[2]),
+                                },
+                            }
+                        ],
+                    }
+                    finish = "tool_calls"
+                else:
+                    delta, finish = {"role": "assistant", "content": step[1]}, "stop"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.end_headers()
+                for choice in [
+                    {"delta": delta, "finish_reason": None},
+                    {"delta": {}, "finish_reason": finish},
+                ]:
+                    frame = {
+                        "id": "x",
+                        "object": "chat.completion.chunk",
+                        "created": 1,
+                        "model": "MiniMax-M3",
+                        "choices": [{"index": 0, **choice}],
+                    }
+                    self.wfile.write(("data: " + json.dumps(frame) + "\n\n").encode())
+                usage = {
+                    "id": "x",
+                    "object": "chat.completion.chunk",
+                    "created": 1,
+                    "model": "MiniMax-M3",
+                    "choices": [],
+                    "usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 20,
+                        "total_tokens": 120,
+                    },
+                }
+                self.wfile.write(("data: " + json.dumps(usage) + "\n\n").encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    @property
+    def url(self):
+        return f"http://127.0.0.1:{self.server.server_port}/v1"
+
+
+@pytest.fixture
+def lab(env, monkeypatch):
+    app, a, _b, settings = env
+    owner, model = configure(app, a, settings)
+    project = a.post(
+        "/api/v1/research/projects",
+        json={"question": "Does L2 regularization help?", "model_config_id": model},
+    ).json()
+    holder = {}
+    original = worker.read_config
+    monkeypatch.setattr(
+        worker,
+        "read_config",
+        lambda *args: {**original(*args), "base_url": holder["model"].url},
+    )
+    monkeypatch.setattr(worker, "validate_endpoint", lambda value: value)
+    # The sandbox stands in for Docker: jobs finish when swept, with a fixed log.
+    monkeypatch.setattr(rs, "docker_status", lambda: {"available": True, "reason": ""})
+    monkeypatch.setattr(
+        rs,
+        "pi_call",
+        lambda settings, pid, name, args: {"content": [{"type": "text", "text": "ok"}]},
+    )
+
+    def start_job(settings, d, project, node, sprint, command, timeout):
+        job = ResearchJob(
+            project_id=project.id, node_id=node.id, sprint_id=sprint.id, command=command
+        )
+        d.add(job)
+        d.flush()
+        return job
+
+    def sweep(settings, maker):
+        with maker() as d:
+            for job in d.scalars(
+                select(ResearchJob).where(ResearchJob.status == "running")
+            ):
+                text = job.command.removeprefix("echo ") + "\n"
+                (rs.logdir(settings, job.project_id) / f"{job.id}.log").write_text(text)
+                job.status, job.exit_code, job.log_lines = "succeeded", 0, 1
+            d.commit()
+
+    monkeypatch.setattr(rs, "start_job", start_job)
+    monkeypatch.setattr(rs, "sweep", sweep)
+
+    def run_sprint(script):
+        holder["model"] = ScriptedModel(script)
+        with app.state.maker() as d:
+            sprint = d.scalars(
+                select(ResearchSprint)
+                .where(ResearchSprint.project_id == project["id"])
+                .order_by(ResearchSprint.number.desc())
+            ).first()
+            run = d.get(AgentRun, sprint.run_id)
+            run.status = "running"
+            d.commit()
+            run_id = run.id
+        process(app, run_id)
+        return holder["model"]
+
+    yield app, project, run_sprint
+
+
+def newest(app, project_id, kind):
+    with app.state.maker() as d:
+        return d.scalars(
+            select(ResearchNode)
+            .where(ResearchNode.project_id == project_id, ResearchNode.kind == kind)
+            .order_by(ResearchNode.created_at.desc())
+        ).first()
+
+
+def sprints(app, project_id):
+    with app.state.maker() as d:
+        return list(
+            d.scalars(
+                select(ResearchSprint)
+                .where(ResearchSprint.project_id == project_id)
+                .order_by(ResearchSprint.number)
+            )
+        )
+
+
+def test_tick_creates_first_sprint_with_brief(lab):
+    app, project, _ = lab
+    rw.tick(app)
+    [sprint] = sprints(app, project["id"])
+    with app.state.maker() as d:
+        run = d.get(AgentRun, sprint.run_id)
+        assert run.lane == "research" and run.status == "queued"
+        assert run.runtime["research"] == {
+            "project_id": project["id"],
+            "sprint_id": sprint.id,
+            "role": "executor",
+        }
+        assert "Does L2 regularization help?" in run.prompt
+        assert "question/open" in run.prompt
+        assert "end_sprint" in run.prompt
+        assert d.get(ResearchProject, project["id"]).spent["sprints"] == 1
+    rw.tick(app)
+    assert len(sprints(app, project["id"])) == 1  # one sprint at a time
+
+
+def test_research_run_has_no_history_and_custom_system_prompt(lab):
+    app, project, run_sprint = lab
+    rw.tick(app)
+    model = run_sprint(
+        [
+            ("tool", "research_map_read", {}),
+            ("tool", "end_sprint", {"summary": "read the map"}),
+            ("text", "ok"),
+        ]
+    )
+    first = model.requests[0]
+    assert first["messages"][0]["role"] in {"system", "developer"}
+    assert SKILL_FIRST_LINE in first["messages"][0]["content"]
+    assert [m["role"] for m in first["messages"][1:]] == ["user"]
+    names = {t["function"]["name"] for t in first["tools"]}
+    assert {"focus", "record_result", "run_job", "bash", "search_papers"} <= names
+    assert "workspace_write" not in names
+
+
+def test_scripted_sprint_end_to_end(lab):
+    app, project, run_sprint = lab
+    root = newest(app, project["id"], "question")
+    rw.tick(app)
+
+    def hyp():
+        return newest(app, project["id"], "hypothesis").id
+
+    def job_id():
+        with app.state.maker() as d:
+            return d.scalars(select(ResearchJob)).one().id
+
+    run_sprint(
+        [
+            ("tool", "research_map_read", {}),
+            ("tool", "focus", {"node_id": root.id, "intent": "split the question"}),
+            (
+                "tool",
+                "add_node",
+                {
+                    "parent_id": root.id,
+                    "kind": "hypothesis",
+                    "title": "Moderate L2 improves test accuracy",
+                    "kill_if": "no gain over no-L2 on 3 seeds",
+                    "reason": "first guess",
+                },
+            ),
+            lambda: ("tool", "focus", {"node_id": hyp(), "intent": "run the sweep"}),
+            ("tool", "run_job", {"command": "echo acc=0.91"}),
+            lambda: (
+                "tool",
+                "end_sprint",
+                {
+                    "summary": "started the sweep",
+                    "next_focus": "read results",
+                    "waiting_on": [job_id()],
+                },
+            ),
+            ("text", "waiting for the job"),
+        ]
+    )
+    [first] = sprints(app, project["id"])
+    assert first.status == "ended" and first.waiting_on == [job_id()]
+    rw.tick(app)  # the job finishes, and the next sprint is planned
+    second = sprints(app, project["id"])[-1]
+    assert second.number == 2
+    with app.state.maker() as d:
+        brief = d.get(AgentRun, second.run_id).prompt
+    assert job_id() in brief and "started the sweep" in brief
+    run_sprint(
+        [
+            lambda: ("tool", "focus", {"node_id": hyp(), "intent": "record"}),
+            lambda: (
+                "tool",
+                "record_result",
+                {
+                    "node_id": hyp(),
+                    "summary": "acc=0.91 with moderate L2",
+                    "evidence": [
+                        {
+                            "kind": "log",
+                            "job_id": job_id(),
+                            "from_line": 1,
+                            "to_line": 1,
+                        }
+                    ],
+                    "kill_triggered": "no",
+                    "confidence": 0.7,
+                },
+            ),
+            ("tool", "end_sprint", {"summary": "recorded"}),
+            ("text", "done"),
+        ]
+    )
+    with app.state.maker() as d:
+        node = d.get(ResearchNode, hyp())
+        assert node.evidence_for[0]["evidence"][0]["lines"] == ["acc=0.91"]
+        assert node.confidence == 0.7
+        # Tokens spent while the hypothesis was in focus are charged to it.
+        assert node.spent_tokens > 0
+        assert d.get(ResearchProject, project["id"]).spent["tokens"] > 0
+    assert sprints(app, project["id"])[-1].tokens > 0
+
+
+def test_abnormal_end_gets_fallback_summary(lab):
+    app, project, run_sprint = lab
+    rw.tick(app)
+    run_sprint([("tool", "research_map_read", {}), ("text", "I forgot to hand over")])
+    rw.tick(app)
+    first, second = sprints(app, project["id"])
+    assert first.status == "abnormal"
+    assert "research_map_read" in first.summary
+    assert second.number == 2
+    with app.state.maker() as d:
+        assert "未正常交接" in d.get(AgentRun, second.run_id).prompt
+
+
+def test_budget_exhausted_finishes_project(lab):
+    app, project, _ = lab
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        p.budget = {**p.budget, "max_sprints": 1}
+        p.spent = {**p.spent, "sprints": 1}
+        d.commit()
+    rw.tick(app)
+    assert sprints(app, project["id"]) == []
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        assert p.status == "finished" and p.end_reason == "budget"
+
+
+def test_paused_project_gets_no_sprint(lab):
+    app, project, _ = lab
+    with app.state.maker() as d:
+        d.get(ResearchProject, project["id"]).status = "paused"
+        d.commit()
+    rw.tick(app)
+    assert sprints(app, project["id"]) == []

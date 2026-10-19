@@ -25,6 +25,7 @@ from .agent_reading import read_region
 from .agent_response import clean_response
 from .agent_state import transition
 from .agent_tools import PI_NAMES, TOOL_MAP, TOOLS, execute
+from .research_worker import charge
 from .artifact_preview import store_preview
 from .model_options import request_options
 from .models import AgentRun, now
@@ -36,6 +37,28 @@ from .translation_settings import read_config, validate_endpoint
 from .local.paths import agent_runtime_dir
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+RESEARCH_SKILL = agent_runtime_dir() / "skills" / "research-executor" / "SKILL.md"
+# What a research sprint may use besides its own tools: files, shell, literature.
+RESEARCH_BASE = {
+    "search_papers",
+    "list_papers",
+    "read_paper",
+    "read_file",
+    "search_file",
+    "read_region",
+    "list_figures",
+    "web_read",
+}
+
+
+def research_tools():
+    return [
+        t
+        for t in TOOLS
+        if t.get("research") or t["name"] in PI_NAMES or t["name"] in RESEARCH_BASE
+    ]
 
 
 def duration(seconds):
@@ -66,6 +89,8 @@ def _process(app, job_id, cfg):
         owner, session_id, writable = r.owner, r.session_id, r.writable
         resume_from = (r.runtime or {}).get("resume_from")
         attached = list(r.attachment_ids or [])
+        # A research sprint starts from its map, not from the session's chat.
+        research = (r.runtime or {}).get("research")
         cfg = {**cfg, **(r.runtime or {}).get("model_options", {})}
         cfg["_request_options"] = request_options(cfg)
         validate_endpoint(cfg.get("base_url", ""))
@@ -74,7 +99,7 @@ def _process(app, job_id, cfg):
         history = []
         previous = (
             []
-            if (r.runtime or {}).get("reading_artifact_id")
+            if (r.runtime or {}).get("reading_artifact_id") or research
             else list(
                 d.scalars(
                     select(AgentRun)
@@ -227,7 +252,9 @@ def _process(app, job_id, cfg):
                 if r.attachment_ids
                 else ""
             ),
-            "tools": [
+            "tools": research_tools()
+            if research
+            else [
                 t
                 for t in TOOLS
                 if (writable or not t["write"]) and not t.get("research")
@@ -239,6 +266,8 @@ def _process(app, job_id, cfg):
             },
         }
     payload["context"] += selection_context(app, owner, session_id, job_id, snapshot)
+    if research:
+        payload["system_prompt"] = RESEARCH_SKILL.read_text()
     # The pictures asked about go with the question itself, to a model that sees.
     if not resume_from and cfg.get("vision"):
         payload["images"] = prompt_images(
@@ -372,6 +401,13 @@ def _process(app, job_id, cfg):
                         )
                         child.stdin.flush()
                     elif event["type"] == "usage":
+                        if research and not event.get("failed"):
+                            used = event.get("usage") or {}
+                            charge(
+                                maker,
+                                research,
+                                int(used.get("input", 0)) + int(used.get("output", 0)),
+                            )
                         if usage_id:
                             model_usage.finish(
                                 maker,
@@ -438,6 +474,7 @@ def _process(app, job_id, cfg):
                                             f"agent:{job_id}:{calls}",
                                             writable,
                                             sandbox_id=job_id,
+                                            research=research,
                                         ),
                                         timeout=min(150, budget.remaining()),
                                     )
@@ -602,6 +639,11 @@ def ready_job(d, settings):
         .select_from(AgentRun)
         .where(AgentRun.status == "running", AgentRun.lane == "translation")
     )
+    researching = d.scalar(
+        select(func.count())
+        .select_from(AgentRun)
+        .where(AgentRun.status == "running", AgentRun.lane == "research")
+    )
     for active in d.scalars(select(AgentRun).where(AgentRun.status == "running")):
         try:
             config = read_config(settings, active.owner, active.model_config_id)
@@ -620,6 +662,12 @@ def ready_job(d, settings):
             job.lane == "translation"
             and settings.agent_translation_workers
             and translating >= settings.agent_translation_workers
+        ):
+            continue
+        if (
+            job.lane == "research"
+            and settings.agent_research_workers
+            and researching >= settings.agent_research_workers
         ):
             continue
         try:
