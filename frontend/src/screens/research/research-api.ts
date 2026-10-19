@@ -57,6 +57,9 @@ export interface ResearchNode {
   confidence: number;
   kill_if: string;
   budget_tokens: number;
+  /** Estimates: what working on it may teach, and what it costs ("" when none). */
+  value: "" | "high" | "medium" | "low";
+  cost: "" | "high" | "medium" | "low";
   evidence_for: ResultEntry[];
   evidence_against: ResultEntry[];
   doubts: string[];

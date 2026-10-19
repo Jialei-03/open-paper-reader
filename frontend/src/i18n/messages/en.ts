@@ -967,6 +967,10 @@ export const en = {
   "research.sprint.focus": "Working on: {title}",
   "research.sprint.next": "Next: {next}",
   "research.sprint.waiting": "Waiting for {count} experiment job(s)",
+  "research.estimate": "value {value} · cost {cost}",
+  "research.level.high": "high",
+  "research.level.medium": "medium",
+  "research.level.low": "low",
   "research.files": "Data files",
   "research.files.add": "Add files",
   "research.files.none":

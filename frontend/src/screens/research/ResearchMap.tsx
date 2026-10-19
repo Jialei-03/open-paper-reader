@@ -115,6 +115,18 @@ export function ResearchMap({ nodes, jobs, focusId, onLog }: ResearchMapProps) {
             {t(`research.kind.${node.kind}` as MessageKey)}
           </span>
           <span className={styles.nodeTitle}>{node.title}</span>
+          {(node.value || node.cost) && (
+            <span className={styles.estimate}>
+              {t("research.estimate", {
+                value: node.value
+                  ? t(`research.level.${node.value}` as MessageKey)
+                  : "?",
+                cost: node.cost
+                  ? t(`research.level.${node.cost}` as MessageKey)
+                  : "?",
+              })}
+            </span>
+          )}
           <span className={styles.nodeMeta}>
             {t(`research.node.${node.status}` as MessageKey)}
             {" · "}

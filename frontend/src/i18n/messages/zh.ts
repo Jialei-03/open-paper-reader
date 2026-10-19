@@ -902,6 +902,10 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.sprint.focus": "推进：{title}",
   "research.sprint.next": "下一步：{next}",
   "research.sprint.waiting": "等待 {count} 个实验作业结束",
+  "research.estimate": "价值{value} · 成本{cost}",
+  "research.level.high": "高",
+  "research.level.medium": "中",
+  "research.level.low": "低",
   "research.files": "数据文件",
   "research.files.add": "添加文件",
   "research.files.none":

@@ -627,3 +627,13 @@
   gap: var(--ui-space-6);
   align-items: baseline;
 }
+
+/* What a node may teach and what it costs, as the agent and the advisor estimate it. */
+.estimate {
+  flex: none;
+  padding: 0 var(--ui-space-6);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-selected);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
