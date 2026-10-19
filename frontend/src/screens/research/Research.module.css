@@ -269,7 +269,7 @@
 .node {
   --node-dot: var(--ui-fg-3);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--ui-space-6);
   width: 100%;
   padding-block: var(--ui-space-6);
@@ -313,6 +313,8 @@
 
 .chevron {
   flex: none;
+  /* Centred on the title's first line. */
+  margin-top: calc((1lh - 14px) / 2);
   color: var(--ui-fg-3);
   transition: transform var(--ui-dur-1) var(--ui-ease-out);
 }
@@ -323,6 +325,7 @@
 
 .dot {
   flex: none;
+  margin-top: calc((1lh - 8px) / 2);
   width: 8px;
   height: 8px;
   border-radius: var(--ui-r-pill);
@@ -335,10 +338,24 @@
   font-size: var(--ui-text-12);
 }
 
-.nodeTitle {
+/* Title on its own line, so a narrow map still reads; kind, estimate and status under it. */
+.nodeText {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+}
+
+.nodeTitle {
   overflow-wrap: anywhere;
+}
+
+.nodeInfo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-6);
 }
 
 .nodeMeta {
