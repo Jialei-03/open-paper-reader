@@ -133,6 +133,7 @@
 
 .tools {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--ui-space-8);
   min-width: 0;
@@ -235,4 +236,39 @@
   width: var(--composer-stop-icon);
   height: var(--composer-stop-icon);
   fill: currentColor;
+}
+
+/* The model and thinking pickers: quiet text buttons that give way when the box is narrow. */
+.pickers {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  margin-left: calc(-1 * var(--ui-space-6));
+}
+
+.picker {
+  min-width: 0;
+  max-width: 11rem;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.picker:hover {
+  color: var(--ui-fg);
+}
+
+.pickerInner {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.pickerText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

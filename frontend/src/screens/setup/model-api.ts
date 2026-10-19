@@ -12,6 +12,10 @@ export type ModelRow = {
   base_url: string;
   shared?: boolean;
   badge?: string;
+  /** What the model can do with thinking; the reader's pickers offer these. */
+  controls?: { thinking_modes?: string[]; effort_levels?: string[] };
+  vision?: boolean;
+  context_length?: number | null;
 };
 
 export type ModelSettings = {
@@ -66,6 +70,33 @@ export async function listModels(draft: ModelDraft): Promise<string[]> {
   });
   return Array.isArray(value?.models) ? value.models : [];
 }
+
+/** Adds a model that shares nothing but the address and key typed; it does not become the current one. */
+export const addModel = (
+  draft: ModelDraft & { name?: string },
+): Promise<ModelSettings> =>
+  send("/translation-settings/configs", {
+    protocol: draft.protocol,
+    base_url: draft.base_url.trim(),
+    model: draft.model.trim(),
+    api_key: draft.api_key,
+    ...(draft.name ? { name: draft.name } : {}),
+  });
+
+/** Renames a saved model (its address, protocol and key stay as they are). */
+export const renameModel = (
+  row: ModelRow,
+  name: string,
+): Promise<ModelSettings> =>
+  send("/translation-settings/configs", {
+    id: row.id,
+    name,
+    protocol: row.protocol,
+    base_url: row.base_url,
+    model: row.model,
+    vision: !!row.vision,
+    ...(row.context_length ? { context_length: row.context_length } : {}),
+  });
 
 export const testModel = (id: string) =>
   send(`/translation-settings/configs/${id}/test`, {});

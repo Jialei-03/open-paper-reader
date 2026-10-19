@@ -242,3 +242,8 @@
     align-items: flex-start;
   }
 }
+
+/* The saved models of one service. */
+.group + .group {
+  margin-top: var(--ui-space-16);
+}
