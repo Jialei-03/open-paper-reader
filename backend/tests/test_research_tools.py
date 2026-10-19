@@ -271,6 +271,24 @@ def test_tools_after_end_sprint_rejected(world):
         call(app, ids, research, "research_map_read", {})
 
 
+def test_end_sprint_records_what_only_a_person_can_provide(world):
+    app, maker, research, ids, _calls = world
+    call(
+        app,
+        ids,
+        research,
+        "end_sprint",
+        {"summary": "second.csv is absent", "needs_input": "/work/data/second.csv"},
+    )
+    with maker() as d:
+        sprint = d.get(ResearchSprint, ids.sprint)
+        assert "/work/data/second.csv" in sprint.summary
+        ended = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "end_sprint")
+        ).one()
+        assert ended.detail["needs_input"] == "/work/data/second.csv"
+
+
 def test_supported_needs_recorded_evidence(world):
     app, maker, research, ids, calls = world
     hyp = add_hypothesis(app, ids, research)

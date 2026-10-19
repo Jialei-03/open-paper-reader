@@ -431,6 +431,18 @@ def test_stall_triggers_advisor(lab):
     assert planned(app, project["id"])[0].role == "advisor"
 
 
+def test_needs_input_triggers_advisor_at_once(lab):
+    app, project, _ = lab
+    past_sprint(
+        app,
+        project["id"],
+        1,
+        events=PROGRESS + [("end_sprint", {"needs_input": "/work/data/second.csv"})],
+    )
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "advisor"
+
+
 def test_waiting_on_jobs_is_not_a_stall(lab):
     app, project, _ = lab
     past_sprint(app, project["id"], 1, waiting=["j1"])

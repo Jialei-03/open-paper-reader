@@ -204,7 +204,8 @@ def next_role(d, project, history):
     """Who works next: the advisor when a judgment is due, else the executor.
 
     A judgment is due every few executor sprints, after a result that may
-    meet a kill condition, after a claimed finding, when the budget crosses
+    meet a kill condition, after a claimed finding, when the executor says it
+    needs something only a person can provide, when the budget crosses
     half and four fifths, and when two sprints in a row moved nothing on the
     map. Never two advisor sprints in a row.
     """
@@ -227,6 +228,9 @@ def next_role(d, project, history):
         }:
             return "advisor"
         if row.action == "add_node" and row.detail.get("kind") == "finding":
+            return "advisor"
+        if row.action == "end_sprint" and row.detail.get("needs_input"):
+            # Only a person can unblock it: the advisor decides now whether to stop and ask.
             return "advisor"
     budget, spent = project.budget, project.spent
     ratio = max(

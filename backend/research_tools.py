@@ -128,11 +128,12 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "end_sprint",
-        "结束本轮并写交接：做了什么、得到什么、下一轮该推进什么。启动了长作业就把作业编号放进 waiting_on，作业结束后才开始下一轮。",
+        "结束本轮并写交接：做了什么、得到什么、下一轮该推进什么。启动了长作业就把作业编号放进 waiting_on，作业结束后才开始下一轮。缺少只有人能提供的东西（数据、权限、一个决定）时写进 needs_input，导师会马上审视。",
         {
             "summary": {"type": "string", "minLength": 1, "maxLength": 4000},
             "next_focus": {"type": "string", "maxLength": 500},
             "waiting_on": {"type": "array", "maxItems": 5, "items": ID},
+            "needs_input": {"type": "string", "maxLength": 1000},
         },
         ["summary"],
     ),
@@ -513,7 +514,10 @@ def _run(app, owner, research, name, args):
             result = _record(app, d, owner, project, sprint, args)
         elif name == "end_sprint":
             waiting = [_job(d, project, j).id for j in args.get("waiting_on", [])]
-            sprint.summary = args["summary"]
+            needs = args.get("needs_input", "").strip()
+            sprint.summary = args["summary"] + (
+                f"\n\n需要人提供：{needs}" if needs else ""
+            )
             sprint.next_focus = args.get("next_focus", "")
             sprint.waiting_on = waiting
             sprint.status = "ended"
@@ -524,7 +528,11 @@ def _run(app, owner, research, name, args):
                 None,
                 "executor",
                 "end_sprint",
-                {"next_focus": sprint.next_focus, "waiting_on": waiting},
+                {
+                    "next_focus": sprint.next_focus,
+                    "waiting_on": waiting,
+                    "needs_input": needs,
+                },
                 sprint.id,
             )
             result = {"ended": True}
