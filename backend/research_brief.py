@@ -147,6 +147,11 @@ def distiller_brief(d, project, sprint_number, settings=None):
     return "\n\n".join(parts)
 
 
+# Fewer sprints than this left after a review means no scheduled review comes before the
+# budget runs out (the advisor looks every three executor sprints).
+LAST_REVIEW_WITHIN = 3
+
+
 def advisor_brief(d, project, sprint_number, settings=None):
     """What the advisor judges from: the map and what the executor did since it last looked."""
     history = list(
@@ -206,6 +211,13 @@ def advisor_brief(d, project, sprint_number, settings=None):
         f"tokens {spent.get('tokens', 0)}/{budget.get('max_tokens')}，"
         f"作业时长 {spent.get('job_seconds', 0)}/{budget.get('max_job_seconds')} 秒"
     )
+    left = (budget.get("max_sprints") or 0) - spent.get("sprints", 0) - 1
+    if budget.get("max_sprints") and left < LAST_REVIEW_WITHIN:
+        # No scheduled review comes before the budget runs out: this is the one that ends it well.
+        parts.append(
+            f"## 这很可能是最后一次评审\n评审之后只剩 {max(left, 0)} 轮，预算用完前不会再有例行评审。"
+            "北极星问题凭已记录的证据能回答，就现在 conclude；还差关键一步，就用 invest 写明剩下几轮只做什么。"
+        )
     parts.append(
         "## 规则\n你只做判断，不动手。读地图、抽查日志和文献后，用一次 advise 给出全部判断（这会结束本轮）。"
     )
