@@ -69,3 +69,19 @@ describe("parseAppRoute: #open", () => {
     });
   });
 });
+
+describe("parseAppRoute: #research", () => {
+  it("reads the research list and a project", () => {
+    expect(parseAppRoute("research")).toEqual({ screen: "research" });
+    expect(
+      parseAppRoute("research/0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d"),
+    ).toEqual({
+      screen: "research",
+      projectId: "0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d",
+    });
+    expect(parseAppRoute("research/not-an-id")).toEqual({
+      screen: "research",
+      redirect: "research",
+    });
+  });
+});

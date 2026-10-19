@@ -1,5 +1,6 @@
 import {
   Compass,
+  FlaskConical,
   FileText,
   House,
   Library,
@@ -177,6 +178,13 @@ export function AppSidebar({
           href="#discover"
           active={screen === "discover"}
           onClick={followLink(go, "discover")}
+        />
+        <SidebarItem
+          icon={FlaskConical}
+          label={t("app.research")}
+          href="#research"
+          active={screen === "research"}
+          onClick={followLink(go, "research")}
         />
       </SidebarSection>
       {reading.length > 0 && (

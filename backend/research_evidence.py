@@ -8,7 +8,7 @@ number a result states (other than small counts) must appear in what it cites.
 import re
 
 from .citation_marks import check_quote
-from .models import ResearchJob
+from .models import File, ResearchJob
 from .research_sandbox import read_log
 
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?%?")
@@ -75,10 +75,13 @@ def check(app, d, owner, project, summary, evidence):
                 raise ValueError(f"第 {n} 条证据：在论文原文中找不到这句话")
             page, quote = found
             texts.append(quote)
+            file = d.get(File, item["file_id"])
             checked.append(
                 {
                     "kind": "cite",
                     "file_id": item["file_id"],
+                    # So the page can open the sentence in the reader.
+                    "paper_id": file.paper_id if file is not None else None,
                     "page": page,
                     "quote": quote,
                 }

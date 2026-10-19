@@ -15,6 +15,7 @@ export type AppRoute =
   | { screen: "library"; redirect?: string }
   | { screen: "discover"; redirect?: string }
   | { screen: "settings"; redirect?: string }
+  | { screen: "research"; projectId?: string; redirect?: string }
   | { screen: "open"; url: string; redirect?: string }
   | { screen: "reader"; reader: ReaderRoute; redirect?: string };
 
@@ -36,6 +37,13 @@ export function parseAppRoute(hash: string): AppRoute {
   if (path === "library") return { screen: "library" };
   if (path === "discover") return { screen: "discover" };
   if (path === "settings") return { screen: "settings" };
+  if (path === "research") return { screen: "research" };
+  if (path.startsWith("research/")) {
+    const projectId = path.slice("research/".length);
+    return /^[0-9a-f-]{36}$/.test(projectId)
+      ? { screen: "research", projectId }
+      : { screen: "research", redirect: "research" };
+  }
   if (path === "open") {
     // From the browser extension: the address of a paper to import, then read.
     const url = new URLSearchParams(hash.split("?")[1] ?? "").get("url") ?? "";
