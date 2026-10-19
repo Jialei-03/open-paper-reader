@@ -6,6 +6,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import Depends, HTTPException, Query
 from fastapi.responses import Response
+from typing import Literal
 from pydantic import Field
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
@@ -14,7 +15,7 @@ from . import agent_limits, direct_runs
 from .agent_attachments import attachments, install_attachment_routes
 from .agent_response import clean_response
 from .agent_state import presentation
-from .model_options import task_of, task_options
+from .model_options import task_of, task_options, validate_options
 from .models import (
     AgentQuota,
     AgentRun,
@@ -39,6 +40,15 @@ class CreateSessionInput(SessionInput):
     paper_id: str | None = Field(default=None, pattern=r"^[0-9a-f-]{36}$")
 
 
+class RunOptionsInput(Strict):
+    """A strength chosen for this one question, in place of the saved one."""
+
+    thinking_mode: Literal["default", "disabled", "adaptive", "enabled"] = "default"
+    reasoning_effort: Literal[
+        "default", "low", "medium", "high", "xhigh", "max"
+    ] = "default"
+
+
 class RunInput(Strict):
     prompt: str = Field(min_length=1, max_length=12000)
     model_config_id: str = Field(min_length=1, max_length=36)
@@ -47,6 +57,7 @@ class RunInput(Strict):
     writable: bool = True
     resume_run_id: str | None = Field(default=None, pattern=r"^[0-9a-f-]{36}$")
     attachment_ids: list[str] = Field(default_factory=list, max_length=5)
+    model_options: RunOptionsInput | None = None
 
 
 def paper_session_id(owner, paper_id):
@@ -272,6 +283,14 @@ def install_agent_routes(app, settings, db, auth, human, owned):
             artifact=reading_artifact.kind if reading_artifact else None,
             action=(reader_context or {}).get("action"),
         )
+        run_options = task_options(cfg, task)
+        # A strength chosen with the question is the reader's, except for jobs
+        # that only copy or translate text, which stay at the lowest.
+        if body.model_options and task == "chat":
+            try:
+                run_options = validate_options(cfg, body.model_options.model_dump())
+            except ValueError as e:
+                raise HTTPException(422, str(e)) from None
         page_translation = bool(
             reading_artifact and reading_artifact.kind == "page_translation"
         )
@@ -363,10 +382,10 @@ def install_agent_routes(app, settings, db, auth, human, owned):
             session_id=id,
             model=cfg["model"],
             lane=lane,
-            **body.model_dump(exclude={"resume_run_id", "reader_context"}),
+            **body.model_dump(exclude={"resume_run_id", "reader_context", "model_options"}),
             runtime={
                 **({"resume_from": source.id} if source else {}),
-                "model_options": task_options(cfg, task),
+                "model_options": run_options,
                 **({"direct": True} if direct else {}),
                 **(
                     {"reading_artifact_id": reading_artifact.id}

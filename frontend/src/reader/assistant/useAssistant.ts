@@ -3,7 +3,19 @@ import { api, send as post, type Paper, type SourceFile } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import { serviceReason } from "../service-error";
 import { readerContext, type AskRequest } from "../types";
+import {
+  announceModels,
+  readModels,
+  selectModel,
+  type ModelRow,
+} from "../../screens/setup/model-api";
 import { useModel } from "../useModel";
+import {
+  effortChoices,
+  optionsFor,
+  validChoice,
+  type EffortChoice,
+} from "./choices";
 import { isActive, resendable, sameRuns, type AgentRun } from "./runs";
 
 /** The paper's conversation with the assistant, as the reader's parts share it. */
@@ -31,6 +43,34 @@ export interface Assistant {
   paperId: string;
   /** A question is on its way to the service. */
   sending: boolean;
+  /** The models the reader may ask with (their own, and the platform's if offered). */
+  models: ModelRow[];
+  /** The model this paper's questions go to. */
+  modelId: string;
+  /** The thinking strengths that model offers, and the one chosen ("default" when none was). */
+  efforts: EffortChoice[];
+  effortId: string;
+  /** Sets the model / strength for this paper's conversation only. */
+  chooseModel(id: string): void;
+  chooseEffort(id: string): void;
+  /** Makes a model the default for every paper. */
+  makeDefault(id: string): Promise<boolean>;
+}
+
+const CHOICE_KEY = "opr-assistant-choice:";
+
+function readChoice(paperId: string): { model: string; effort: string } {
+  try {
+    const value = JSON.parse(
+      window.localStorage.getItem(CHOICE_KEY + paperId) ?? "null",
+    );
+    return {
+      model: typeof value?.model === "string" ? value.model : "",
+      effort: typeof value?.effort === "string" ? value.effort : "default",
+    };
+  } catch {
+    return { model: "", effort: "default" };
+  }
 }
 
 /** How often the runs are read: often while one is being written, seldom otherwise. */
@@ -73,19 +113,49 @@ export function useAssistant({
     retry: (() => void) | null;
   } | null>(null);
   const [sending, setSending] = useState(false);
+  const [rows, setRows] = useState<ModelRow[]>([]);
+  const [picked, setPicked] = useState(() => ({
+    paperId,
+    ...readChoice(paperId),
+  }));
+  if (picked.paperId !== paperId)
+    setPicked({ paperId, ...readChoice(paperId) });
+
+  // The models on offer, read again when the settings change.
+  useEffect(() => {
+    const controller = new AbortController();
+    const load = () =>
+      readModels(controller.signal).then(
+        (settings) => setRows(settings.models),
+        () => undefined,
+      );
+    void load();
+    window.addEventListener("model-settings-updated", load);
+    return () => {
+      controller.abort();
+      window.removeEventListener("model-settings-updated", load);
+    };
+  }, []);
+  const modelId = rows.some((row) => row.id === picked.model)
+    ? picked.model
+    : model.id;
+  const controls = rows.find((row) => row.id === modelId)?.controls;
+  const effortId = validChoice(controls, picked.effort);
 
   // What the callbacks below read when they run, not when they were made.
   const now = useRef({
     paperId,
     session: "",
     model: "",
+    options: undefined as ReturnType<typeof optionsFor>,
     runs: [] as AgentRun[],
   });
   const current = conversation?.paperId === paperId ? conversation : null;
   now.current = {
     paperId,
     session: current?.session ?? "",
-    model: model.id,
+    model: modelId,
+    options: optionsFor(controls, effortId),
     runs: current?.runs ?? NO_RUNS,
   };
   /** Reads the runs now rather than at the next tick. */
@@ -207,7 +277,12 @@ export function useAssistant({
 
   const create = useCallback(
     async (prompt: string, context?: Record<string, unknown>) => {
-      const { paperId: forPaper, session, model: modelId } = now.current;
+      const {
+        paperId: forPaper,
+        session,
+        model: modelId,
+        options,
+      } = now.current;
       const question = prompt.trim();
       if (!forPaper || !question) return false;
       // Asked again by hand, the same question about the same words.
@@ -230,6 +305,7 @@ export function useAssistant({
           {
             prompt: question,
             model_config_id: modelId,
+            ...(options ? { model_options: options } : {}),
             ...(context ? { reader_context: context } : {}),
             writable: false,
             context: `paper/${forPaper}`,
@@ -303,6 +379,41 @@ export function useAssistant({
   const cancelNow = useRef(cancel);
   cancelNow.current = cancel;
 
+  const keep = useCallback(
+    (change: Partial<{ model: string; effort: string }>) =>
+      setPicked((old) => {
+        const next = { ...old, ...change };
+        try {
+          window.localStorage.setItem(
+            CHOICE_KEY + old.paperId,
+            JSON.stringify({ model: next.model, effort: next.effort }),
+          );
+        } catch {
+          // Not kept: the choice lasts until the page is closed.
+        }
+        return next;
+      }),
+    [],
+  );
+  const chooseModel = useCallback(
+    (id: string) => keep({ model: id, effort: "default" }),
+    [keep],
+  );
+  const chooseEffort = useCallback(
+    (id: string) => keep({ effort: id }),
+    [keep],
+  );
+  const makeDefault = useCallback(async (id: string) => {
+    try {
+      await selectModel(id);
+      announceModels();
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+  const efforts = useMemo(() => effortChoices(controls), [controls]);
+
   const runs = current?.runs;
   const failed = failure?.paperId === paperId ? failure : null;
   const error = failed?.message || (current?.error ?? "");
@@ -317,9 +428,16 @@ export function useAssistant({
       send,
       cancel,
       retry,
-      ready: model.id !== "",
+      ready: modelId !== "",
       paperId,
       sending,
+      models: rows,
+      modelId,
+      efforts,
+      effortId,
+      chooseModel,
+      chooseEffort,
+      makeDefault,
     }),
     [
       runs,
@@ -329,9 +447,15 @@ export function useAssistant({
       send,
       cancel,
       retry,
-      model.id,
+      modelId,
       paperId,
       sending,
+      rows,
+      efforts,
+      effortId,
+      chooseModel,
+      chooseEffort,
+      makeDefault,
     ],
   );
 }

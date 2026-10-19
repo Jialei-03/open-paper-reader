@@ -20,6 +20,7 @@ import type { AskRequest } from "../types";
 import { conversation, isActive, shorten } from "./runs";
 import type { Assistant } from "./useAssistant";
 import type { ComposerDraft, Place } from "./useComposerDock";
+import { ComposerPickers } from "./ComposerPickers";
 import styles from "./Composer.module.css";
 
 /** How much of a selected sentence the context label shows. */
@@ -202,6 +203,7 @@ export function Composer({
         onKeyDown={onKeyDown}
       />
       <div className={styles.tools}>
+        <ComposerPickers assistant={assistant} />
         {pending && (
           <span className={styles.chip}>
             <span className={styles.chipText}>{context}</span>

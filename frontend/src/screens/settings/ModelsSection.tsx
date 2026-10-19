@@ -1,7 +1,7 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
-import { Button, Dialog, IconButton, toast } from "../../ui";
+import { Button, Dialog, IconButton, TextField, toast } from "../../ui";
 import { ModelForm } from "../setup/ModelForm";
 import {
   allowsLocal,
@@ -9,31 +9,29 @@ import {
   failure,
   readModels,
   removeModel,
+  renameModel,
   selectModel,
   testModel,
   type ModelRow,
   type ModelSettings,
 } from "../setup/model-api";
+import { ImportModels } from "./ImportModels";
+import { groupByHost, hostOf } from "./providers";
 import { ConfirmDialog, Section } from "./Section";
 import styles from "./Settings.module.css";
 
 const displayName = (row: ModelRow) => row.name || row.model;
 
-function host(address: string): string {
-  try {
-    return new URL(address).host;
-  } catch {
-    return address;
-  }
-}
-
 /** The models: the current one, the others (use, test, remove), and adding one with the setup's form. */
 export function ModelsSection() {
   const i18n = useI18n();
-  const { t } = i18n;
+  const { t, tn } = i18n;
   const [settings, setSettings] = useState<ModelSettings | null>(null);
   const [loadError, setLoadError] = useState("");
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [renaming, setRenaming] = useState<ModelRow | null>(null);
+  const [newName, setNewName] = useState("");
   const [removing, setRemoving] = useState<ModelRow | null>(null);
   const [busy, setBusy] = useState("");
 
@@ -86,9 +84,14 @@ export function ModelsSection() {
       title={t("settings.models.title")}
       lead={t("settings.models.lead")}
       action={
-        <Button size="sm" icon={Plus} onClick={() => setAdding(true)}>
-          {t("settings.models.add")}
-        </Button>
+        <div className={styles.rowActions}>
+          <Button size="sm" onClick={() => setImporting(true)}>
+            {t("settings.models.import")}
+          </Button>
+          <Button size="sm" icon={Plus} onClick={() => setAdding(true)}>
+            {t("settings.models.add")}
+          </Button>
+        </div>
       }
     >
       {loadError ? (
@@ -100,90 +103,163 @@ export function ModelsSection() {
       ) : models.length === 0 ? (
         <p className={styles.muted}>{t("settings.models.empty")}</p>
       ) : (
-        <ul className={styles.list} aria-label={t("settings.models.title")}>
-          {models.map((row) => {
-            const current = row.id === settings.active_id;
-            const name = displayName(row);
-            return (
-              <li key={row.id} className={styles.row}>
-                <div className={styles.rowText}>
-                  <span className={styles.rowTitle}>
-                    <span>{name}</span>
-                    {current && (
-                      <span className={`${styles.badge} ${styles.current}`}>
-                        {t("settings.models.current")}
+        groupByHost(models).map((group) => (
+          <div key={group.host} className={styles.group}>
+            {group.host && (
+              <h3 className={styles.subTitle}>
+                {t("settings.models.group", { host: group.host })}
+              </h3>
+            )}
+            <ul
+              className={styles.list}
+              aria-label={[t("settings.models.title"), group.host]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              {group.rows.map((row) => {
+                const current = row.id === settings.active_id;
+                const name = displayName(row);
+                return (
+                  <li key={row.id} className={styles.row}>
+                    <div className={styles.rowText}>
+                      <span className={styles.rowTitle}>
+                        <span>{name}</span>
+                        {current && (
+                          <span className={`${styles.badge} ${styles.current}`}>
+                            {t("settings.models.current")}
+                          </span>
+                        )}
+                        {row.shared && (
+                          <span className={styles.badge}>
+                            {row.badge || t("settings.models.shared")}
+                          </span>
+                        )}
                       </span>
-                    )}
-                    {row.shared && (
-                      <span className={styles.badge}>
-                        {row.badge || t("settings.models.shared")}
+                      <span className={styles.rowMeta}>
+                        {[
+                          row.name && row.name !== row.model ? row.model : "",
+                          hostOf(row.base_url),
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
-                    )}
-                  </span>
-                  <span className={styles.rowMeta}>
-                    {[
-                      row.name && row.name !== row.model ? row.model : "",
-                      host(row.base_url),
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </div>
-                <div className={styles.rowActions}>
-                  {!current && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={!!busy}
-                      onClick={() =>
-                        void act(
-                          row,
-                          () => selectModel(row.id),
-                          t("settings.models.selected", { name }),
-                          "settings.models.selectError",
-                        )
-                      }
-                      aria-label={t("settings.models.useNamed", { name })}
-                    >
-                      {t("settings.models.use")}
-                    </Button>
-                  )}
-                  {!row.shared && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        loading={busy === row.id && !removing}
-                        disabled={!!busy}
-                        aria-label={t("settings.models.testNamed", { name })}
-                        onClick={() =>
-                          void act(
-                            row,
-                            async () => {
-                              await testModel(row.id);
-                            },
-                            t("settings.models.testOk", { name }),
-                            "model.error.test",
-                          )
-                        }
-                      >
-                        {t("settings.models.test")}
-                      </Button>
-                      <IconButton
-                        size="sm"
-                        icon={Trash2}
-                        label={t("settings.models.remove", { name })}
-                        disabled={!!busy}
-                        onClick={() => setRemoving(row)}
-                      />
-                    </>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    </div>
+                    <div className={styles.rowActions}>
+                      {!current && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={!!busy}
+                          onClick={() =>
+                            void act(
+                              row,
+                              () => selectModel(row.id),
+                              t("settings.models.selected", { name }),
+                              "settings.models.selectError",
+                            )
+                          }
+                          aria-label={t("settings.models.useNamed", { name })}
+                        >
+                          {t("settings.models.use")}
+                        </Button>
+                      )}
+                      {!row.shared && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            loading={busy === row.id && !removing}
+                            disabled={!!busy}
+                            aria-label={t("settings.models.testNamed", {
+                              name,
+                            })}
+                            onClick={() =>
+                              void act(
+                                row,
+                                async () => {
+                                  await testModel(row.id);
+                                },
+                                t("settings.models.testOk", { name }),
+                                "model.error.test",
+                              )
+                            }
+                          >
+                            {t("settings.models.test")}
+                          </Button>
+                          <IconButton
+                            size="sm"
+                            icon={Pencil}
+                            label={t("settings.models.rename", { name })}
+                            disabled={!!busy}
+                            onClick={() => {
+                              setNewName(name);
+                              setRenaming(row);
+                            }}
+                          />
+                          <IconButton
+                            size="sm"
+                            icon={Trash2}
+                            label={t("settings.models.remove", { name })}
+                            disabled={!!busy}
+                            onClick={() => setRemoving(row)}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))
       )}
+      <ImportModels
+        open={importing}
+        onClose={() => setImporting(false)}
+        settings={settings}
+        local={allowsLocal(settings)}
+        onImported={(next, count) => {
+          setSettings(next);
+          announceModels();
+          toast.show({
+            tone: "success",
+            message: tn("settings.import.done", count),
+          });
+        }}
+      />
+      <Dialog
+        open={!!renaming}
+        onClose={() => setRenaming(null)}
+        title={t("settings.models.renameTitle")}
+        footer={
+          <Button
+            variant="primary"
+            disabled={!newName.trim() || !!busy}
+            onClick={async () => {
+              if (!renaming) return;
+              const row = renaming;
+              const name = newName.trim();
+              const ok = await act(
+                row,
+                () => renameModel(row, name),
+                t("settings.models.renamed", { name }),
+                "settings.models.renameError",
+              );
+              if (ok) setRenaming(null);
+            }}
+          >
+            {t("settings.models.renameSave")}
+          </Button>
+        }
+      >
+        <TextField
+          label={t("settings.models.renameLabel")}
+          value={newName}
+          maxLength={100}
+          autoComplete="off"
+          onChange={(event) => setNewName(event.target.value)}
+        />
+      </Dialog>
       <Dialog
         open={adding}
         onClose={() => setAdding(false)}

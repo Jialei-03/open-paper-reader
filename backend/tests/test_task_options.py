@@ -263,3 +263,40 @@ def test_direct_guide_and_chat_apply_distinct_defaults_without_changing_mode():
     assert task_options(cfg, "chat") == {"thinking_mode": "adaptive", "reasoning_effort": "medium"}
     custom = {"model": "custom", "protocol": "openai", **options(cfg)}
     assert task_options(custom, "guide") == options(custom)
+
+
+def test_a_strength_chosen_with_the_question_is_used_for_that_run_only(env):
+    app, a, _settings, _owner, p, f = setup(env)
+    session = write(a, "/agent/sessions", {}).json()["id"]
+    context = {"paper_id": p["id"], "file_id": f["id"], "page": 1, "source": "page"}
+
+    def ask(**extra):
+        response = write(
+            a,
+            f"/agent/sessions/{session}/runs",
+            {
+                "prompt": "x",
+                "model_config_id": FLASH,
+                "reader_context": {**context, "action": "ask"},
+                **extra,
+            },
+        )
+        return response
+
+    picked = {"thinking_mode": "default", "reasoning_effort": "low"}
+    response = ask(model_options=picked)
+    assert response.status_code == 200, response.text
+    assert run_options(app, response.json()["id"]) == picked
+    stop(a, response.json()["id"])
+
+    # Without it, the saved strength still applies.
+    response = ask()
+    assert run_options(app, response.json()["id"]) == {
+        "thinking_mode": "adaptive",
+        "reasoning_effort": "high",
+    }
+    stop(a, response.json()["id"])
+
+    # A strength the model does not offer is refused.
+    refused = ask(model_options={"thinking_mode": "enabled"})
+    assert refused.status_code == 422

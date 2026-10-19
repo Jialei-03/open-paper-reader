@@ -33,6 +33,8 @@ KNOWN_HOSTS = {
     "api.openai.com",
     "api.anthropic.com",
     "api.deepseek.com",
+    "api.moonshot.cn",
+    "open.bigmodel.cn",
     "openrouter.ai",
     "generativelanguage.googleapis.com",
     "api.siliconflow.cn",
