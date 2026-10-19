@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from fastapi import Depends, HTTPException, UploadFile
+from fastapi import Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 
@@ -241,6 +241,19 @@ def install_research_routes(app, settings, db, auth, human, owned):
         from .research_metrics import metrics
 
         return metrics(d, project_of(d, id, a))
+
+    @app.get("/api/v1/research/projects/{id}/report")
+    def project_report(id: str, lang: str = "zh", a=Depends(auth), d=Depends(db)):
+        from .research_report import report
+
+        p = project_of(d, id, a)
+        return Response(
+            report(d, p, lang),
+            media_type="text/markdown; charset=utf-8",
+            headers={
+                "Content-Disposition": f'attachment; filename="research-{p.id[:8]}.md"'
+            },
+        )
 
     @app.get("/api/v1/research/projects/{id}/events")
     def events(id: str, after: str = "", a=Depends(auth), d=Depends(db)):
