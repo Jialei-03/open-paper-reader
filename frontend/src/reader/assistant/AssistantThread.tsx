@@ -90,7 +90,12 @@ export function AssistantThread({
   const { t } = useI18n();
   const runs = conversation(assistant.runs);
   const thread = useRef<HTMLDivElement>(null);
-  useFollow(thread, runs.length);
+  // History read back when the paper opens is not a question just asked: the view stays on the guide.
+  useFollow(
+    thread,
+    runs.length,
+    runs.length > 0 && isActive(runs[runs.length - 1]),
+  );
   // The answers are drawn once per text, whoever passes a new function.
   const citeNow = useRef(onCite);
   citeNow.current = onCite;
@@ -147,7 +152,11 @@ function scrollerOf(element: HTMLElement): HTMLElement | null {
  * down. The panel's views share one scroller, so a thread that is hidden
  * neither moves it nor listens to it.
  */
-function useFollow(content: RefObject<HTMLElement | null>, count: number) {
+function useFollow(
+  content: RefObject<HTMLElement | null>,
+  count: number,
+  asking: boolean,
+) {
   // The view opens on the guide: it follows once a question is asked or the reader is at the foot.
   const following = useRef(false);
   const shown = count > 0;
@@ -177,9 +186,9 @@ function useFollow(content: RefObject<HTMLElement | null>, count: number) {
   }, [content, shown]);
   const before = useRef(count);
   useLayoutEffect(() => {
-    if (count > before.current) following.current = true;
+    if (count > before.current && asking) following.current = true;
     before.current = count;
-  }, [count]);
+  }, [count, asking]);
 }
 
 /** One question and its answer. */
