@@ -184,6 +184,24 @@ def apply(d, project, sprint, args):
         )
     concluded = False
     conclusion = args.get("conclude")
+    recorded = any(
+        n.evidence_for or n.evidence_against for n in research_map.nodes(d, project)
+    )
+    if conclusion and not recorded:
+        # What the advisor read in the logs must first be recorded on the map.
+        research_map.event(
+            d,
+            project,
+            None,
+            "advisor",
+            "conclude_rejected",
+            {
+                "why": "地图上还没有记录过结果：先让执行者用 record_result 记下支持结论的证据",
+                "summary": conclusion.get("summary", "")[:500],
+            },
+            sprint.id,
+        )
+        conclusion = None
     if (
         conclusion
         and conclusion.get("status") in {"concluded", "refuted"}
