@@ -1,0 +1,19 @@
+{
+ "split": "heldout",
+ "question": "On /work/data/data.csv, do degree-2 polynomial features raise the test accuracy of a logistic regression by at least 2 percentage points over the same model on the raw features?",
+ "background": "The data is in /work/data/data.csv: 800 rows, 10 numeric features f0-f9, and a binary label y. Keep 25% as a fixed, stratified test split with random_state=0, and do not tune anything on the test set. Raw model: StandardScaler, then LogisticRegression(max_iter=1000). Polynomial model: StandardScaler, PolynomialFeatures(degree=2, include_bias=False), StandardScaler, then LogisticRegression(max_iter=1000). A blog post reported a gain of 5 points from polynomial features on similar tabular data.",
+ "criteria": [
+  "evidence",
+  "on_track",
+  {
+   "verdict": "refuted"
+  },
+  {
+   "numbers": [
+    0.785,
+    0.76
+   ],
+   "tolerance": 0.005
+  }
+ ]
+}
