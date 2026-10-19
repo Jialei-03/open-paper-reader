@@ -44,9 +44,9 @@ class RunOptionsInput(Strict):
     """A strength chosen for this one question, in place of the saved one."""
 
     thinking_mode: Literal["default", "disabled", "adaptive", "enabled"] = "default"
-    reasoning_effort: Literal[
-        "default", "low", "medium", "high", "xhigh", "max"
-    ] = "default"
+    reasoning_effort: Literal["default", "low", "medium", "high", "xhigh", "max"] = (
+        "default"
+    )
 
 
 class RunInput(Strict):
@@ -111,6 +111,8 @@ def install_agent_routes(app, settings, db, auth, human, owned):
             "tools": [
                 {k: t[k] for k in ("name", "label", "description", "write")}
                 for t in TOOLS
+                # Research tools only exist inside research runs.
+                if not t.get("research")
             ],
             "limits": agent_limits.describe(),
             "run": {
@@ -298,20 +300,26 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         # the text (and, for a box, the picture) the server already holds.
         pages = d.get(File, reading_artifact.file_id).pages if reading_artifact else 0
         direct = (
-            page_translation
-            or bool(
-                reading_artifact
-                and reading_artifact.kind in direct_runs.WHOLE_PAPER
-                and (pages or 0) <= direct_runs.DIRECT_PAGES
+            (
+                page_translation
+                or bool(
+                    reading_artifact
+                    and reading_artifact.kind in direct_runs.WHOLE_PAPER
+                    and (pages or 0) <= direct_runs.DIRECT_PAGES
+                )
             )
-        ) or (
-            task == "translate"
-            and (reader_context or {}).get("source") in {"selection", "page", "region"}
-        ) or (
-            # A boxed figure, table or formula is explained from its picture and
-            # text in one call; no tools are needed to read what is in the box.
-            (reader_context or {}).get("source") == "region"
-            and (reader_context or {}).get("action") in {"explain", "formula", "latex"}
+            or (
+                task == "translate"
+                and (reader_context or {}).get("source")
+                in {"selection", "page", "region"}
+            )
+            or (
+                # A boxed figure, table or formula is explained from its picture and
+                # text in one call; no tools are needed to read what is in the box.
+                (reader_context or {}).get("source") == "region"
+                and (reader_context or {}).get("action")
+                in {"explain", "formula", "latex"}
+            )
         )
         lane = "translation" if page_translation else ""
         # Limits on a user's tasks are off unless the settings turn them on. Bulk
@@ -382,7 +390,9 @@ def install_agent_routes(app, settings, db, auth, human, owned):
             session_id=id,
             model=cfg["model"],
             lane=lane,
-            **body.model_dump(exclude={"resume_run_id", "reader_context", "model_options"}),
+            **body.model_dump(
+                exclude={"resume_run_id", "reader_context", "model_options"}
+            ),
             runtime={
                 **({"resume_from": source.id} if source else {}),
                 "model_options": run_options,

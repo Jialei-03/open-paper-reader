@@ -227,7 +227,11 @@ def _process(app, job_id, cfg):
                 if r.attachment_ids
                 else ""
             ),
-            "tools": [t for t in TOOLS if writable or not t["write"]],
+            "tools": [
+                t
+                for t in TOOLS
+                if (writable or not t["write"]) and not t.get("research")
+            ],
             "limits": {
                 **agent_limits.runtime_limits(cfg),
                 # A silent model is given up on as soon as on the direct path.
