@@ -1,7 +1,7 @@
 # Example unit: the assistant worker (reading guides, quizzes, page translation, the
 # assistant). Needs Node.js >= 22 and `npm --prefix agent-runtime ci --omit=dev`.
 [Unit]
-Description=Zhijian assistant worker
+Description=Open Paper Reader assistant worker
 After=network-online.target paper-platform.service
 Wants=network-online.target
 

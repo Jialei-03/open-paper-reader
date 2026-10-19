@@ -1,6 +1,6 @@
 # 配置
 
-纸间全部通过环境变量配置。`docker compose` 读取项目根目录的 `.env`；`scripts/run.sh`（`make run`）会 `source .env`；原生安装用 systemd 的 `EnvironmentFile`。可以从 [`.env.example`](../.env.example) 开始。
+Open Paper Reader 全部通过环境变量配置。`docker compose` 读取项目根目录的 `.env`；`scripts/run.sh`（`make run`）会 `source .env`；原生安装用 systemd 的 `EnvironmentFile`。可以从 [`.env.example`](../.env.example) 开始。
 
 `.env` 已在 `.gitignore` 里。里面会有数据库密码、邮件密码等，不要提交，也不要贴进 issue。
 

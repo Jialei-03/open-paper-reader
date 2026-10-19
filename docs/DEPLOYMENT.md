@@ -1,6 +1,6 @@
 # 部署
 
-纸间是一个 Python（FastAPI）服务加一个 Node.js 研究助手 worker，数据放在 PostgreSQL（本机试用也可以用 SQLite）和一个文件目录里。前端构建后由 API 服务一并提供，不需要单独的前端服务器。
+Open Paper Reader 是一个 Python（FastAPI）服务加一个 Node.js 研究助手 worker，数据放在 PostgreSQL（本机试用也可以用 SQLite）和一个文件目录里。前端构建后由 API 服务一并提供，不需要单独的前端服务器。
 
 | 进程 | 作用 | 必需 |
 | --- | --- | --- |
@@ -15,7 +15,7 @@
 
 ```bash
 git clone https://github.com/Jialei-03/open-paper-reader.git
-cd zhijian
+cd open-paper-reader
 cp .env.example .env
 # 把 POSTGRES_PASSWORD 换成一串随机的字母数字：
 sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env    # macOS 用 sed -i ''
@@ -25,7 +25,7 @@ docker compose ps        # db、web、worker 都应该是 running，web 是 heal
 
 打开 <http://localhost:8765>，注册第一个账户，然后在「设置 → 模型」添加你的模型（OpenAI 兼容或 Anthropic 协议）。导入论文、阅读、批注和笔记不需要模型；解释、翻译、导读和助手需要。
 
-数据在两个具名卷里：`zhijian_db`（PostgreSQL）和 `zhijian_data`（`/data`：论文文件、笔记图片、模型配置）。`docker compose down` 不会删除它们；`docker compose down -v` 会。
+数据在两个具名卷里：`open-paper-reader_db`（PostgreSQL）和 `open-paper-reader_data`（`/data`：论文文件、笔记图片、模型配置）。`docker compose down` 不会删除它们；`docker compose down -v` 会。
 
 ### 管理员账户（可选）
 
@@ -57,13 +57,13 @@ docker compose exec -u root web sh -c 'chown paper:paper /data/platform-model.js
 
    ```
    APP_ENV=production
-   APP_ORIGIN=https://zhijian.example.com
+   APP_ORIGIN=https://reader.example.com
    REGISTRATION=invite          # 不想让陌生人注册就保持 invite
    ```
 
    `APP_ENV=production` 要求 HTTPS 的 `APP_ORIGIN`，并启用 `Secure` Cookie 与 HSTS。
 3. 启动反向代理。最省事的是 Caddy，它自己申请并续期证书：把 [`deploy/Caddyfile.example`](../deploy/Caddyfile.example) 的域名改成你的，`caddy run --config Caddyfile.example`。nginx 见 [`deploy/nginx.example.conf`](../deploy/nginx.example.conf)。缓存头由应用自己设置（私人数据一律不缓存，只有按内容命名的静态文件可以长期缓存），所以代理保持默认就好，**不要加共享缓存**：页面里有私人数据。
-4. 反向代理在 Docker 宿主机上时，容器看到的来源是 Docker 网关，所以要让应用信任它转发的 `X-Forwarded-*` 头，否则登录限流会把所有用户算成同一个来源。端口只发布在 `127.0.0.1`（默认）时，在 `.env` 里加 `FORWARDED_ALLOW_IPS=*` 是安全的；否则写成 Docker 网关地址（`docker network inspect zhijian_default`）。
+4. 反向代理在 Docker 宿主机上时，容器看到的来源是 Docker 网关，所以要让应用信任它转发的 `X-Forwarded-*` 头，否则登录限流会把所有用户算成同一个来源。端口只发布在 `127.0.0.1`（默认）时，在 `.env` 里加 `FORWARDED_ALLOW_IPS=*` 是安全的；否则写成 Docker 网关地址（`docker network inspect open-paper-reader_default`）。
 5. `docker compose up -d`。
 
 ### 升级
@@ -83,7 +83,7 @@ docker compose up -d --build     # 新的迁移在 web 启动时自动执行
 docker compose stop web preparation worker
 # 如果另行安装了翻译 worker，也必须先停掉它。
 docker compose exec db pg_dump -U paper paper > paper-$(date +%F).sql
-docker run --rm -v zhijian_data:/data -v "$PWD":/backup alpine tar czf /backup/paper-data-$(date +%F).tgz -C /data .
+docker run --rm -v open-paper-reader_data:/data -v "$PWD":/backup alpine tar czf /backup/paper-data-$(date +%F).tgz -C /data .
 docker compose start worker preparation web
 ```
 
@@ -129,7 +129,7 @@ AGENT_NODE=$(command -v node) sh scripts/check-agent-runtime.sh      # 确认助
 install -m 0600 -o root .env.example /etc/paper-platform/app.env
 $EDITOR /etc/paper-platform/app.env
 #   APP_ENV=production
-#   APP_ORIGIN=https://zhijian.example.com
+#   APP_ORIGIN=https://reader.example.com
 #   DATABASE_URL=postgresql+psycopg://paper:...@127.0.0.1:5432/paper
 #   STORAGE_DIR=/var/lib/paper-platform/files
 
@@ -218,9 +218,9 @@ docker build -t paper-layout -f deploy/translation/Dockerfile.layout .
 阅读器「图表」面板的「识别当前页」用 `docling_core` 解析模型给出的版面。它需要一个单独的 Python 环境，避免把 PyTorch 之类的大依赖装进 web 环境：
 
 ```bash
-python3 -m venv /opt/zhijian-parser
-/opt/zhijian-parser/bin/pip install "docling-slim==2.130.0" "docling-core==2.99.0"
-# .env：PDF_STRUCTURE_PYTHON=/opt/zhijian-parser/bin/python
+python3 -m venv /opt/open-paper-reader-parser
+/opt/open-paper-reader-parser/bin/pip install "docling-slim==2.130.0" "docling-core==2.99.0"
+# .env：PDF_STRUCTURE_PYTHON=/opt/open-paper-reader-parser/bin/python
 ```
 
 没有它时这个接口返回 503「图表识别服务暂不可用」，其余功能不受影响。

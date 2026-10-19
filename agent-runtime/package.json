@@ -6,7 +6,7 @@
     "test": "node --test runner.test.mjs"
   },
   "keywords": [],
-  "author": "The Zhijian Authors",
+  "author": "The Open Paper Reader Authors",
   "license": "MIT",
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.85.1",

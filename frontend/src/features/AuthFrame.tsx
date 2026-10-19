@@ -20,11 +20,7 @@ export function AuthFrame({
         <LanguageSwitch />
       </div>
       <a href="#home" className={styles.brand} aria-label={t("login.home")}>
-        <img
-          className={styles.mark}
-          src="/assets/icons/zhijian-book-v5.svg"
-          alt=""
-        />
+        <img className={styles.mark} src="/assets/icons/opr-mark.svg" alt="" />
         Open Paper Reader
       </a>
       <section className={styles.card}>

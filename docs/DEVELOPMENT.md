@@ -8,7 +8,7 @@
 
 ```bash
 git clone https://github.com/Jialei-03/open-paper-reader.git
-cd zhijian
+cd open-paper-reader
 make install        # 建 .venv，安装后端（含测试依赖）、前端和助手运行时的依赖
 make env            # 没有 .env 时从 .env.example 复制
 make db             # 应用数据库迁移（本机默认 SQLite：data/platform.db）
@@ -53,7 +53,6 @@ API 文档：`/api/v1/docs`（需要构建过前端）；OpenAPI：`/api/v1/open
 | `frontend/src/features/ParallelTranslation.tsx` | 原译文对照、生成状态与选项 |
 | `frontend/src/features/ReadingActivity.tsx` | 解释与翻译两种记录（每个面板只显示一种） |
 | `frontend/src/features/AgentPanel.tsx` | 助手会话与输入 |
-| `frontend/src/features/ProductSite.tsx`、`landing-content.ts` | 官网首页及其内容（截图见 [SHOWCASE](SHOWCASE.md)） |
 | `frontend/src/components/ui/` | 仓库内可以直接修改的 shadcn/ui 组件 |
 | `backend/main.py`、`models.py` | API 组装、持久化模型 |
 | `backend/agent_worker.py`、`agent_tools.py` | 助手调度、工具执行和权限 |
@@ -75,7 +74,6 @@ API 文档：`/api/v1/docs`（需要构建过前端）；OpenAPI：`/api/v1/open
 | `scripts/verify_lifecycle.py` | 重启、备份、恢复的真实演练，见 [运维](OPERATIONS.md#一致性与故障演练) |
 | `scripts/bench_model.py` | 用真实模型测量各功能的速度，见 [性能](PERFORMANCE.md) |
 | `scripts/rebuild_translation_alignment.py` | 从保留的翻译检查点重建缺失的译文对应位置（默认只演练；运维用） |
-| `scripts/showcase/` | 官网演示空间与截图的生成，见 [首页与截图](SHOWCASE.md) |
 
 ### 样式顺序
 

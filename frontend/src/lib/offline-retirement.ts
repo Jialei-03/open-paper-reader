@@ -4,6 +4,7 @@
  * caches and the worker, and drop the local copy, unless it holds notes written
  * offline that never reached the server: those are offered as a download first.
  */
+// The names the retired offline reading used in readers' browsers (kept: they are what is cleared).
 const DB = "zhijian-offline-v1";
 const CACHE_PREFIX = "zhijian-offline-shell-";
 
@@ -57,7 +58,7 @@ export function downloadUnsyncedNotes(notes: LocalNote[]) {
   link.href = URL.createObjectURL(
     new Blob([text], { type: "text/markdown;charset=utf-8" }),
   );
-  link.download = "纸间-未同步的离线笔记.md";
+  link.download = "Open-Paper-Reader-未同步的离线笔记.md";
   document.body.append(link);
   link.click();
   link.remove();

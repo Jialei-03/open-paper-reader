@@ -1,6 +1,6 @@
 # 第三方许可与说明
 
-open-paper-reader（原名纸间）自己的代码以 [MIT 许可证](LICENSE) 发布。这份文件列出随仓库分发、或在构建时进入镜像的第三方内容，以及需要特别说明的地方。它是整理，不是法律意见；以各项目自己的许可证文本为准。
+Open Paper Reader 自己的代码以 [MIT 许可证](LICENSE) 发布。这份文件列出随仓库分发、或在构建时进入镜像的第三方内容，以及需要特别说明的地方。它是整理，不是法律意见；以各项目自己的许可证文本为准。
 
 ## 随仓库分发的第三方代码与资源
 
@@ -50,7 +50,7 @@ open-paper-reader（原名纸间）自己的代码以 [MIT 许可证](LICENSE) �
 - open-paper-reader 的 web 服务把它当作独立的容器进程来调用，通过标准输入输出传递 JSON，两者之间没有链接。
 - 这个镜像由三部分组成：BabelDOC（AGPL-3.0）、`deploy/translation/` 里对它的几处小改动（缓存目录、字体复用、译文质量检查）、`backend/layout_translation_worker.py`（调用它的入口）。后两者是本仓库的 MIT 代码，**组合成镜像之后，镜像整体按 AGPL-3.0 的条款对待**。
 - 因此：如果你**发布**构建出来的镜像，或者让别人通过网络与它交互，需要按 AGPL-3.0 提供这个镜像的完整对应源码，其中包括 BabelDOC 和本仓库里的补丁与入口脚本。只在自己的服务器上运行、不发布镜像，没有额外义务。
-- 不构建这个镜像（不设置 `PDF_LAYOUT_IMAGE`），纸间就不包含任何 AGPL 代码。
+- 不构建这个镜像（不设置 `PDF_LAYOUT_IMAGE`），Open Paper Reader 就不包含任何 AGPL 代码。
 
 ## 构建时拉取的其他软件
 
@@ -58,6 +58,4 @@ open-paper-reader（原名纸间）自己的代码以 [MIT 许可证](LICENSE) �
 
 ## 演示内容
 
-`frontend/public/assets/showcase/` 和 [首页](docs/SHOWCASE.md) 里的截图取自一个演示空间，其中出现的论文页面、图表和摘录来自公开的 arXiv 论文，**版权归各论文的作者所有**，仅用于说明软件的界面；这些截图里的论文内容不在 MIT 许可证的范围内。截图里的解释、翻译、导读、测验以及助手的回答与操作记录是模型的真实输出。
 
-`docs/brand/` 与 `frontend/public/assets/icons/zhijian-book-*` 是原项目「纸间」的标志，随仓库按 MIT 许可证提供；但许可证不授予商标权，请不要用项目的名称和标志暗示你的发行版是官方版本。

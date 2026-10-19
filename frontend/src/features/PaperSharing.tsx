@@ -193,7 +193,11 @@ export function SharedPaper({ token }: { token: string }) {
   return (
     <main className="shared-page flex h-dvh flex-col bg-background text-foreground">
       <header className="shared-header">
-        <a href="#home" className="shared-brand" aria-label="纸间首页">
+        <a
+          href="#home"
+          className="shared-brand"
+          aria-label="Open Paper Reader 首页"
+        >
           <Brand />
         </a>
         <h1 className="truncate text-base font-semibold">
@@ -204,7 +208,7 @@ export function SharedPaper({ token }: { token: string }) {
       {error ? (
         <div role="alert" className="shared-state">
           <p>{error}</p>
-          <a href="#home">了解纸间</a>
+          <a href="#home">了解 Open Paper Reader</a>
         </div>
       ) : !paper ? (
         <div role="status" className="shared-state" aria-busy="true">
