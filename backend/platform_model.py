@@ -42,8 +42,8 @@ def shared_config(settings):
         "id": PLATFORM_ID,
         "name": value.get("name") or value["model"],
         "shared": True,
-        # Shown next to the model in the interface; set "badge" in the JSON to change it.
-        "badge": value.get("badge") or "共享模型",
+        # Shown next to the model; empty lets the interface label it in its own language.
+        "badge": value.get("badge") or "",
         "concurrency_limit": concurrency,
         "_platform_concurrency_limit": concurrency,
         "_platform_limit_dir": str(path.parent / "platform-model-slots"),

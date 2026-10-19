@@ -21,8 +21,9 @@ export function ComposerPickers({ assistant }: { assistant: Assistant }) {
   const modelItems: MenuEntry[] = [
     ...models.map((row) => ({
       id: row.id,
-      label:
-        row.shared && row.badge ? `${name(row)} · ${row.badge}` : name(row),
+      label: row.shared
+        ? `${name(row)} · ${row.badge || t("settings.models.shared")}`
+        : name(row),
       icon: row.id === modelId ? Check : undefined,
       onSelect: () => assistant.chooseModel(row.id),
     })),
