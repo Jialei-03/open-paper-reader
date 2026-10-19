@@ -107,6 +107,7 @@ def apply(d, project, sprint, args):
                     "node_id": item.get("node_id"),
                     "verdict": kind,
                     "why": "unknown_or_closed",
+                    "note": f"{item.get('node_id')}：找不到这个节点，或它已经关闭，判断没有生效。",
                 },
                 sprint.id,
             )
@@ -167,16 +168,20 @@ def apply(d, project, sprint, args):
                 done = False
                 why = str(e)
         if not done:
-            notes.append(
-                f"{node.id[: research_map.PREFIX]}（{kind}）没有生效：{why or '这个判断现在做不了'}"
-            )
+            note = f"{node.id[: research_map.PREFIX]}（{kind}）没有生效：{why or '这个判断现在做不了'}"
+            notes.append(note)
             research_map.event(
                 d,
                 project,
                 node,
                 "advisor",
                 "advice_skipped",
-                {"node_id": node.id, "verdict": kind, "why": "incomplete"},
+                {
+                    "node_id": node.id,
+                    "verdict": kind,
+                    "why": "incomplete",
+                    "note": note,
+                },
                 sprint.id,
             )
             skipped += 1
