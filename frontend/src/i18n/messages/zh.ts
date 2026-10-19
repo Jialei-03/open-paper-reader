@@ -864,6 +864,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.pause": "暂停",
   "research.resume": "继续",
   "research.stop": "停止",
+  "research.report": "下载报告",
   "research.meter.sprints": "轮次",
   "research.meter.tokens": "模型 tokens",
   "research.meter.jobs": "实验时长（秒）",

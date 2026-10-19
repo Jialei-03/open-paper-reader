@@ -287,3 +287,16 @@ def test_input_needed_project_resumes_after_input(env):
     assert (
         a.post(f"{BASE}/{project['id']}/resume", json={}).json()["status"] == "active"
     )
+
+
+def test_report_downloads_as_markdown(env):
+    app, a, b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    project = create(a, model).json()
+    r = a.get(f"{BASE}/{project['id']}/report?lang=en")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/markdown")
+    assert "attachment" in r.headers["content-disposition"]
+    assert r.text.startswith("# Does L2 regularization help?")
+    assert b.get(f"{BASE}/{project['id']}/report").status_code == 404

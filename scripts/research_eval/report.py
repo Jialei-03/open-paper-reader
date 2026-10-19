@@ -5,7 +5,7 @@ python scripts/research_eval/report.py scripts/research_eval/results/*.jsonl
 
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean
 
@@ -21,7 +21,7 @@ def main(paths):
     for row in rows:
         groups[(row["task"], row["condition"])].append(row)
     print(
-        "| task | condition | runs | score | concluded | drift | evidence | sprints | tokens |"
+        "| task | condition | runs | score | ended | drift | evidence | sprints | tokens |"
     )
     print("|---|---|---|---|---|---|---|---|---|")
     for (task, condition), group in sorted(groups.items()):
@@ -35,7 +35,10 @@ def main(paths):
             condition,
             str(len(group)),
             f"{mean(r['scores']['score'] for r in group):.2f}",
-            f"{sum(r['end_reason'] == 'concluded' for r in group)}/{len(group)}",
+            ", ".join(
+                f"{reason} {n}"
+                for reason, n in sorted(Counter(r["end_reason"] for r in group).items())
+            ),
             f"{mean(drift):.2f}" if drift else "—",
             f"{mean(r['metrics']['evidence_count'] for r in group):.1f}",
             f"{mean(r['sprints'] for r in group):.1f}",

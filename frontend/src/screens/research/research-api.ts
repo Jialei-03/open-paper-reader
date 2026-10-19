@@ -133,6 +133,10 @@ export const pauseProject = (id: string) => move(id, "pause");
 export const resumeProject = (id: string) => move(id, "resume");
 export const stopProject = (id: string) => move(id, "stop");
 
+/** The project's report as a Markdown file; the browser downloads it. */
+export const reportUrl = (id: string, lang: "zh" | "en") =>
+  `/api/v1${BASE}/${id}/report?lang=${lang}`;
+
 export const jobLog = (projectId: string, jobId: string, offset = 0) =>
   api<LogLines>(`${BASE}/${projectId}/jobs/${jobId}/log?offset=${offset}`);
 

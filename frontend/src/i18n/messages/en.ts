@@ -927,6 +927,7 @@ export const en = {
   "research.pause": "Pause",
   "research.resume": "Resume",
   "research.stop": "Stop",
+  "research.report": "Download report",
   "research.meter.sprints": "Sprints",
   "research.meter.tokens": "Model tokens",
   "research.meter.jobs": "Experiment time (s)",

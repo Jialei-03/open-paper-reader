@@ -36,9 +36,12 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 
 This is an early version. What has actually run:
 
-- Two small research projects, run locally end to end with real models. In one, the data was not mounted into the sandbox: the agent reported it and refused to synthesize data, and the advisor asked a person. Once the data was back, the agent ran a 17-point regularization sweep as a background job. The advisor checked the numbers against log line numbers and judged the kill condition not met (0.0096 < 0.01). It also judged every sprint on track: the tempting "try gradient-boosted trees" side road in the background was not taken.
-- The distiller wrote four judgment rules from those two projects. They are pending confirmation.
-- Not there yet: systematic evaluation numbers (the harness is being built), research in the hosted version (it runs locally for now), and GPU experiments.
+- **The full research loop**, end to end with a real model (gpt-6-luna): local Docker experiments, the research map, the advisor, evidence checks, the playbook and the research report.
+- **Second evaluation round**: 3 held-out tasks × 3 conditions × 2 seeds. See [second results](docs/research/2026-10-20-second-results.md) (in Chinese).
+  - With the advisor, all 12 runs ended the right way. Where there was an answer, the numbers matched the precomputed truth. With data missing, the agent reported it and stopped to wait for a person; no run synthesized data. A tempting dead end ("polynomial features add 2 points"; in truth they cost 2.5) was refuted every time, after 3 sprints on average. Drift was 0.
+  - Without the advisor, the executor stayed honest and got the numbers right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost. The advisor's main contribution is knowing when to stop.
+  - The playbook made no visible difference on these tasks: they are too easy, and its rules were admitted by developer review. There is no evidence yet that it helps.
+- **Not there yet**: harder tasks and more seeds, research in the hosted version (it runs locally for now), and GPU experiments.
 
 ## Reading papers
 

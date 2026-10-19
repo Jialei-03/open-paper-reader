@@ -1,4 +1,4 @@
-import { ArrowLeft, Pause, Play, Square } from "lucide-react";
+import { ArrowLeft, FileText, Pause, Play, Square } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
@@ -19,6 +19,7 @@ import {
   projectMetrics,
   jobLog,
   pauseProject,
+  reportUrl,
   resumeProject,
   stopProject,
   type Decision,
@@ -45,7 +46,7 @@ export interface ResearchProjectScreenProps {
  * research map, and the sprints that built it; pause, resume or stop it.
  */
 export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [metrics, setMetrics] = useState<ProjectMetrics | null>(null);
@@ -184,6 +185,14 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
             {t(statusKey(project))}
           </span>
           <span className={styles.spacer} />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={FileText}
+            onClick={() => window.location.assign(reportUrl(id, locale))}
+          >
+            {t("research.report")}
+          </Button>
           {project.status === "active" && (
             <Button
               size="sm"
