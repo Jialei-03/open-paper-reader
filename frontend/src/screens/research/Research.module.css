@@ -86,7 +86,8 @@
 .formRow {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  /* Labels in one line, whatever the height of the control under each. */
+  align-items: flex-start;
   gap: var(--ui-space-16);
 }
 
