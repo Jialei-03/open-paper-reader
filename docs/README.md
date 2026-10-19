@@ -1,6 +1,6 @@
 # 文档
 
-Open Paper Reader 的文档是简体中文的；根目录的 [README.en.md](../README.en.md) 是英文简介。
+Open Research Agent 的文档是简体中文的；根目录的 [README.en.md](../README.en.md) 是英文简介。
 
 ## 使用与部署
 
@@ -17,7 +17,8 @@ Open Paper Reader 的文档是简体中文的；根目录的 [README.en.md](../R
 | --- | --- |
 | [架构](ARCHITECTURE.md) | 进程与模块、数据模型、认证与内容安全、对外的网络访问 |
 | [开发](DEVELOPMENT.md) | 安装与启动、日常进程、代码地图、测试、约定 |
-| [助手](AGENT.md) | 研究助手能做什么、怎么运行、隔离环境 |
+| [研究](RESEARCH.md) | 研究 Agent：研究地图、导师、止损、证据、研究手册、过程指标与评测 |
+| [助手](AGENT.md) | 阅读助手能做什么、怎么运行、隔离环境 |
 | [翻译](TRANSLATION.md) | 对照翻译、划选翻译、LaTeX 源码整篇翻译、版面翻译 |
 | [性能](PERFORMANCE.md) | 思考强度与速度的实测，以及怎么复测 |
 | [API](API.md) | 对外的 HTTP 接口、凭据、幂等与版本冲突 |
