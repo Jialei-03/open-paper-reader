@@ -29,7 +29,11 @@ def frontend_dir():
     override = os.getenv("OPR_FRONTEND_DIR")
     if override:
         return Path(override)
-    return _checkout_or_bundle("frontend", "package.json")
+    # A container image carries only the built dist/ (no package.json) beside the code.
+    source = CHECKOUT / "frontend"
+    if (source / "package.json").exists() or (source / "dist" / "index.html").exists():
+        return source
+    return BUNDLE / "frontend"
 
 
 def agent_runtime_dir():

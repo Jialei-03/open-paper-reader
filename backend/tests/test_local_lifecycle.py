@@ -64,18 +64,29 @@ def wait_workers(process, port, want=2):
     raise AssertionError("not up")
 
 
+def environment(pid):
+    """A process's environment: /proc on Linux (ps there does not print it), ps on macOS."""
+    proc = f"/proc/{pid}/environ"
+    if os.path.exists(proc):
+        try:
+            with open(proc, "rb") as handle:
+                return handle.read().replace(b"\0", b"\n").decode(errors="replace")
+        except OSError:
+            return ""
+    try:
+        return subprocess.run(["ps", "eww", "-p", pid], capture_output=True, text=True).stdout
+    except OSError:
+        return ""
+
+
 def worker_pids(data_marker):
     out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
     pids = []
     for line in out.splitlines():
         pid, _, cmd = line.strip().partition(" ")
-        if re.search(r"-m backend\.\w+_worker(\s|$)", cmd) and pid.isdigit():
-            try:
-                env = subprocess.run(["ps", "eww", "-p", pid], capture_output=True, text=True).stdout
-            except OSError:
-                continue
-            if data_marker in env:
-                pids.append(int(pid))
+        worker = re.search(r"-m backend\.\w+_worker(\s|$)", cmd)
+        if worker and pid.isdigit() and data_marker in environment(pid):
+            pids.append(int(pid))
     return pids
 
 
