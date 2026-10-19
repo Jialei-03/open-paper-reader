@@ -213,6 +213,12 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "docker": docker_state(),
         }
 
+    @app.get("/api/v1/research/projects/{id}/metrics")
+    def project_metrics(id: str, a=Depends(auth), d=Depends(db)):
+        from .research_metrics import metrics
+
+        return metrics(d, project_of(d, id, a))
+
     @app.get("/api/v1/research/projects/{id}/events")
     def events(id: str, after: str = "", a=Depends(auth), d=Depends(db)):
         p = project_of(d, id, a)

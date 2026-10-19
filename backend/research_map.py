@@ -203,7 +203,11 @@ def node_by_prefix(d, project, prefix):
     prefix = (prefix or "").strip()
     if len(prefix) < PREFIX:
         raise ValueError(f"节点编号至少写前 {PREFIX} 位")
-    found = [n for n in nodes(d, project) if n.id.startswith(prefix)]
+    rows = nodes(d, project)
+    found = [n for n in rows if n.id.startswith(prefix)]
+    if not found:
+        # The map shows the first 8 characters; a model may invent the rest.
+        found = [n for n in rows if n.id.startswith(prefix[:PREFIX])]
     if not found:
         raise ValueError("没有这个节点")
     if len(found) > 1:

@@ -162,3 +162,11 @@ def test_node_by_prefix_ambiguous(db):
         rm.node_by_prefix(d, project, "zzzzzzzz")
     with pytest.raises(ValueError):
         rm.node_by_prefix(d, project, root.id[:4])
+
+
+def test_node_by_prefix_tolerates_invented_suffix(db):
+    """The map shows 8 characters; a model may make up the rest of the id."""
+    d, owner = db
+    project, root = project_with_root(d, owner)
+    invented = root.id[:8] + "-0000-0000-0000-000000000000"
+    assert rm.node_by_prefix(d, project, invented).id == root.id
