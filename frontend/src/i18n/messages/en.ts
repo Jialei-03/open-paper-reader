@@ -11,6 +11,7 @@ export const en = {
   "toast.region": "Notifications",
   "sidebar.collapse": "Collapse sidebar",
   "sidebar.expand": "Expand sidebar",
+  "sidebar.resize": "Resize sidebar",
   "errorBoundary.title": "{label} ran into a problem",
   "reader.region.paper": "Paper",
   "reader.region.sidebar": "Sidebar",
