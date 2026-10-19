@@ -901,6 +901,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.approve": "同意",
   "research.reject": "不同意",
   "research.role.advisor": "导师",
+  "research.role.distiller": "提炼者",
   "reader.tab.related": "相关",
   "reader.tab.related.empty": "这里将显示这篇论文的相关论文。",
   "reader.related.relation": "相关论文的类型",

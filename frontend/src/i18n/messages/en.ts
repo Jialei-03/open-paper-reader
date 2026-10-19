@@ -969,6 +969,7 @@ export const en = {
   "research.approve": "Agree",
   "research.reject": "Disagree",
   "research.role.advisor": "Advisor",
+  "research.role.distiller": "Distiller",
   "reader.tab.related": "Related",
   "reader.tab.related.empty": "Related papers appear here.",
   "reader.related.relation": "Which related papers",

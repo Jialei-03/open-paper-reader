@@ -8,7 +8,6 @@ both stopped and measured.
 """
 
 import asyncio
-import json
 
 from . import research_evidence, research_map, research_sandbox
 from .tool_spec import ID, tool
@@ -557,7 +556,11 @@ def _run(app, owner, research, name, args):
                 sprint.id,
             )
             sprint.status = "ended"
-            sprint.summary = json.dumps(counts, ensure_ascii=False)
+            sprint.summary = (
+                f"复盘本项目，写进研究手册（第 {book['version']} 版）："
+                f"新增 {counts['added']} 条，合并 {counts['merged']} 条，修改 {counts['edited']} 条，"
+                f"投票 {counts['voted']} 次"
+            )
             sprint.updated_at = now()
             result = {**counts, "version": book["version"]}
         elif name == "job_status":
