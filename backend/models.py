@@ -6,6 +6,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -155,7 +156,10 @@ class TextAnnotation(Base):
     revision: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
-    __mapper_args__: ClassVar[dict] = {"version_id_col": revision, "version_id_generator": False}
+    __mapper_args__: ClassVar[dict] = {
+        "version_id_col": revision,
+        "version_id_generator": False,
+    }
 
 
 class Item(Base):
@@ -275,7 +279,9 @@ class TranslationJob(Base):
     engine: Mapped[str] = mapped_column(
         String(20), default="latex", server_default="latex"
     )
-    preparation_id: Mapped[str] = mapped_column(String(36), default="", server_default="")
+    preparation_id: Mapped[str] = mapped_column(
+        String(36), default="", server_default=""
+    )
     status: Mapped[str] = mapped_column(String(24), default="queued")
     stage: Mapped[str] = mapped_column(String(100), default="等待处理")
     completed: Mapped[int] = mapped_column(Integer, default=0)
@@ -450,6 +456,119 @@ class ModelUsage(Base):
     reserved_tokens: Mapped[int] = mapped_column(BigInteger, default=0)
     total_tokens: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+def _research_budget():
+    return {"max_sprints": 30, "max_tokens": 2000000, "max_job_seconds": 36000}
+
+
+def _research_spent():
+    return {"sprints": 0, "tokens": 0, "job_seconds": 0}
+
+
+class ResearchProject(Base):
+    """A research question pursued over many sprints, from a persistent map."""
+
+    __tablename__ = "research_projects"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    question: Mapped[str] = mapped_column(Text)
+    background: Mapped[str] = mapped_column(Text, default="")
+    model_config_id: Mapped[str] = mapped_column(String(36))
+    # active, waiting (for a person), paused, finished
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    # "", concluded, refuted, budget, stopped
+    end_reason: Mapped[str] = mapped_column(String(16), default="")
+    budget: Mapped[dict] = mapped_column(JSON, default=_research_budget)
+    spent: Mapped[dict] = mapped_column(JSON, default=_research_spent)
+    session_id: Mapped[str] = mapped_column(ForeignKey("agent_sessions.id"))
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchNode(Base):
+    """A node of the research map: a question, hypothesis, experiment or finding."""
+
+    __tablename__ = "research_nodes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("research_projects.id"), index=True
+    )
+    parent_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    title: Mapped[str] = mapped_column(String(300))
+    # open, active, supported, refuted, abandoned, parked
+    status: Mapped[str] = mapped_column(String(16), default="open")
+    confidence: Mapped[float] = mapped_column(Float, default=0.5)
+    kill_if: Mapped[str] = mapped_column(Text, default="")
+    budget_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    evidence_for: Mapped[list] = mapped_column(JSON, default=list)
+    evidence_against: Mapped[list] = mapped_column(JSON, default=list)
+    doubts: Mapped[list] = mapped_column(JSON, default=list)
+    spent_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    spent_job_seconds: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchEvent(Base):
+    """One change to a research project: who made it, in which sprint, and why."""
+
+    __tablename__ = "research_events"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("research_projects.id"), index=True
+    )
+    node_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    sprint_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    # executor, advisor, human, system
+    actor: Mapped[str] = mapped_column(String(16))
+    action: Mapped[str] = mapped_column(String(32))
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchSprint(Base):
+    """One run of the research agent on a project, ended by a handoff."""
+
+    __tablename__ = "research_sprints"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("research_projects.id"), index=True
+    )
+    number: Mapped[int] = mapped_column(Integer)
+    role: Mapped[str] = mapped_column(String(16), default="executor")
+    run_id: Mapped[str] = mapped_column(String(36))
+    # running, ended, abnormal
+    status: Mapped[str] = mapped_column(String(16), default="running")
+    focus_node_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    next_focus: Mapped[str] = mapped_column(Text, default="")
+    waiting_on: Mapped[list] = mapped_column(JSON, default=list)
+    tokens: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchJob(Base):
+    """A background experiment in the project's sandbox; its log is evidence."""
+
+    __tablename__ = "research_jobs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("research_projects.id"), index=True
+    )
+    node_id: Mapped[str] = mapped_column(String(36))
+    sprint_id: Mapped[str] = mapped_column(String(36))
+    command: Mapped[str] = mapped_column(Text)
+    # running, succeeded, failed, timeout, lost
+    status: Mapped[str] = mapped_column(String(16), default="running")
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    container: Mapped[str] = mapped_column(String(64), default="")
+    timeout_seconds: Mapped[int] = mapped_column(Integer, default=7200)
+    started_at: Mapped[str] = mapped_column(String(40), default=now)
+    finished_at: Mapped[str] = mapped_column(String(40), default="")
+    log_lines: Mapped[int] = mapped_column(Integer, default=0)
 
 
 from . import library_collections  # noqa: E402,F401
