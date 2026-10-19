@@ -317,7 +317,13 @@ def _focus(d, project, sprint, args):
 def _record(app, d, owner, project, sprint, args):
     node = research_map.node_by_prefix(d, project, args["node_id"])
     checked = research_evidence.check(
-        app, d, owner, project, args["summary"], args["evidence"]
+        app,
+        d,
+        owner,
+        project,
+        args["summary"],
+        args["evidence"],
+        "\n".join([project.question, project.background, node.kill_if]),
     )
     entry = {
         "summary": args["summary"],

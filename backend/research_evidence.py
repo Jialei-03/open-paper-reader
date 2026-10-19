@@ -7,6 +7,8 @@ number a result states (other than small counts) must appear in what it cites.
 
 import re
 
+from sqlalchemy import select
+
 from .citation_marks import check_quote
 from .models import File, ResearchJob
 from .research_sandbox import read_log
@@ -29,12 +31,36 @@ def _numbers(text):
     return [n for n in NUMBER.findall(text or "") if not re.fullmatch(r"-?\d{1,3}", n)]
 
 
+def _value(token):
+    percent = token.endswith("%")
+    try:
+        return float(token.rstrip("%")), percent
+    except ValueError:
+        return None, percent
+
+
 def _appears(number, text):
-    """The whole number, not a piece of a longer one (0.873 is not in 0.8731)."""
-    return re.search(r"(?<![\d.])" + re.escape(number) + r"(?![\d])", text) is not None
+    """The same value is in the text: 0.674 is 0.6740, but 0.873 is not 0.8731."""
+    want = _value(number)
+    return any(_value(token) == want for token in NUMBER.findall(text or ""))
 
 
-def check(app, d, owner, project, summary, evidence):
+def _job(d, project, job_id):
+    """A job of this project, named by its id or (as models do) its first characters."""
+    job = d.get(ResearchJob, job_id)
+    if job is not None or len(job_id or "") < 8:
+        return job
+    found = [
+        j
+        for j in d.scalars(
+            select(ResearchJob).where(ResearchJob.project_id == project.id)
+        )
+        if j.id.startswith(job_id[:8])
+    ]
+    return found[0] if len(found) == 1 else None
+
+
+def check(app, d, owner, project, summary, evidence, stated=""):
     """The evidence, checked and with what it points to; raises ValueError naming the problem."""
     if not evidence:
         raise ValueError("结果必须附上证据：作业日志的行，或文献中的原句")
@@ -43,7 +69,7 @@ def check(app, d, owner, project, summary, evidence):
     for n, item in enumerate(evidence, 1):
         kind = item.get("kind")
         if kind == "log":
-            job = d.get(ResearchJob, item.get("job_id", ""))
+            job = _job(d, project, item.get("job_id", ""))
             if job is None or job.project_id != project.id:
                 raise ValueError(f"第 {n} 条证据：作业不属于这个研究项目")
             if job.status == "running":
@@ -89,7 +115,13 @@ def check(app, d, owner, project, summary, evidence):
         else:
             raise ValueError(f"第 {n} 条证据：类型只能是 log 或 cite")
     cited = "\n".join(texts)
-    missing = [n for n in _numbers(summary) if not _appears(n, cited)]
+    # A number the question, the background or the kill condition already states
+    # (a split size, a threshold) is a setting, not a result.
+    missing = [
+        n
+        for n in _numbers(summary)
+        if not _appears(n, cited) and not _appears(n, stated)
+    ]
     if missing:
         raise ValueError(
             "结果中的数字在所引证据里找不到："

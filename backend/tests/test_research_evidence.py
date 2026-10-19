@@ -116,3 +116,41 @@ def test_evidence_required(world):
     app, d, owner, project, _job = world
     with pytest.raises(ValueError):
         ev.check(app, d, owner, project, "x", [])
+
+
+def test_equal_values_match(world):
+    app, d, owner, project, job = world
+    j = job(text="acc=0.6740\n")
+    assert ev.check(app, d, owner, project, "峰值 0.674", [log(j, 1, 1)])
+    with pytest.raises(ValueError):
+        ev.check(app, d, owner, project, "峰值 0.67", [log(j, 1, 1)])
+
+
+def test_stated_numbers_need_no_evidence(world):
+    app, d, owner, project, job = world
+    j = job(text="acc=0.91\n")
+    stated = "keep 25% as the test split; kill if the gain is under 0.01"
+    assert ev.check(
+        app,
+        d,
+        owner,
+        project,
+        "25% test split, threshold 0.01, acc=0.91",
+        [log(j, 1, 1)],
+        stated,
+    )
+
+
+def test_job_id_prefix_accepted(world):
+    app, d, owner, project, job = world
+    j = job(text="acc=0.91\n")
+    invented = j.id[:8] + "-0000-0000-0000-000000000000"
+    out = ev.check(
+        app,
+        d,
+        owner,
+        project,
+        "acc=0.91",
+        [{"kind": "log", "job_id": invented, "from_line": 1, "to_line": 1}],
+    )
+    assert out[0]["job_id"] == j.id
