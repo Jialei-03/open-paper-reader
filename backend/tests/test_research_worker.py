@@ -567,3 +567,95 @@ def test_repeated_outage_pauses_with_reason(lab, monkeypatch):
             select(ResearchEvent).where(ResearchEvent.action == "paused")
         ).one()
         assert "模型" in paused.detail["reason"]
+
+
+def finish(app, project_id):
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project_id)
+        p.status, p.end_reason = "finished", "budget"
+        d.commit()
+
+
+def test_finished_project_gets_one_distiller(lab):
+    app, project, run_sprint = lab
+    past_sprint(app, project["id"], 1, events=PROGRESS)
+    finish(app, project["id"])
+    rw.tick(app)
+    rw.tick(app)
+    distillers = [s for s in sprints(app, project["id"]) if s.role == "distiller"]
+    assert len(distillers) == 1
+    with app.state.maker() as d:
+        run = d.get(AgentRun, distillers[0].run_id)
+        assert run.runtime["research"]["role"] == "distiller"
+        # Distilling is not research: the project's budget is untouched.
+        assert d.get(ResearchProject, project["id"]).spent["sprints"] == 1
+        assert "研究手册" in run.prompt or "distill" in run.prompt
+
+
+def test_distiller_run_updates_playbook(lab):
+    from backend import research_playbook as pb
+
+    app, project, run_sprint = lab
+    past_sprint(app, project["id"], 1, events=PROGRESS)
+    finish(app, project["id"])
+    rw.tick(app)
+    model = run_sprint(
+        [
+            (
+                "tool",
+                "distill",
+                {
+                    "ops": [
+                        {
+                            "op": "ADD",
+                            "when": "the data a task names is missing from /work",
+                            "do": "say so in doubts and stop; never synthesize data",
+                            "why": "sprints 1-3 were blocked by an unmounted directory",
+                        }
+                    ]
+                },
+            ),
+            ("text", "done"),
+        ]
+    )
+    first = model.requests[0]
+    assert "# 研究提炼者" in first["messages"][0]["content"]
+    names = {t["function"]["name"] for t in first["tools"]}
+    assert "distill" in names and "bash" not in names and "add_node" not in names
+    book = pb.load(app.state.settings)
+    assert book["version"] == 1 and book["rules"][0]["status"] == "pending"
+    rw.tick(app)
+    assert len([s for s in sprints(app, project["id"]) if s.role == "distiller"]) == 1
+
+
+def test_brief_includes_active_rules(lab):
+    from backend import research_playbook as pb
+
+    app, project, _ = lab
+    book = pb.load(app.state.settings)
+    pb.apply_ops(
+        book,
+        [
+            {
+                "op": "ADD",
+                "when": "a kill_if is nearly met",
+                "do": "ask the advisor",
+                "why": "x",
+            }
+        ],
+        "p0",
+        "distiller",
+    )
+    book["rules"][0]["status"] = "active"
+    pb.save(app.state.settings, book)
+    rw.tick(app)
+    with app.state.maker() as d:
+        sprint = sprints(app, project["id"])[-1]
+        prompt = d.get(AgentRun, sprint.run_id).prompt
+        assert "ask the advisor" in prompt
+        from backend.models import ResearchEvent
+
+        version = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "playbook_version")
+        ).one()
+        assert version.detail["version"] == 1

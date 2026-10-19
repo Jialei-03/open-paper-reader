@@ -4,6 +4,8 @@ A sprint is given no chat history. Everything it needs to carry on is here,
 so the direction of the research lives in the map, not in a context window.
 """
 
+import json
+
 from sqlalchemy import select
 
 from . import research_map
@@ -67,7 +69,85 @@ def _latest_advice(d, project, sprint_number):
     return "\n".join(lines)
 
 
-def advisor_brief(d, project, sprint_number):
+def _playbook(settings):
+    """The judgment rules learned from earlier projects, when there are any."""
+    if settings is None:
+        return ""
+    from . import research_playbook
+
+    rules = research_playbook.for_brief(research_playbook.load(settings))
+    return (
+        "## 研究手册（从过去项目提炼的判断规则，适用时遵循）\n" + rules if rules else ""
+    )
+
+
+def distiller_brief(d, project, sprint_number, settings=None):
+    """What the distiller learns from: how the project went, and the advisor's calls."""
+    from . import research_playbook
+    from .research_metrics import metrics
+
+    parts = [
+        f"# 研究项目复盘 · {project.question}",
+        f"## 结局\n{project.status} / {project.end_reason or '—'}",
+        "## 过程指标\n" + json.dumps(metrics(d, project), ensure_ascii=False),
+        "## 研究地图\n" + research_map.snapshot(d, project),
+    ]
+    judgments = [
+        f"- [{e.actor}/{e.action}] {json.dumps(e.detail, ensure_ascii=False)[:300]}"
+        for e in d.scalars(
+            select(ResearchEvent)
+            .where(
+                ResearchEvent.project_id == project.id,
+                ResearchEvent.action.in_(
+                    [
+                        "advice",
+                        "decision_requested",
+                        "human_decision",
+                        "drift_judged",
+                        "drift_blocked",
+                        "record_result",
+                        "sprint_abnormal",
+                        "model_outage",
+                        "concluded",
+                    ]
+                ),
+            )
+            .order_by(ResearchEvent.created_at)
+        )
+    ]
+    parts.append("## 关键事件（按时间）\n" + ("\n".join(judgments[-60:]) or "（无）"))
+    handoffs = [
+        f"### 第 {s.number} 轮（{s.role}，{s.status}）\n{(s.summary or '')[:600]}"
+        for s in d.scalars(
+            select(ResearchSprint)
+            .where(
+                ResearchSprint.project_id == project.id,
+                ResearchSprint.number < sprint_number,
+            )
+            .order_by(ResearchSprint.number)
+        )
+    ]
+    parts.append("## 各轮交接\n" + "\n\n".join(handoffs[-12:]))
+    if settings is not None:
+        book = research_playbook.load(settings)
+        live = [r for r in book["rules"] if r["status"] != "retired"]
+        parts.append(
+            "## 现有研究手册\n"
+            + (
+                "\n".join(
+                    f"- [{r['id']}] ({r['status']}, +{r['helpful']}/-{r['harmful']}) 在「{r['when']}」时：{r['do']}"
+                    for r in live
+                )
+                or "（空）"
+            )
+        )
+    parts.append(
+        "## 规则\n只读记录，最后调用一次 distill：新增或合并 1–3 条可复用的研究判断规则（when 具体到可识别的情境），并对本项目中生效的规则投票。"
+    )
+    return "\n\n".join(parts)
+
+
+def advisor_brief(d, project, sprint_number, settings=None):
     """What the advisor judges from: the map and what the executor did since it last looked."""
     history = list(
         d.scalars(
@@ -117,6 +197,9 @@ def advisor_brief(d, project, sprint_number):
                 for j in jobs
             )
         )
+    rules = _playbook(settings)
+    if rules:
+        parts.append(rules)
     parts.append(
         "## 预算\n"
         f"轮次 {spent.get('sprints', 0)}/{budget.get('max_sprints')}，"
@@ -129,7 +212,7 @@ def advisor_brief(d, project, sprint_number):
     return "\n\n".join(parts)
 
 
-def executor_brief(d, project, sprint_number):
+def executor_brief(d, project, sprint_number, settings=None):
     previous = d.scalars(
         select(ResearchSprint)
         .where(
@@ -182,6 +265,9 @@ def executor_brief(d, project, sprint_number):
                 for j in jobs
             )
         )
+    rules = _playbook(settings)
+    if rules:
+        parts.append(rules)
     parts.append(
         "## 预算\n"
         f"轮次 {spent.get('sprints', 0)}/{budget.get('max_sprints')}，"

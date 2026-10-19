@@ -8,6 +8,7 @@ both stopped and measured.
 """
 
 import asyncio
+import json
 
 from . import research_evidence, research_map, research_sandbox
 from .tool_spec import ID, tool
@@ -217,9 +218,57 @@ RESEARCH_TOOLS.append(
         ["verdicts"],
     )
 )
+RESEARCH_TOOLS.append(
+    _research(
+        "distill",
+        "（仅提炼者）把这个项目的经验写进研究手册并结束本轮。ops 中每条为 ADD{when,do,why} / EDIT{id,...} / MERGE{ids,when,do,why} / DELETE{id}；votes 评价本项目开始时生效的规则是否有用。只写研究判断方面、可复用的规则，不写本题的具体结论。",
+        {
+            "ops": {
+                "type": "array",
+                "maxItems": 10,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "op": {
+                            "type": "string",
+                            "enum": ["ADD", "EDIT", "MERGE", "DELETE"],
+                        },
+                        "id": {"type": "string", "maxLength": 40},
+                        "ids": {
+                            "type": "array",
+                            "maxItems": 10,
+                            "items": {"type": "string", "maxLength": 40},
+                        },
+                        "when": {"type": "string", "maxLength": 200},
+                        "do": {"type": "string", "maxLength": 300},
+                        "why": {"type": "string", "maxLength": 300},
+                    },
+                    "required": ["op"],
+                    "additionalProperties": False,
+                },
+            },
+            "votes": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string", "maxLength": 40},
+                        "helpful": {"type": "boolean"},
+                    },
+                    "required": ["id", "helpful"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        [],
+    )
+)
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
 # What the advisor may use: it looks and judges; it does not do.
 ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
+# What the distiller may use: the project's record, and the playbook.
+DISTILLER_TOOLS = {"research_map_read", "job_status", "job_logs", "distill"}
 
 
 def _context(d, research):
@@ -249,6 +298,14 @@ def _blocked(d, project, sprint, tool_name, reason, message, node=None):
 def gate(app, research, name):
     """Refuses a step that does something before saying which live node it advances."""
     role = research.get("role", "executor")
+    if role == "distiller":
+        if name not in DISTILLER_TOOLS:
+            raise ValueError("提炼者只读项目记录，最后用 distill 写进研究手册")
+        with app.state.maker() as d:
+            _context(d, research)
+        return
+    if name == "distill":
+        raise ValueError("只有提炼者可以修改研究手册（distill）")
     if role == "advisor" and name not in ADVISOR_TOOLS:
         raise ValueError(
             "导师只做判断，不动手：可以读地图、日志和文献，最后用 advise 给出判断"
@@ -467,6 +524,27 @@ def _run(app, owner, research, name, args):
             from .research_advice import apply
 
             result = apply(d, project, sprint, args)
+        elif name == "distill":
+            from . import research_playbook
+
+            book = research_playbook.load(settings)
+            ops = [*args.get("ops", [])]
+            ops += [{"op": "VOTE", **vote} for vote in args.get("votes", [])]
+            counts = research_playbook.apply_ops(book, ops, project.id, "distiller")
+            research_playbook.save(settings, book)
+            research_map.event(
+                d,
+                project,
+                None,
+                "distiller",
+                "distilled",
+                {**counts, "version": book["version"]},
+                sprint.id,
+            )
+            sprint.status = "ended"
+            sprint.summary = json.dumps(counts, ensure_ascii=False)
+            sprint.updated_at = now()
+            result = {**counts, "version": book["version"]}
         elif name == "job_status":
             return research_sandbox.job_status(_job(d, project, args["job_id"]))
         elif name == "job_logs":

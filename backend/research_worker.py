@@ -26,7 +26,7 @@ from .models import (
     now,
 )
 from .parent_watch import watch_parent
-from .research_brief import advisor_brief, executor_brief
+from .research_brief import advisor_brief, distiller_brief, executor_brief
 from .research_map import event
 from .translation_settings import read_config
 
@@ -292,7 +292,7 @@ def _plan(app, d, project):
         model_config_id=project.model_config_id,
         model=config["model"],
         prompt=(advisor_brief if role == "advisor" else executor_brief)(
-            d, project, number
+            d, project, number, app.state.settings
         ),
         context="research/" + project.id,
         writable=True,
@@ -309,6 +309,23 @@ def _plan(app, d, project):
     d.flush()
     sprint.run_id = run.id
     project.spent = {**project.spent, "sprints": project.spent.get("sprints", 0) + 1}
+    if number == 1:
+        # Which playbook this project ran with, for comparing runs later.
+        from . import research_playbook
+
+        book = research_playbook.load(app.state.settings)
+        event(
+            d,
+            project,
+            None,
+            "system",
+            "playbook_version",
+            {
+                "version": book["version"],
+                "active": [r["id"] for r in research_playbook.active(book)],
+            },
+            sprint.id,
+        )
     project.updated_at = now()
     event(
         d,
@@ -317,6 +334,63 @@ def _plan(app, d, project):
         "system",
         "sprint_planned",
         {"number": number, "role": role},
+        sprint.id,
+    )
+
+
+def _distill(app, d, project):
+    """Once a project is over, one distiller sprint turns it into playbook rules."""
+    history = list(
+        d.scalars(
+            select(ResearchSprint)
+            .where(ResearchSprint.project_id == project.id)
+            .order_by(ResearchSprint.number)
+        )
+    )
+    mine = [s for s in history if s.role == "distiller"]
+    if mine:
+        sprint = mine[-1]
+        if sprint.status == "running" and _settle(d, project, sprint):
+            event(d, project, None, "system", "distiller_silent", {}, sprint.id)
+        return
+    if not any(s.role == "executor" for s in history):
+        return
+    config = read_config(app.state.settings, project.owner, project.model_config_id)
+    if not config.get("model"):
+        return
+    number = history[-1].number + 1
+    sprint = ResearchSprint(
+        project_id=project.id, number=number, role="distiller", run_id=""
+    )
+    d.add(sprint)
+    d.flush()
+    run = AgentRun(
+        owner=project.owner,
+        session_id=project.session_id,
+        model_config_id=project.model_config_id,
+        model=config["model"],
+        prompt=distiller_brief(d, project, number, app.state.settings),
+        context="research/" + project.id,
+        writable=True,
+        lane="research",
+        runtime={
+            "research": {
+                "project_id": project.id,
+                "sprint_id": sprint.id,
+                "role": "distiller",
+            }
+        },
+    )
+    d.add(run)
+    d.flush()
+    sprint.run_id = run.id
+    event(
+        d,
+        project,
+        None,
+        "system",
+        "sprint_planned",
+        {"number": number, "role": "distiller"},
         sprint.id,
     )
 
@@ -330,6 +404,24 @@ def tick(app):
                 select(ResearchProject.id).where(ResearchProject.status == "active")
             )
         )
+    with app.state.maker() as d:
+        done = list(
+            d.scalars(
+                select(ResearchProject.id).where(ResearchProject.status == "finished")
+            )
+        )
+    for id in done:
+        with app.state.maker() as d:
+            project = d.get(ResearchProject, id)
+            try:
+                _distill(app, d, project)
+                d.commit()
+            except (ValueError, OSError) as e:
+                d.rollback()
+                print(
+                    json.dumps({"research_worker": id, "error": str(e)[:300]}),
+                    flush=True,
+                )
     for id in ids:
         with app.state.maker() as d:
             project = d.get(ResearchProject, id)

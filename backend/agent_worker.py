@@ -41,7 +41,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 RESEARCH_SKILLS = {
     role: agent_runtime_dir() / "skills" / f"research-{role}" / "SKILL.md"
-    for role in ("executor", "advisor")
+    for role in ("executor", "advisor", "distiller")
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
 RESEARCH_BASE = {
@@ -58,8 +58,10 @@ RESEARCH_BASE = {
 
 def research_tools(role="executor"):
     """The executor works (files, shell, jobs, the map); the advisor only reads and judges."""
-    from .research_tools import ADVISOR_TOOLS
+    from .research_tools import ADVISOR_TOOLS, DISTILLER_TOOLS
 
+    if role == "distiller":
+        return [t for t in TOOLS if t["name"] in DISTILLER_TOOLS]
     if role == "advisor":
         return [
             t
@@ -70,7 +72,7 @@ def research_tools(role="executor"):
     return [
         t
         for t in TOOLS
-        if (t.get("research") and t["name"] != "advise")
+        if (t.get("research") and t["name"] not in {"advise", "distill"})
         or t["name"] in PI_NAMES
         or t["name"] in RESEARCH_BASE
     ]
