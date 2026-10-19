@@ -1,0 +1,19 @@
+{
+ "split": "learn",
+ "question": "A churn model on /work/data/customers.csv scores about 0.97 test accuracy. Can the team rely on that accuracy when it scores current customers at the start of a quarter?",
+ "background": "customers.csv has 2000 rows: six activity columns, cancel_reason, and the label churned. Model: StandardScaler, then LogisticRegression(max_iter=1000), on a fixed 25% stratified test split with random_state=0. Marketing wants to use it to pick customers for a retention offer.",
+ "criteria": [
+  "evidence",
+  "on_track",
+  {
+   "verdict": "refuted"
+  },
+  {
+   "numbers": [
+    0.974,
+    0.716
+   ],
+   "tolerance": 0.005
+  }
+ ]
+}
