@@ -5,9 +5,14 @@
 
 # Open Paper Reader
 
+<p align="center">
+  <a href="https://papers.dougao.online"><img alt="Use it online at papers.dougao.online" src="https://img.shields.io/badge/Use%20it%20online-papers.dougao.online-1c1917?style=for-the-badge"></a>
+</p>
+<p align="center"><b>Open <a href="https://papers.dougao.online">papers.dougao.online</a> and start reading; nothing to install.</b> To keep your papers on your own computer, run it locally (below).</p>
+
 **An open-source paper reader with an AI assistant.** Import a PDF, an arXiv link or any paper URL and get a guide; select a sentence to have it explained, translated or kept in your notes; ask the assistant anything. Every claim in the guide and the answers is cited, and a click takes you to its sentence in the paper.
 
-[简体中文](README.md) · English · [Local build](docs/LOCAL.md) · [Deployment](docs/DEPLOYMENT.md) · [All docs](docs/README.md)
+[简体中文](README.md) · English · [Use it online](https://papers.dougao.online) · [Local build](docs/LOCAL.md) · [All docs](docs/README.md)
 
 [![CI](https://github.com/Jialei-03/open-paper-reader/actions/workflows/verify.yml/badge.svg)](https://github.com/Jialei-03/open-paper-reader/actions/workflows/verify.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -43,9 +48,13 @@
 - **Your own model.** The built-in [Pi](https://github.com/earendil-works/pi) assistant works with API keys from many providers (OpenAI-compatible, Anthropic and more) or with local models (Ollama, LM Studio).
 - **Citations are checked before they are shown.** Every citation in a guide or an answer is looked up in the paper: a wrong page is corrected, and a sentence that is not there is dropped rather than pointing to the wrong place.
 - **Claude Code and Codex are not connected yet.** The plan is an MCP server with the reader's abilities (reading pages, searching the paper, reading and writing notes) so the Claude Code or Codex on your computer can read papers. It is not in this version. This project is not affiliated with Anthropic or OpenAI.
-- **The hosted version is optional.** The maintainer runs one at [papers.dougao.online](https://papers.dougao.online) for people who would rather not install anything; it also uses your own API key.
+- **Online whenever you want it.** [papers.dougao.online](https://papers.dougao.online) needs no install: sign up, add your own API key and read.
 
 ## Getting started
+
+### Online
+
+Open [papers.dougao.online](https://papers.dougao.online), sign up, add a model in Settings (your own API key) and import a paper.
 
 ### On your own computer
 
@@ -53,30 +62,13 @@
 uvx open-paper-reader        # short name: opr; or pipx install open-paper-reader
 ```
 
-It starts the service on your computer and opens your browser. Add a model the first time (an API key or a local model); once its connection test passes, import a paper. Layout translation and the LaTeX compiler are installed from Settings the first time you need them. See [Local build](docs/LOCAL.md).
+It starts the service on your computer and opens your browser, with no sign-in. Add a model the first time (an API key, or a local model such as Ollama or LM Studio); once its connection test passes, import a paper. Layout translation and the LaTeX compiler are installed from Settings the first time you need them. Papers and notes live in `~/.open-paper-reader/`. See [Local build](docs/LOCAL.md).
 
-> The 0.2.0 package is not on PyPI yet; until it is, use Docker or the source below.
-
-### With Docker
-
-Needs Docker with Compose v2.24 or newer and about 2 GB of free memory.
-
-```bash
-git clone https://github.com/Jialei-03/open-paper-reader.git
-cd open-paper-reader
-cp .env.example .env
-# Replace POSTGRES_PASSWORD with a random alphanumeric string:
-sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env    # on macOS: sed -i ''
-docker compose up -d --build
-```
-
-Open <http://localhost:8765>, create the first account, and add a model in Settings. Public deployment, invite-only registration, backups and upgrades are in [Deployment](docs/DEPLOYMENT.md).
-
-For safety, a Docker or hosted server only calls model services that are HTTPS, public and on its allow-list (see [Configuration](docs/CONFIGURATION.md)); the local build can use any HTTPS model service and local models.
+> The 0.2.0 package is not on PyPI yet; until it is, run it from source (see Development below).
 
 ### Browser extension
 
-[`extension/`](extension/README.md) holds a Chrome / Edge extension (install with "Load unpacked"): on any page or PDF link, the toolbar button or the context menu opens it in Open Paper Reader. The extension sends only the URL and never reads the page.
+[`extension/`](extension/README.md) holds a Chrome / Edge extension (install with "Load unpacked"): on any page or PDF link, the toolbar button or the context menu opens it in Open Paper Reader, online or local. The extension sends only the URL and never reads the page.
 
 ## Development
 
@@ -94,14 +86,13 @@ Layout, tests and conventions are in [Development](docs/DEVELOPMENT.md); the ove
 ## Status and limits
 
 - **Check what the model writes.** The assistant, explanations, translations and the guide are model output; citations are checked against the paper, but that does not guarantee facts or translation quality.
-- **Source recompile** needs the paper's LaTeX to compile with XeLaTeX. Common incompatibilities are handled automatically and a failed compile is handed to the assistant to fix; if it still fails, use layout translation. The local build compiles with Tectonic, which lacks a few journal templates that the hosted and Docker builds (full TeX Live) have.
+- **Source recompile** needs the paper's LaTeX to compile with XeLaTeX. Common incompatibilities are handled automatically and a failed compile is handed to the assistant to fix; if it still fails, use layout translation. The local build compiles with Tectonic, which lacks a few journal templates; the online version uses full TeX Live.
 - **Layout translation** quality varies by paper; scanned papers and formula-heavy pages have not been specifically validated.
-- Code execution for the assistant needs a separately deployed sandbox; without one those tools say they are unavailable.
 - Database migrations go one way: back up before upgrading.
 
 ## Privacy
 
-Your data stays on your own machine or server; the author receives nothing. The program reaches outside services only for: the model service you configure (with the paper content a task needs), arXiv, Semantic Scholar, OpenAlex, Crossref, and the paper URLs you import. Selection translation in the interface uses your configured model; the backend also keeps a quick-translation endpoint, used only when called through the API, which sends text to `translate.googleapis.com`. The full list is in [Architecture](docs/ARCHITECTURE.md).
+With the local build your data stays on your own computer; the author receives nothing. The program reaches outside services only for: the model service you configure (with the paper content a task needs), arXiv, Semantic Scholar, OpenAlex, Crossref, and the paper URLs you import. Selection translation in the interface uses your configured model; the backend also keeps a quick-translation endpoint, used only when called through the API, which sends text to `translate.googleapis.com`. The full list is in [Architecture](docs/ARCHITECTURE.md).
 
 ## Contributing
 
