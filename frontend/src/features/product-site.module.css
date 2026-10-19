@@ -196,6 +196,12 @@
   line-height: var(--ui-leading-loose);
 }
 
+.inlineLink {
+  color: var(--ui-fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .steps {
   display: grid;
   gap: var(--ui-space-48, 48px);
