@@ -768,3 +768,45 @@ def test_reply_without_end_sprint_is_the_handoff(lab):
     first = sprints(app, project["id"])[0]
     assert first.status == "ended"
     assert first.summary.startswith("Scaling raised accuracy")
+
+
+def test_votes_only_count_for_rules_the_project_ran_with(lab):
+    """A rule that was not active when the project started was not tried: no vote."""
+    from backend import research_playbook as pb
+
+    app, project, run_sprint = lab
+    book = pb.load(app.state.settings)
+    pb.apply_ops(
+        book,
+        [
+            {"op": "ADD", "when": "w1", "do": "active rule", "why": "x"},
+            {"op": "ADD", "when": "w2", "do": "pending rule", "why": "x"},
+        ],
+        "p0",
+        "d",
+    )
+    book["rules"][0]["status"] = "active"
+    pb.save(app.state.settings, book)
+    active_id, pending_id = book["rules"][0]["id"], book["rules"][1]["id"]
+    rw.tick(app)  # first sprint records the playbook in effect
+    finish(app, project["id"])
+    rw.tick(app)
+    run_sprint(
+        [
+            (
+                "tool",
+                "distill",
+                {
+                    "votes": [
+                        {"id": active_id, "helpful": True},
+                        {"id": pending_id, "helpful": False},
+                    ]
+                },
+            ),
+            ("text", "done"),
+        ]
+    )
+    book = pb.load(app.state.settings)
+    rules = {r["id"]: r for r in book["rules"]}
+    assert rules[active_id]["helpful"] == 1
+    assert rules[pending_id]["harmful"] == 0
