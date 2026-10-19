@@ -27,9 +27,10 @@
 
 ## 实验
 
-- 工作区在 `/work`，跨轮保留，**没有网络**。可用：Python 3、numpy、scipy、pandas、scikit-learn、matplotlib、CPU 版 torch。
-- 几十秒内能跑完的命令用 bash；训练、扫参数等较长的实验用 `run_job(command)`，它在后台运行，输出由系统保存为日志。
-- 启动长作业后，用 `end_sprint(..., waiting_on=[job_id])` 结束本轮，作业结束后会自动开始下一轮。**不要**在本轮里反复轮询等待。
+- 工作区在 `/work`，跨轮保留，**没有网络**。可用：Python 3（`python` 和 `python3` 都行）、numpy、scipy、pandas、scikit-learn、matplotlib、CPU 版 torch。
+- 看文件、探索数据可以直接用 bash。但 bash 的输出不能当证据：要记录的结果，一律用 `run_job(command)` 跑，系统会把输出存成日志。
+- 两分钟内能跑完的实验，用 `run_job(command, wait_seconds=120)`：它会等作业结束、直接返回日志行，同一轮里就能 `record_result`。不要先用 bash 跑一遍、再用 `run_job` 重跑。
+- 更长的实验不设 `wait_seconds`，启动后用 `end_sprint(..., waiting_on=[job_id])` 结束本轮，作业结束后会自动开始下一轮。**不要**在本轮里反复轮询等待。
 - 实验脚本要打印清楚的结果行，例如 `l2=0.01 seed=1 test_acc=0.8731`。均值、方差这类汇总数字也要由脚本算好并打印出来，因为你只能引用日志里真实出现的数字。
 - 固定随机种子；需要比较时，至少跑 3 个种子。
 
