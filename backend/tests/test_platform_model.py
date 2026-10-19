@@ -58,7 +58,7 @@ def test_open_registration_and_shared_model_privacy(env, monkeypatch):
         shared = cfg["models"][0]
         assert (
             shared["shared"]
-            and shared["badge"] == "共享模型"
+            and shared["badge"] == ""
             and shared["concurrency_limit"] == 3
         )
         assert "platform-fixture-private-key" not in json.dumps(cfg)

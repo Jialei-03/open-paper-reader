@@ -1,8 +1,9 @@
 import { Check, Plug } from "lucide-react";
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, SegmentedControl, TextField } from "../../ui";
 import styles from "./ModelForm.module.css";
+import { ModelNamePicker } from "./ModelNamePicker";
 import {
   LOCAL_APPS,
   LOCAL_KEY,
@@ -42,7 +43,6 @@ export function ModelForm({
 }: ModelFormProps) {
   const i18n = useI18n();
   const { t, tn } = i18n;
-  const listId = useId();
   const [kind, setKind] = useState<Kind>("key");
   const [app, setApp] = useState<LocalApp>("ollama");
   const [draft, setDraft] = useState<ModelDraft>({
@@ -220,11 +220,9 @@ export function ModelForm({
         />
       )}
       <div className={styles.stack}>
-        <TextField
+        <ModelNamePicker
           label={t("model.name")}
-          list={listId}
-          autoComplete="off"
-          spellCheck={false}
+          models={models}
           value={draft.model}
           placeholder={t("model.name.placeholder")}
           disabled={locked}
@@ -234,13 +232,8 @@ export function ModelForm({
               ? tn("model.fetched", models.length)
               : undefined
           }
-          onChange={(event) => change({ model: event.target.value })}
+          onChange={(model) => change({ model })}
         />
-        <datalist id={listId}>
-          {(models ?? []).map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
         <div>
           <Button
             size="sm"
