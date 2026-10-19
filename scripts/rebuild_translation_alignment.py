@@ -16,7 +16,13 @@ from sqlalchemy import select
 from backend.arxiv_import import extract_source
 from backend.config import Settings, database
 from backend.models import File, TranslationJob
-from backend.translation_engine import align, extract_pdf_pages, plain, protect, verbatim_anchors
+from backend.translation_engine import (
+    align,
+    extract_pdf_pages,
+    plain,
+    protect,
+    verbatim_anchors,
+)
 
 
 def recover_archives(source_archive, target_archive):
