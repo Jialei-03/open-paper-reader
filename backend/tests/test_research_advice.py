@@ -182,6 +182,32 @@ def test_auto_decide_applies_ask_human(world):
     assert actions(maker, "auto_decided")
 
 
+def test_auto_decide_asked_twice_about_a_node_waits_like_a_person_would(world):
+    """With nobody to answer, asking again about the same node means it is waiting for a
+    person: the run ends blocked instead of continuing on its own until the budget runs out."""
+    app, maker, ids = world
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        p.budget = {**p.budget, "auto_decide": True}
+        d.commit()
+    ask = {"verdicts": [verdict(ids.hyp, "ask_human", reason="need followup.csv")]}
+    advise(app, ids, ask)
+    with maker() as d:
+        assert d.get(ResearchProject, ids.project).status == "active"
+        later = ResearchSprint(
+            project_id=ids.project, number=4, run_id="r4", role="advisor"
+        )
+        d.add(later)
+        d.commit()
+        later_id = later.id
+    advise(app, ids, ask, sprint=later_id)
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        assert (p.status, p.end_reason) == ("finished", "blocked")
+    [waiting] = actions(maker, "input_needed")
+    assert "need followup.csv" in waiting.detail["summary"]
+
+
 def test_unknown_node_skipped_others_applied(world):
     app, maker, ids = world
     out = advise(
