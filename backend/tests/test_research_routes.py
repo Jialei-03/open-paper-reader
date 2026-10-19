@@ -85,3 +85,73 @@ def test_cloud_non_admin_forbidden(env):
     assert r.status_code == 403
     assert "本机版" in r.json()["detail"]
     assert a.get(BASE).status_code == 200
+
+
+def waiting_project(app, a, settings):
+    from backend import research_map as rm
+    from backend.models import ResearchProject, ResearchSprint
+    from backend.research_advice import apply
+
+    _, model = configure(app, a, settings)
+    project = create(a, model).json()
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        root = rm.root(d, p)
+        hyp = rm.add_node(
+            d, p, root.id, "hypothesis", "H", kill_if="k", actor="executor"
+        )
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r", role="advisor")
+        d.add(sprint)
+        d.flush()
+        apply(
+            d,
+            p,
+            sprint,
+            {
+                "verdicts": [
+                    {
+                        "node_id": hyp.id,
+                        "verdict": "ask_human",
+                        "reason": "is this interesting?",
+                        "proposal": "kill",
+                    }
+                ]
+            },
+        )
+        d.commit()
+        return project, hyp.id
+
+
+def test_decide_approve_applies_and_resumes(env):
+    app, a, _b, settings = env
+    project, hyp = waiting_project(app, a, settings)
+    assert a.get(f"{BASE}/{project['id']}").json()["project"]["status"] == "waiting"
+    [decision] = a.get(f"{BASE}/{project['id']}/decisions").json()
+    assert decision["detail"]["proposal"] == "kill" and decision["open"] is True
+    r = a.post(
+        f"{BASE}/{project['id']}/decisions/{decision['id']}",
+        json={"approve": True, "note": "agreed"},
+    )
+    assert r.status_code == 200, r.text
+    detail = a.get(f"{BASE}/{project['id']}").json()
+    assert detail["project"]["status"] == "active"
+    assert next(n for n in detail["nodes"] if n["id"] == hyp)["status"] == "abandoned"
+    assert a.get(f"{BASE}/{project['id']}/decisions").json()[0]["open"] is False
+    again = a.post(
+        f"{BASE}/{project['id']}/decisions/{decision['id']}",
+        json={"approve": True},
+    )
+    assert again.status_code == 409
+
+
+def test_decide_reject_keeps_node(env):
+    app, a, _b, settings = env
+    project, hyp = waiting_project(app, a, settings)
+    [decision] = a.get(f"{BASE}/{project['id']}/decisions").json()
+    a.post(
+        f"{BASE}/{project['id']}/decisions/{decision['id']}",
+        json={"approve": False, "note": "keep it, it matters"},
+    )
+    detail = a.get(f"{BASE}/{project['id']}").json()
+    assert detail["project"]["status"] == "active"
+    assert next(n for n in detail["nodes"] if n["id"] == hyp)["status"] == "open"

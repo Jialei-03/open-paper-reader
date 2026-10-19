@@ -21,7 +21,7 @@ def _node(d, project, node_id):
     return node if research_map.is_live(d, node) else None
 
 
-def _act(d, project, sprint, node, kind, item):
+def act(d, project, sprint, node, kind, item):
     """Carries out one verdict; False when it cannot be (and nothing changed)."""
     reason = "导师：" + item.get("reason", "")
     if kind == "continue":
@@ -103,7 +103,7 @@ def apply(d, project, sprint, args):
         if kind == "ask_human":
             proposal = item.get("proposal", "continue")
             if auto:
-                done = _act(d, project, sprint, node, proposal, item)
+                done = act(d, project, sprint, node, proposal, item)
                 research_map.event(
                     d,
                     project,
@@ -131,7 +131,7 @@ def apply(d, project, sprint, args):
                 )
             applied += 1
             continue
-        if not _act(d, project, sprint, node, kind, item):
+        if not act(d, project, sprint, node, kind, item):
             research_map.event(
                 d,
                 project,

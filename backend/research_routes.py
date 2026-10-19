@@ -10,6 +10,7 @@ from .models import (
     AgentRun,
     ResearchEvent,
     ResearchJob,
+    ResearchNode,
     ResearchProject,
     ResearchSprint,
     User,
@@ -24,6 +25,11 @@ class Budget(BaseModel):
     max_sprints: int | None = Field(default=None, ge=1, le=500)
     max_tokens: int | None = Field(default=None, ge=1000, le=10**9)
     max_job_seconds: int | None = Field(default=None, ge=60, le=10**7)
+
+
+class DecisionInput(BaseModel):
+    approve: bool
+    note: str = Field(default="", max_length=2000)
 
 
 class ProjectInput(BaseModel):
@@ -239,6 +245,85 @@ def install_research_routes(app, settings, db, auth, human, owned):
             return read_log(settings, job, max(0, offset), min(max(limit, 1), 500))
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
+
+    def decisions_of(d, p):
+        rows = list(
+            d.scalars(
+                select(ResearchEvent)
+                .where(
+                    ResearchEvent.project_id == p.id,
+                    ResearchEvent.action.in_(["decision_requested", "human_decision"]),
+                )
+                .order_by(ResearchEvent.created_at)
+            )
+        )
+        answered = {
+            r.detail.get("request_id") for r in rows if r.action == "human_decision"
+        }
+        return [
+            {**event_out(r), "open": r.id not in answered}
+            for r in rows
+            if r.action == "decision_requested"
+        ]
+
+    @app.get("/api/v1/research/projects/{id}/decisions")
+    def decisions(id: str, a=Depends(auth), d=Depends(db)):
+        return decisions_of(d, project_of(d, id, a))
+
+    @app.post("/api/v1/research/projects/{id}/decisions/{event_id}")
+    def decide(
+        id: str, event_id: str, body: DecisionInput, a=Depends(auth), d=Depends(db)
+    ):
+        from .research_advice import act
+
+        p = project_of(d, id, a)
+        request = d.get(ResearchEvent, event_id)
+        if (
+            request is None
+            or request.project_id != p.id
+            or request.action != "decision_requested"
+        ):
+            raise HTTPException(404, "Not found")
+        if not next(x for x in decisions_of(d, p) if x["id"] == event_id)["open"]:
+            raise HTTPException(409, "这件事已经决定过了")
+        applied = False
+        if body.approve:
+            node = d.get(ResearchNode, request.detail.get("node_id"))
+            sprint = d.get(ResearchSprint, request.sprint_id)
+            if (
+                node is not None
+                and sprint is not None
+                and research_map.is_live(d, node)
+            ):
+                applied = act(
+                    d,
+                    p,
+                    sprint,
+                    node,
+                    request.detail.get("proposal", "continue"),
+                    {**request.detail, "reason": "研究者同意：" + body.note},
+                )
+        research_map.event(
+            d,
+            p,
+            None,
+            "human",
+            "human_decision",
+            {
+                "request_id": request.id,
+                "approve": body.approve,
+                "note": body.note,
+                "applied": applied,
+            },
+            request.sprint_id,
+        )
+        if p.status == "waiting" and not any(
+            x["open"] for x in decisions_of(d, p) if x["id"] != event_id
+        ):
+            p.status = "active"
+        p.updated_at = now()
+        d.commit()
+        return project_out(p)
 
     def move(p, status, d, end_reason=None):
         p.status = status
