@@ -1,0 +1,19 @@
+{
+ "split": "heldout",
+ "question": "On /work/data/signals.csv, does growing a random forest from 100 to 500 trees raise test accuracy by at least 1 percentage point?",
+ "background": "signals.csv has 1500 rows with features s0-s11 and a binary label. Use RandomForestClassifier(n_estimators=N, random_state=0) on a fixed 25% stratified test split with random_state=0. The team's rule of thumb is that more trees always help.",
+ "criteria": [
+  "evidence",
+  "on_track",
+  {
+   "verdict": "refuted"
+  },
+  {
+   "numbers": [
+    0.893333,
+    0.888
+   ],
+   "tolerance": 0.005
+  }
+ ]
+}
