@@ -193,6 +193,19 @@ def apply(d, project, sprint, args):
         )
     concluded = False
     conclusion = args.get("conclude")
+    if conclusion and conclusion.get("status") == "blocked":
+        # Nothing can move until a person provides something: say what, then wait
+        # (an evaluation run, with nobody to provide it, ends here).
+        summary = conclusion.get("summary", "")[:1000]
+        if project.status in {"active", "waiting"}:
+            if project.budget.get("auto_decide"):
+                project.status, project.end_reason = "finished", "blocked"
+            else:
+                project.status = "waiting"
+        research_map.event(
+            d, project, None, "advisor", "input_needed", {"summary": summary}, sprint.id
+        )
+        conclusion = None
     recorded = any(
         n.evidence_for or n.evidence_against for n in research_map.nodes(d, project)
     )

@@ -157,6 +157,18 @@ def docker_state():
     return docker_status()
 
 
+def input_needed(d, p):
+    """What the advisor said the project waits for, while it waits for it."""
+    if p.status != "waiting":
+        return ""
+    last = d.scalars(
+        select(ResearchEvent)
+        .where(ResearchEvent.project_id == p.id, ResearchEvent.action == "input_needed")
+        .order_by(ResearchEvent.created_at.desc())
+    ).first()
+    return last.detail.get("summary", "") if last else ""
+
+
 def install_research_routes(app, settings, db, auth, human, owned):
     def allowed(a, d):
         """Research runs code and spends model budget: local edition, or admins."""
@@ -221,6 +233,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "sprints": [sprint_out(s) for s in sprints],
             "jobs": [job_out(j) for j in jobs],
             "docker": docker_state(),
+            "input_needed": input_needed(d, p),
         }
 
     @app.get("/api/v1/research/projects/{id}/metrics")
@@ -455,7 +468,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
         p = project_of(d, id, a)
         if p.status == "finished":
             raise HTTPException(409, "研究已结束，不能继续")
-        if p.status == "waiting":
+        if any(x["open"] for x in decisions_of(d, p)):
             raise HTTPException(409, WAITING)
         return move(p, "active", d)
 

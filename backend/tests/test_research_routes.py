@@ -253,3 +253,37 @@ def test_upload_and_list_workspace_files(env):
     assert bad.status_code == 200 and bad.json()["path"] == "data/escape.csv"
     hidden = a.post(url, files={"file": (".ora-visible", b"x", "text/plain")})
     assert hidden.status_code == 422
+
+
+def test_input_needed_project_resumes_after_input(env):
+    from backend import research_map as rm
+    from backend.models import ResearchProject, ResearchSprint
+    from backend.research_advice import apply
+
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    project = create(a, model).json()
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        root = rm.root(d, p)
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r", role="advisor")
+        d.add(sprint)
+        d.flush()
+        apply(
+            d,
+            p,
+            sprint,
+            {
+                "verdicts": [
+                    {"node_id": root.id, "verdict": "continue", "reason": "x"}
+                ],
+                "conclude": {"status": "blocked", "summary": "need second.csv"},
+            },
+        )
+        d.commit()
+    detail = a.get(f"{BASE}/{project['id']}").json()
+    assert detail["project"]["status"] == "waiting"
+    assert detail["input_needed"] == "need second.csv"
+    assert (
+        a.post(f"{BASE}/{project['id']}/resume", json={}).json()["status"] == "active"
+    )

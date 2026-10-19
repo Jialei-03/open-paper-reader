@@ -7,7 +7,7 @@ export interface ResearchProject {
   background: string;
   model_config_id: string;
   status: "active" | "waiting" | "paused" | "finished";
-  end_reason: "" | "concluded" | "refuted" | "budget" | "stopped";
+  end_reason: "" | "concluded" | "refuted" | "blocked" | "budget" | "stopped";
   budget: { max_sprints: number; max_tokens: number; max_job_seconds: number };
   spent: { sprints: number; tokens: number; job_seconds: number };
   session_id: string;
@@ -103,6 +103,8 @@ export interface ProjectDetail {
   sprints: ResearchSprint[];
   jobs: ResearchJob[];
   docker: { available: boolean; reason: string };
+  /** What the advisor said the project waits for (a file, a definition); "" otherwise. */
+  input_needed: string;
 }
 
 export interface LogLines {

@@ -165,7 +165,7 @@ RESEARCH_TOOLS = [
 RESEARCH_TOOLS.append(
     _research(
         "advise",
-        "（仅导师）对地图上的开放节点给出判断并结束本轮：continue / invest（加注）/ kill（放弃）/ pivot（转向，须给新假设和 kill_if）/ ask_human（请人拍板，可附 proposal）。可逐轮判断执行者是否跑偏（drift），并评估这条研究线值不值得发表（assessment）。北极星问题已得到回答时用 conclude。",
+        "（仅导师）对地图上的开放节点给出判断并结束本轮：continue / invest（加注）/ kill（放弃）/ pivot（转向，须给新假设和 kill_if）/ ask_human（请人拍板，可附 proposal）。可逐轮判断执行者是否跑偏（drift），并评估这条研究线值不值得发表（assessment）。北极星问题已得到回答时用 conclude（concluded / refuted）；缺少只有人能提供的东西（数据、权限、定义）而无法推进时，用 conclude 的 blocked，并在 summary 里写清需要什么。",
         {
             "verdicts": {
                 "type": "array",
@@ -223,7 +223,10 @@ RESEARCH_TOOLS.append(
             "conclude": {
                 "type": "object",
                 "properties": {
-                    "status": {"type": "string", "enum": ["concluded", "refuted"]},
+                    "status": {
+                        "type": "string",
+                        "enum": ["concluded", "refuted", "blocked"],
+                    },
                     "summary": {"type": "string", "maxLength": 2000},
                 },
                 "required": ["status"],

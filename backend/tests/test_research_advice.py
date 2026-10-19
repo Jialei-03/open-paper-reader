@@ -346,3 +346,46 @@ def test_advisor_reestimates_value(world):
     with maker() as d:
         node = d.get(ResearchNode, ids.hyp)
         assert node.value == "low" and node.cost == "high"
+
+
+def test_blocked_waits_for_input(world):
+    """Nothing can move until a person provides something: say what, and wait."""
+    app, maker, ids = world
+    out = advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {
+                "status": "blocked",
+                "summary": "/work/data/second.csv is missing",
+            },
+        },
+    )
+    assert out["concluded"] is False
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        assert p.status == "waiting"
+        request = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "input_needed")
+        ).one()
+        assert "second.csv" in request.detail["summary"]
+
+
+def test_blocked_ends_an_evaluation_run(world):
+    app, maker, ids = world
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        p.budget = {**p.budget, "auto_decide": True}
+        d.commit()
+    advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {"status": "blocked", "summary": "missing"},
+        },
+    )
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        assert p.status == "finished" and p.end_reason == "blocked"

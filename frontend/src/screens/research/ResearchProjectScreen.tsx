@@ -238,6 +238,15 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
               {t("research.noDocker", { reason: docker.reason })}
             </p>
           )}
+          {detail.input_needed && (
+            <div className={styles.decision} role="status">
+              <p>
+                <strong>{t("research.inputNeeded")}</strong>
+              </p>
+              <p>{detail.input_needed}</p>
+              <p className={styles.hint}>{t("research.inputNeeded.hint")}</p>
+            </div>
+          )}
           {metrics && <MetricsStrip metrics={metrics} />}
           <DataFiles projectId={id} />
           <Decisions
