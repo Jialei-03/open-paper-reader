@@ -32,6 +32,7 @@ class Budget(BaseModel):
     auto_decide: bool | None = None
     playbook: bool | None = None
     distill: bool | None = None
+    advisor: bool | None = None
 
 
 class DecisionInput(BaseModel):

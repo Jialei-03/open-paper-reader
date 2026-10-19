@@ -821,3 +821,15 @@ def test_brief_lists_workspace_data_files(lab):
     with app.state.maker() as d:
         prompt = d.get(AgentRun, sprints(app, project["id"])[-1].run_id).prompt
     assert "/work/data/measurements.csv" in prompt
+
+
+def test_advisor_off_for_ablation(lab):
+    app, project, _ = lab
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, project["id"])
+        p.budget = {**p.budget, "advisor": False}
+        d.commit()
+    for n in (1, 2, 3):
+        past_sprint(app, project["id"], n, events=PROGRESS)
+    rw.tick(app)
+    assert planned(app, project["id"])[0].role == "executor"

@@ -208,6 +208,9 @@ def next_role(d, project, history):
     half and four fifths, and when two sprints in a row moved nothing on the
     map. Never two advisor sprints in a row.
     """
+    if project.budget.get("advisor") is False:
+        # An ablation run: the executor works alone.
+        return "executor"
     if not history or history[-1].role == "advisor":
         return "executor"
     since = []

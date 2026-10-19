@@ -109,6 +109,7 @@ def run_one(client, args, name, task, condition, seed):
         "auto_decide": True,
         "playbook": condition != "no-playbook",
         "distill": task["split"] == "learn",
+        "advisor": condition != "no-advisor",
     }
     project = client.post(
         "/api/v1/research/projects",
@@ -153,7 +154,7 @@ def run_one(client, args, name, task, condition, seed):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tasks", nargs="+", required=True)
-    parser.add_argument("--condition", default="playbook", choices=["playbook", "no-playbook"])
+    parser.add_argument("--condition", default="playbook", choices=["playbook", "no-playbook", "no-advisor"])
     parser.add_argument("--seeds", type=int, default=1)
     parser.add_argument("--max-sprints", type=int, default=8)
     parser.add_argument("--timeout", type=int, default=3600)
