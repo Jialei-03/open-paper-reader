@@ -60,6 +60,11 @@ export interface AgentRun {
     execution_seconds?: number;
     waiting_seconds?: number;
     reader_context?: RunContext;
+    /** "/compact": this run summarized the conversation instead of answering. */
+    command?: "compact";
+    compaction?: { reason?: string; error?: string };
+    /** How full the conversation's context was after this run (Pi's count). */
+    context?: { tokens?: number | null; contextWindow?: number };
   };
 }
 

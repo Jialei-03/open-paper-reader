@@ -383,3 +383,11 @@
     opacity: 1;
   }
 }
+
+/* How full the paper's conversation is ("上下文 32k / 128k"). */
+.used {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

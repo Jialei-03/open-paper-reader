@@ -35,6 +35,13 @@ import { conversation, isActive, shorten } from "./runs";
 import type { Assistant } from "./useAssistant";
 import type { ComposerDraft, Place } from "./useComposerDock";
 import { ComposerPickers } from "./ComposerPickers";
+import {
+  contextStatus,
+  copyCommand,
+  modelCommands,
+} from "../../lib/composer-commands";
+import type { SlashCommand } from "../../lib/slash";
+import { useSlashCommands } from "../../ui";
 import styles from "./Composer.module.css";
 
 /** How much of a selected sentence the context label shows. */
@@ -256,7 +263,42 @@ export function Composer({
   const recover = assistant.recover;
   const again = recover && (() => (unsent ? void submit() : recover()));
 
+  // What "/" offers: compacting the paper's conversation, its model, the last answer.
+  const commands: SlashCommand[] = [
+    {
+      name: "compact",
+      description: t("commands.compact"),
+      takesArgument: true,
+      run: (words) =>
+        void assistant.send({
+          prompt: `/compact ${words}`.trim(),
+          command: "compact",
+        }),
+    },
+    copyCommand(
+      t,
+      () =>
+        conversation(assistant.runs)
+          .filter((run) => run.runtime?.command !== "compact")
+          .at(-1)?.response ?? "",
+    ),
+    ...modelCommands(t, assistant.models, assistant.modelId, (id) =>
+      assistant.chooseModel(id),
+    ),
+  ];
+  const slash = useSlashCommands({
+    value: draft,
+    onChange: setDraft,
+    commands: unavailable ? undefined : commands,
+  });
+  const used = contextStatus(
+    t,
+    [...assistant.runs].reverse().find((run) => run.runtime?.context)?.runtime
+      ?.context,
+  );
+
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slash.onKeyDown(event)) return;
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
@@ -264,6 +306,7 @@ export function Composer({
     )
       return;
     event.preventDefault();
+    if (slash.submit()) return;
     void submit();
   };
 
@@ -370,6 +413,7 @@ export function Composer({
           ))}
         </ul>
       )}
+      {slash.menu}
       <TextArea
         ref={field}
         label={t("reader.assistant.input")}
@@ -412,6 +456,7 @@ export function Composer({
           onClick={() => picker.current?.click()}
         />
         <ComposerPickers assistant={assistant} />
+        {used && <span className={styles.used}>{used}</span>}
         {/* A boxed region is shown as its picture above. */}
         {pending && pending.source !== "region" && (
           <span className={styles.chip}>

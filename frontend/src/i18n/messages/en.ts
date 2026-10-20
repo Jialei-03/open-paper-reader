@@ -1179,6 +1179,21 @@ export const en = {
     "Dataset {name} downloaded and verified ({size}, from {source}).",
   "research.notice.failed": "Downloading the dataset {name} failed: {reason}",
   "research.notice.paused": "The research paused: {reason}",
+  "commands.model": "Go on with this model",
+  "commands.model.current": "The model in use",
+  "commands.copy": "Copy the last answer",
+  "commands.compact":
+    "Compact the context: summarize the conversation so far; add what to keep after it",
+  "commands.compacting": "Compacting the context…",
+  "commands.compacted":
+    "Context compacted: the earlier conversation is now a summary.",
+  "commands.compactFailed": "Compacting did not work: {error}",
+  "commands.new": "Start a new conversation",
+  "commands.name": "Rename this conversation; write the new name after it",
+  "commands.named": "Conversation renamed to “{title}”",
+  "commands.report": "Download the research report",
+  "commands.context": "Context {used} / {window}",
+  "research.notice.model": "The next rounds run on {name}.",
   "research.thread.paused":
     "Research is paused; resume it from the menu at the top right.",
   "research.plan.title": "Research plan",

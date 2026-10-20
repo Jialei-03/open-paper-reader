@@ -1,20 +1,29 @@
 import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { SlashCommand } from "../../../lib/slash";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { followLink } from "../../../reader/route";
 import { IconButton, Spinner, toast } from "../../../ui";
 import { RunTurn } from "../process/Process";
 import { isLive } from "../process/model";
+import { readModels, type ModelRow } from "../../setup/model-api";
 import {
   askChat,
   chatTurns,
   listChats,
+  renameChat,
   startChat,
   type ChatTurn,
   type ProjectChat,
   type Workspace,
 } from "../research-api";
+import {
+  contextStatus,
+  copyCommand,
+  modelCommands,
+} from "../../../lib/composer-commands";
 import { Composer } from "../talk/Composer";
+import { ModelPicker } from "../talk/Pickers";
 import talk from "../talk/Talk.module.css";
 import styles from "./Projects.module.css";
 
@@ -121,6 +130,16 @@ export function ProjectChat({
   const [reads, setReads] = useState(0);
   const scroller = useRef<HTMLDivElement>(null);
   const live = !!turns?.some(isLive);
+  const [models, setModels] = useState<ModelRow[]>([]);
+  // Chosen here for the next messages; until then, the one the conversation is on.
+  const [chosen, setChosen] = useState("");
+  const modelId = chosen || turns?.at(-1)?.model_config_id || "";
+  useEffect(() => {
+    readModels().then(
+      (s) => setModels(s.models),
+      () => setModels([]),
+    );
+  }, []);
 
   const read = useCallback(
     () => chatTurns(chatId).then(setTurns, fail),
@@ -141,6 +160,56 @@ export function ProjectChat({
   }, [turns?.length, turns?.at(-1)?.response]);
 
   const back = `projects/${workspace.id}/chats`;
+  const ask = async (message: string, command?: "compact") => {
+    setSending(true);
+    try {
+      await askChat(chatId, message, {
+        ...(modelId ? { model_config_id: modelId } : {}),
+        ...(command ? { command } : {}),
+      });
+      setText("");
+      setReads((n) => n + 1);
+    } catch (error) {
+      fail(error);
+    } finally {
+      setSending(false);
+    }
+  };
+  const answered = [...(turns ?? [])]
+    .reverse()
+    .find((turn) => turn.runtime.command !== "compact" && turn.response);
+  const commands: SlashCommand[] = [
+    {
+      name: "compact",
+      description: t("commands.compact"),
+      takesArgument: true,
+      run: (words) => ask(`/compact ${words}`.trim(), "compact"),
+    },
+    {
+      name: "new",
+      description: t("commands.new"),
+      run: () => go(back),
+    },
+    {
+      name: "name",
+      description: t("commands.name"),
+      takesArgument: true,
+      run: async (words) => {
+        if (!words) return;
+        try {
+          await renameChat(chatId, words);
+          toast.show({ message: t("commands.named", { title: words }) });
+        } catch (error) {
+          fail(error);
+        }
+      },
+    },
+    copyCommand(t, () => answered?.response ?? ""),
+    ...modelCommands(t, models, modelId, (id) => setChosen(id)),
+  ];
+  const lastContext = [...(turns ?? [])]
+    .reverse()
+    .find((turn) => turn.runtime.context)?.runtime.context;
   return (
     <div className={styles.chat}>
       <div className={styles.chatBar}>
@@ -155,17 +224,29 @@ export function ProjectChat({
       <div className={talk.scroll} ref={scroller}>
         <div className={talk.thread}>
           {turns === null && <Spinner />}
-          {turns?.map((turn) => (
-            <div key={turn.id} className={styles.chatTurn}>
-              <div className={talk.mine}>{turn.prompt}</div>
-              <RunTurn
-                run={{ ...turn, role: "chat" }}
-                role="chat"
-                title={t("projects.chats.assistant")}
-                final={turn.response}
-              />
-            </div>
-          ))}
+          {turns?.map((turn) =>
+            turn.runtime.command === "compact" ? (
+              <p key={turn.id} className={talk.systemLine}>
+                {isLive(turn)
+                  ? t("commands.compacting")
+                  : turn.status !== "completed"
+                    ? t("commands.compactFailed", { error: turn.error })
+                    : turn.runtime.compaction?.error
+                      ? turn.runtime.compaction.error
+                      : t("commands.compacted")}
+              </p>
+            ) : (
+              <div key={turn.id} className={styles.chatTurn}>
+                <div className={talk.mine}>{turn.prompt}</div>
+                <RunTurn
+                  run={{ ...turn, role: "chat" }}
+                  role="chat"
+                  title={t("projects.chats.assistant")}
+                  final={turn.response}
+                />
+              </div>
+            ),
+          )}
         </div>
       </div>
       <div className={talk.dock}>
@@ -179,18 +260,19 @@ export function ProjectChat({
             live ? "projects.chats.answering" : "projects.chats.more",
           )}
           sendLabel={t("research.home.send")}
-          onSend={async () => {
-            setSending(true);
-            try {
-              await askChat(chatId, text.trim());
-              setText("");
-              setReads((n) => n + 1);
-            } catch (error) {
-              fail(error);
-            } finally {
-              setSending(false);
-            }
-          }}
+          commands={commands}
+          status={contextStatus(t, lastContext)}
+          tools={
+            models.length > 0 && (
+              <ModelPicker
+                models={models}
+                value={modelId}
+                onChange={setChosen}
+                label={t("commands.model")}
+              />
+            )
+          }
+          onSend={() => ask(text.trim())}
         />
       </div>
     </div>

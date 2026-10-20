@@ -235,6 +235,8 @@ export const restateQuestion = (id: string, question: string, note: string) =>
   }) as Promise<ResearchProject>;
 
 /** Where the next experiments run; a running job stays where it is. */
+export const moveModel = (id: string, model_config_id: string) =>
+  send(`${BASE}/${id}/model`, { model_config_id });
 export const moveCompute = (id: string, compute_id: string) =>
   send(`${BASE}/${id}/compute`, { compute_id }) as Promise<ResearchProject>;
 
@@ -543,6 +545,8 @@ export interface ProjectChat {
   id: string;
   title: string;
   workspace_id: string;
+  /** The model the conversation goes on with; null: the project's default. */
+  model_config_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -555,7 +559,17 @@ export interface ChatTurn {
   response: string;
   error: string;
   steps: RunStep[];
-  runtime: { phase?: string; execution_seconds?: number };
+  runtime: {
+    phase?: string;
+    execution_seconds?: number;
+    /** "/compact": this turn summarized the conversation instead of answering. */
+    command?: "compact";
+    instructions?: string;
+    compaction?: { reason?: string; error?: string; tokens_before?: number };
+    /** How full the conversation's context was after this turn (Pi's count). */
+    context?: { tokens?: number | null; contextWindow?: number };
+  };
+  model_config_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -564,9 +578,16 @@ export const listChats = (workspaceId: string) =>
   api<ProjectChat[]>(`${WS}/${workspaceId}/chats`);
 export const startChat = (workspaceId: string, message: string) =>
   send(`${WS}/${workspaceId}/chats`, { message }) as Promise<ProjectChat>;
-export const askChat = (chatId: string, message: string) =>
+export const askChat = (
+  chatId: string,
+  message: string,
+  extra: { model_config_id?: string; command?: "compact" } = {},
+) =>
   send(`/research/chats/${chatId}/messages`, {
     message,
+    ...extra,
   }) as Promise<ProjectChat>;
+export const renameChat = (chatId: string, title: string) =>
+  send(`/agent/sessions/${chatId}`, { title }, "PATCH");
 export const chatTurns = (chatId: string) =>
   api<ChatTurn[]>(`/agent/sessions/${chatId}/runs`);

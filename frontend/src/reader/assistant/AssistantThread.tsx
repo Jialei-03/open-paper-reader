@@ -232,6 +232,17 @@ const Turn = memo(function Turn({
     () => (fileId && paperId ? { paperId, fileId, onCite } : null),
     [paperId, fileId, onCite],
   );
+  // "/compact": a line saying the conversation was summarized, not a question and answer.
+  if (run.runtime?.command === "compact")
+    return (
+      <p className={styles.notice} role="status">
+        {isActive(run)
+          ? t("commands.compacting")
+          : run.status !== "completed"
+            ? t("commands.compactFailed", { error: run.error })
+            : run.runtime.compaction?.error || t("commands.compacted")}
+      </p>
+    );
   return (
     <div className={styles.turn} aria-busy={active || undefined}>
       <div className={styles.ask}>

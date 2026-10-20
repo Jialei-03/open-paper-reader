@@ -65,6 +65,7 @@ const NOTICES = new Set([
   "dataset_fetching",
   "dataset_ready",
   "dataset_failed",
+  "model_changed",
 ]);
 
 export function buildThread(

@@ -1,0 +1,42 @@
+/* The slash-command palette: a list over the composer's field. */
+.menu {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: var(--ui-space-4);
+  border-radius: var(--ui-r-16);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+}
+
+.item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ui-space-12);
+  padding: var(--ui-space-6) var(--ui-space-10);
+  border-radius: var(--ui-r-10);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.item[aria-selected="true"] {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+}
+
+.name {
+  flex-shrink: 0;
+  font-family: var(--ui-font-mono);
+}
+
+.description {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

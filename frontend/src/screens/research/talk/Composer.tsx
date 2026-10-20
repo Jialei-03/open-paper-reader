@@ -1,10 +1,13 @@
 import { ArrowUp } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import type { SlashCommand } from "../../../lib/slash";
+import { useSlashCommands } from "../../../ui";
 import styles from "./Talk.module.css";
 
 /**
  * The one place the researcher writes: grows with the text, Enter sends,
  * Shift+Enter breaks the line, and typing an IME candidate never sends.
+ * A "/" opens its slash commands, when it has any.
  */
 export function Composer({
   value,
@@ -18,6 +21,8 @@ export function Composer({
   autoFocus = false,
   tools,
   focusKey = 0,
+  commands,
+  status,
 }: {
   value: string;
   onChange(value: string): void;
@@ -32,6 +37,10 @@ export function Composer({
   tools?: ReactNode;
   /** Changing it puts the cursor at the end of the text (after a starter was picked). */
   focusKey?: number;
+  /** What "/" offers here; a message that is one of them runs it instead of being sent. */
+  commands?: SlashCommand[];
+  /** A quiet note in the foot (how full the conversation's context is). */
+  status?: ReactNode;
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -46,15 +55,21 @@ export function Composer({
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
   }, [value]);
+  const slash = useSlashCommands({ value, onChange, commands });
   const ready = value.trim().length > 0 && !busy && !disabled;
+  const send = () => {
+    if (slash.submit()) return;
+    if (ready) onSend();
+  };
   return (
     <form
       className={styles.composer}
       onSubmit={(event) => {
         event.preventDefault();
-        if (ready) onSend();
+        send();
       }}
     >
+      {slash.menu}
       <textarea
         ref={field}
         className={styles.field}
@@ -66,18 +81,20 @@ export function Composer({
         autoFocus={autoFocus}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
+          if (slash.onKeyDown(event)) return;
           if (
             event.key === "Enter" &&
             !event.shiftKey &&
             !event.nativeEvent.isComposing
           ) {
             event.preventDefault();
-            if (ready) onSend();
+            send();
           }
         }}
       />
       <div className={styles.composerFoot}>
         {tools}
+        {status && <span className={styles.composerStatus}>{status}</span>}
         <button
           type="submit"
           className={styles.send}

@@ -18,6 +18,14 @@
   transition: box-shadow var(--ui-dur-2) var(--ui-ease-out);
 }
 
+/* How full the conversation's context is; to the right of the pickers. */
+.composerStatus {
+  margin-left: auto;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
+}
+
 .composer:focus-within {
   box-shadow: var(--ui-elev-2);
 }

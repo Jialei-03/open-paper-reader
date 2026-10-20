@@ -67,3 +67,4 @@ export {
   type TextFieldProps,
 } from "./Field";
 export * from "./shortcut";
+export { useSlashCommands } from "./SlashMenu";

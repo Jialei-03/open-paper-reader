@@ -38,6 +38,8 @@ export interface Assistant {
     request?: AskRequest;
     /** Pictures uploaded to go with the question (attachment ids). */
     attachments?: string[];
+    /** "/compact": summarize the conversation so far instead of asking. */
+    command?: "compact";
   }): Promise<boolean>;
   cancel(runId: string): void;
   /** Asks the same question again, with the same context. */
@@ -285,6 +287,7 @@ export function useAssistant({
       prompt: string,
       context?: Record<string, unknown>,
       attachments: string[] = [],
+      command?: "compact",
     ) => {
       const {
         paperId: forPaper,
@@ -295,7 +298,8 @@ export function useAssistant({
       const question = prompt.trim();
       if (!forPaper || !question) return false;
       // Asked again by hand, the same question about the same words.
-      const again = () => void createNow.current(prompt, context, attachments);
+      const again = () =>
+        void createNow.current(prompt, context, attachments, command);
       if (!modelId || !session) {
         setFailure({
           paperId: forPaper,
@@ -317,6 +321,7 @@ export function useAssistant({
             ...(options ? { model_options: options } : {}),
             ...(context ? { reader_context: context } : {}),
             ...(attachments.length ? { attachment_ids: attachments } : {}),
+            ...(command ? { command } : {}),
             writable: false,
             context: `paper/${forPaper}`,
           },
@@ -352,12 +357,19 @@ export function useAssistant({
       prompt,
       request,
       attachments,
+      command,
     }: {
       prompt: string;
       request?: AskRequest;
       attachments?: string[];
+      command?: "compact";
     }) =>
-      create(prompt, request ? readerContext(request) : undefined, attachments),
+      create(
+        prompt,
+        request ? readerContext(request) : undefined,
+        attachments,
+        command,
+      ),
     [create],
   );
 

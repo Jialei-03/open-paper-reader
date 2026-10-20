@@ -37,7 +37,9 @@ import {
   listRuns,
   restateQuestion,
   moveCompute,
+  moveModel,
   pauseProject,
+  reportUrl,
   readResearchSettings,
   resumeProject,
   sendMessage,
@@ -52,7 +54,11 @@ import type { ResearchRun } from "./process/model";
 import { LiveCard } from "./process/Process";
 import { JumpToLatest } from "../../reader/JumpToLatest";
 import { OPEN_FILES_EVENT } from "./files/files-api";
+import type { SlashCommand } from "../../lib/slash";
+import { readModels, type ModelRow } from "../setup/model-api";
+import { copyCommand, modelCommands } from "../../lib/composer-commands";
 import { Composer } from "./talk/Composer";
+import { ModelPicker } from "./talk/Pickers";
 import { RecordPanel, type RecordTab } from "./talk/RecordPanel";
 import { buildThread, working } from "./talk/thread";
 import { ThreadView, type ThreadActions } from "./talk/ThreadView";
@@ -80,7 +86,14 @@ export function ResearchProject({
   id: string;
   go(hash: string): void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [models, setModels] = useState<ModelRow[]>([]);
+  useEffect(() => {
+    readModels().then(
+      (s) => setModels(s.models),
+      () => setModels([]),
+    );
+  }, []);
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [events, setEvents] = useState<ResearchEvent[]>([]);
   const [computes, setComputes] = useState<Compute[]>([]);
@@ -264,6 +277,14 @@ export function ResearchProject({
     },
     [id],
   );
+  const chooseModel = async (modelId: string) => {
+    try {
+      await moveModel(id, modelId);
+      refresh();
+    } catch (error) {
+      fail(error);
+    }
+  };
 
   if (!detail)
     return (
@@ -290,6 +311,47 @@ export function ResearchProject({
   const fetchNote =
     detail.datasets.find((d) => d.status === "pending" && d.note)?.note ?? "";
   const finished = p.status === "finished" && p.stage === "done";
+  // What "/" offers on a research: how it runs, its report, its model.
+  const commands: SlashCommand[] = [
+    ...(p.status === "paused"
+      ? [
+          {
+            name: "resume",
+            description: t("research.resume"),
+            run: () => move(resumeProject),
+          },
+        ]
+      : p.status === "active"
+        ? [
+            {
+              name: "pause",
+              description: t("research.pause"),
+              run: () => move(pauseProject),
+            },
+          ]
+        : []),
+    ...(p.status !== "finished"
+      ? [
+          {
+            name: "stop",
+            description: t("research.stop"),
+            run: () => move(stopProject),
+          },
+        ]
+      : []),
+    {
+      name: "report",
+      description: t("commands.report"),
+      run: () => void window.open(reportUrl(id, locale === "zh" ? "zh" : "en")),
+    },
+    copyCommand(t, () => {
+      const said = [...events]
+        .reverse()
+        .find((e) => e.actor === "advisor" && e.action === "message");
+      return typeof said?.detail.text === "string" ? said.detail.text : "";
+    }),
+    ...modelCommands(t, models, p.model_config_id, chooseModel),
+  ];
   const stageIndex = STEPS.indexOf(
     p.stage === "done" ? "retrospective" : p.stage,
   );
@@ -481,6 +543,18 @@ export function ResearchProject({
                 finished ? "research.composer.finished" : placeholder,
               )}
               sendLabel={t("research.home.send")}
+              commands={commands}
+              tools={
+                models.length > 0 &&
+                !finished && (
+                  <ModelPicker
+                    models={models}
+                    value={p.model_config_id}
+                    onChange={(modelId) => void chooseModel(modelId)}
+                    label={t("commands.model")}
+                  />
+                )
+              }
             />
             {p.workspace_id && !finished && (
               <p className={styles.dockNote}>

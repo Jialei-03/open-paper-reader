@@ -159,12 +159,14 @@ function Notice({ item }: { item: Extract<ThreadItem, { kind: "notice" }> }) {
             size: mb >= 1 ? `${mb.toFixed(0)} MB` : "",
             source: text("source"),
           })
-        : item.action === "dataset_failed"
-          ? t("research.notice.failed", {
-              name: text("name"),
-              reason: text("reason"),
-            })
-          : t("research.notice.paused", { reason: text("reason") });
+        : item.action === "model_changed"
+          ? t("research.notice.model", { name: text("name") })
+          : item.action === "dataset_failed"
+            ? t("research.notice.failed", {
+                name: text("name"),
+                reason: text("reason"),
+              })
+            : t("research.notice.paused", { reason: text("reason") });
   return (
     <p className={styles.notice} data-failed={item.failed || undefined}>
       {line}

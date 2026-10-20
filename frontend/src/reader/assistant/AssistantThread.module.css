@@ -404,3 +404,11 @@
 .picture[data-region] {
   background: #fff;
 }
+
+/* A conversation compacted: one quiet line in the thread. */
+.notice {
+  margin: 0;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-13);
+  text-align: center;
+}
