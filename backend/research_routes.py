@@ -421,6 +421,23 @@ def install_research_routes(app, settings, db, auth, human, owned):
         d.commit()
         return chat_out(session)
 
+    @app.post("/api/v1/research/chats/{id}/clone")
+    def clone_chat(id: str, a=Depends(auth), d=Depends(db)):
+        """"/clone": the conversation copied, to go on with apart from the original."""
+        from . import research_chat
+
+        session = chat_of(d, id, a)
+        if d.scalar(
+            select(AgentRun.id).where(
+                AgentRun.session_id == session.id,
+                AgentRun.status.in_(["queued", "running"]),
+            )
+        ):
+            raise HTTPException(409, "等这一轮回答完再复制")
+        copy = research_chat.clone(d, session)
+        d.commit()
+        return chat_out(copy)
+
     @app.get("/api/v1/research/workspaces/{id}/board")
     def workspace_board(id: str, a=Depends(auth), d=Depends(db)):
         from . import research_workspaces

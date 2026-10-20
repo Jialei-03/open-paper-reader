@@ -1102,6 +1102,12 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.notice.paused": "研究暂停了：{reason}",
   "commands.model": "之后用这个模型",
   "commands.model.current": "正在用的模型",
+  "commands.files": "打开研究工作区的文件",
+  "commands.question": "改研究问题，后面写新的问题",
+  "commands.session": "看这个对话的情况",
+  "commands.sessionInfo": "这个对话 {turns} 轮，用的模型 {model}，{context}",
+  "commands.clone": "复制这个对话，从这里分开继续",
+  "commands.cloned": "已复制成一个新对话",
   "commands.copy": "复制上一条回答",
   "commands.compact":
     "压缩上下文：把前面的对话总结成摘要，后面可以写要保留什么",

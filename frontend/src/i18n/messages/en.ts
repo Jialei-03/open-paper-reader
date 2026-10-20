@@ -1181,6 +1181,13 @@ export const en = {
   "research.notice.paused": "The research paused: {reason}",
   "commands.model": "Go on with this model",
   "commands.model.current": "The model in use",
+  "commands.files": "Open the research workspace's files",
+  "commands.question":
+    "Restate the research question; write the new one after it",
+  "commands.session": "About this conversation",
+  "commands.sessionInfo": "{turns} turns, on {model}, {context}",
+  "commands.clone": "Copy this conversation to go on with apart",
+  "commands.cloned": "Copied into a new conversation",
   "commands.copy": "Copy the last answer",
   "commands.compact":
     "Compact the context: summarize the conversation so far; add what to keep after it",

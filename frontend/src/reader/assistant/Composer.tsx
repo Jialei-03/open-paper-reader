@@ -41,7 +41,7 @@ import {
   modelCommands,
 } from "../../lib/composer-commands";
 import type { SlashCommand } from "../../lib/slash";
-import { useSlashCommands } from "../../ui";
+import { toast, useSlashCommands } from "../../ui";
 import styles from "./Composer.module.css";
 
 /** How much of a selected sentence the context label shows. */
@@ -263,6 +263,11 @@ export function Composer({
   const recover = assistant.recover;
   const again = recover && (() => (unsent ? void submit() : recover()));
 
+  const used = contextStatus(
+    t,
+    [...assistant.runs].reverse().find((run) => run.runtime?.context)?.runtime
+      ?.context,
+  );
   // What "/" offers: compacting the paper's conversation, its model, the last answer.
   const commands: SlashCommand[] = [
     {
@@ -273,6 +278,23 @@ export function Composer({
         void assistant.send({
           prompt: `/compact ${words}`.trim(),
           command: "compact",
+        }),
+    },
+    {
+      name: "session",
+      description: t("commands.session"),
+      run: () =>
+        void toast.show({
+          message: t("commands.sessionInfo", {
+            turns: conversation(assistant.runs).filter(
+              (run) => run.runtime?.command !== "compact",
+            ).length,
+            model:
+              assistant.models.find((m) => m.id === assistant.modelId)?.name ||
+              assistant.models.find((m) => m.id === assistant.modelId)?.model ||
+              "—",
+            context: used || "—",
+          }),
         }),
     },
     copyCommand(
@@ -291,11 +313,6 @@ export function Composer({
     onChange: setDraft,
     commands: unavailable ? undefined : commands,
   });
-  const used = contextStatus(
-    t,
-    [...assistant.runs].reverse().find((run) => run.runtime?.context)?.runtime
-      ?.context,
-  );
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slash.onKeyDown(event)) return;

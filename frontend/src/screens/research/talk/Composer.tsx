@@ -2,6 +2,7 @@ import { ArrowUp } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import type { SlashCommand } from "../../../lib/slash";
 import { useSlashCommands } from "../../../ui";
+import { INSERT_EVENT, type InsertDetail } from "../files/files-api";
 import styles from "./Talk.module.css";
 
 /**
@@ -23,6 +24,7 @@ export function Composer({
   focusKey = 0,
   commands,
   status,
+  acceptInserts = false,
 }: {
   value: string;
   onChange(value: string): void;
@@ -41,6 +43,8 @@ export function Composer({
   commands?: SlashCommand[];
   /** A quiet note in the foot (how full the conversation's context is). */
   status?: ReactNode;
+  /** Takes the "@path" the research's files panel sends ("insert into the composer"). */
+  acceptInserts?: boolean;
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -56,6 +60,19 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
   }, [value]);
   const slash = useSlashCommands({ value, onChange, commands });
+  const latest = useRef({ value, onChange });
+  latest.current = { value, onChange };
+  useEffect(() => {
+    if (!acceptInserts) return;
+    const take = (event: Event) => {
+      const { text } = (event as CustomEvent<InsertDetail>).detail;
+      const { value: now, onChange: set } = latest.current;
+      set(now && !/\s$/.test(now) ? `${now} ${text}` : now + text);
+      field.current?.focus();
+    };
+    window.addEventListener(INSERT_EVENT, take);
+    return () => window.removeEventListener(INSERT_EVENT, take);
+  }, [acceptInserts]);
   const ready = value.trim().length > 0 && !busy && !disabled;
   const send = () => {
     if (slash.submit()) return;

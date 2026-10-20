@@ -587,6 +587,8 @@ export const askChat = (
     message,
     ...extra,
   }) as Promise<ProjectChat>;
+export const cloneChat = (chatId: string) =>
+  send(`/research/chats/${chatId}/clone`, {}) as Promise<ProjectChat>;
 export const renameChat = (chatId: string, title: string) =>
   send(`/agent/sessions/${chatId}`, { title }, "PATCH");
 export const chatTurns = (chatId: string) =>

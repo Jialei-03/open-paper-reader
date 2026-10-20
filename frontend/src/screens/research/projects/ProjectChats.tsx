@@ -10,6 +10,7 @@ import { readModels, type ModelRow } from "../../setup/model-api";
 import {
   askChat,
   chatTurns,
+  cloneChat,
   listChats,
   renameChat,
   startChat,
@@ -175,6 +176,9 @@ export function ProjectChat({
       setSending(false);
     }
   };
+  const lastContext = [...(turns ?? [])]
+    .reverse()
+    .find((turn) => turn.runtime.context)?.runtime.context;
   const answered = [...(turns ?? [])]
     .reverse()
     .find((turn) => turn.runtime.command !== "compact" && turn.response);
@@ -204,12 +208,38 @@ export function ProjectChat({
         }
       },
     },
+    {
+      name: "session",
+      description: t("commands.session"),
+      run: () =>
+        void toast.show({
+          message: t("commands.sessionInfo", {
+            turns: (turns ?? []).filter((x) => x.runtime.command !== "compact")
+              .length,
+            model:
+              models.find((m) => m.id === modelId)?.name ||
+              models.find((m) => m.id === modelId)?.model ||
+              "—",
+            context: contextStatus(t, lastContext) || "—",
+          }),
+        }),
+    },
+    {
+      name: "clone",
+      description: t("commands.clone"),
+      run: async () => {
+        try {
+          const copy = await cloneChat(chatId);
+          go(`projects/${workspace.id}/chats/${copy.id}`);
+          toast.show({ message: t("commands.cloned") });
+        } catch (error) {
+          fail(error);
+        }
+      },
+    },
     copyCommand(t, () => answered?.response ?? ""),
     ...modelCommands(t, models, modelId, (id) => setChosen(id)),
   ];
-  const lastContext = [...(turns ?? [])]
-    .reverse()
-    .find((turn) => turn.runtime.context)?.runtime.context;
   return (
     <div className={styles.chat}>
       <div className={styles.chatBar}>

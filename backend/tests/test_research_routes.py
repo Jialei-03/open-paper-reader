@@ -772,3 +772,32 @@ def test_a_project_chat_goes_on_with_its_model_and_can_be_compacted(env):
         assert last.runtime["instructions"] == "只留结论"
         # No model named: the one the conversation was on.
         assert last.model_config_id == model
+
+
+def test_a_project_chat_is_cloned_with_what_it_remembers(env):
+    from backend.models import AgentSessionEntry
+
+    app, a, _b, settings = env
+    _owner, model = configure(app, a, settings)
+    project = create(a, model).json()
+    chat = a.post(
+        f"/api/v1/research/workspaces/{project['workspace_id']}/chats",
+        json={"message": "进展如何", "model_config_id": model},
+    ).json()
+    # Still answering: nothing to copy yet.
+    assert a.post(f"/api/v1/research/chats/{chat['id']}/clone").status_code == 409
+    with app.state.maker() as d:
+        for run in d.scalars(select(AgentRun).where(AgentRun.session_id == chat["id"])):
+            run.status, run.response = "completed", "还在跑基线"
+        d.add(AgentSessionEntry(session_id=chat["id"], seq=1, entry={"type": "message"}))
+        d.commit()
+    copy = a.post(f"/api/v1/research/chats/{chat['id']}/clone").json()
+    assert copy["id"] != chat["id"] and copy["title"].endswith("（副本）")
+    assert copy["model_config_id"] == model
+    turns = a.get(f"/api/v1/agent/sessions/{copy['id']}/runs").json()
+    assert [t["response"] for t in turns] == ["还在跑基线"]
+    with app.state.maker() as d:
+        kept = d.scalars(
+            select(AgentSessionEntry).where(AgentSessionEntry.session_id == copy["id"])
+        ).all()
+        assert [row.entry for row in kept] == [{"type": "message"}]

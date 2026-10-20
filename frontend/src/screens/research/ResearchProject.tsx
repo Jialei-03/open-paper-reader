@@ -340,6 +340,25 @@ export function ResearchProject({
         ]
       : []),
     {
+      name: "files",
+      description: t("commands.files"),
+      run: () => {
+        setTab("files");
+        setRecord(true);
+      },
+    },
+    ...(p.status !== "finished"
+      ? [
+          {
+            name: "question",
+            description: t("commands.question"),
+            takesArgument: true,
+            run: (words: string) =>
+              setEditing({ question: words || p.question, note: "" }),
+          },
+        ]
+      : []),
+    {
       name: "report",
       description: t("commands.report"),
       run: () => void window.open(reportUrl(id, locale === "zh" ? "zh" : "en")),
@@ -544,6 +563,7 @@ export function ResearchProject({
               )}
               sendLabel={t("research.home.send")}
               commands={commands}
+              acceptInserts
               tools={
                 models.length > 0 &&
                 !finished && (

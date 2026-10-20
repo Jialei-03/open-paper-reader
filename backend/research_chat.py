@@ -224,3 +224,40 @@ def workspace_of(d, session):
     return (
         d.get(ResearchWorkspace, session.workspace_id) if session.workspace_id else None
     )
+
+
+def clone(d, session):
+    """A copy of a conversation to go on with apart: its answered turns and
+    its Pi session, so the copy remembers what the original did."""
+    from .models import AgentSessionEntry
+
+    copy = AgentSession(
+        owner=session.owner,
+        title=(session.title + "（副本）")[:100],
+        workspace_id=session.workspace_id,
+        model_config_id=session.model_config_id,
+    )
+    d.add(copy)
+    d.flush()
+    for run in d.scalars(
+        select(AgentRun)
+        .where(AgentRun.session_id == session.id, AgentRun.status == "completed")
+        .order_by(AgentRun.created_at)
+    ):
+        d.add(
+            AgentRun(
+                **{
+                    c.name: getattr(run, c.name)
+                    for c in AgentRun.__table__.columns
+                    if c.name not in {"id", "session_id"}
+                },
+                session_id=copy.id,
+            )
+        )
+    for row in d.scalars(
+        select(AgentSessionEntry)
+        .where(AgentSessionEntry.session_id == session.id)
+        .order_by(AgentSessionEntry.seq)
+    ):
+        d.add(AgentSessionEntry(session_id=copy.id, seq=row.seq, entry=row.entry))
+    return copy
