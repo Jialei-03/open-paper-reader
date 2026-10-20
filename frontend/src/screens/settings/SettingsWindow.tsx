@@ -216,7 +216,6 @@ export function SettingsWindow({
             <X size={18} aria-hidden />
           </button>
           <div className={styles.content} key={category}>
-            <h1 className={styles.title}>{label(category)}</h1>
             <Body category={category} go={go} />
           </div>
         </main>

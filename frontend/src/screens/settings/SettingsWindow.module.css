@@ -187,12 +187,6 @@
   padding: var(--ui-space-32) var(--ui-space-40) var(--ui-space-48);
 }
 
-.title {
-  margin: 0;
-  font-size: var(--ui-text-20);
-  font-weight: var(--ui-weight-strong);
-}
-
 @media (max-width: 760px) {
   .window {
     width: 100vw;
