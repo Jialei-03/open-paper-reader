@@ -67,6 +67,10 @@ class PrepareInput(BaseModel):
     allow_sudo: bool = False
 
 
+class LimitsInput(BaseModel):
+    note: str = Field(default="", max_length=2000)
+
+
 class QuestionInput(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     note: str = Field(default="", max_length=2000)
@@ -289,6 +293,48 @@ def install_research_routes(app, settings, db, auth, human, owned):
         if p.stage == "done":
             raise HTTPException(409, "研究已经结束")
         research_stages.say(d, p, "human", body.text)
+        d.commit()
+        return project_out(p)
+
+    @app.post("/api/v1/research/projects/{id}/limits")
+    def lift_limits(id: str, body: LimitsInput, a=Depends(auth), d=Depends(db)):
+        """No limits on rounds, tokens or experiment time; a project the budget
+        ended goes back to its experiments (a retrospective under way stops)."""
+        from . import research_stages
+
+        p = project_of(d, id, a)
+        if p.status == "finished" and p.end_reason not in {"budget"}:
+            raise HTTPException(409, "研究已结束")
+        if p.end_reason == "budget":
+            distilling = [
+                s.run_id
+                for s in d.scalars(
+                    select(ResearchSprint).where(
+                        ResearchSprint.project_id == p.id,
+                        ResearchSprint.role == "distiller",
+                        ResearchSprint.status == "running",
+                    )
+                )
+            ]
+            if distilling:
+                d.execute(
+                    update(AgentRun)
+                    .where(
+                        AgentRun.id.in_(distilling),
+                        AgentRun.status.in_(["queued", "running"]),
+                    )
+                    .values(status="cancelled", updated_at=now())
+                )
+                d.execute(
+                    update(ResearchSprint)
+                    .where(ResearchSprint.run_id.in_(distilling))
+                    .values(
+                        status="abnormal",
+                        summary="研究者取消了上限，复盘停止",
+                        updated_at=now(),
+                    )
+                )
+        research_stages.lift_limits(d, p, body.note)
         d.commit()
         return project_out(p)
 

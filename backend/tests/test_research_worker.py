@@ -320,11 +320,12 @@ def test_abnormal_end_gets_fallback_summary(lab):
         assert "未正常交接" in d.get(AgentRun, second.run_id).prompt
 
 
-def test_budget_exhausted_finishes_project(lab):
+def test_budget_exhausted_finishes_an_evaluation_run(lab):
     app, project, _ = lab
     with app.state.maker() as d:
         p = d.get(ResearchProject, project["id"])
-        p.budget = {**p.budget, "max_sprints": 1}
+        # Nobody to ask in an evaluation run: the budget ends it.
+        p.budget = {**p.budget, "max_sprints": 1, "auto_decide": True}
         p.spent = {**p.spent, "sprints": 1}
         d.commit()
     rw.tick(app)

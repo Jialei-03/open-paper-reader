@@ -482,3 +482,34 @@ def test_the_researcher_can_restate_the_question(env):
         and last["detail"]["note"] == "不再限制 CPU"
     )
     assert a.post(f"{BASE}/{pid}/question", json={"question": "  "}).status_code == 422
+
+
+def test_limits_are_lifted_and_a_running_retrospective_stops(env):
+    app, a, _b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    pid = a.post(BASE, json={"message": "MNIST", "model_config_id": model}).json()["id"]
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, pid)
+        p.status, p.end_reason, p.stage = "finished", "budget", "retrospective"
+        run = AgentRun(
+            owner=p.owner,
+            session_id=p.session_id,
+            model_config_id=model,
+            model="m",
+            prompt="x",
+            lane="research",
+            status="running",
+        )
+        d.add(run)
+        d.flush()
+        d.add(ResearchSprint(project_id=pid, number=9, role="distiller", run_id=run.id))
+        d.commit()
+        run_id = run.id
+    r = a.post(f"{BASE}/{pid}/limits", json={"note": "先不设置上限"})
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["status"] == "active" and out["stage"] == "experiments"
+    assert out["budget"]["max_sprints"] is None
+    with app.state.maker() as d:
+        assert d.get(AgentRun, run_id).status == "cancelled"

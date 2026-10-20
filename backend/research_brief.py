@@ -12,6 +12,12 @@ from . import research_map
 from .models import ResearchEvent, ResearchJob, ResearchNode, ResearchSprint
 
 RECENT_JOBS = 10
+
+
+def _cap(limit):
+    return "不限" if limit is None else limit
+
+
 WHO = {"human": "研究者", "advisor": "导师", "executor": "执行者", "system": "系统"}
 
 
@@ -372,9 +378,9 @@ def advisor_brief(d, project, sprint_number, settings=None):
         parts.append(rules)
     parts.append(
         "## 预算\n"
-        f"轮次 {spent.get('sprints', 0)}/{budget.get('max_sprints')}，"
-        f"tokens {spent.get('tokens', 0)}/{budget.get('max_tokens')}，"
-        f"作业时长 {spent.get('job_seconds', 0)}/{budget.get('max_job_seconds')} 秒"
+        f"轮次 {spent.get('sprints', 0)}/{_cap(budget.get('max_sprints'))}，"
+        f"tokens {spent.get('tokens', 0)}/{_cap(budget.get('max_tokens'))}，"
+        f"作业时长 {spent.get('job_seconds', 0)}/{_cap(budget.get('max_job_seconds'))} 秒"
     )
     left = (budget.get("max_sprints") or 0) - spent.get("sprints", 0) - 1
     if budget.get("max_sprints") and left < LAST_REVIEW_WITHIN:
@@ -468,9 +474,9 @@ def executor_brief(d, project, sprint_number, settings=None):
         parts.append(rules)
     parts.append(
         "## 预算\n"
-        f"轮次 {spent.get('sprints', 0)}/{budget.get('max_sprints')}，"
-        f"tokens {spent.get('tokens', 0)}/{budget.get('max_tokens')}，"
-        f"作业时长 {spent.get('job_seconds', 0)}/{budget.get('max_job_seconds')} 秒"
+        f"轮次 {spent.get('sprints', 0)}/{_cap(budget.get('max_sprints'))}，"
+        f"tokens {spent.get('tokens', 0)}/{_cap(budget.get('max_tokens'))}，"
+        f"作业时长 {spent.get('job_seconds', 0)}/{_cap(budget.get('max_job_seconds'))} 秒"
     )
     parts.append(
         "## 规则\n先 research_map_read / focus，再动手；结果只能引用作业日志行或论文原句；"

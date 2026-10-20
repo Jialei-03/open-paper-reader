@@ -81,13 +81,24 @@ def charge(maker, research, tokens):
         d.commit()
 
 
+LIMITS = (
+    ("sprints", "max_sprints"),
+    ("tokens", "max_tokens"),
+    ("job_seconds", "max_job_seconds"),
+)
+
+
 def _over_budget(project):
+    """Whether a limit the project has is reached; a limit left empty never is."""
     budget, spent = project.budget, project.spent
-    return (
-        spent.get("sprints", 0) >= budget.get("max_sprints", 0)
-        or spent.get("tokens", 0) >= budget.get("max_tokens", 0)
-        or spent.get("job_seconds", 0) >= budget.get("max_job_seconds", 0)
+    return any(
+        budget.get(limit) is not None and spent.get(used, 0) >= budget[limit]
+        for used, limit in LIMITS
     )
+
+
+def _share(spent, limit):
+    return spent / limit if limit else 0.0
 
 
 def _settle(d, project, sprint):
@@ -145,7 +156,14 @@ def _settle(d, project, sprint):
     if sprint.role == "advisor":
         # An advisor that said nothing changes nothing; the executor carries on.
         event(d, project, None, "system", "advisor_silent", {}, sprint.id)
-    if _outage(run):
+    if (run.runtime or {}).get("interrupted"):
+        # Cut short by a restart of this service, not by the research: given back.
+        project.spent = {
+            **project.spent,
+            "sprints": max(0, project.spent.get("sprints", 0) - 1),
+        }
+        event(d, project, None, "system", "sprint_refunded", {}, sprint.id)
+    elif _outage(run):
         # The model service failed before anything was done: the sprint is given back.
         project.spent = {
             **project.spent,
@@ -292,8 +310,8 @@ def next_role(d, project, history):
             return "advisor"
     budget, spent = project.budget, project.spent
     ratio = max(
-        spent.get("sprints", 0) / max(budget.get("max_sprints", 1), 1),
-        spent.get("tokens", 0) / max(budget.get("max_tokens", 1), 1),
+        _share(spent.get("sprints", 0), budget.get("max_sprints")),
+        _share(spent.get("tokens", 0), budget.get("max_tokens")),
     )
     marked = {
         row.detail.get("mark")
@@ -355,10 +373,11 @@ def _plan(app, d, project):
         )
         return
     if _over_budget(project):
-        research_stages.set_stage(d, project, "retrospective")
-        project.status, project.end_reason = "finished", "budget"
-        project.updated_at = now()
-        event(d, project, None, "system", "finished", {"end_reason": "budget"})
+        if project.budget.get("auto_decide"):
+            research_stages.end_on_budget(d, project)
+        else:
+            # The one in charge decides whether the question is worth more.
+            research_stages.request_budget(d, project)
         return
     config = read_config(app.state.settings, project.owner, project.model_config_id)
     if not config.get("model"):

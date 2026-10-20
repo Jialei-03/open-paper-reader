@@ -739,3 +739,122 @@ def test_briefs_say_when_the_environment_changed(world):
         p.compute_id = "wsl"
         brief = executor_brief(d, p, 5, world.settings)
         assert "研究环境换过" in brief and "WSL GPU" in brief
+
+
+def test_a_spent_budget_asks_the_researcher_before_ending(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        p.budget = {**p.budget, "max_sprints": 4}
+        p.spent = {**p.spent, "sprints": 4}
+        rw._plan(world.app, d, p)
+        rw._plan(world.app, d, p)
+        d.commit()
+        assert p.status == "waiting" and p.stage == "experiments"
+        asks = list(
+            d.scalars(
+                select(ResearchEvent).where(
+                    ResearchEvent.action == "decision_requested"
+                )
+            )
+        )
+        assert len(asks) == 1 and asks[0].detail["kind"] == "budget"
+        assert asks[0].detail["extra_sprints"] == 4
+        st.decide(d, p, asks[0], True, "")
+        assert p.status == "active" and p.budget["max_sprints"] == 8
+
+
+def test_declining_more_budget_ends_the_project(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        p.budget = {**p.budget, "max_sprints": 2}
+        p.spent = {**p.spent, "sprints": 2}
+        rw._plan(world.app, d, p)
+        ask = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "decision_requested")
+        ).one()
+        st.decide(d, p, ask, False, "够了")
+        assert p.status == "finished" and p.end_reason == "budget"
+        assert p.stage == "retrospective"
+
+
+def test_a_round_cut_by_a_restart_is_given_back(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        p.spent = {**p.spent, "sprints": 3}
+        run = AgentRun(
+            owner=p.owner,
+            session_id=p.session_id,
+            model_config_id="m",
+            model="m",
+            prompt="x",
+            lane="research",
+            status="failed",
+            error="服务重启",
+            runtime={"interrupted": True},
+            steps=[{"name": "bash", "status": "completed"}],
+        )
+        d.add(run)
+        d.flush()
+        d.add(ResearchSprint(project_id=p.id, number=1, run_id=run.id, role="executor"))
+        d.flush()
+        rw._plan(world.app, d, p)
+        assert (
+            p.spent["sprints"] == 3 - 1 + 1
+        )  # given back, then the next round started
+
+
+def test_a_project_ended_by_its_budget_can_be_given_more(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage, p.status, p.end_reason = "retrospective", "finished", "budget"
+        p.budget = {**p.budget, "max_sprints": 12}
+        st.extend(d, p, 8, 2.0)
+        assert p.status == "active" and p.stage == "experiments" and p.end_reason == ""
+        assert p.budget["max_sprints"] == 20
+        assert p.budget["max_job_seconds"] == (p.budget["max_job_seconds"])
+
+
+def test_a_project_without_limits_never_runs_out(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        p.budget = {
+            **p.budget,
+            "max_sprints": None,
+            "max_tokens": None,
+            "max_job_seconds": None,
+        }
+        p.spent = {"sprints": 500, "tokens": 10**9, "job_seconds": 10**7}
+        assert not rw._over_budget(p)
+        history = [
+            ResearchSprint(
+                project_id=p.id, number=1, run_id="r", role="executor", status="ended"
+            )
+        ]
+        d.add_all(history)
+        d.flush()
+        rw.next_role(d, p, history)  # no budget marks to compute, and no error
+
+
+def test_a_plan_without_a_budget_sets_no_limits(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        sprint = ResearchSprint(project_id=p.id, number=1, role="scoping", run_id="r")
+        d.add(sprint)
+        d.flush()
+        plan = {k: v for k, v in PLAN.items() if k != "budget"}
+        st.propose_plan(world.settings, d, p, sprint, plan)
+        st.approve_plan(world.settings, d, p, 1)
+        assert p.budget["max_sprints"] is None and p.budget["max_job_seconds"] is None
+
+
+def test_limits_can_be_lifted_and_an_ended_project_reopened(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage, p.status, p.end_reason = "retrospective", "finished", "budget"
+        st.lift_limits(d, p, "先不设置上限")
+        assert p.status == "active" and p.stage == "experiments"
+        assert p.budget["max_sprints"] is None and p.budget["max_tokens"] is None

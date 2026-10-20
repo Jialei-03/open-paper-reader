@@ -240,10 +240,12 @@ function PlanCard({
             </span>
             <span className={styles.tag}>
               <Gauge size={12} aria-hidden />
-              {t("research.plan.budget", {
-                sprints: plan.budget.max_sprints,
-                hours: plan.budget.max_job_hours,
-              })}
+              {plan.budget?.max_sprints || plan.budget?.max_job_hours
+                ? t("research.plan.budget", {
+                    sprints: plan.budget.max_sprints ?? "∞",
+                    hours: plan.budget.max_job_hours ?? "∞",
+                  })
+                : t("research.plan.noLimit")}
             </span>
           </div>
         </div>
@@ -276,6 +278,7 @@ function DecisionCard({
   const [note, setNote] = useState("");
   const d = item.event.detail as Record<string, string>;
   const conclusion = d.kind === "conclusion";
+  const budget = d.kind === "budget";
   return (
     <article
       className={`${styles.card} ${item.open ? styles.ask : ""}`}
@@ -287,7 +290,11 @@ function DecisionCard({
           size={18}
         />
         <strong>
-          {conclusion ? t("research.ask.conclusion") : t("research.ask.title")}
+          {conclusion
+            ? t("research.ask.conclusion")
+            : budget
+              ? t("research.ask.budget")
+              : t("research.ask.title")}
         </strong>
         {conclusion ? (
           <span
@@ -296,7 +303,7 @@ function DecisionCard({
           >
             {t(`research.end.${d.status || "concluded"}` as MessageKey)}
           </span>
-        ) : d.proposal ? (
+        ) : d.proposal && !budget ? (
           <span className={styles.tag}>
             {t(`research.talk.verdict.${d.proposal}` as MessageKey)}
           </span>
@@ -337,7 +344,13 @@ function DecisionCard({
               disabled={actions.busy}
               onClick={() => actions.decide(item.id, false, note)}
             >
-              {t(conclusion ? "research.ask.more" : "research.ask.no")}
+              {t(
+                conclusion
+                  ? "research.ask.more"
+                  : budget
+                    ? "research.ask.budgetStop"
+                    : "research.ask.no",
+              )}
             </Button>
             <Button
               size="sm"
@@ -345,7 +358,13 @@ function DecisionCard({
               loading={actions.busy}
               onClick={() => actions.decide(item.id, true, note)}
             >
-              {t(conclusion ? "research.ask.accept" : "research.ask.yes")}
+              {t(
+                conclusion
+                  ? "research.ask.accept"
+                  : budget
+                    ? "research.ask.budgetMore"
+                    : "research.ask.yes",
+              )}
             </Button>
           </>
         ) : (

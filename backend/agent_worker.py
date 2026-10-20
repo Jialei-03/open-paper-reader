@@ -752,6 +752,7 @@ def main():
             ):
                 interrupted.runtime = {**(interrupted.runtime or {}), "settled": True}
                 if interrupted.status == "running":
+                    interrupted.runtime = {**interrupted.runtime, "interrupted": True}
                     interrupted.status = "failed"
                     interrupted.error = (
                         "服务重启，任务已停止；已完成操作保留，可继续任务"

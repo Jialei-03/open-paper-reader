@@ -1439,4 +1439,9 @@ export const en = {
   "research.question.notePlaceholder":
     "E.g. moved to a GPU, no longer CPU-only",
   "research.question.save": "Save",
+  "research.plan.noLimit": "No limits",
+  "research.ask.budget": "The budget is spent",
+  "research.ask.budgetMore": "Give more and go on",
+  "research.ask.budgetStop": "Stop here",
+  "research.budget.rounds": "Round {sprints} · no limits",
 } as const;

@@ -1345,4 +1345,9 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.question.note": "为什么改（可选）",
   "research.question.notePlaceholder": "比如：换到了 GPU，不再限制只用 CPU",
   "research.question.save": "保存",
+  "research.plan.noLimit": "不设上限",
+  "research.ask.budget": "预算用完了",
+  "research.ask.budgetMore": "追加预算继续",
+  "research.ask.budgetStop": "到此为止",
+  "research.budget.rounds": "第 {sprints} 轮 · 不设上限",
 };

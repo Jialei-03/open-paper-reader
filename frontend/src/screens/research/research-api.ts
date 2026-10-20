@@ -8,7 +8,12 @@ export interface ResearchProject {
   model_config_id: string;
   status: "active" | "waiting" | "paused" | "finished";
   end_reason: "" | "concluded" | "refuted" | "blocked" | "budget" | "stopped";
-  budget: { max_sprints: number; max_tokens: number; max_job_seconds: number };
+  /** A limit left empty (null) is no limit. */
+  budget: {
+    max_sprints: number | null;
+    max_tokens: number | null;
+    max_job_seconds: number | null;
+  };
   spent: { sprints: number; tokens: number; job_seconds: number };
   session_id: string;
   stage: Stage;
@@ -53,7 +58,7 @@ export interface ResearchPlan {
   }[];
   datasets: string[];
   compute_id: string;
-  budget: { max_sprints: number; max_job_hours: number };
+  budget: { max_sprints: number | null; max_job_hours: number | null };
   summary: string;
   approved_at: string | null;
 }

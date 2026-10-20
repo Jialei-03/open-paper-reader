@@ -146,9 +146,14 @@ def check_plan(settings, args, version):
         ],
         "datasets": list(dict.fromkeys(args.get("datasets", []))),
         "compute_id": compute_id,
+        # No limit unless the researcher wants one.
         "budget": {
-            "max_sprints": int(min(max(budget.get("max_sprints", 20), 2), 200)),
-            "max_job_hours": float(min(max(budget.get("max_job_hours", 4), 0.1), 1000)),
+            "max_sprints": int(min(max(budget["max_sprints"], 2), 200))
+            if budget.get("max_sprints")
+            else None,
+            "max_job_hours": float(min(max(budget["max_job_hours"], 0.1), 1000))
+            if budget.get("max_job_hours")
+            else None,
         },
         "summary": (args.get("summary") or "").strip()[:2000],
         "approved_at": None,
@@ -195,10 +200,12 @@ def approve_plan(settings, d, project, version, note=""):
         )
     research_datasets.request(d, project, plan["datasets"])
     project.compute_id = plan["compute_id"]
+    sprints, hours = plan["budget"]["max_sprints"], plan["budget"]["max_job_hours"]
     project.budget = {
         **project.budget,
-        "max_sprints": project.spent.get("sprints", 0) + plan["budget"]["max_sprints"],
-        "max_job_seconds": int(plan["budget"]["max_job_hours"] * 3600),
+        "max_sprints": project.spent.get("sprints", 0) + sprints if sprints else None,
+        "max_tokens": project.budget.get("max_tokens") if sprints or hours else None,
+        "max_job_seconds": int(hours * 3600) if hours else None,
     }
     project.plan = {**plan, "approved_at": now()}
     project.status = "active"
@@ -258,9 +265,101 @@ def finish(d, project, status, summary, actor, sprint_id=None):
     set_stage(d, project, "retrospective", actor)
 
 
+def request_budget(d, project):
+    """The budget is spent: the researcher decides whether to give more or stop."""
+    if open_request(d, project, "budget") is not None:
+        return
+    max_sprints = int(project.budget.get("max_sprints") or 0)
+    extra = max(4, max_sprints // 3)
+    research_map.event(
+        d,
+        project,
+        None,
+        "system",
+        "decision_requested",
+        {
+            "kind": "budget",
+            "proposal": "extend_budget",
+            "extra_sprints": extra,
+            "reason": (
+                f"预算用完了：{project.spent.get('sprints', 0)}/{max_sprints} 轮，"
+                f"实验 {round(project.spent.get('job_seconds', 0) / 3600, 1)}/"
+                f"{round(project.budget.get('max_job_seconds', 0) / 3600, 1)} 小时。"
+                f"同意就再给 {extra} 轮继续；不同意就到此为止，进入复盘。"
+            ),
+        },
+    )
+    project.status = "waiting"
+    project.updated_at = now()
+
+
+def extend(d, project, sprints, hours=0.0, actor="human", note=""):
+    """More rounds (and experiment hours); a project the budget ended is reopened."""
+    budget = dict(project.budget)
+    budget["max_sprints"] = max(
+        int(budget.get("max_sprints") or 0), int(project.spent.get("sprints", 0))
+    ) + int(sprints)
+    if hours:
+        budget["max_job_seconds"] = max(
+            int(budget.get("max_job_seconds") or 0),
+            int(project.spent.get("job_seconds", 0)),
+        ) + int(hours * 3600)
+    project.budget = budget
+    research_map.event(
+        d,
+        project,
+        None,
+        actor,
+        "budget_extended",
+        {"sprints": int(sprints), "hours": hours, "note": note},
+    )
+    if project.status == "finished" and project.end_reason == "budget":
+        project.end_reason = ""
+        set_stage(d, project, "experiments", actor, note)
+    project.status = "active"
+    project.updated_at = now()
+
+
+def lift_limits(d, project, note=""):
+    """No limits: the research goes on until it is answered or someone stops it."""
+    project.budget = {
+        **project.budget,
+        "max_sprints": None,
+        "max_tokens": None,
+        "max_job_seconds": None,
+    }
+    research_map.event(
+        d, project, None, "human", "budget_extended", {"unlimited": True, "note": note}
+    )
+    if project.status == "finished" and project.end_reason == "budget":
+        project.end_reason = ""
+        set_stage(d, project, "experiments", "human", note)
+    if project.status in {"finished", "waiting"} and not project.end_reason:
+        project.status = "active"
+    project.updated_at = now()
+
+
+def end_on_budget(d, project, actor="system"):
+    set_stage(d, project, "retrospective", actor)
+    project.status, project.end_reason = "finished", "budget"
+    project.updated_at = now()
+    research_map.event(d, project, None, actor, "finished", {"end_reason": "budget"})
+
+
 def decide(d, project, request, approve, note):
     """A person's answer to a plan or a conclusion. True if it was one of those."""
     kind = request.detail.get("kind")
+    if kind == "budget":
+        if approve:
+            hours = 0.0
+            if project.spent.get("job_seconds", 0) >= project.budget.get(
+                "max_job_seconds", 0
+            ):
+                hours = max(1.0, project.budget.get("max_job_seconds", 0) / 3600 / 3)
+            extend(d, project, request.detail.get("extra_sprints", 4), hours, note=note)
+        else:
+            end_on_budget(d, project, "human")
+        return True
     if kind == "plan":
         if approve:
             set_stage(d, project, "experiments", "human", note)

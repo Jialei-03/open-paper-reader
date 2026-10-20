@@ -284,7 +284,7 @@ export function ResearchProject({
       : Math.min(
           1,
           Math.max(
-            p.spent.sprints / Math.max(p.budget.max_sprints, 1),
+            p.spent.sprints / Math.max(p.budget.max_sprints ?? 1, 1),
             hours / Math.max(maxHours, 0.01),
           ),
         );
@@ -338,7 +338,12 @@ export function ResearchProject({
             </li>
           ))}
         </ol>
-        {p.stage !== "scoping" && (
+        {p.stage !== "scoping" && !p.budget.max_sprints && (
+          <span className={styles.budget}>
+            {t("research.budget.rounds", { sprints: p.spent.sprints })}
+          </span>
+        )}
+        {p.stage !== "scoping" && !!p.budget.max_sprints && (
           <div className={styles.budget} title={t("research.budget.title")}>
             <span>
               {t("research.budget.line", {
