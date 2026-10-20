@@ -24,6 +24,7 @@ import {
   getProject,
   jobLog,
   listEvents,
+  listRuns,
   moveCompute,
   pauseProject,
   readResearchSettings,
@@ -36,11 +37,12 @@ import {
   type ResearchEvent,
   type Stage,
 } from "./research-api";
-import { AgentRunView } from "./talk/AgentRunView";
+import type { ResearchRun } from "./process/model";
+import { LiveCard } from "./process/Process";
 import { Composer } from "./talk/Composer";
 import { RecordPanel, type RecordTab } from "./talk/RecordPanel";
 import { buildThread, working } from "./talk/thread";
-import { Thinking, ThreadView, type ThreadActions } from "./talk/ThreadView";
+import { ThreadView, type ThreadActions } from "./talk/ThreadView";
 import styles from "./talk/Talk.module.css";
 
 const ACTIVE_POLL = 2500;
@@ -83,7 +85,12 @@ export function ResearchProject({
   const [log, setLog] = useState<{ jobId: string; lines: LogLines } | null>(
     null,
   );
-  const [watching, setWatching] = useState("");
+  const [runs, setRuns] = useState<ResearchRun[]>([]);
+  const runsBySprint = useMemo(
+    () =>
+      new Map(runs.filter((r) => r.sprint_id).map((r) => [r.sprint_id!, r])),
+    [runs],
+  );
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
@@ -96,10 +103,15 @@ export function ResearchProject({
 
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([getProject(id, controller.signal), listEvents(id)]).then(
-      ([value, rows]) => {
+    Promise.all([
+      getProject(id, controller.signal),
+      listEvents(id),
+      listRuns(id),
+    ]).then(
+      ([value, rows, recent]) => {
         setDetail(value);
         setEvents(rows);
+        setRuns(recent);
         setFailed("");
       },
       (error: unknown) => {
@@ -198,7 +210,6 @@ export function ResearchProject({
         fail(error);
       }
     },
-    watchRun: (runId) => setWatching(runId),
     moveCompute: async (computeId) => {
       try {
         await moveCompute(id, computeId);
@@ -245,10 +256,7 @@ export function ResearchProject({
 
   const p = detail.project;
   const busyNow = working(detail.sprints);
-  const thinking =
-    busyNow && (busyNow.role === "scoping" || busyNow.role === "advisor")
-      ? busyNow.role
-      : "";
+  const liveRun = busyNow ? runsBySprint.get(busyNow.id) : undefined;
   const waitingData = detail.datasets.some((d) => d.status === "pending");
   const finished = p.status === "finished" && p.stage === "done";
   const stageIndex = STEPS.indexOf(
@@ -383,14 +391,9 @@ export function ResearchProject({
                 project={p}
                 computes={computes}
                 actions={actions}
+                runs={runsBySprint}
               />
               {pending && <div className={styles.mine}>{pending}</div>}
-              {thinking && busyNow && (
-                <Thinking
-                  role={thinking}
-                  onWatch={() => setWatching(busyNow.run_id)}
-                />
-              )}
               {waitingData && p.stage === "experiments" && (
                 <p className={styles.systemLine}>
                   {t("research.thread.fetching")}
@@ -404,6 +407,15 @@ export function ResearchProject({
             </div>
           </div>
           <div className={styles.dock}>
+            {liveRun && busyNow && (
+              <LiveCard
+                run={liveRun}
+                role={busyNow.role}
+                name={t(
+                  `research.role.${busyNow.role === "scoping" ? "advisor" : busyNow.role}` as MessageKey,
+                )}
+              />
+            )}
             <Composer
               value={text}
               onChange={setText}
@@ -431,15 +443,6 @@ export function ResearchProject({
           />
         )}
       </div>
-      <Dialog
-        open={!!watching}
-        onClose={() => setWatching("")}
-        title={t("research.run.title")}
-        side
-        size="lg"
-      >
-        {watching && <AgentRunView runId={watching} />}
-      </Dialog>
       <Dialog
         open={!!log}
         onClose={() => setLog(null)}

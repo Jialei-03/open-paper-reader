@@ -223,6 +223,10 @@ export const sendMessage = (id: string, text: string) =>
 export const moveCompute = (id: string, compute_id: string) =>
   send(`${BASE}/${id}/compute`, { compute_id }) as Promise<ResearchProject>;
 
+/** Each recent round's run with its steps (what the thread shows inline). */
+export const listRuns = (projectId: string) =>
+  api<import("./process/model").ResearchRun[]>(`${BASE}/${projectId}/runs`);
+
 export const approvePlan = (id: string, version: number, note = "") =>
   send(`${BASE}/${id}/plan/approve`, {
     version,

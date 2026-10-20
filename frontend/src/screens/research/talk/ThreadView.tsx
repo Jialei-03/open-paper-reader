@@ -22,6 +22,8 @@ import type {
 } from "../research-api";
 import type { Agent } from "../scene/frames";
 import { Mascot } from "../scene/Mascot";
+import type { ResearchRun } from "../process/model";
+import { RunTurn } from "../process/Process";
 import type { ThreadItem } from "./thread";
 import styles from "./Talk.module.css";
 
@@ -63,46 +65,12 @@ function Speaker({
   );
 }
 
-export function Thinking({
-  role,
-  onWatch,
-}: {
-  role: string;
-  onWatch?(): void;
-}) {
-  const { t } = useI18n();
-  return (
-    <div className={styles.theirs} aria-live="polite">
-      <Speaker
-        role={role}
-        action={
-          onWatch && (
-            <button type="button" className={styles.link} onClick={onWatch}>
-              {t("research.run.watch")}
-            </button>
-          )
-        }
-      />
-      <span
-        className={styles.thinking}
-        aria-label={t("research.thread.thinking")}
-      >
-        <span />
-        <span />
-        <span />
-      </span>
-    </div>
-  );
-}
-
 export interface ThreadActions {
   approvePlan(version: number): void;
   decide(id: string, approve: boolean, note: string): void;
   openLog(jobId: string): void;
   openRun(jobId: string): void;
   moveCompute(computeId: string): void;
-  /** Opens the window that shows an agent's run as it happens. */
-  watchRun(runId: string): void;
   busy: boolean;
 }
 
@@ -111,11 +79,14 @@ export function ThreadView({
   project,
   computes,
   actions,
+  runs,
 }: {
   items: ThreadItem[];
   project: ResearchProject;
   computes: Compute[];
   actions: ThreadActions;
+  /** Each round's run, by sprint: what it said and did, step by step. */
+  runs: Map<string, ResearchRun>;
 }) {
   return (
     <>
@@ -150,6 +121,7 @@ export function ThreadView({
                 item={item}
                 computes={computes}
                 actions={actions}
+                run={runs.get(item.sprint.id)}
               />
             );
           default:
@@ -493,21 +465,20 @@ function WorkBlock({
   item,
   computes,
   actions,
+  run,
 }: {
   item: Extract<ThreadItem, { kind: "work" }>;
   computes: Compute[];
   actions: ThreadActions;
+  run: ResearchRun | undefined;
 }) {
   const { t } = useI18n();
-  const running = item.sprint.status === "running";
-  const [open, setOpen] = useState(false);
-  const steps = item.steps
-    .map((step) => ({ step, said: describeStep(t, step) }))
-    .filter((x) => x.said !== null);
   const role = item.sprint.role;
   if (item.sprint.number === 0) {
     // A note by the system between sprints: one line.
-    const said = steps[0]?.said;
+    const said = item.steps
+      .map((step) => describeStep(t, step))
+      .find((x) => x !== null);
     if (!said) return null;
     return (
       <p className={styles.systemLine}>
@@ -516,98 +487,25 @@ function WorkBlock({
       </p>
     );
   }
-  const focus = item.steps.find((s) => s.action === "focus")?.node;
   const title =
     role === "executor"
       ? t("research.work.executor", { n: item.sprint.number })
       : role === "advisor"
         ? t("research.work.advisor", { n: item.sprint.number })
-        : t("research.work.distiller");
+        : role === "scoping"
+          ? t("research.work.scoping")
+          : t("research.work.distiller");
   return (
-    <section className={styles.work} data-open={open || undefined}>
-      <button
-        type="button"
-        className={styles.workHead}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        <ChevronRight size={14} className={styles.chevron} aria-hidden />
-        <Mascot agent={ROLE_AGENT[role] ?? "executor"} size={18} />
-        <span className={styles.workTitle}>
-          <strong>{title}</strong>
-          {focus ? ` · ${focus}` : ""}
-        </span>
-        {item.sprint.run_id && (
-          <span
-            role="button"
-            tabIndex={0}
-            className={styles.link}
-            onClick={(event) => {
-              event.stopPropagation();
-              actions.watchRun(item.sprint.run_id);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                event.stopPropagation();
-                actions.watchRun(item.sprint.run_id);
-              }
-            }}
-          >
-            {t("research.run.watch")}
-          </span>
-        )}
-        <span className={styles.workMeta}>
-          {running ? (
-            <span className={styles.status}>
-              <Spinner size={14} />
-              {t("research.work.running")}
-            </span>
-          ) : (
-            t("research.work.count", {
-              steps: steps.length,
-              jobs: item.jobs.length,
-            })
-          )}
-        </span>
-      </button>
-      {(open || item.jobs.length > 0) && (
-        <div className={styles.workBody}>
-          {open &&
-            steps.map(({ step, said }) => (
-              <div key={step.id} className={styles.step}>
-                <span
-                  className={styles.stepLabel}
-                  data-tone={said!.tone || undefined}
-                >
-                  {said!.label}
-                  {step.node && (
-                    <span className={styles.stepNode}>{step.node}</span>
-                  )}
-                </span>
-                <span className={styles.stepMeta}>{said!.meta}</span>
-                {said!.note && (
-                  <span className={styles.stepNote}>{said!.note}</span>
-                )}
-              </div>
-            ))}
-          {open && item.sprint.summary && (
-            <div className={styles.step}>
-              <span className={styles.stepNote}>
-                <Prose text={item.sprint.summary} />
-              </span>
-            </div>
-          )}
-          {item.jobs.map((job) => (
-            <RunCard
-              key={job.id}
-              job={job}
-              computes={computes}
-              actions={actions}
-            />
-          ))}
-        </div>
-      )}
-    </section>
+    <RunTurn
+      run={run}
+      role={role}
+      title={title}
+      // A scoping turn's words are the advisor's message, shown on their own.
+      final={role === "scoping" ? "" : item.sprint.summary}
+    >
+      {item.jobs.map((job) => (
+        <RunCard key={job.id} job={job} computes={computes} actions={actions} />
+      ))}
+    </RunTurn>
   );
 }

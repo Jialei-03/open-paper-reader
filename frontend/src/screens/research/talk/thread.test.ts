@@ -51,7 +51,7 @@ const plan = (version: number) => ({
 });
 
 describe("buildThread", () => {
-  it("keeps the words of scoping and only the newest plan is on the table", () => {
+  it("shows scoping as a round and only the newest plan is on the table", () => {
     const events = [
       ev("message", "human", { text: "想提升 MNIST" }),
       ev("research_map_read", "advisor", {}, "s1"),
@@ -68,6 +68,7 @@ describe("buildThread", () => {
     );
     expect(items.map((i) => i.kind)).toEqual([
       "message",
+      "work",
       "plan",
       "message",
       "plan",

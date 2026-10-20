@@ -114,8 +114,6 @@ export function buildThread(
       continue;
     }
     const sprint = event.sprint_id ? bySprint.get(event.sprint_id) : undefined;
-    // Talking the plan through leaves its words, not its steps.
-    if (sprint?.role === "scoping") continue;
     const step: Step = {
       id: event.id,
       actor: event.actor,
@@ -152,11 +150,7 @@ export function buildThread(
   }
   // A sprint still at work before its first step shows as soon as it starts.
   for (const sprint of sprints) {
-    if (
-      sprint.status === "running" &&
-      sprint.role !== "scoping" &&
-      !blocks.has(sprint.id)
-    )
+    if (sprint.status === "running" && !blocks.has(sprint.id))
       items.push({
         kind: "work",
         id: sprint.id,
