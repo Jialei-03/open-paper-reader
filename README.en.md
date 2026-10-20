@@ -28,7 +28,7 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 - **Research map**: the direction lives in a persistent tree, not in chat history: north-star question → sub-questions → hypotheses → experiments → findings. Every change records who made it and why. Each round starts from the map and the last handoff, so work can run for many rounds over days.
 - **Focus before acting**: before running code, writing files or changing the map, the executor must say which node it advances; if it does not, or that branch has been refuted, the action is refused and logged.
 - **The advisor judges, you decide**: a read-only advisor reviews the map, checks numbers against the logs, and decides to continue, invest, drop or pivot, asking you when it needs to. The plan, the conclusion and any extra budget are your call.
-- **Environments set up by an agent**: experiments run directly on your computer (using an Apple-silicon or NVIDIA GPU), in an isolated Docker container, or on a lab machine over SSH. An agent installs what is needed, and the system checks it before calling it ready.
+- **Environments set up by an agent**: experiments run directly on your computer (using an Apple-silicon or NVIDIA GPU), or on a lab machine over SSH. An agent installs what is needed, and the system checks it before calling it ready.
 - **Evidence**: the system collects each experiment's logs, settings and metrics instead of trusting the agent to copy them. A result can only cite real log lines or a paper's own sentences, and its numbers must appear in them verbatim. Runs can be mirrored to SwanLab or Weights & Biases.
 - **Playbook (self-improvement across projects)**: when a research ends, a distiller turns what happened into judgment rules ("in this situation, do this"). A rule takes effect once two researches support it, and later researches read it. It has not been shown to help yet (see the status below).
 
@@ -38,7 +38,7 @@ Details are in [Research](docs/RESEARCH.md) (Chinese).
 
 This is an early version. What actually works end to end:
 
-- **The whole research flow**: projects and board, scoping by conversation, local / Docker / SSH environments, the advisor, evidence checks, the playbook, the research report. Run with a real model on an M1 Mac on a CIFAR-10 question, with experiments on MPS.
+- **The whole research flow**: projects and board, scoping by conversation, local / SSH environments, the advisor, evidence checks, the playbook, the research report. Run with a real model on an M1 Mac on a CIFAR-10 question, with experiments on MPS.
 - **Seven evaluation rounds** on held-out tasks covering four kinds of research judgment:
 
   | Task | The right behavior |
@@ -73,7 +73,7 @@ make build     # build the frontend
 python -m backend.local --port 8765   # local build, no sign-in, open http://127.0.0.1:8765
 ```
 
-On first open, add a model in Settings → Models (an API key or a local model), then prepare an environment in Settings → Research environments: for the default one (this computer, listed as “本机”), press “Let an agent prepare it” and an agent sets up a separate Python environment in the data folder. For the isolated Docker environment, build its image first with `make research-image`. Data lives in `~/.open-paper-reader/` by default. See [Local build](docs/LOCAL.md) and [Research](docs/RESEARCH.md).
+On first open, add a model in Settings → Models (an API key or a local model), then prepare an environment in Settings → Research environments: for the default one (this computer, listed as “本机”), press “Let an agent prepare it” and an agent sets up a separate Python environment in the data folder. Data lives in `~/.open-paper-reader/` by default. See [Local build](docs/LOCAL.md) and [Research](docs/RESEARCH.md).
 
 ## Development
 

@@ -860,7 +860,7 @@ export const en = {
   "site.hero.copy": "Copy command",
   "site.hero.copied": "Copied",
   "site.hero.note":
-    "Add a model the first time you open it; no sign-in after that. Experiments run directly on your computer by default, or in Docker or over SSH.",
+    "Add a model the first time you open it; no sign-in after that. Experiments run directly on your computer, or on another machine over SSH.",
   "site.how.guide.alt":
     "The guide tab: a three-line summary, keywords and a guide by section, each with page chips.",
   "site.how.select.alt":
@@ -900,7 +900,7 @@ export const en = {
     "Research is organized in projects, with a board showing where every research, hypothesis and experiment stands. Each project holds chats where you can ask how things are going; they only read, so they never disturb work in progress.",
   "site.research.environments.title": "Environments set up by an agent",
   "site.research.environments.body":
-    "Experiments run directly on your computer (using an Apple-silicon or NVIDIA GPU), in Docker, or on a lab machine over SSH. An agent installs what is needed, and the system checks it before calling it ready.",
+    "Experiments run directly on your computer (using an Apple-silicon or NVIDIA GPU), or on a lab machine over SSH. An agent installs what is needed, and the system checks it before calling it ready.",
   "login.home": "Open Research Agent home",
   "login.title": "Welcome back",
   "login.title.register": "Create an account",

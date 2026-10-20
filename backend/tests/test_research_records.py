@@ -213,7 +213,7 @@ def test_settings_keep_the_key_server_side(world):
             "tracker": {"kind": "swanlab", "project": "mnist", "api_key": "secret"},
         },
     )
-    assert [c["id"] for c in data["computes"]] == ["host", "local", "lab"]
+    assert [c["id"] for c in data["computes"]] == ["host", "lab"]
     shown = rset.public(rset.load(world.settings))
     assert "api_key" not in shown["tracker"] and shown["tracker"]["has_key"]
     # Saving again without a key keeps the stored one.

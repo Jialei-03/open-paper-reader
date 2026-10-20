@@ -13,6 +13,8 @@ import re
 from pathlib import Path
 
 THIS = {"id": "host", "name": "本机", "kind": "host", "gpus": ""}
+# This machine's Docker. No longer offered by default: kept so the projects
+# and jobs that ran in it still find it.
 LOCAL = {
     "id": "local",
     "name": "本机 Docker",
@@ -35,7 +37,7 @@ def path(settings):
 
 def default():
     return {
-        "computes": [dict(THIS), dict(LOCAL)],
+        "computes": [dict(THIS)],
         "default_compute": "host",
         "tracker": {"kind": "none", "project": "open-research-agent", "mode": "local"},
         "states": {},
@@ -48,10 +50,14 @@ def load(settings):
         return default()
     data = json.loads(file.read_text())
     base = default()
-    computes = _builtin(data.get("computes") or base["computes"])
+    computes = _builtin(
+        [c for c in data.get("computes") or base["computes"] if not _offered(c)]
+    )
+    ids = {c["id"] for c in computes}
+    chosen = data.get("default_compute") or "host"
     return {
         "computes": computes,
-        "default_compute": data.get("default_compute") or "host",
+        "default_compute": chosen if chosen in ids else "host",
         "tracker": {**base["tracker"], **(data.get("tracker") or {})},
         # What preparing each environment produced (research_environment).
         "states": data.get("states") or {},
@@ -59,10 +65,15 @@ def load(settings):
 
 
 def _builtin(computes):
-    """This machine and its Docker are always there, first."""
-    ids = {c.get("id") for c in computes}
-    missing = [dict(c) for c in (THIS, LOCAL) if c["id"] not in ids]
-    return [*missing, *computes]
+    """This machine is always there, first."""
+    if any(c.get("id") == THIS["id"] for c in computes):
+        return computes
+    return [dict(THIS), *computes]
+
+
+def _offered(item):
+    """The Docker entry earlier versions put in every list by themselves."""
+    return item.get("id") == LOCAL["id"] and item.get("kind") == "docker"
 
 
 def save(settings, data):
@@ -77,10 +88,10 @@ def save(settings, data):
 def compute(settings, compute_id):
     """An environment, with the Python its preparation settled on (if any)."""
     data = load(settings)
-    for item in data["computes"]:
+    for item in [*data["computes"], LOCAL]:
         if item["id"] == compute_id:
             python = data["states"].get(compute_id, {}).get("python")
-            return {**item, "python": python} if python else item
+            return {**item, "python": python} if python else dict(item)
     raise ValueError(f"找不到算力配置：{compute_id}")
 
 

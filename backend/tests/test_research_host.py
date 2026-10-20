@@ -45,9 +45,27 @@ def _wait_done(settings, d, job, seconds=10):
 def test_this_machine_is_an_environment_by_default(world):
     settings, _, _ = world
     data = rset.load(settings)
-    assert [c["id"] for c in data["computes"]][:2] == ["host", "local"]
+    # This machine only: Docker is not offered.
+    assert [c["id"] for c in data["computes"]] == ["host"]
     assert data["default_compute"] == "host"
     assert rset.compute(settings, "host")["kind"] == "host"
+
+
+def test_the_docker_entry_of_earlier_versions_is_no_longer_listed(world):
+    settings, _, _ = world
+    rset.save(
+        settings,
+        {
+            "computes": [{"id": "host", "name": "本机", "kind": "host"}, dict(rset.LOCAL)],
+            "default_compute": "local",
+            "tracker": {"kind": "none", "project": "p"},
+        },
+    )
+    data = rset.load(settings)
+    assert [c["id"] for c in data["computes"]] == ["host"]
+    assert data["default_compute"] == "host"
+    # A project that ran in it still finds it.
+    assert rset.compute(settings, "local")["kind"] == "docker"
 
 
 def test_a_job_runs_in_the_workspace_and_reports_through_ora(world):

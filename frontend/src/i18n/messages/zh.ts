@@ -800,7 +800,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.hero.copy": "复制命令",
   "site.hero.copied": "已复制",
   "site.hero.note":
-    "第一次打开时添加一个模型，之后不用登录。实验默认直接在本机运行，也可以改用 Docker 或 SSH。",
+    "第一次打开时添加一个模型，之后不用登录。实验直接在本机运行，也可以通过 SSH 跑在别的机器上。",
   "site.how.guide.alt":
     "右侧导读标签：三句摘要、关键词和按章节的导读，每节后面有页码标签。",
   "site.how.select.alt":
@@ -838,7 +838,7 @@ export const zh: { [K in keyof typeof en]: string } = {
     "研究按项目组织，看板上看得到每个研究、假设和实验走到哪一步。项目里可以开多个对话随时问进展，只读，不会打扰正在跑的研究。",
   "site.research.environments.title": "环境交给 Agent",
   "site.research.environments.body":
-    "实验可以直接在你的电脑上跑（用上 Apple 芯片或 NVIDIA 的 GPU），也可以放进 Docker，或者通过 SSH 跑在实验室的机器上。环境由 Agent 装好，系统亲自检测过才算就绪。",
+    "实验直接在你的电脑上跑（用上 Apple 芯片或 NVIDIA 的 GPU），也可以通过 SSH 跑在实验室的机器上。环境由 Agent 装好，系统亲自检测过才算就绪。",
   "login.home": "Open Research Agent 首页",
   "login.title": "欢迎回来",
   "login.title.register": "创建账户",
@@ -1302,7 +1302,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.category.access": "分享与访问",
   "settings.keywords.general": "外观 主题 深色 浅色 语言 重点 阅读",
   "settings.keywords.models": "模型 密钥 服务 api key",
-  "settings.keywords.environments": "研究环境 算力 GPU SSH WSL Docker 机器",
+  "settings.keywords.environments": "研究环境 算力 GPU SSH WSL 机器",
   "settings.keywords.tracking": "实验追踪 SwanLab W&B wandb 指标 曲线",
   "settings.keywords.playbook": "研究手册 规则 经验 复盘 playbook",
   "settings.keywords.data": "数据 存储 导出",
