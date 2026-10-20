@@ -350,6 +350,11 @@ def end_on_budget(d, project, actor="system"):
 def decide(d, project, request, approve, note):
     """A person's answer to a plan or a conclusion. True if it was one of those."""
     kind = request.detail.get("kind")
+    if kind == "question":
+        # The answer is the person's word in the conversation.
+        if (note or "").strip():
+            say(d, project, "human", note)
+        return True
     if kind == "budget":
         if approve:
             hours = 0.0

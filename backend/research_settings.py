@@ -1,7 +1,7 @@
 """Where research experiments run and where their numbers are kept.
 
 One file for the installation, next to the playbook: the computes an
-experiment can run on (this machine's Docker, or a machine reached over SSH)
+experiment can run on (this machine directly, its Docker, or a machine reached over SSH)
 and the experiment tracker runs are mirrored to (SwanLab or Weights & Biases).
 The tracker's API key stays in this file; it is never sent back to the browser
 and never enters an experiment's container.
@@ -12,6 +12,7 @@ import os
 import re
 from pathlib import Path
 
+THIS = {"id": "host", "name": "本机", "kind": "host", "gpus": ""}
 LOCAL = {
     "id": "local",
     "name": "本机 Docker",
@@ -34,8 +35,8 @@ def path(settings):
 
 def default():
     return {
-        "computes": [dict(LOCAL)],
-        "default_compute": "local",
+        "computes": [dict(THIS), dict(LOCAL)],
+        "default_compute": "host",
         "tracker": {"kind": "none", "project": "open-research-agent", "mode": "local"},
         "states": {},
     }
@@ -47,16 +48,21 @@ def load(settings):
         return default()
     data = json.loads(file.read_text())
     base = default()
-    computes = data.get("computes") or base["computes"]
-    if not any(c.get("id") == "local" for c in computes):
-        computes = [dict(LOCAL), *computes]
+    computes = _builtin(data.get("computes") or base["computes"])
     return {
         "computes": computes,
-        "default_compute": data.get("default_compute") or "local",
+        "default_compute": data.get("default_compute") or "host",
         "tracker": {**base["tracker"], **(data.get("tracker") or {})},
         # What preparing each environment produced (research_environment).
         "states": data.get("states") or {},
     }
+
+
+def _builtin(computes):
+    """This machine and its Docker are always there, first."""
+    ids = {c.get("id") for c in computes}
+    missing = [dict(c) for c in (THIS, LOCAL) if c["id"] not in ids]
+    return [*missing, *computes]
 
 
 def save(settings, data):
@@ -94,6 +100,8 @@ def check_compute(item):
     gpus = str(item.get("gpus") or "")
     if not GPUS.match(gpus):
         raise ValueError("GPU 只能填 all、留空，或用逗号分隔的编号")
+    if kind == "host":
+        return {"id": item["id"], "name": name, "kind": "host", "gpus": gpus}
     if kind == "docker":
         cpus = float(item.get("cpus") or 2)
         memory = int(item.get("memory_gb") or 4)
@@ -130,7 +138,7 @@ def check_compute(item):
             "python": python,
             "gpus": gpus,
         }
-    raise ValueError("算力类型只能是 docker 或 ssh")
+    raise ValueError("环境类型只能是 host、docker 或 ssh")
 
 
 def update(settings, body):
@@ -140,9 +148,8 @@ def update(settings, body):
     ids = [c["id"] for c in computes]
     if len(set(ids)) != len(ids):
         raise ValueError("算力编号重复")
-    if "local" not in ids:
-        computes = [dict(LOCAL), *computes]
-        ids.insert(0, "local")
+    computes = _builtin(computes)
+    ids = [c["id"] for c in computes]
     default_compute = body.get("default_compute", old["default_compute"])
     if default_compute not in ids:
         raise ValueError("默认算力不在列表里")

@@ -333,7 +333,7 @@ def test_a_project_starts_from_a_message(env):
     )
     assert r.status_code == 200, r.text
     project = r.json()
-    assert project["stage"] == "scoping" and project["compute_id"] == "local"
+    assert project["stage"] == "scoping" and project["compute_id"] == "host"
     pid = project["id"]
     assert (
         a.post(f"{BASE}/{pid}/messages", json={"text": "基线 99.2%"}).status_code == 200
@@ -380,7 +380,7 @@ def test_a_project_can_move_to_another_compute(env):
     assert moved.json()["compute_id"] == "wsl"
     events = a.get(f"{BASE}/{pid}/events").json()
     assert events[-1]["action"] == "compute_changed"
-    assert events[-1]["detail"] == {"from": "local", "to": "wsl"}
+    assert events[-1]["detail"] == {"from": "host", "to": "wsl"}
 
 
 def test_an_environment_is_prepared_by_an_agent_run(env):
@@ -564,3 +564,44 @@ def test_a_research_without_a_project_goes_to_the_default_one(env):
     assert r["workspace_id"]
     names = [w["name"] for w in a.get(WS).json()]
     assert names == ["我的研究"]
+
+
+def test_leaving_an_unreachable_machine_that_ran_nothing_is_allowed(env, monkeypatch):
+    from backend import research_remote
+
+    app, a, _b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    pid = a.post(BASE, json={"message": "MNIST", "model_config_id": model}).json()["id"]
+    a.put(
+        "/api/v1/research/settings",
+        json={"computes": [{"id": "wsl", "kind": "ssh", "host": "wsl-box"}]},
+    )
+    a.post(f"{BASE}/{pid}/compute", json={"compute_id": "wsl"})
+
+    def offline(*_a, **_k):
+        raise ValueError("连不上 wsl-box")
+
+    monkeypatch.setattr(research_remote, "pull", offline)
+    moved = a.post(f"{BASE}/{pid}/compute", json={"compute_id": "host"})
+    assert moved.status_code == 200, moved.text
+    with app.state.maker() as d:
+        from backend.models import ResearchJob
+
+        p = d.get(ResearchProject, pid)
+        p.stage = "experiments"
+        p.compute_id = "wsl"
+        d.add(
+            ResearchJob(
+                project_id=pid,
+                node_id="n",
+                sprint_id="s",
+                command="x",
+                status="succeeded",
+                compute_id="wsl",
+            )
+        )
+        d.commit()
+    assert (
+        a.post(f"{BASE}/{pid}/compute", json={"compute_id": "host"}).status_code == 409
+    )

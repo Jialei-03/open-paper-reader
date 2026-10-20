@@ -544,14 +544,22 @@ def install_research_routes(app, settings, db, auth, human, owned):
         if body.compute_id != p.compute_id:
             old = research_settings.compute(settings, p.compute_id)
             if old["kind"] == "ssh":
-                from .research_remote import pull
+                from . import research_remote
 
+                ran_there = d.scalars(
+                    select(ResearchJob.id).where(
+                        ResearchJob.project_id == p.id,
+                        ResearchJob.compute_id == old["id"],
+                    )
+                ).first()
                 try:
-                    pull(settings, old, p.id)
+                    research_remote.pull(settings, old, p.id)
                 except ValueError as e:
-                    raise HTTPException(
-                        409, "没能把远程工作区拿回来：" + str(e)
-                    ) from None
+                    # Nothing ran there yet: there is nothing to bring back.
+                    if p.stage != "scoping" and ran_there is not None:
+                        raise HTTPException(
+                            409, "没能把远程工作区拿回来：" + str(e)
+                        ) from None
             research_map.event(
                 d,
                 p,
@@ -706,6 +714,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
             item = research_settings.compute(settings, compute_id)
             if item["kind"] == "ssh":
                 return research_remote.probe(item)
+            if item["kind"] == "host":
+                from . import research_host
+
+                return research_host.probe(settings, item)
             status = research_sandbox.docker_status()
             if not status["available"]:
                 raise ValueError(status["reason"])

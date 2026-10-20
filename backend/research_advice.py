@@ -312,6 +312,18 @@ def apply(d, project, sprint, args):
             # A person accepts the answer, or sends the project back for more.
             research_stages.propose_conclusion(d, project, sprint, conclusion)
         concluded = True
+    question = (args.get("ask_researcher") or "").strip()
+    if question:
+        # A question for the researcher: it waits in their inbox, the work goes on.
+        research_map.event(
+            d,
+            project,
+            None,
+            "advisor",
+            "decision_requested",
+            {"kind": "question", "proposal": "answer", "reason": question[:2000]},
+            sprint.id,
+        )
     if (args.get("message") or "").strip():
         from . import research_stages
 

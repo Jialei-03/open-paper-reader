@@ -32,7 +32,10 @@ def _setting_out(settings, project):
         item = research_settings.compute(settings, project.compute_id)
         env = (project.environment or {}).get(item["id"], {})
         gpus = (
-            ", ".join(env.get("gpus") or []) or (item.get("gpus") and "已配置") or "无"
+            ", ".join(env.get("gpus") or [])
+            or (env.get("mps") and "Apple 芯片，PyTorch 用 torch.device('mps')")
+            or (item.get("gpus") and "已配置")
+            or "无"
         )
         lines.append(
             f"- 算力：{item['name']}（{item['kind']}，GPU：{gpus}）"
@@ -405,7 +408,7 @@ def advisor_brief(d, project, sprint_number, settings=None):
 
 
 def _data_files(settings, project):
-    """The data the researcher gave, as the executor finds it in /work."""
+    """The data the researcher gave, as the executor finds it in the workspace."""
     if settings is None:
         return ""
     from .research_sandbox import workdir
@@ -414,11 +417,11 @@ def _data_files(settings, project):
     if not folder.is_dir():
         return ""
     files = [
-        f"- /work/{f.relative_to(folder.parent)}（{f.stat().st_size} 字节）"
+        f"- {f.relative_to(folder.parent)}（{f.stat().st_size} 字节）"
         for f in sorted(folder.rglob("*"))
         if f.is_file() and not f.is_symlink()
     ][:50]
-    return "## 研究者提供的数据（/work/data）\n" + "\n".join(files) if files else ""
+    return "## 研究者提供的数据（工作区的 data/ 下）\n" + "\n".join(files) if files else ""
 
 
 def executor_brief(d, project, sprint_number, settings=None):

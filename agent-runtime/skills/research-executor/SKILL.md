@@ -28,7 +28,7 @@
 
 ## 实验
 
-- 工作区在 `/work`，跨轮保留，**没有网络**。可用：Python 3（`python` 和 `python3` 都行）、numpy、scipy、pandas、scikit-learn、matplotlib、CPU 版 torch。
+- 工作区就是命令的当前目录，跨轮保留。有哪些 Python 包、有没有 GPU，看简报「数据与算力」里的环境检测结果；有 GPU 就用（CUDA 用 `cuda`，Apple 芯片用 `mps`），没有再用 CPU。实验里不要联网下载。
 - 看文件、探索数据可以直接用 bash。但 bash 的输出不能当证据：要记录的结果，一律用 `run_job(command)` 跑，系统会把输出存成日志。
 - 两分钟内能跑完的实验，用 `run_job(command, wait_seconds=120)`：它会等作业结束、直接返回日志行，同一轮里就能 `record_result`。不要先用 bash 跑一遍、再用 `run_job` 重跑。
 - 更长的实验不设 `wait_seconds`，启动后用 `end_sprint(..., waiting_on=[job_id])` 结束本轮，作业结束后会自动开始下一轮。**不要**在本轮里反复轮询等待。
@@ -53,11 +53,11 @@
 
 ## 交接写什么
 
-下一轮的你只看得到地图和交接。交接要具体，例如："H2 在 3 个种子上平均提升 0.4%，接近 kill_if 的 0.5% 阈值，结论不确定；下一轮把数据量加倍再测一次（作业脚本在 /work/sweep.py）。"不要写"继续研究"这类空话。
+下一轮的你只看得到地图和交接。交接要具体，例如："H2 在 3 个种子上平均提升 0.4%，接近 kill_if 的 0.5% 阈值，结论不确定；下一轮把数据量加倍再测一次（作业脚本是 sweep.py）。"不要写"继续研究"这类空话。
 
 ## 数据、算力和记录指标
 
-- 研究计划里选定的公开数据集由系统下载好，放在环境变量 `ORA_DATA` 指向的目录下（本机是 `/data`），每个数据集一个子目录，例如 `$ORA_DATA/mnist/train-images-idx3-ubyte.gz`。实验环境没有网络，不要尝试下载。研究者上传的文件在 `data/` 下。
+- 研究计划里选定的公开数据集由系统下载好，放在环境变量 `ORA_DATA` 指向的目录下，每个数据集一个子目录，例如 `$ORA_DATA/mnist/train-images-idx3-ubyte.gz`。不要在实验里下载数据。研究者上传的文件在 `data/` 下。
 - 作业可能在远程机器上运行：代码里一律用相对于工作区的路径和 `os.environ["ORA_DATA"]`，不要写死 `/work`。
 - 实验脚本里用 `ora` 模块记录设置和指标（已在 PYTHONPATH 里，无需安装）：
 

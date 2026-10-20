@@ -782,6 +782,9 @@ def test_sweep_failure_does_not_stop_planning(lab, monkeypatch):
 def test_no_sprint_while_docker_unavailable(lab, monkeypatch):
     """Review #3: without Docker, executor sprints would only spend tokens."""
     app, project, _ = lab
+    with app.state.maker() as d:
+        d.get(ResearchProject, project["id"]).compute_id = "local"
+        d.commit()
     monkeypatch.setattr(
         rs,
         "docker_status",
@@ -881,7 +884,7 @@ def test_brief_lists_workspace_data_files(lab):
     rw.tick(app)
     with app.state.maker() as d:
         prompt = d.get(AgentRun, sprints(app, project["id"])[-1].run_id).prompt
-    assert "/work/data/measurements.csv" in prompt
+    assert "- data/measurements.csv" in prompt
 
 
 def test_advisor_off_for_ablation(lab):

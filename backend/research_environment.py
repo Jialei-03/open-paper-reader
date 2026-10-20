@@ -1,6 +1,6 @@
 """Research environments, prepared by an agent rather than by a fixed script.
 
-An environment is a machine (this machine's Docker, or one reached over SSH)
+An environment is a machine (this one, its Docker, or one reached over SSH)
 plus what it must offer experiments. Preparing it is an agent run: the agent
 logs in, looks at what is there (GPU, driver, Python), installs what is
 missing the way that machine needs, checks its work, and ends with
@@ -39,7 +39,28 @@ def set_state(settings, env_id, **values):
     return states[env_id]
 
 
-def brief(item, needs, allow_sudo, previous):
+def _host_lines(settings, item, needs):
+    from . import research_host
+
+    folder = research_host.setup_dir(settings)
+    return [
+        "# 准备研究环境",
+        f"## 机器\n{item['name']}：研究者自己的这台电脑，实验直接在这里运行（不经过容器）。",
+        f"## 研究者需要这个环境提供\n{needs}",
+        "## 权限\n不要使用 sudo，不要改系统 Python，也不要用 pip 往系统或用户全局装包："
+        f"在 {folder} 下建一个独立的 Python 虚拟环境（推荐 `uv venv` 或 `python3 -m venv`），"
+        "所有包装进这个虚拟环境。如果是 Apple 芯片的 Mac，装支持 MPS 的 PyTorch，并验证 "
+        "`torch.backends.mps.is_available()`。",
+        f"## 工作目录\n你的 bash 在 {folder} 里运行，可以联网下载。",
+        "## 范围\n只准备环境。不要查看、修改或运行研究项目的任何东西，"
+        "不要启动训练或实验，也不要找“任务说明文件”：要做的事就是这份简报。",
+    ]
+
+
+def brief(item, needs, allow_sudo, previous, settings=None):
+    if item["kind"] == "host":
+        lines = _host_lines(settings, item, needs)
+        return "\n\n".join(lines + _closing(previous))
     lines = [
         "# 准备研究环境",
         f"## 机器\n{item['name']}（SSH 主机 {item['host']}，GPU 设置：{item.get('gpus') or '未指定'}）",
@@ -55,6 +76,11 @@ def brief(item, needs, allow_sudo, previous):
         f"（{item.get('remote_dir', '~/ora-research')} 下除 ora/ 以外的目录都是研究项目），"
         "不要启动训练或实验，也不要找“任务说明文件”：要做的事就是这份简报。",
     ]
+    return "\n\n".join(lines + _closing(previous))
+
+
+def _closing(previous):
+    lines = []
     if previous.get("python"):
         lines.append(
             "## 上一次准备的结果（可以在它的基础上补装）\n"
@@ -71,13 +97,13 @@ def brief(item, needs, allow_sudo, previous):
         "## 结束\n装好并亲自验证后，调用 finish_setup：python 填要用的解释器的绝对路径或 ~ 开头的路径，"
         "recipe 写一段能在一台同样的新机器上重做这次准备的 shell 脚本，summary 写给研究者看。"
     )
-    return "\n\n".join(lines)
+    return lines
 
 
 def start(settings, d, owner, env_id, model_config_id, needs="", allow_sudo=False):
     """Starts the agent run that prepares an SSH environment."""
     item = research_settings.compute(settings, env_id)
-    if item["kind"] != "ssh":
+    if item["kind"] == "docker":
         raise ValueError("本机 Docker 环境由镜像提供：make research-image")
     current = state(settings, env_id)
     if current.get("status") == "preparing":
@@ -96,7 +122,7 @@ def start(settings, d, owner, env_id, model_config_id, needs="", allow_sudo=Fals
         session_id=session.id,
         model_config_id=model_config_id,
         model=config["model"],
-        prompt=brief(item, needs, allow_sudo, current),
+        prompt=brief(item, needs, allow_sudo, current, settings),
         context="",
         writable=True,
         lane="research",
@@ -135,13 +161,16 @@ def usable(probe, item):
 
 def finish(settings, env_id, args):
     """The agent says it is done: the system checks for itself before believing it."""
-    from . import research_remote
+    from . import research_host, research_remote
 
     item = research_settings.compute(settings, env_id)
     python = (args.get("python") or "").strip()
     if not research_settings.REMOTE_DIR.match(python) or ".." in python:
         raise ValueError("python 路径不合法")
-    probe = research_remote.probe({**item, "python": python})
+    if item["kind"] == "host":
+        probe = research_host.probe(settings, {**item, "python": python})
+    else:
+        probe = research_remote.probe({**item, "python": python})
     problem = usable(probe, item)
     if problem:
         raise ValueError(

@@ -186,7 +186,7 @@ def test_settings_keep_the_key_server_side(world):
             "tracker": {"kind": "swanlab", "project": "mnist", "api_key": "secret"},
         },
     )
-    assert [c["id"] for c in data["computes"]] == ["local", "lab"]
+    assert [c["id"] for c in data["computes"]] == ["host", "local", "lab"]
     shown = rset.public(rset.load(world.settings))
     assert "api_key" not in shown["tracker"] and shown["tracker"]["has_key"]
     # Saving again without a key keeps the stored one.
@@ -914,3 +914,53 @@ def test_blocking_needs_a_real_reason(world):
         )
         assert p.status != "waiting"
         assert any("blocked" in n for n in out.get("notes", []))
+
+
+def test_a_finished_run_is_recorded_on_its_node_by_the_system(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        node = rm.root(d, p)
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r")
+        d.add(sprint)
+        d.flush()
+        job = rs.start_job(world.settings, d, p, node, sprint, "python t.py", 600)
+        folder = rs.rundir(world.settings, p.id, job.id)
+        (folder / "config.json").write_text(json.dumps({"tag": "base_s0"}))
+        (folder / "summary.json").write_text(json.dumps({"final_test_acc": 0.9945}))
+        world.docker.containers[job.container]["running"] = False
+        rs._sweep_one(world.settings, d, job)
+        row = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "run_result")
+        ).one()
+        assert row.node_id == node.id and row.actor == "system"
+        assert row.detail["metrics"]["final_test_acc"] == 0.9945
+        assert row.detail["tag"] == "base_s0" and row.detail["status"] == "succeeded"
+
+
+def test_the_advisor_can_ask_the_researcher_without_stopping_the_work(world):
+    from backend.research_advice import apply
+
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r", role="advisor")
+        d.add(sprint)
+        d.flush()
+        root = rm.root(d, p)
+        apply(
+            d, p, sprint,
+            {"verdicts": [{"node_id": root.id, "verdict": "continue", "reason": "x"}],
+             "ask_researcher": "“紧凑 CNN”按参数 ≤100k 算可以吗？"},
+        )
+        ask = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "decision_requested")
+        ).one()
+        assert ask.detail["kind"] == "question" and p.status == "active"
+        assert st.decide(d, p, ask, True, "可以，≤100k")
+        said = d.scalars(
+            select(ResearchEvent).where(
+                ResearchEvent.action == "message", ResearchEvent.actor == "human"
+            ).order_by(ResearchEvent.created_at.desc())
+        ).first()
+        assert "≤100k" in said.detail["text"]

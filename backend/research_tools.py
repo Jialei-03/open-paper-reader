@@ -145,7 +145,7 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "run_job",
-        "在研究工作区（/work，无网络）运行一条命令；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。几分钟内能跑完的，设 wait_seconds 等它结束，直接拿到日志行，本轮就能 record_result；更长的实验不等，用 end_sprint(waiting_on) 结束本轮。",
+        "在研究工作区（当前目录）运行一条命令；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。几分钟内能跑完的，设 wait_seconds 等它结束，直接拿到日志行，本轮就能 record_result；更长的实验不等，用 end_sprint(waiting_on) 结束本轮。",
         {
             "command": {"type": "string", "minLength": 1, "maxLength": 4000},
             "timeout_seconds": {"type": "integer", "minimum": 1},
@@ -228,6 +228,11 @@ RESEARCH_TOOLS.append(
                 },
             },
             "assessment": {"type": "string", "maxLength": 2000},
+            "ask_researcher": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "需要研究者回答、但不必停下研究的问题（比如一个定义的口径）。会进入他的待办，他回答后你会在简报里看到",
+            },
             "message": {
                 "type": "string",
                 "maxLength": 4000,
@@ -833,10 +838,18 @@ async def run_pi(app, research, name, args):
     """A file or shell tool, in the project's own workspace."""
 
     if research.get("role") == "envsetup":
-        from . import research_remote, research_settings
+        from . import research_host, research_remote, research_settings
 
-        item = research_settings.compute(app.state.settings, research["env_id"])
-        result = await asyncio.to_thread(research_remote.setup_call, item, name, args)
+        settings = app.state.settings
+        item = research_settings.compute(settings, research["env_id"])
+        if item["kind"] == "host":
+            result = await asyncio.to_thread(
+                research_host.setup_call, settings, item, name, args
+            )
+        else:
+            result = await asyncio.to_thread(
+                research_remote.setup_call, item, name, args
+            )
         return {
             "content": result.get("content", []),
             "_image_content": [],

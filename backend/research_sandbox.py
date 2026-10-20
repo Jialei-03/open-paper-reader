@@ -1,5 +1,6 @@
-"""Where research experiments run: a project's own workspace, in local Docker
-or on a machine reached over SSH (see research_remote).
+"""Where research experiments run: a project's own workspace, in local Docker,
+straight on this machine (research_host), or on a machine reached over SSH
+(research_remote).
 
 Every command runs in a container with no network, a read-only root and no
 capabilities; the project's work directory is mounted at /work, its datasets
@@ -227,6 +228,10 @@ def pi_call(settings, project_id, name, args, d=None):
             from . import research_remote
 
             return research_remote.tool_call(settings, d, item, project, name, args)
+        if item["kind"] == "host":
+            from . import research_host
+
+            return research_host.tool_call(settings, d, item, project, name, args)
     _ready()
     _check_visible(settings, project_id)
     container = "ora-pi-" + uuid.uuid4().hex[:12]
@@ -309,10 +314,8 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
     job.container = "ora-job-" + job.id.replace("-", "")[:12]
     if item["id"] not in (project.environment or {}):
         probe(settings, d, project, item)
-    if item["kind"] == "ssh":
-        from . import research_remote
-
-        research_remote.start(settings, d, item, project, job)
+    if item["kind"] in {"ssh", "host"}:
+        _away(item["kind"]).start(settings, d, item, project, job)
         return job
     started = run(
         [
@@ -357,6 +360,10 @@ def probe(settings, d, project, item):
         from . import research_remote
 
         info = research_remote.probe(item)
+    elif item["kind"] == "host":
+        from . import research_host
+
+        info = research_host.probe(settings, item)
     else:
         done = run(
             [
@@ -416,6 +423,35 @@ def collect(settings, job):
     job.points = points
 
 
+def _record_run(d, job):
+    """The run's numbers on its node, by the system: what the agents judge from."""
+    from . import research_map
+
+    project = d.get(ResearchProject, job.project_id)
+    node = d.get(ResearchNode, job.node_id)
+    if project is None:
+        return
+    research_map.event(
+        d,
+        project,
+        node,
+        "system",
+        "run_result",
+        {
+            "job_id": job.id,
+            "status": job.status,
+            "exit_code": job.exit_code,
+            "tag": str((job.config or {}).get("tag") or "")[:100],
+            "metrics": {
+                k: v
+                for k, v in (job.metrics or {}).items()
+                if isinstance(v, (int, float)) and k != "step"
+            },
+        },
+        job.sprint_id,
+    )
+
+
 def series(settings, job):
     """Every point the job logged, in order."""
     path = rundir(settings, job.project_id, job.id) / "metrics.jsonl"
@@ -427,6 +463,20 @@ def series(settings, job):
             except ValueError:
                 continue
     return rows
+
+
+def _away(where):
+    """The module that runs a job outside this machine's Docker: a compute
+    kind, or a job (what it recorded when it started)."""
+    if not isinstance(where, str):
+        where = where.remote.get("kind", "ssh")
+    if where == "host":
+        from . import research_host
+
+        return research_host
+    from . import research_remote
+
+    return research_remote
 
 
 def _elapsed(job):
@@ -456,9 +506,7 @@ def _inspect(container):
 def _logs(container, job=None):
     # Both streams, in the order they were written.
     if job is not None and job.remote:
-        from . import research_remote
-
-        return research_remote.logs(job)
+        return _away(job).logs(job)
     done = run(
         ["docker", "logs", container],
         stdout=subprocess.PIPE,
@@ -471,9 +519,7 @@ def _logs(container, job=None):
 
 def _kill(job):
     if job.remote:
-        from . import research_remote
-
-        research_remote.kill(job)
+        _away(job).kill(job)
         return
     run(["docker", "kill", job.container], capture_output=True, text=True, timeout=30)
 
@@ -490,9 +536,7 @@ def _finish(settings, d, job, status, exit_code, note=""):
     job.exit_code = exit_code
     job.finished_at = now()
     if job.remote:
-        from . import research_remote
-
-        research_remote.fetch_back(settings, job)
+        _away(job).fetch_back(settings, job)
     else:
         run(
             ["docker", "rm", "-f", job.container],
@@ -501,6 +545,7 @@ def _finish(settings, d, job, status, exit_code, note=""):
             timeout=30,
         )
     collect(settings, job)
+    _record_run(d, job)
 
 
 def _charge(d, job):
@@ -517,9 +562,7 @@ def _charge(d, job):
 
 def _sweep_one(settings, d, job):
     if job.remote:
-        from . import research_remote
-
-        state = research_remote.state(job)
+        state = _away(job).state(job)
     else:
         state = _inspect(job.container)
     if state is GONE:
