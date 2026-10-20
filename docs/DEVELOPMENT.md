@@ -60,6 +60,7 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 | `screens/research/projects/` | 研究项目：项目列表、项目页（看板、对话、研究、项目资料）、项目对话 |
 | `screens/research/ResearchProject.tsx` | 一个研究：对话主线、实时卡片、右侧记录面板 |
 | `screens/research/talk/` | 对话主线（`thread.ts` 从事件推导出对话条目）、计划卡片、决定卡片、输入框、记录面板、环境准备窗口 |
+| `screens/research/files/` | 记录面板的「文件」页签：研究工作区的目录树、预览（代码、Markdown、CSV、图片、PDF）、下载、拖拽上传；「插入到输入框」发 `ora:composer-insert` 事件，`ora:open-files` 事件打开这个页签（参考 pi-web，MIT） |
 | `screens/research/process/` | Agent 的工作过程：步骤、命令和输出、打字机效果（参考 claude-web 和 pi-web，MIT） |
 | `screens/research/scene/` | 「现场」：像素风的办公室，角色随 Agent 的状态走动 |
 | `screens/research/research-api.ts` | 研究相关的全部接口和类型 |
@@ -87,6 +88,7 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 | `research_map.py` | 研究地图（节点和事件） |
 | `research_advice.py` | 导师的判断如何落到地图上 |
 | `research_evidence.py` | 结果能引用什么：日志行和论文原句的核对 |
+| `research_files.py` | 研究工作区的文件：列目录（标出最近一轮执行者写过的）、读和下载、上传；路径不能出工作区，也不跟随指向外面的链接；只在本机版 |
 | `research_sandbox.py` | 实验：启动、收作业、日志、指标；按环境类型分派 |
 | `research_host.py` | 本机直接运行的环境 |
 | `research_remote.py` | SSH 机器 |

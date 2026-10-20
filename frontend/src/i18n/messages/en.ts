@@ -1235,6 +1235,38 @@ export const en = {
   "research.record.setup": "Setup",
   "research.record.answer": "Answer",
   "research.record.scene": "Office",
+  "research.record.files": "Files",
+  "research.files.title": "Research workspace",
+  "research.files.round": "Workspace · marked: changed in round {n}",
+  "research.files.changed": "Changed in the latest round",
+  "research.files.upload": "Upload files",
+  "research.files.refresh": "Refresh",
+  "research.files.uploaded": "Uploaded {n} file(s)",
+  "research.files.sshCopy":
+    "This research runs on an SSH machine; this is the copy synced back here (fetched when a job ends). Files uploaded to data/ are sent there on the next run; files elsewhere are not.",
+  "research.files.empty":
+    "The workspace is empty. Drop files here to upload them.",
+  "research.files.emptyFolder": "Empty folder",
+  "research.files.emptyFile": "The file is empty.",
+  "research.files.dropHint":
+    "Drop files on a folder to upload them there, or on empty space to upload them here.",
+  "research.files.outside":
+    "A link pointing outside the workspace; it cannot be opened",
+  "research.files.insert": "Insert into the message",
+  "research.files.download": "Download",
+  "research.files.back": "Back to the files",
+  "research.files.view": "Show as",
+  "research.files.preview": "Preview",
+  "research.files.source": "Source",
+  "research.files.truncated":
+    "The file is large; only its beginning is shown. Download it for the rest.",
+  "research.files.binary":
+    "A binary file: it cannot be previewed, but it can be downloaded.",
+  "research.files.moreRows": "Only the first {n} rows are shown.",
+  "research.files.clashTitle": "A file with that name exists",
+  "research.files.clashLead": "This folder already has: {names}.",
+  "research.files.keepBoth": "Keep both",
+  "research.files.replace": "Replace",
   "research.record.show": "Show the record",
   "research.record.hide": "Hide the record",
   "research.record.question": "Question",

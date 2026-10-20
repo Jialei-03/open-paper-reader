@@ -13,14 +13,22 @@ import {
   type ResearchJob,
   type SeriesPoint,
 } from "../research-api";
+import { FilesPanel } from "../files/FilesPanel";
+import { settledKey } from "../files/files-api";
 import { ResearchScene } from "../scene/ResearchScene";
 import { mainMetric, plainCommand } from "../process/model";
 import { Prose, trackerLink, type ThreadActions } from "./ThreadView";
 import { ComputePicker } from "./Pickers";
 import styles from "./Talk.module.css";
 
-export type RecordTab = "plan" | "runs" | "setup" | "answer" | "scene";
-const TABS: RecordTab[] = ["plan", "runs", "setup", "answer", "scene"];
+export type RecordTab =
+  | "plan"
+  | "runs"
+  | "setup"
+  | "answer"
+  | "files"
+  | "scene";
+const TABS: RecordTab[] = ["plan", "runs", "setup", "answer", "files", "scene"];
 
 const TONE: Record<string, string> = {
   supported: "good",
@@ -85,6 +93,13 @@ export function RecordPanel({
           />
         )}
         {tab === "answer" && <AnswerTab detail={detail} />}
+        {tab === "files" && (
+          <FilesPanel
+            key={detail.project.id}
+            projectId={detail.project.id}
+            settled={settledKey(detail.sprints, detail.jobs)}
+          />
+        )}
         {tab === "scene" && (
           <SceneTab detail={detail} events={events} actions={actions} />
         )}

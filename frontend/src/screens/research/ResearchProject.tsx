@@ -51,6 +51,7 @@ import {
 import type { ResearchRun } from "./process/model";
 import { LiveCard } from "./process/Process";
 import { JumpToLatest } from "../../reader/JumpToLatest";
+import { OPEN_FILES_EVENT } from "./files/files-api";
 import { Composer } from "./talk/Composer";
 import { RecordPanel, type RecordTab } from "./talk/RecordPanel";
 import { buildThread, working } from "./talk/thread";
@@ -109,6 +110,16 @@ export function ResearchProject({
   );
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+
+  // The /files command, or anything else, asks for the files panel.
+  useEffect(() => {
+    const show = () => {
+      setRecord(true);
+      setTab("files");
+    };
+    window.addEventListener(OPEN_FILES_EVENT, show);
+    return () => window.removeEventListener(OPEN_FILES_EVENT, show);
+  }, []);
 
   useEffect(() => {
     readResearchSettings().then(

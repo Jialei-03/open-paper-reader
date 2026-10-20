@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 
-from . import research_datasets, research_map
+from . import research_datasets, research_files, research_map
 from .models import (
     AgentRun,
     ResearchCard,
@@ -281,6 +281,8 @@ def install_research_routes(app, settings, db, auth, human, owned):
     def project_of(d, id, a):
         allowed(a, d)
         return owned(d, ResearchProject, id, a)
+
+    research_files.install_research_files(app, settings, db, auth, project_of)
 
     def workspace_for(d, a, workspace_id, budget=None):
         from . import research_workspaces
