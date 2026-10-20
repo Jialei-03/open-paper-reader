@@ -253,6 +253,8 @@ def next_role(d, project, history):
     if project.budget.get("advisor") is False:
         # An ablation run: the executor works alone.
         return "executor"
+    # Talking the plan through is not research work to be reviewed.
+    history = [s for s in history if s.role != "scoping"]
     said = _last_human_message(d, project)
     if (
         said is not None

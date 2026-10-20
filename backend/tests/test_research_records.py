@@ -372,3 +372,19 @@ def test_scoping_may_read_literature_but_not_run_anything(world):
     for name in ("run_job", "bash", "advise", "add_node"):
         with pytest.raises(ValueError, match="定题"):
             gate(world.app, research, name)
+
+
+def test_scoping_turns_do_not_count_as_rounds_before_a_review(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        talk = [
+            ResearchSprint(
+                project_id=p.id, number=n, run_id="r", role="scoping", status="ended"
+            )
+            for n in (1, 2, 3)
+        ]
+        d.add_all(talk)
+        d.flush()
+        st.say(d, p, "advisor", "计划已生效")
+        assert rw.next_role(d, p, talk) == "executor"
