@@ -1028,11 +1028,6 @@ export const en = {
   "research.view.scene": "Scene",
   "research.scene.empty":
     "Nothing yet. Once the first sprint starts, the executor, the advisor and the system get to work here.",
-  "research.scene.place.bench": "Workbench",
-  "research.scene.place.board": "Research map",
-  "research.scene.place.desk": "Advisor's desk",
-  "research.scene.place.gate": "Gate",
-  "research.scene.place.shelf": "Playbook",
   "research.scene.place.person": "You",
   "research.scene.play": "Play",
   "research.scene.pause": "Pause",
@@ -1042,8 +1037,6 @@ export const en = {
   "research.scene.speed": "Speed",
   "research.scene.step": "Step {index} of {total}",
   "research.scene.live": "Follow live",
-  "research.scene.stop": "Stop",
-  "research.scene.idle": "Waiting",
   "research.scene.looks": "Agent looks",
   "research.scene.looks.description":
     "Name each agent, or upload a figure you designed (PNG, SVG, GIF or WebP, up to 1.5 MB). It is kept in this browser only.",

@@ -1,4 +1,5 @@
-/* The research room: agents at their places, what they do travelling between them. */
+/* The research room: a pixel office with the agents at work, and what they do
+   travelling between their places. Sizes follow the stage, so it scales whole. */
 
 .scene {
   display: flex;
@@ -14,145 +15,122 @@
 .stage {
   position: relative;
   overflow: hidden;
-  min-height: 340px;
-  aspect-ratio: 16 / 8;
+  width: 100%;
+  aspect-ratio: 192 / 108;
   border-radius: var(--ui-r-16);
-  background:
-    linear-gradient(
-      to bottom,
-      transparent 0 58%,
-      color-mix(in srgb, var(--ui-fg) 4%, transparent) 58% 100%
-    ),
-    var(--ui-bg-1);
+  background: #c89f74;
   box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+  container-type: inline-size;
+  image-rendering: pixelated;
 }
 
-/* Furniture: quiet shapes with a label; the one in use is lit. */
-.prop {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 96px;
-  padding: 8px 10px 6px;
-  border-radius: var(--ui-r-10);
-  background: var(--ui-bg-2);
-  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
-  transform: translate(-50%, 0);
-  transition:
-    box-shadow var(--ui-dur-2) var(--ui-ease-out),
-    background var(--ui-dur-2) var(--ui-ease-out);
-}
-
-.prop[data-lit] {
-  box-shadow: inset 0 0 0 1.5px var(--ui-fg-2);
-}
-
-.prop[data-place="person"],
-.prop[data-place="shelf"] {
-  min-width: 72px;
-}
-
-.prop[data-place="gate"] {
-  min-width: 56px;
-  padding: 26px 6px 6px;
-  background:
-    repeating-linear-gradient(90deg, var(--ui-fg-3) 0 3px, transparent 3px 12px)
-      top / 100% 20px no-repeat,
-    var(--ui-bg-2);
-}
-
-.propLabel {
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-11);
-  white-space: nowrap;
-}
-
-.terminal {
-  display: block;
-  overflow: hidden;
-  max-width: 180px;
-  padding: 4px 6px;
-  border-radius: var(--ui-r-6);
-  background: #1c1b19;
-  color: #e9e4da;
-  font-family: var(--ui-font-mono, ui-monospace, monospace);
-  font-size: 10px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
+/* Text the room carries: the map on the whiteboard, the monitor, the desk note, the door. */
 .board {
   position: absolute;
-  width: min(38%, 340px);
-  padding: 10px 12px;
-  border-radius: var(--ui-r-12);
-  background: var(--ui-bg-2);
-  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
-  transform: translate(-50%, -50%);
-  transition: box-shadow var(--ui-dur-2) var(--ui-ease-out);
-}
-
-.board[data-lit] {
-  box-shadow: inset 0 0 0 1.5px var(--ui-fg-2);
-}
-
-.board ul {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  margin: 6px 0 0;
-  padding: 0;
+  gap: 0.4cqw;
+  margin: 0;
+  padding: 0.8cqw 1cqw;
+  overflow: hidden;
   list-style: none;
+  color: #2b3a55;
+  font-size: max(9px, 1.15cqw);
+  line-height: 1.3;
 }
 
 .board li {
   display: flex;
-  gap: 6px;
+  gap: 0.6cqw;
   align-items: center;
   overflow: hidden;
-  border-radius: var(--ui-r-4);
-  color: var(--ui-fg-1);
-  font-size: var(--ui-text-11);
+  border-radius: 2px;
   white-space: nowrap;
   text-overflow: ellipsis;
   transition: background var(--ui-dur-2) var(--ui-ease-out);
 }
 
 .board li[data-current] {
-  background: var(--ui-selected);
-  color: var(--ui-fg);
+  background: #fff1a8;
+}
+
+.board[data-lit] li[data-current] {
+  background: #ffe36e;
 }
 
 .boardDot {
   flex: none;
-  width: 6px;
-  height: 6px;
+  width: 0.7cqw;
+  min-width: 5px;
+  aspect-ratio: 1;
   border-radius: 50%;
-  background: var(--ui-fg-3);
+  background: #9aa3ad;
 }
 
 .board li[data-status="supported"] .boardDot {
-  background: var(--ui-success-text);
+  background: #3a9a5a;
 }
 
 .board li[data-status="refuted"] .boardDot,
 .board li[data-status="abandoned"] .boardDot {
-  background: var(--ui-danger-text);
+  background: #d64541;
 }
 
 .board li[data-status="active"] .boardDot {
-  background: var(--ui-fg);
+  background: #2f6bd6;
 }
 
-/* The agents. */
+.screen {
+  position: absolute;
+  display: -webkit-box;
+  overflow: hidden;
+  padding: 0.3cqw 0.5cqw;
+  color: #7ee2a8;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: max(7px, 0.8cqw);
+  line-height: 1.25;
+  word-break: break-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+}
+
+.deskNote {
+  position: absolute;
+  display: grid;
+  overflow: hidden;
+  padding: 0 0.5cqw;
+  place-items: center;
+  border-radius: 1px;
+  background: #fffdf6;
+  box-shadow: 0 1px 0 rgb(0 0 0 / 20%);
+  color: #2b2a33;
+  font-size: max(8px, 0.95cqw);
+  font-weight: var(--ui-weight-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: rotate(-2deg);
+}
+
+.doorSign {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  color: #3a2618;
+  font-size: max(8px, 0.9cqw);
+  font-weight: var(--ui-weight-strong);
+  transition: background var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.doorSign[data-lit] {
+  background: #f2c94c;
+}
+
+/* The animals, standing on their spot (the point is under their feet). */
 .agent {
   position: absolute;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  width: 10.4%;
   transform: translate(-50%, -100%);
 }
 
@@ -160,30 +138,60 @@
   transform-origin: 50% 100%;
 }
 
-.agent[data-active] .figure {
-  animation: work 900ms var(--ui-ease-out) infinite alternate;
+.figure > svg,
+.figure > img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
-.agent[data-stopped] .figure {
-  animation: halt 320ms ease-in-out 2;
+.agent[data-active] .figure {
+  animation: work 700ms var(--ui-ease-out) infinite alternate;
+}
+
+.agent[data-pose="startled"] .figure {
+  animation: halt 300ms ease-in-out 3;
 }
 
 .name {
-  margin-top: 2px;
-  padding: 0 6px;
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-top: 0.2cqw;
+  padding: 0 0.6cqw;
   border-radius: var(--ui-r-pill);
-  color: var(--ui-fg-1);
-  font-size: var(--ui-text-11);
+  background: rgb(255 255 255 / 75%);
+  color: #2b2a33;
+  font-size: max(9px, 0.95cqw);
   font-weight: var(--ui-weight-strong);
+  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
 .agent[data-active] .name {
-  background: var(--ui-fg);
-  color: var(--ui-bg-1);
+  background: #2b2a33;
+  color: #fff;
 }
 
-.mascotPixels {
+.sprite {
   display: block;
+}
+
+/* Two-frame poses alternate; resting animals only blink now and then. */
+.sprite[data-frames="2"] .spriteFrame:nth-child(1) {
+  animation: frameA 560ms steps(1, end) infinite;
+}
+
+.sprite[data-frames="2"] .spriteFrame:nth-child(2) {
+  animation: frameB 560ms steps(1, end) infinite;
+}
+
+.sprite[data-pose="idle"] .spriteFrame:nth-child(1) {
+  animation: blinkA 4.2s steps(1, end) infinite;
+}
+
+.sprite[data-pose="idle"] .spriteFrame:nth-child(2) {
+  animation: blinkB 4.2s steps(1, end) infinite;
 }
 
 .mascotImage {
@@ -191,107 +199,102 @@
   object-fit: contain;
 }
 
-.eye {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: blink 5s infinite;
-}
-
 .bubble {
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 0.6cqw);
+  left: 50%;
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: max-content;
-  max-width: 220px;
+  max-width: min(240px, 26cqw);
   padding: 6px 10px;
   border-radius: var(--ui-r-10);
-  background: var(--ui-bg-1);
+  background: #fffdf6;
   box-shadow:
-    0 0 0 1px var(--ui-edge-subtle),
-    0 6px 18px rgb(0 0 0 / 8%);
-  font-size: var(--ui-text-12);
+    0 0 0 1.5px #2b2a33,
+    0 3px 0 rgb(0 0 0 / 15%);
+  color: #2b2a33;
+  font-size: max(11px, 1.05cqw);
+  transform: translateX(-50%);
   animation: pop var(--ui-dur-2) var(--ui-ease-out);
 }
 
+/* The squirrel sits at the top of the room: its words go to its left. */
+.agent[data-agent="distiller"] .bubble {
+  top: 20%;
+  right: calc(100% + 0.6cqw);
+  bottom: auto;
+  left: auto;
+  transform: none;
+}
+
+.agent[data-agent="advisor"] .bubble {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.agent[data-agent="executor"] .bubble {
+  left: 0;
+  transform: none;
+}
+
 .bubble[data-tone="warn"] strong {
-  color: var(--ui-warning-text);
+  color: #b5402b;
 }
 
 .bubble[data-tone="done"] strong {
-  color: var(--ui-success-text);
+  color: #2f7a4a;
 }
 
 .bubbleNode {
   overflow: hidden;
   max-width: 100%;
   padding: 0 6px;
-  border-radius: var(--ui-r-6);
-  background: var(--ui-bg-2);
-  color: var(--ui-fg-1);
-  font-size: var(--ui-text-11);
+  border-radius: 4px;
+  background: #f1ece0;
+  color: #4a4740;
+  font-size: max(10px, 0.9cqw);
   white-space: nowrap;
   text-overflow: ellipsis;
-}
-
-.stopSign {
-  position: absolute;
-  top: -4px;
-  right: -14px;
-  display: grid;
-  width: 26px;
-  height: 26px;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--ui-danger-text);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  animation: pop var(--ui-dur-2) var(--ui-ease-out);
 }
 
 /* What travels: a handoff note, a verdict stamp, a result. */
 .token {
   position: absolute;
   z-index: 3;
-  width: 18px;
-  height: 22px;
-  margin: -11px 0 0 -9px;
-  border-radius: 3px;
-  background: var(--ui-bg-1);
+  width: 1.6cqw;
+  height: 2cqw;
+  margin: -1cqw 0 0 -0.8cqw;
+  border-radius: 1px;
+  background: #ffffff;
   box-shadow:
-    0 0 0 1px var(--ui-fg-3),
-    0 4px 10px rgb(0 0 0 / 12%);
+    0 0 0 1px #2b2a33,
+    0 2px 0 rgb(0 0 0 / 15%);
   animation: fly var(--fly) var(--ui-ease-out) forwards;
 }
 
 .token[data-kind="paper"] {
-  background:
-    repeating-linear-gradient(
-        to bottom,
-        transparent 0 4px,
-        var(--ui-fg-3) 4px 5px
-      )
-      content-box,
-    var(--ui-bg-1);
-  padding: 4px 3px;
+  background: repeating-linear-gradient(
+    to bottom,
+    #ffffff 0 3px,
+    #b9c2cc 3px 4px
+  );
 }
 
 .token[data-kind="stamp"] {
-  width: 20px;
-  height: 20px;
-  margin: -10px 0 0 -10px;
+  width: 1.8cqw;
+  height: 1.8cqw;
   border-radius: 50%;
-  background: var(--ui-fg);
+  background: #c0392b;
 }
 
 .token[data-kind="dot"] {
-  width: 12px;
-  height: 12px;
-  margin: -6px 0 0 -6px;
+  width: 1.2cqw;
+  height: 1.2cqw;
   border-radius: 50%;
-  background: var(--ui-fg-1);
+  background: #2f6bd6;
 }
 
 @keyframes fly {
@@ -318,34 +321,59 @@
     transform: translateY(0);
   }
   to {
-    transform: translateY(-4px);
+    transform: translateY(-3%);
   }
 }
 
 @keyframes halt {
   25% {
-    transform: translateX(-3px);
+    transform: translateX(-4%);
   }
   75% {
-    transform: translateX(3px);
+    transform: translateX(4%);
   }
 }
 
-@keyframes blink {
-  0%,
-  96%,
-  100% {
-    transform: scaleY(1);
+@keyframes frameA {
+  0% {
+    opacity: 1;
   }
-  98% {
-    transform: scaleY(0.1);
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes frameB {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes blinkA {
+  0% {
+    opacity: 1;
+  }
+  94% {
+    opacity: 0;
+  }
+}
+
+@keyframes blinkB {
+  0% {
+    opacity: 0;
+  }
+  94% {
+    opacity: 1;
   }
 }
 
 @keyframes pop {
   from {
     opacity: 0;
-    transform: translateY(4px) scale(0.96);
+    translate: 0 4px;
   }
 }
 
@@ -496,43 +524,16 @@
   white-space: nowrap;
 }
 
-@media (max-width: 720px) {
-  .stage {
-    aspect-ratio: 4 / 3;
-  }
-
-  .board {
-    width: 46%;
-  }
-
-  .terminal {
-    max-width: 110px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .agent[data-active] .figure,
-  .agent[data-stopped] .figure,
-  .eye,
+  .agent[data-pose="startled"] .figure,
   .bubble,
-  .stopSign,
-  .token {
-    animation: none;
+  .token,
+  .sprite .spriteFrame {
+    animation: none !important;
   }
-}
 
-/* The advisor's latest verdict, lying on the desk like the last command on the bench. */
-.paper {
-  display: block;
-  overflow: hidden;
-  max-width: 150px;
-  padding: 4px 8px;
-  border-radius: 3px;
-  background: var(--ui-bg-1);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
-  color: var(--ui-fg);
-  font-size: 11px;
-  font-weight: var(--ui-weight-strong);
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  .sprite[data-frames="2"] .spriteFrame:nth-child(2) {
+    opacity: 0;
+  }
 }
