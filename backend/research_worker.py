@@ -557,6 +557,9 @@ def _distill(app, d, project):
             .order_by(ResearchSprint.number)
         )
     )
+    if project.status != "finished":
+        # Reopened meanwhile (its limits lifted): nothing to look back on yet.
+        return
     if project.budget.get("distill") is False:
         research_stages.set_stage(d, project, "done")
         return

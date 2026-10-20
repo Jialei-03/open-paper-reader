@@ -14,7 +14,7 @@ export type AppRoute =
   | { screen: "home"; redirect?: string }
   | { screen: "library"; redirect?: string }
   | { screen: "discover"; redirect?: string }
-  | { screen: "settings"; redirect?: string }
+  | { screen: "settings"; category?: string; redirect?: string }
   | { screen: "research"; projectId?: string; redirect?: string }
   | { screen: "open"; url: string; redirect?: string }
   | { screen: "reader"; reader: ReaderRoute; redirect?: string };
@@ -37,6 +37,12 @@ export function parseAppRoute(hash: string): AppRoute {
   if (path === "library") return { screen: "library" };
   if (path === "discover") return { screen: "discover" };
   if (path === "settings") return { screen: "settings" };
+  if (path.startsWith("settings/")) {
+    const category = path.slice("settings/".length);
+    return /^[a-z]{1,20}$/.test(category)
+      ? { screen: "settings", category }
+      : { screen: "settings", redirect: "settings" };
+  }
   if (path === "research") return { screen: "research" };
   if (path.startsWith("research/")) {
     const projectId = path.slice("research/".length);

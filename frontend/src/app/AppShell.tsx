@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -24,7 +25,11 @@ import { DiscoverScreen } from "../screens/discover/DiscoverScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { LibraryScreen } from "../screens/LibraryScreen";
 import { OpenScreen } from "../screens/open/OpenScreen";
-import { SettingsScreen } from "../screens/SettingsScreen";
+import {
+  CATEGORIES,
+  SettingsWindow,
+  type SettingsCategory,
+} from "../screens/settings/SettingsWindow";
 import { SetupScreen } from "../screens/SetupScreen";
 import {
   Shell,
@@ -78,6 +83,13 @@ export function AppShell(props: { user: User; setUser: (user: null) => void }) {
 function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
   const { t, tn } = useI18n();
   const [route, setRoute] = useState(readRoute);
+  // The settings are a window over what was open: that stays drawn beneath.
+  const under = useRef<{ route: AppRoute; hash: string }>({
+    route: { screen: "home" },
+    hash: "home",
+  });
+  if (route.screen !== "settings")
+    under.current = { route, hash: location.hash.slice(1) || "home" };
   const [papers, setPapers] = useState<Paper[]>([]);
   const [tick, setTick] = useState(0);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -195,6 +207,22 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
     [user.id, screenKey, quickOpen],
   );
 
+  const shown: AppRoute =
+    route.screen === "settings" ? under.current.route : route;
+  const category = (
+    route.screen === "settings" &&
+    CATEGORIES.includes(route.category as SettingsCategory)
+      ? route.category
+      : "general"
+  ) as SettingsCategory;
+  const settings = route.screen === "settings" && (
+    <SettingsWindow
+      category={category}
+      onCategory={(next) => go(`settings/${next}`)}
+      onClose={() => go(under.current.hash)}
+      go={go}
+    />
+  );
   const quick = (
     <QuickOpen
       open={quickOpen}
@@ -205,14 +233,14 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
     />
   );
 
-  if (route.screen === "reader")
+  if (shown.screen === "reader")
     return (
       <AppActions.Provider value={actions}>
         <div className={styles.reader} data-app-screen="reader">
           <Suspense fallback={<Loading />}>
             <ReaderScreen
-              paperId={route.reader.paperId}
-              route={route.reader}
+              paperId={shown.reader.paperId}
+              route={shown.reader}
               go={go}
               owner={user.id}
               papers={papers}
@@ -220,20 +248,21 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
           </Suspense>
         </div>
         {quick}
+        {settings}
       </AppActions.Provider>
     );
 
-  if (route.screen === "open")
+  if (shown.screen === "open")
     return (
       <div data-app-screen="open">
-        <OpenScreen url={route.url} go={go} reload={reload} />
+        <OpenScreen url={shown.url} go={go} reload={reload} />
         <Toaster />
       </div>
     );
 
   const screen = (
     <AppActions.Provider value={actions}>
-      <div className={styles.root} data-app-screen={route.screen}>
+      <div className={styles.root} data-app-screen={shown.screen}>
         <Shell
           sidebar={
             <AppSidebar
@@ -245,7 +274,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
             />
           }
         >
-          {route.screen === "home" && (
+          {shown.screen === "home" && (
             <HomeScreen
               owner={user.id}
               papers={papers}
@@ -253,7 +282,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
               reload={reload}
             />
           )}
-          {route.screen === "library" && (
+          {shown.screen === "library" && (
             <LibraryScreen
               owner={user.id}
               papers={papers}
@@ -261,15 +290,14 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
               reload={reload}
             />
           )}
-          {route.screen === "discover" && (
+          {shown.screen === "discover" && (
             <DiscoverScreen papers={papers} go={go} reload={reload} />
           )}
-          {route.screen === "settings" && <SettingsScreen go={go} />}
-          {route.screen === "research" &&
-            (route.projectId ? (
+          {shown.screen === "research" &&
+            (shown.projectId ? (
               <ResearchProject
-                key={route.projectId}
-                id={route.projectId}
+                key={shown.projectId}
+                id={shown.projectId}
                 go={go}
               />
             ) : (
@@ -279,9 +307,10 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
         <Toaster />
       </div>
       {quick}
+      {settings}
     </AppActions.Provider>
   );
-  return route.screen === "home" && !setupDone ? (
+  return shown.screen === "home" && !setupDone ? (
     <SetupGate onDone={() => setSetupDone(true)}>{screen}</SetupGate>
   ) : (
     screen

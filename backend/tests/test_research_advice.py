@@ -489,7 +489,10 @@ def test_blocked_ends_an_evaluation_run(world):
         ids,
         {
             "verdicts": [verdict(ids.hyp, "continue")],
-            "conclude": {"status": "blocked", "summary": "missing"},
+            "conclude": {
+                "status": "blocked",
+                "summary": "需要研究者提供 data/claims.csv，工作区里没有这个文件",
+            },
         },
     )
     with maker() as d:

@@ -858,3 +858,59 @@ def test_limits_can_be_lifted_and_an_ended_project_reopened(world):
         st.lift_limits(d, p, "先不设置上限")
         assert p.status == "active" and p.stage == "experiments"
         assert p.budget["max_sprints"] is None and p.budget["max_tokens"] is None
+
+
+def test_a_reopened_project_is_not_closed_by_a_late_retrospective(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        d.add(
+            ResearchSprint(
+                project_id=p.id, number=1, run_id="r", role="executor", status="ended"
+            )
+        )
+        d.add(
+            ResearchSprint(
+                project_id=p.id,
+                number=2,
+                run_id="r",
+                role="distiller",
+                status="abnormal",
+            )
+        )
+        p.status = "active"
+        rw._distill(world.app, d, p)
+        assert p.stage == "experiments"
+
+
+def test_reopening_puts_a_closed_stage_back_to_experiments(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage, p.status = "done", "waiting"
+        st.lift_limits(d, p)
+        assert p.stage == "experiments" and p.status == "active"
+
+
+def test_blocking_needs_a_real_reason(world):
+    from backend.research_advice import apply
+
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r", role="advisor")
+        d.add(sprint)
+        d.flush()
+        root = rm.root(d, p)
+        out = apply(
+            d,
+            p,
+            sprint,
+            {
+                "verdicts": [
+                    {"node_id": root.id, "verdict": "continue", "reason": "x"}
+                ],
+                "conclude": {"status": "blocked", "summary": "占位"},
+            },
+        )
+        assert p.status != "waiting"
+        assert any("blocked" in n for n in out.get("notes", []))

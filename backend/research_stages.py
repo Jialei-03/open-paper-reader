@@ -333,6 +333,7 @@ def lift_limits(d, project, note=""):
     )
     if project.status == "finished" and project.end_reason == "budget":
         project.end_reason = ""
+    if not project.end_reason and project.stage in {"retrospective", "done"}:
         set_stage(d, project, "experiments", "human", note)
     if project.status in {"finished", "waiting"} and not project.end_reason:
         project.status = "active"

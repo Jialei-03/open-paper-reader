@@ -17,6 +17,10 @@ VERDICTS = {"continue", "invest", "kill", "pivot", "ask_human"}
 CLOSING = {"kill", "pivot"}
 
 
+# A reason to stop and wait for a person must be at least a sentence.
+BLOCKED_MIN = 15
+
+
 def _node(d, project, node_id):
     try:
         node = research_map.node_by_prefix(d, project, node_id or "")
@@ -245,6 +249,17 @@ def apply(d, project, sprint, args):
                 **conclusion,
                 "status": "refuted" if answer == "no" else "concluded",
             }
+    if (
+        conclusion
+        and conclusion.get("status") == "blocked"
+        and len((conclusion.get("summary") or "").strip()) < BLOCKED_MIN
+    ):
+        # Waiting on a person needs a reason they can act on, not a placeholder.
+        notes.append(
+            "blocked 没有生效：summary 要写清研究者需要提供什么（数据、权限、一个决定），"
+            "否则不要用 blocked。"
+        )
+        conclusion = None
     if conclusion and conclusion.get("status") == "blocked":
         # Nothing can move until a person provides something: say what, then wait
         # (an evaluation run, with nobody to provide it, ends here).

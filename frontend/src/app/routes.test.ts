@@ -7,6 +7,10 @@ describe("parseAppRoute", () => {
     expect(parseAppRoute("home")).toEqual({ screen: "home" });
     expect(parseAppRoute("library?q=x")).toEqual({ screen: "library" });
     expect(parseAppRoute("settings")).toEqual({ screen: "settings" });
+    expect(parseAppRoute("settings/environments")).toEqual({
+      screen: "settings",
+      category: "environments",
+    });
   });
 
   it("opens a paper in the reader", () => {
