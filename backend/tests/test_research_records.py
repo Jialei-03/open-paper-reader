@@ -509,3 +509,24 @@ def test_a_moved_project_takes_its_workspace_along_once(world, monkeypatch):
         assert (
             len([c for c in calls if c[0] == "rsync" and c[-1].endswith("/work/")]) == 1
         )
+
+
+def test_a_remote_python_comes_first_on_the_path(world, monkeypatch):
+    fake = FakeSSH()
+    monkeypatch.setattr(rs, "run", fake)
+    rr._prepared.clear()
+    item = rset.check_compute(
+        {
+            "id": "wsl",
+            "kind": "ssh",
+            "host": "research-wsl",
+            "python": "~/ora-venv/bin/python",
+        }
+    )
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        job = ResearchJob(
+            id="j2", project_id=p.id, node_id="n", sprint_id="s", command="python3 t.py"
+        )
+        rr.start(world.settings, d, item, p, job)
+        assert "PATH=~/ora-venv/bin:$PATH " in fake.calls[-1][-1]
