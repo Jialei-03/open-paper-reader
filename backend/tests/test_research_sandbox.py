@@ -132,7 +132,7 @@ def test_start_job_runs_detached_with_labels(setup):
         args = docker.calls[-1]
         assert "-d" in args and f"ora.job={job.id}" in args
         assert args[args.index("--network") + 1] == "none"
-        assert args[-3:] == ["bash", "-lc", "echo hi"]
+        assert args[-3:] == ["bash", "-lc", "set -o pipefail; echo hi"]
         assert job.status == "running" and job.container.startswith("ora-job-")
 
 

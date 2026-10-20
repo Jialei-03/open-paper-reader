@@ -293,7 +293,8 @@ def test_a_remote_job_runs_detached_and_reports_its_exit(world, monkeypatch):
         assert job.remote == {"host": "gpu-box", "base": f"~/ora/{p.id}", "pid": 4242}
         launch = fake.calls[-1][-1]
         assert (
-            "CUDA_VISIBLE_DEVICES=1" in launch and "'(python t.py); echo $?" in launch
+            "CUDA_VISIBLE_DEVICES=1" in launch
+            and "'(set -o pipefail; python t.py); echo $?" in launch
         )
         assert rr.state(job) == {"Running": True}
         fake.state = "0"
@@ -530,3 +531,22 @@ def test_a_remote_python_comes_first_on_the_path(world, monkeypatch):
         )
         rr.start(world.settings, d, item, p, job)
         assert "PATH=~/ora-venv/bin:$PATH " in fake.calls[-1][-1]
+
+
+def test_a_failure_inside_a_pipe_is_a_failed_job(world, monkeypatch):
+    fake = FakeSSH()
+    monkeypatch.setattr(rs, "run", fake)
+    item = rset.check_compute({"id": "wsl", "kind": "ssh", "host": "research-wsl"})
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        job = ResearchJob(
+            id="j3",
+            project_id=p.id,
+            node_id="n",
+            sprint_id="s",
+            command="python3 t.py | tail -3",
+        )
+        rr.start(world.settings, d, item, p, job)
+        assert "set -o pipefail; python3 t.py | tail -3" in fake.calls[-1][-1]
+    done = subprocess.run(["bash", "-c", rs.strict("false | tail -1")])
+    assert done.returncode != 0

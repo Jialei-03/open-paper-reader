@@ -94,6 +94,11 @@ def logdir(settings, project_id):
     return path
 
 
+def strict(command):
+    """A command whose pipeline fails when any part of it fails (`x | tail` too)."""
+    return "set -o pipefail; " + command
+
+
 def rundir(settings, project_id, job_id):
     """What one job reports through `ora`: written by that job alone."""
     if not job_id or "/" in job_id or ".." in job_id:
@@ -335,7 +340,7 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
             IMAGE,
             "bash",
             "-lc",
-            command,
+            strict(command),
         ],
         capture_output=True,
         text=True,

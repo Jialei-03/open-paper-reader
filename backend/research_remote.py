@@ -149,7 +149,7 @@ def start(settings, d, item, project, job):
     run_dir = f"{base}/runs/{job.id}"
     ssh(host, f"mkdir -p {run_dir}")
     log = f"{base}/logs/{job.id}.log"
-    wrapped = f"({job.command}); echo $? > {run_dir}/.exit"
+    wrapped = f"({research_sandbox.strict(job.command)}); echo $? > {run_dir}/.exit"
     if item.get("runner") == "docker":
         gpus = item.get("gpus") or ""
         gpu_flag = (
@@ -165,7 +165,7 @@ def start(settings, d, item, project, job):
             f"-v {root}/ora:/opt/ora:ro -v {root}/datasets:/data:ro "
             "-e ORA_RUN_DIR=/ora-run -e PYTHONPATH=/opt/ora -e ORA_DATA=/data "
             f"-e ORA_JOB_ID={job.id} -w /work {item.get('image') or IMAGE} "
-            f"bash -lc {shlex.quote(job.command)}"
+            f"bash -lc {shlex.quote(research_sandbox.strict(job.command))}"
         )
         done = ssh(host, script)
         if done.returncode != 0:
