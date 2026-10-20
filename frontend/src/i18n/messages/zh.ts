@@ -980,9 +980,9 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.talk.empty":
     "还没有任何动作。第一轮开始后，执行者、导师和系统之间的每一步都会出现在这里。",
   "research.talk.lead":
-    "执行者动手、导师判断、系统把关。每一步都标出它针对的是地图上的哪个节点。",
+    "执行者动手、导师判断、老板把关。每一步都标出它针对的是地图上的哪个节点。",
   "research.role.executor": "执行者",
-  "research.role.system": "系统",
+  "research.role.system": "老板",
   "research.talk.focus": "聚焦",
   "research.talk.add": "新建{kind}",
   "research.talk.killIf": "止损条件：{text}",
