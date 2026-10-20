@@ -9,7 +9,7 @@ import type { ResearchNode } from "../research-api";
 import { buildFrames, type Agent, type Frame } from "./frames";
 import { Mascot } from "./Mascot";
 import { poseFor } from "./pose";
-import { AREA, areaStyle, IsoRoomArt, pct, SPOT, STAND } from "./IsoRoom";
+import { AREA, areaStyle, figure, IsoRoomArt, pct, SPOT } from "./IsoRoom";
 import { MascotDialog } from "./MascotDialog";
 import { loadLooks, type Look } from "./mascots";
 import styles from "./scene.module.css";
@@ -105,11 +105,18 @@ export function ResearchScene({
   const distillerSeen = beats
     .slice(0, at + 1)
     .some((b) => b.frame.who === "distiller");
+  // Everyone sits; the shiba gets up and steps in front of the gate while on duty.
+  const where = (agent: Agent) => {
+    const pose = poseFor(agent, frame);
+    const spot = figure(agent, agent === "system" && pose !== "idle");
+    // A figure is 24 room pixels tall; a perched one shows its top 81%.
+    return { pose, spot, head: spot.y - (spot.perched ? 19.5 : 24) };
+  };
   // What the actor did travels from above its head to where it lands.
   const flight =
     frame.to && !still
       ? {
-          from: { x: STAND[frame.who].x, y: STAND[frame.who].y - 24 },
+          from: { x: where(frame.who).spot.x, y: where(frame.who).head },
           to: SPOT[frame.to],
         }
       : null;
@@ -141,22 +148,47 @@ export function ResearchScene({
 
         {AGENTS.map((agent) => {
           if (agent === "distiller" && !distillerSeen) return null;
-          const pose = poseFor(agent, frame);
-          const active = frame.who === agent;
+          const { pose, spot } = where(agent);
           return (
             <div
               key={agent}
               className={styles.agent}
               data-agent={agent}
-              data-active={active || undefined}
+              data-active={frame.who === agent || undefined}
               data-pose={pose}
+              data-perched={spot.perched || undefined}
               style={
                 {
-                  ...pct(STAND[agent].x, STAND[agent].y),
-                  // Nearer the viewer (lower on the screen) stands in front; the one speaking, above all.
-                  zIndex: active ? 300 : 2 + Math.round(STAND[agent].y),
+                  ...pct(spot.x, spot.y),
+                  // Nearer the viewer stands in front; furniture nearer still hides it.
+                  zIndex: 2 + Math.round(spot.depth),
                 } as CSSProperties
               }
+            >
+              <div className={styles.figure}>
+                <Mascot
+                  agent={agent}
+                  look={looks[agent]}
+                  pose={pose}
+                  size={80}
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Names and words float above the room, so no desk hides them. */}
+        {AGENTS.map((agent) => {
+          if (agent === "distiller" && !distillerSeen) return null;
+          const { spot, head } = where(agent);
+          const active = frame.who === agent;
+          return (
+            <div
+              key={`label-${agent}`}
+              className={styles.label}
+              data-agent={agent}
+              data-active={active || undefined}
+              style={pct(spot.x, head) as CSSProperties}
             >
               {active && (
                 <div
@@ -170,14 +202,6 @@ export function ResearchScene({
                   )}
                 </div>
               )}
-              <div className={styles.figure}>
-                <Mascot
-                  agent={agent}
-                  look={looks[agent]}
-                  pose={pose}
-                  size={80}
-                />
-              </div>
               <span className={styles.name}>{name(agent)}</span>
             </div>
           );
