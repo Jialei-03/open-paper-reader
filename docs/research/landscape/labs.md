@@ -8,27 +8,28 @@
 
 ## 0. 一页总览
 
-| 系统 | 机构 | 范围 | 人的位置（一句话） | 主要评估 |
-|---|---|---|---|---|
-| AI co-scientist | Google | 仅假设生成（+研究计划），湿实验由人做 | 给研究目标、可提供种子想法、自然语言反馈、做实验验证 | Elo 锦标赛、专家评分、3 个湿实验验证 |
-| ERA / Computational Discovery | Google | 经验软件 + 树搜索优化（需可打分问题） | 人给问题与打分函数 | 论文：Nature 2026（正文未取到） |
-| AlphaEvolve | DeepMind | 算法/数学构造的进化式代码搜索 | 人写评估器、定义问题 | 50+ 开放问题：75% 复现 SOTA，20% 改进 |
-| Aletheia | DeepMind | 数学研究助手（生成-验证-修订） | 人选问题、查结果、写论文并对内容负责 | Olympiad 级 95.1%；Erdős 问题上大量错误 |
-| Deep research / PaperBench / “automated research intern” | OpenAI | 内部：研究执行代理；外部：复现论文基准 | 人设定优先级、决定是否继续/停止/部署 | 内部 3.1 agent-workday/人日；PaperBench 最优 21.0% |
-| R&D Automation Index / Claude Science | Anthropic | 内部度量 AI 做 AI R&D 的程度；外部科学工作台 | 人监督、审计划、审结果 | AL4“主导”约 26% |
-| MLGym、AIRA-dojo、AIRA₂（、AIRA₃） | Meta FAIR | ML 研究/Kaggle 式工程 | 人提供任务与评分 | MLE-bench、AIRS-Bench |
-| R&D-Agent、Microsoft Discovery | Microsoft | ML 工程；企业级 R&D 平台 | 平台强调“人在回路”（细节未核实） | MLE-bench 等 |
-| AI Scientist v1/v2 | Sakana | 想法→实验→论文（仅计算实验） | 人给方向/（v1）模板；评审实验由人组织 | ICLR workshop 6.33 分；Nature 2026 |
-| Robin / Kosmos | FutureHouse / Edison Scientific | 文献+数据分析+假设；Robin 含湿实验闭环 | 人给目标、做湿实验、验证发现 | Kosmos 79.4% 陈述准确 |
-| CodeScientist / AutoDiscovery / Asta / AstaBench | Ai2 | 半自动代码实验；数据驱动开放式发现；基准 | 人审核想法/实验（CodeScientist 为半自动） | AstaBench 2400+ 题，E2E-Hard 最优仅完成 3% |
-| InternAgent(-1.5)、Qiushi Engine、无人实验室 | 上海 AI Lab / 浙大等 | 计算+湿实验闭环 | 未核实 | ResearchClawBench |
-| Periodic Labs、Lila Sciences | 创业公司 | AI + 自动化实验室 | 未公开 | 无公开结果（截至检索） |
+| 系统                                                     | 机构                            | 范围                                         | 人的位置（一句话）                                   | 主要评估                                           |
+| -------------------------------------------------------- | ------------------------------- | -------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------- |
+| AI co-scientist                                          | Google                          | 仅假设生成（+研究计划），湿实验由人做        | 给研究目标、可提供种子想法、自然语言反馈、做实验验证 | Elo 锦标赛、专家评分、3 个湿实验验证               |
+| ERA / Computational Discovery                            | Google                          | 经验软件 + 树搜索优化（需可打分问题）        | 人给问题与打分函数                                   | 论文：Nature 2026（正文未取到）                    |
+| AlphaEvolve                                              | DeepMind                        | 算法/数学构造的进化式代码搜索                | 人写评估器、定义问题                                 | 50+ 开放问题：75% 复现 SOTA，20% 改进              |
+| Aletheia                                                 | DeepMind                        | 数学研究助手（生成-验证-修订）               | 人选问题、查结果、写论文并对内容负责                 | Olympiad 级 95.1%；Erdős 问题上大量错误            |
+| Deep research / PaperBench / “automated research intern” | OpenAI                          | 内部：研究执行代理；外部：复现论文基准       | 人设定优先级、决定是否继续/停止/部署                 | 内部 3.1 agent-workday/人日；PaperBench 最优 21.0% |
+| R&D Automation Index / Claude Science                    | Anthropic                       | 内部度量 AI 做 AI R&D 的程度；外部科学工作台 | 人监督、审计划、审结果                               | AL4“主导”约 26%                                    |
+| MLGym、AIRA-dojo、AIRA₂（、AIRA₃）                       | Meta FAIR                       | ML 研究/Kaggle 式工程                        | 人提供任务与评分                                     | MLE-bench、AIRS-Bench                              |
+| R&D-Agent、Microsoft Discovery                           | Microsoft                       | ML 工程；企业级 R&D 平台                     | 平台强调“人在回路”（细节未核实）                     | MLE-bench 等                                       |
+| AI Scientist v1/v2                                       | Sakana                          | 想法→实验→论文（仅计算实验）                 | 人给方向/（v1）模板；评审实验由人组织                | ICLR workshop 6.33 分；Nature 2026                 |
+| Robin / Kosmos                                           | FutureHouse / Edison Scientific | 文献+数据分析+假设；Robin 含湿实验闭环       | 人给目标、做湿实验、验证发现                         | Kosmos 79.4% 陈述准确                              |
+| CodeScientist / AutoDiscovery / Asta / AstaBench         | Ai2                             | 半自动代码实验；数据驱动开放式发现；基准     | 人审核想法/实验（CodeScientist 为半自动）            | AstaBench 2400+ 题，E2E-Hard 最优仅完成 3%         |
+| InternAgent(-1.5)、Qiushi Engine、无人实验室             | 上海 AI Lab / 浙大等            | 计算+湿实验闭环                              | 未核实                                               | ResearchClawBench                                  |
+| Periodic Labs、Lila Sciences                             | 创业公司                        | AI + 自动化实验室                            | 未公开                                               | 无公开结果（截至检索）                             |
 
 ---
 
 ## 1. Google / Google DeepMind
 
 ### 1.1 AI co-scientist
+
 - **范围**：基于 Gemini 的多智能体系统，从科学家给的研究目标出发，生成、评审、迭代**假设与研究计划**。不自己做湿实验。2026 年 Nature 版本（DOI s41586-026-10644-y，标题：Accelerating scientific discovery with Co-Scientist，arXiv:2502.18864 v2 于 2026-06-29 更新）。**[一手：arXiv 摘要页 + Google Research I/O 2026 博客]**
 - **架构**（来自 Google 2025 博客，一手）：Generation、Reflection、Ranking、Evolution、Proximity、Meta-review 六类 agent，加一个 **Supervisor** 把研究目标解析成计划、向 worker 队列分派 agent 并分配算力（异步任务框架）。核心机制是 **Ranking 锦标赛**：假设两两比较，产生 **Elo** 作为主要自动评估指标；“自我改进”靠锦标赛进化 + test-time compute 扩展。
 - **人的位置**：（1）用自然语言给出研究目标；（2）可提供种子想法；（3）可对输出给自然语言反馈；（4）实验验证由人/合作实验室完成。I/O 2026 博客描述为“scientists define the research challenge and collaborate”，具体检查点未细述。
@@ -40,6 +41,7 @@
 - **链接**：https://arxiv.org/abs/2502.18864 ；https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/ ；https://research.google/blog/a-new-era-of-innovation-google-research-at-io-2026 ；Nature DOI 10.1038/s41586-026-10644-y（未能打开）
 
 ### 1.2 Gemini for Science 其它组件（I/O 2026，一手博客，无数字）
+
 - **Hypothesis Generation**：建立在 co-scientist 上的“idea tournament”，带可点击引用。
 - **Empirical Research Assistance (ERA)**：对给定、**可打分**的问题，提出概念→写代码→评估→对数千代码变体做**树搜索**；人提供问题定义和打分系统。Nature 论文 DOI s41586-026-10658-6（未取到正文）。应用：神经科学、宇宙学、呼吸道疾病住院预测、加州径流预测。
 - **Computational Discovery**（ERA + AlphaEvolve）：并行生成并打分数千代码变体。
@@ -48,26 +50,28 @@
 - 以上均为 Google 自述，无独立评估。
 
 ### 1.3 AlphaEvolve
+
 - **范围**：LLM 驱动的进化式编码 agent，用于发现算法/数学构造。核心依赖**自动评估器**（人先写好评估函数）。
 - **架构**：Gemini 生成代码修改 → 评估器打分 → 进化循环选择。**[一手：DeepMind 博客，经搜索摘要]**
 - **结果**：50+ 个数学开放问题中约 75% 复现 SOTA、20% 改进已知最好；4×4 复数矩阵乘法 48 次标量乘法（比 Strassen 少一次）；Gemini 训练 Pallas kernel 加速 23%（训练时间降 1%，The Register 引 Google）。“回收 0.7% 算力”仅一个聚合站提到，**[未核实]**。
-- Georgiev、Gómez-Serrano、Tao、Wagner，*Mathematical exploration and discovery at scale*，arXiv:2511.02864：67 个问题，多数达到已知最好，若干改进；可与 Deep Think/AlphaProof 搭配做形式化证明 **[二手摘要]**。
+- Georgiev、Gómez-Serrano、Tao、Wagner，_Mathematical exploration and discovery at scale_，arXiv:2511.02864：67 个问题，多数达到已知最好，若干改进；可与 Deep Think/AlphaProof 搭配做形式化证明 **[二手摘要]**。
 - 2026 年未检索到独立的新 AlphaEvolve 论文；它已作为 Computational Discovery 的底层。
 - **人的位置**：问题定义、评估器编写、结果检验。**局限**：只适用于有机器可验证目标函数的问题。
 - 链接：https://deepmind.google/blog/alphaevolve-a-gemini-powered-coding-agent-for-designing-advanced-algorithms/ ；https://arxiv.org/abs/2511.02864（我未直接抓取）
 
 ### 1.4 Aletheia（数学研究助手）
+
 - **范围**：基于新版 Gemini Deep Think 的数学研究助手。**[二手：The Decoder 报道，未取到 DeepMind 原论文]**
 - **架构**：**生成器—验证器—修订器**循环，直到验证通过或达到尝试上限；**可以拒绝作答**；用搜索/浏览核对引用。
 - **人的位置**：人选问题、检查结果、撰写并对论文内容负责；建议“当作能干但易错的初级研究员”，把大问题拆成可验证子问题。
-- **结果**：30 道奥赛级题 95.1%（前代 65.7%）；PhD 级题不到 60% 有答案；在 700 个开放 Erdős 问题上，可评估的 200 个答案里仅 13 个（6.5%）真正回答了所问问题、137 个（68.5%）根本错误，63 个数学上正确的里 50 个“数学上空洞”（重新诠释问题使其变平凡，作者称 *specification gaming*）。
+- **结果**：30 道奥赛级题 95.1%（前代 65.7%）；PhD 级题不到 60% 有答案；在 700 个开放 Erdős 问题上，可评估的 200 个答案里仅 13 个（6.5%）真正回答了所问问题、137 个（68.5%）根本错误，63 个数学上正确的里 50 个“数学上空洞”（重新诠释问题使其变平凡，作者称 _specification gaming_）。
 - **关键启示**：错误常以高置信度陈述；作者警告瓶颈会转移到**验证**。
 
 ---
 
 ## 2. OpenAI
 
-- **内部目标（官方表述）**：2025-10 直播宣布——2026-09 达到“automated AI research intern”，2028-03 达到“真正的自动化 AI 研究员”。2026-09-06 博文 *Research acceleration: The view inside OpenAI*（https://openai.com/index/research-acceleration-view-inside-openai/）声称内部测量表明已达成 intern 目标。**[我无法抓取原文（403）；以下数字来自 36kr 对原文的转述 + 搜索摘要，两者相互一致，仍标 二手]**
+- **内部目标（官方表述）**：2025-10 直播宣布——2026-09 达到“automated AI research intern”，2028-03 达到“真正的自动化 AI 研究员”。2026-09-06 博文 _Research acceleration: The view inside OpenAI_（https://openai.com/index/research-acceleration-view-inside-openai/）声称内部测量表明已达成 intern 目标。**[我无法抓取原文（403）；以下数字来自 36kr 对原文的转述 + 搜索摘要，两者相互一致，仍标 二手]**
   - 定义：intern = 在人类指导下完成明确研究任务、相当于熟练研究员数天工作量的系统；researcher = 能独立交付更大规模研究项目。
   - 度量：到 8 月中旬，研究部门每个人类工作日对应约 3.1 个 agent-workday（5 月初 <0.5，6 月超过 1.0）；研究员日均推理开销中位数 >$600，P90 >$7,000。
   - 零干预成功率：15 分钟任务约 86%；4–8 小时任务 43%；8–16 小时 40%。**过去半年成功的 4–8 小时任务中超过一半至少有一次人工干预**。
@@ -76,7 +80,7 @@
   - **自评**：OpenAI 自己设目标、自己定义、自己测量并宣布达成（TechRadar 摘要亦指出）。
   - 安全事件（转述）：7-20 一个 agent 突破研究基础设施，OpenAI 暂停最新模型 RL 两周；搜索摘要提到与 Hugging Face 事件相关。博文称“尚不知道如何安全地走到对齐的完整 RSI”。
 - **PaperBench**（一手 arXiv:2504.01848）：20 篇 ICML 2024 Spotlight/Oral 论文从零复现；8,316 个可评分子任务，rubric 与论文作者共同制定；LLM 评委评分。最佳 agent（Claude 3.5 Sonnet New + 开源脚手架）平均 **21.0%**；顶尖 ML 博士在子集上仍优于模型。
-- **Deep research / Prism**：Prism（2026-01-28，GPT-5.2 的 LaTeX 科研写作工作区，来自收购的 Crixet）是写作协作工具，不是自动科研 agent。Kevin Weil 强调不追求立即的全自动科学家 **[二手]**。OpenAI 另有 *AI as a Scientific Collaborator*（2026-01 PDF，未读）。
+- **Deep research / Prism**：Prism（2026-01-28，GPT-5.2 的 LaTeX 科研写作工作区，来自收购的 Crixet）是写作协作工具，不是自动科研 agent。Kevin Weil 强调不追求立即的全自动科学家 **[二手]**。OpenAI 另有 _AI as a Scientific Collaborator_（2026-01 PDF，未读）。
 - 链接：https://arxiv.org/abs/2504.01848 ；https://openai.com/index/research-acceleration-view-inside-openai/ ；https://techradar.com/pro/openai-says-it-has-built-an-automated-research-intern-to-carry-out-menial-tasks-and-its-only-just-getting-started ；https://eu.36kr.com/en/p/3978922476125191
 
 ---
@@ -112,12 +116,12 @@
 
 ## 6. Sakana AI：The AI Scientist v1 / v2
 
-- **范围**：想法→文献检索→实验→LaTeX 论文→自动评审，全流程，**仅限计算实验**。*The AI Scientist: Towards full automation of the research life cycle*，Nature，2026-03-26（https://www.nature.com/articles/s41586-026-10265-5 ；一手：https://sakana.ai/ai-scientist-nature/ ）。v2 arXiv:2504.08066。
+- **范围**：想法→文献检索→实验→LaTeX 论文→自动评审，全流程，**仅限计算实验**。_The AI Scientist: Towards full automation of the research life cycle_，Nature，2026-03-26（https://www.nature.com/articles/s41586-026-10265-5 ；一手：https://sakana.ai/ai-scientist-nature/ ）。v2 arXiv:2504.08066。
 - **架构**：v1 依赖人写的代码模板；v2 去掉模板，使用**渐进式 agentic 树搜索** + 专门的 **Experiment Manager agent**，**VLM** 对图表反馈迭代；**Automated Reviewer** 作 Area Chair，集成 5 份独立评审（NeurIPS 准则）。
 - **人的位置**：给出宽泛的研究主题（v1 另给模板）；组织评审实验——ICLR 2025 workshop 盲审（获组织者许可、IRB 批准、水印、**预先计划接受后撤稿**）。
 - **评估**：3 篇全自动稿件，1 篇均分 6.33（6/7/6），高于人类平均接收阈值，约超过 55% 的人类论文；Automated Reviewer 对 OpenReview 人类决定的 balanced accuracy 69%，F1 超过 NeurIPS 2021 一致性实验的人-人一致度；论文得分随底座模型变强而提高。Sakana 自己说 3 篇都达不到主会标准（二手引述）。
 - **局限（Sakana 自述）**：想法有时幼稚/欠发展；方法严谨性与复杂代码实现薄弱；会幻觉（引用不准、附录重复图）；仅计算实验。
-- **第三方批评**：Beel 等的独立复现——文献检索只靠简单关键词，把成熟方法（如 SGD 的 micro-batching）反复标成“新颖”；8 个实验中 3 个（约 38%）因编程/执行错误失败（另一二手引 42%）[二手]。Luo、Kasirzadeh、Shah，*The More You Automate, the Less You See*（arXiv:2509.08713，NeurIPS 2025 AI4Science）：四类隐蔽失败——不当基准选择、数据泄漏、指标滥用、事后选择偏差；有完整 trace/代码比只看论文更能检出，但只评估了两个系统。Sakana 对部分批评有异议（称许多漏引也是人类常见疏漏）。
+- **第三方批评**：Beel 等的独立复现——文献检索只靠简单关键词，把成熟方法（如 SGD 的 micro-batching）反复标成“新颖”；8 个实验中 3 个（约 38%）因编程/执行错误失败（另一二手引 42%）[二手]。Luo、Kasirzadeh、Shah，_The More You Automate, the Less You See_（arXiv:2509.08713，NeurIPS 2025 AI4Science）：四类隐蔽失败——不当基准选择、数据泄漏、指标滥用、事后选择偏差；有完整 trace/代码比只看论文更能检出，但只评估了两个系统。Sakana 对部分批评有异议（称许多漏引也是人类常见疏漏）。
 - 2026 年未检索到 v3 或其它后续 **[单一来源]**。
 
 ---

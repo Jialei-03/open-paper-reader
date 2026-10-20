@@ -17,16 +17,16 @@
 
 ### 大厂和研究机构
 
-| 系统 | 做什么 | 人在哪里 |
-|---|---|---|
-| Google AI co-scientist | 生成假设和研究计划（生成、反思、排序、进化、元评审多个角色，锦标赛排序） | 给研究目标、可以给种子想法和反馈、湿实验由人做 |
-| DeepMind AlphaEvolve | 进化式搜索算法和数学构造 | 人写评估函数、定义问题 |
-| OpenAI 内部"研究实习生" | 在人指导下完成定义明确的研究任务 | 人定优先级、决定继续或停止 |
-| Anthropic | 内部度量 AI 做 AI 研发的程度 | 人监督和事后决定 |
-| Sakana AI Scientist v1/v2、Agentic Scientist（v3） | 从想法到实验到论文（仅计算实验） | v3 没有审批环节，只能事后查看运行记录 |
-| FutureHouse / Edison：Robin、Kosmos | 文献、数据分析、假设，Robin 含湿实验闭环 | 人给目标、做湿实验、验证发现 |
-| Ai2：CodeScientist、AstaBench | 半自动代码实验；评测基准 | CodeScientist 由人审核想法和实验 |
-| Meta MLGym、微软 R&D-Agent | ML 研究和工程 | 人提供任务和评分 |
+| 系统                                               | 做什么                                                                   | 人在哪里                                       |
+| -------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
+| Google AI co-scientist                             | 生成假设和研究计划（生成、反思、排序、进化、元评审多个角色，锦标赛排序） | 给研究目标、可以给种子想法和反馈、湿实验由人做 |
+| DeepMind AlphaEvolve                               | 进化式搜索算法和数学构造                                                 | 人写评估函数、定义问题                         |
+| OpenAI 内部"研究实习生"                            | 在人指导下完成定义明确的研究任务                                         | 人定优先级、决定继续或停止                     |
+| Anthropic                                          | 内部度量 AI 做 AI 研发的程度                                             | 人监督和事后决定                               |
+| Sakana AI Scientist v1/v2、Agentic Scientist（v3） | 从想法到实验到论文（仅计算实验）                                         | v3 没有审批环节，只能事后查看运行记录          |
+| FutureHouse / Edison：Robin、Kosmos                | 文献、数据分析、假设，Robin 含湿实验闭环                                 | 人给目标、做湿实验、验证发现                   |
+| Ai2：CodeScientist、AstaBench                      | 半自动代码实验；评测基准                                                 | CodeScientist 由人审核想法和实验               |
+| Meta MLGym、微软 R&D-Agent                         | ML 研究和工程                                                            | 人提供任务和评分                               |
 
 几条有代表性的公开表态和数据：
 
@@ -36,12 +36,12 @@
 
 ### 开源项目
 
-| 项目 | 星数（2026-10-20） | 和我们的关系 |
-|---|---|---|
-| [aiming-lab/AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw) | 14.7k | 有"继续 / 修改 / 转向"决策节点，7 种人类介入模式，最接近我们的思路 |
-| [davebcn87/pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) | 8.2k | **Pi 的扩展**：改一点、测指标、留好的、回滚坏的。只适用于有明确数字指标的优化任务，不涉及研究判断 |
-| [SakanaAI/AI-Scientist-v3](https://github.com/SakanaAI/AI-Scientist-v3)（Agentic Scientist） | 412（10 月 11 日刚建） | 能驱动 Claude Code、Codex、**Pi** 等编程 Agent；评估在封闭环境里进行，论文按证据审计 |
-| AI-Scientist v1/v2、Agent Laboratory、R&D-Agent、AIDE、DeepScientist 等 | 见分项报告 | 端到端流水线，已经很拥挤 |
+| 项目                                                                                         | 星数（2026-10-20）     | 和我们的关系                                                                                      |
+| -------------------------------------------------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------- |
+| [aiming-lab/AutoResearchClaw](https://github.com/aiming-lab/AutoResearchClaw)                | 14.7k                  | 有"继续 / 修改 / 转向"决策节点，7 种人类介入模式，最接近我们的思路                                |
+| [davebcn87/pi-autoresearch](https://github.com/davebcn87/pi-autoresearch)                    | 8.2k                   | **Pi 的扩展**：改一点、测指标、留好的、回滚坏的。只适用于有明确数字指标的优化任务，不涉及研究判断 |
+| [SakanaAI/AI-Scientist-v3](https://github.com/SakanaAI/AI-Scientist-v3)（Agentic Scientist） | 412（10 月 11 日刚建） | 能驱动 Claude Code、Codex、**Pi** 等编程 Agent；评估在封闭环境里进行，论文按证据审计              |
+| AI-Scientist v1/v2、Agent Laboratory、R&D-Agent、AIDE、DeepScientist 等                      | 见分项报告             | 端到端流水线，已经很拥挤                                                                          |
 
 三个仓库的星数、许可证和描述，我用 GitHub API 核对过。Sakana v3 支持 Pi 这一点，我从它的 README 核对过。
 
