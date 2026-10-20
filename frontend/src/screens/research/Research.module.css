@@ -666,3 +666,149 @@
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
 }
+
+/* The exchange between agents: executor on the left, advisor on the right, the
+   system's checks between them, so who answered whom reads at a glance. */
+.talkPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+}
+
+.talk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  max-width: min(720px, 86%);
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-1);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+}
+
+.turn[data-role="executor"] {
+  align-self: flex-start;
+  border-start-start-radius: var(--ui-r-4);
+}
+
+.turn[data-role="advisor"],
+.turn[data-role="distiller"] {
+  align-self: flex-end;
+  border-start-end-radius: var(--ui-r-4);
+  background: var(--ui-selected);
+}
+
+.turn[data-role="system"] {
+  align-self: center;
+  max-width: 90%;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  text-align: center;
+}
+
+.turnHead {
+  display: flex;
+  gap: var(--ui-space-8);
+  align-items: baseline;
+}
+
+.turnRole {
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-strong);
+}
+
+.turnNumber {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4) var(--ui-space-6);
+  align-items: baseline;
+  font-size: var(--ui-text-13);
+}
+
+/* A check by the system inside a sprint is set off from the agent's own steps. */
+.turn:not([data-role="system"]) .step[data-actor="system"] {
+  padding-inline-start: var(--ui-space-8);
+  border-inline-start: 2px solid var(--ui-warning-text);
+}
+
+.turn[data-role="system"] .step {
+  justify-content: center;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.stepLabel {
+  font-weight: var(--ui-weight-strong);
+}
+
+.step[data-tone="warn"] .stepLabel {
+  color: var(--ui-warning-text);
+}
+
+.step[data-tone="done"] .stepLabel {
+  color: var(--ui-success-text);
+}
+
+.nodeChip {
+  padding: 0 var(--ui-space-6);
+  border-radius: var(--ui-r-6);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+}
+
+.stepMeta {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.stepNote {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ui-fg-1);
+  white-space: pre-wrap;
+}
+
+.handoff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  padding-top: var(--ui-space-8);
+  border-top: 1px solid var(--ui-edge-subtle);
+  font-size: var(--ui-text-13);
+}
+
+.handoff p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .turn {
+    max-width: 100%;
+  }
+}
