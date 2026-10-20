@@ -1127,6 +1127,18 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 )
                 .values(status="cancelled", updated_at=now())
             )
+            # The scheduler only looks at active researches: close the round here.
+            from .research_worker import _settle
+
+            d.flush()
+            d.expire_all()
+            for sprint in d.scalars(
+                select(ResearchSprint).where(
+                    ResearchSprint.project_id == p.id,
+                    ResearchSprint.status == "running",
+                )
+            ):
+                _settle(d, p, sprint)
         research_sandbox.stop_jobs(settings, d, p.id, note)
 
     @app.post("/api/v1/research/projects/{id}/stop")

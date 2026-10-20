@@ -1,3 +1,5 @@
+from sqlalchemy import select
+
 from backend.models import AgentRun, ResearchProject, ResearchSprint
 from backend.tests.test_acceptance import env as env  # noqa: PLC0414
 from backend.tests.test_agents import configure
@@ -658,6 +660,11 @@ def test_pausing_stops_the_round_and_the_jobs_but_can_resume(env, monkeypatch):
     assert paused.json()["status"] == "paused"
     with app.state.maker() as d:
         assert d.get(AgentRun, run_id).status == "cancelled"
+        # The page must not keep showing an agent at work.
+        sprint = d.scalars(
+            select(ResearchSprint).where(ResearchSprint.run_id == run_id)
+        ).one()
+        assert sprint.status != "running"
     assert stopped == [(project["id"], research_sandbox.PAUSED_NOTE)]
     assert (
         a.post(f"{BASE}/{project['id']}/resume", json={}).json()["status"] == "active"
