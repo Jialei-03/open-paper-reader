@@ -19,7 +19,7 @@ export const project = (x: number, y: number, z = 0) => ({
 /**
  * Where each agent sits, and where it goes when it gets up. The beaver and the owl
  * sit on office chairs behind their desks, facing the room; the shiba keeps a stool
- * beside the gate and steps in front of it to stop someone; the squirrel reads in an
+ * on the rug and walks over to the beaver's desk to stop it; the squirrel reads in an
  * armchair by the bookshelf. `perched` figures sit on top of something low (a stool,
  * an armchair), so their legs are hidden; a desk hides the others' by itself.
  */
@@ -33,8 +33,8 @@ const SEATS: Record<Agent, Seat> = {
   system: { at: [72, 86, 8], perched: true },
   distiller: { at: [107, 26, 8], perched: true },
 };
-/** The shiba on duty: in front of the gate. */
-const GATE_DUTY: [number, number, number] = [58, 92, 0];
+/** The shiba on duty: in front of the beaver's desk, to stop it. */
+const ON_DUTY: [number, number, number] = [54, 78, 0];
 
 export interface Figure {
   /** The point under the visible figure, on the screen. */
@@ -48,7 +48,7 @@ export interface Figure {
 /** Where `agent` is: sitting, unless it is on its feet. */
 export function figure(agent: Agent, standing: boolean): Figure {
   const seat = SEATS[agent];
-  const [x, y, z] = standing && agent === "system" ? GATE_DUTY : seat.at;
+  const [x, y, z] = standing && agent === "system" ? ON_DUTY : seat.at;
   return {
     ...project(x, y, z),
     depth: project(x, y, 0).y,
@@ -61,7 +61,7 @@ export const SPOT: Record<Place, { x: number; y: number }> = {
   board: project(45, 0, 45),
   bench: project(18, 62, 22),
   desk: project(90, 58, 15),
-  gate: project(59, 66, 12),
+  gate: project(72, 86, 10),
   shelf: project(104, 12, 30),
   person: project(0, 81, 25),
 };
@@ -282,18 +282,10 @@ function paintBench(paint: Paint) {
   box(paint, [28, 40, 56, 60, 14, 15], ["#6a6a72", "#5a5a60", "#4a4a50"]);
 }
 
-/** The shiba's stool, in front of the gate on the rug. */
+/** The shiba's stool, on the rug in the middle of the room. */
 function paintStool(paint: Paint) {
   box(paint, [71, 73, 85, 87, 0, 6], ["#6b7078", "#5b6068", "#4b5058"]);
   box(paint, [68, 76, 82, 90, 6, 8], ["#d64541", "#b5362f", "#9a2e28"]);
-}
-
-/** The gate: a base, two posts and a red bar. */
-function paintGate(paint: Paint) {
-  box(paint, [56, 62, 52, 80, 0, 1], ["#7d828a", "#6b7078", "#5b6068"]);
-  box(paint, [58, 61, 54, 57, 1, 22], ["#a4a9b1", "#8a8f98", "#747982"]);
-  box(paint, [58, 61, 75, 78, 1, 22], ["#a4a9b1", "#8a8f98", "#747982"]);
-  box(paint, [58.5, 60.5, 57, 75, 12, 14], ["#e8665f", "#d64541", "#b5362f"]);
 }
 
 /** The advisor's desk: a lamp at the far end, papers at the front, the owl's face clear. */
@@ -312,7 +304,6 @@ const LAYERS: { key: string; depth: number; paint: (paint: Paint) => void }[] =
   [
     { key: "back", depth: 0, paint: paintBack },
     { key: "bench", depth: project(48, 70).y, paint: paintBench },
-    { key: "gate", depth: project(62, 80).y, paint: paintGate },
     { key: "desk", depth: project(112, 66).y, paint: paintDesk },
     // Under the shiba: just behind the point it sits on.
     { key: "stool", depth: project(72, 86).y - 1, paint: paintStool },
