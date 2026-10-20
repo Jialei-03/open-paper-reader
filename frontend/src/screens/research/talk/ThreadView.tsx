@@ -501,7 +501,11 @@ function WorkBlock({
       role={role}
       title={title}
       // A scoping turn's words are the advisor's message, shown on their own.
-      final={role === "scoping" ? "" : item.sprint.summary}
+      final={
+        role === "scoping" || item.sprint.status !== "ended"
+          ? ""
+          : item.sprint.summary
+      }
     >
       {item.jobs.map((job) => (
         <RunCard key={job.id} job={job} computes={computes} actions={actions} />

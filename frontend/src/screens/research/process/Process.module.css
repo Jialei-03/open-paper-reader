@@ -334,10 +334,11 @@
   box-shadow: var(--ui-focus-ring);
 }
 
+/* Why a past round stopped: history, so quiet. */
 .error {
   margin: 0;
-  color: var(--ui-danger-text);
-  font-size: var(--ui-text-13);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
 }
 
 /* Pinned over the composer while an agent works. */

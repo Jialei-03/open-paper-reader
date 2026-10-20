@@ -274,6 +274,11 @@
 
 .page {
   position: relative;
+  /* Its parent does not shrink it: a long title must not widen the page. */
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   height: 100%;
