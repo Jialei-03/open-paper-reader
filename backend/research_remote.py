@@ -273,13 +273,20 @@ def pull(settings, item, project_id):
     )
 
 
-def fetch_back(settings, job):
-    """The workspace and the job's reports, back to this machine."""
+def fetch_reports(settings, job, timeout=600):
+    """What the job has reported through `ora` so far, back to this machine."""
     r = job.remote
     _rsync(
         f"{r['host']}:{r['base']}/runs/{job.id}/",
         f"{research_sandbox.rundir(settings, job.project_id, job.id)}/",
+        timeout=timeout,
     )
+
+
+def fetch_back(settings, job):
+    """The workspace and the job's reports, back to this machine."""
+    r = job.remote
+    fetch_reports(settings, job)
     _rsync(
         f"{r['host']}:{r['base']}/work/",
         f"{research_sandbox.workdir(settings, job.project_id)}/",

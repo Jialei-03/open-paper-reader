@@ -200,6 +200,10 @@ def kill(job):
     _reap(pid)
 
 
+def fetch_reports(settings, job, timeout=600):
+    """Nothing to copy: the job reports into this machine's folder."""
+
+
 def fetch_back(settings, job):
     """Nothing to copy: the job wrote into this machine's workspace."""
 

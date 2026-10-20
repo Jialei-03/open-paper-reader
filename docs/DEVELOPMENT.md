@@ -114,7 +114,7 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 
 **人在哪里决定**：计划（`approve_plan`）、结论（接受或要求补做）、预算用完（追加或结束）、导师的提问和请你拍板。它们都是 `decision_requested` 事件，由 `research_stages.decide` 处理，在研究页的对话里显示成卡片。
 
-**实验**：`run_job` → `research_sandbox.start_job` 记一个 `ResearchJob`。作业在后台运行，退出码写在它的报告目录里，`sweep` 据此区分结束、超时和丢失；结束时收回日志、`ora` 报告的超参和指标，并在节点上记一个 `run_result` 事件。
+**实验**：`run_job` → `research_sandbox.start_job` 记一个 `ResearchJob`。作业在后台运行，退出码写在它的报告目录里，`sweep` 据此区分结束、超时和丢失；结束时收回日志、`ora` 报告的超参和指标，并在节点上记一个 `run_result` 事件。作业运行中，`sweep` 每次也读一遍它的 `metrics.jsonl`（SSH 机器上的每 30 秒拉回一次），研究页的曲线、`job_status` 和项目对话因此能看到进行到哪一步。
 
 **环境**：环境的配置在 `research/settings.json` 的 `computes` 里，种类有 `host`、`docker`、`ssh`；准备的结果（用哪个 Python、检测结果、版本）在 `states` 里。本机环境的命令在研究工作区里以普通进程运行，环境变量只给最小的一组（不把服务器自己的环境、包括密钥，带进实验）。
 
@@ -155,7 +155,6 @@ npm --prefix frontend run build
 已知的问题和下一步：
 
 - **调度还是按轮轮询**：一轮里等作业、作业结束再开下一轮。应该改成由事件驱动（作业结束、你说话、数据就绪时才唤醒相应的角色）。
-- **长实验的进度**：执行者常用 `| tail` 截输出，运行中看不到进度；指标应该按 epoch 用 `ora.log` 记下，研究页和项目对话才能看到曲线。
 - **假设的排序**：计划卡片按导师写的顺序排，还没有按价值和代价自动排序。
 - **CI 暂停中**：恢复前先在本机跑完整的浏览器测试。
 - 研究功能只在本机版里提供，在线版只读论文。

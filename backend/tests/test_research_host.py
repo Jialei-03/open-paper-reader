@@ -177,3 +177,33 @@ def test_an_agent_stops_its_own_job_and_cannot_kill_by_name(world):
         for command in ("pkill -f train.py", "killall python", "kill -9 $(pgrep -f x)"):
             with pytest.raises(ValueError, match="stop_job"):
                 rs.pi_call(settings, pid, "bash", {"command": command}, d)
+
+
+def test_a_running_job_shows_its_numbers_before_it_ends(world):
+    settings, maker, pid = world
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        node = rm.root(d, p)
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r")
+        d.add(sprint)
+        d.flush()
+        (rs.workdir(settings, p.id) / "t.py").write_text(
+            "import os, time, ora\n"
+            "for step in range(2):\n"
+            "    ora.log({'loss': 1.0 / (step + 1)}, step=step)\n"
+            "while not os.path.exists('go'):\n"
+            "    time.sleep(0.05)\n"
+            "ora.summary({'loss': 0.25})\n"
+        )
+        job = rs.start_job(settings, d, p, node, sprint, "python3 t.py | tail -1", 60)
+        end = time.time() + 10
+        while job.points < 2 and time.time() < end:
+            rs._sweep_one(settings, d, job)
+            time.sleep(0.1)
+        assert job.status == "running"
+        assert job.points == 2 and job.metrics["loss"] == 0.5
+        status = rs.job_status(job)
+        assert status["points"] == 2 and status["metrics"]["loss"] == 0.5
+        (rs.workdir(settings, p.id) / "go").write_text("")
+        _wait_done(settings, d, job)
+        assert job.status == "succeeded" and job.metrics["loss"] == 0.25

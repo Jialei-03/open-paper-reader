@@ -547,6 +547,8 @@ def _finish(settings, d, job, status, exit_code, note=""):
             timeout=30,
         )
     collect(settings, job)
+    _pulled.pop(job.id, None)
+    _read.pop(job.id, None)
     _record_run(d, job)
 
 
@@ -584,6 +586,35 @@ def _sweep_one(settings, d, job):
         _kill(job)
         _charge(d, job)
         _finish(settings, d, job, "failed", None, note=QUOTA_NOTE)
+    else:
+        _progress(settings, job)
+
+
+PULL_EVERY = 30
+_pulled = {}  # job id -> when its reports last came back from another machine
+_read = {}  # job id -> the size of its metrics file when last read
+
+# Through one name, so tests can move the clock.
+_clock = time.monotonic
+
+
+def _progress(settings, job):
+    """A running job's numbers so far, so its curve and latest values show
+    before it ends. Seeing them is a convenience: failing to only waits."""
+    if job.remote and job.remote.get("kind", "ssh") != "host":
+        if _clock() - _pulled.get(job.id, -PULL_EVERY) < PULL_EVERY:
+            return
+        _pulled[job.id] = _clock()
+        try:
+            _away(job).fetch_reports(settings, job, timeout=60)
+        except (ValueError, OSError, subprocess.TimeoutExpired):
+            return
+    path = rundir(settings, job.project_id, job.id) / "metrics.jsonl"
+    size = path.stat().st_size if path.exists() else 0
+    if _read.get(job.id) == size:
+        return
+    _read[job.id] = size
+    collect(settings, job)
 
 
 def sweep(settings, maker):
@@ -640,6 +671,9 @@ def job_status(job):
         "elapsed_seconds": _elapsed(job) if job.status == "running" else None,
         "log_lines": job.log_lines,
         "command": job.command,
+        # While it runs: the latest values it logged through `ora`, and how many.
+        "metrics": job.metrics or {},
+        "points": job.points or 0,
     }
 
 

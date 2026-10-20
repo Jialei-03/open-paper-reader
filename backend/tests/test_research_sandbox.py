@@ -273,3 +273,46 @@ def test_stop_project_kills_its_jobs(setup):
         rs.stop_jobs(settings, d, ids[0])
         d.commit()
     assert ["docker", "kill", container] in docker.calls
+
+
+def test_a_job_on_another_machine_brings_its_numbers_back_now_and_then(
+    tmp_path, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from backend import research_remote
+
+    settings = Settings(storage=str(tmp_path / "files"), testing=True)
+    job = SimpleNamespace(
+        id="j1",
+        project_id="p1",
+        remote={"kind": "ssh", "host": "gpu", "base": "/x"},
+        metrics={},
+        points=0,
+    )
+    pulls = []
+
+    def fetch(settings, job, timeout=600):
+        pulls.append(timeout)
+        with open(rs.rundir(settings, job.project_id, job.id) / "metrics.jsonl", "a") as f:
+            f.write(json.dumps({"step": len(pulls), "acc": 0.1 * len(pulls)}) + "\n")
+
+    clock = [1000.0]
+    monkeypatch.setattr(research_remote, "fetch_reports", fetch)
+    monkeypatch.setattr(rs, "_clock", lambda: clock[0])
+    rs._progress(settings, job)
+    assert job.points == 1 and job.metrics["acc"] == 0.1
+    clock[0] += rs.PULL_EVERY - 1
+    rs._progress(settings, job)
+    assert len(pulls) == 1
+    clock[0] += 1
+    rs._progress(settings, job)
+    assert len(pulls) == 2 and job.points == 2 and pulls[-1] == 60
+
+    def broken(settings, job, timeout=600):
+        raise ValueError("同步文件失败")
+
+    monkeypatch.setattr(research_remote, "fetch_reports", broken)
+    clock[0] += rs.PULL_EVERY
+    rs._progress(settings, job)
+    assert job.points == 2
