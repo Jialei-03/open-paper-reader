@@ -251,8 +251,3 @@ def progress(settings, d, env_id):
         else None,
         "steps": steps[-60:],
     }
-
-
-def ready_python(settings, env_id):
-    """The Python the environment's preparation settled on, if any."""
-    return state(settings, env_id).get("python") or ""

@@ -3,6 +3,7 @@ import {
   Database,
   Gauge,
   KeyRound,
+  BookOpen,
   LineChart,
   Search,
   Settings2,
@@ -23,6 +24,7 @@ import {
 } from "./PreferencesSection";
 import { ResearchSection } from "./ResearchSection";
 import { UsageSection } from "./UsageSection";
+import { PlaybookPanel } from "../research/PlaybookPanel";
 import styles from "./SettingsWindow.module.css";
 
 export type SettingsCategory =
@@ -30,6 +32,7 @@ export type SettingsCategory =
   | "models"
   | "environments"
   | "tracking"
+  | "playbook"
   | "data"
   | "usage"
   | "access";
@@ -61,6 +64,7 @@ const GROUPS: { title: MessageKey; entries: Entry[] }[] = [
         id: "tracking",
         icon: LineChart,
       },
+      { id: "playbook", icon: BookOpen },
     ],
   },
   {
@@ -100,6 +104,8 @@ function Body({
       return <ResearchSection part="environments" />;
     case "tracking":
       return <ResearchSection part="tracker" />;
+    case "playbook":
+      return <PlaybookPanel />;
     case "data":
       return <DataSection />;
     case "usage":

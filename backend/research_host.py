@@ -119,10 +119,6 @@ def setup_call(settings, item, name, args):
         raise
 
 
-def _exit_file(settings, job):
-    return research_sandbox.rundir(settings, job.project_id, job.id) / ".exit"
-
-
 def start(settings, d, item, project, job):
     run_dir = research_sandbox.rundir(settings, project.id, job.id)
     log = research_sandbox.logdir(settings, project.id) / f"{job.id}.log"

@@ -10,7 +10,7 @@ import {
   type Playbook,
   type PlaybookRule,
 } from "./playbook";
-import styles from "./Research.module.css";
+import styles from "./Playbook.module.css";
 
 /**
  * The research playbook: the judgment rules distilled from finished projects.

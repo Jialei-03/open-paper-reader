@@ -10,7 +10,6 @@ from backend.config import Settings, database
 from backend.models import (
     Base,
     ResearchJob,
-    ResearchProject,
     ResearchSprint,
     ResearchWorkspace,
     User,
