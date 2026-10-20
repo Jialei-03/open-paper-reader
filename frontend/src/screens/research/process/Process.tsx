@@ -27,8 +27,13 @@ import { Mascot } from "../scene/Mascot";
 import {
   current,
   isLive,
+  JOB_TOOLS,
+  jobReport,
+  logText,
+  mainMetric,
   output,
   segment,
+  shortDuration,
   summary,
   target,
   type ResearchRun,
@@ -123,6 +128,45 @@ function Glyph({ row }: { row: Row }) {
   return <Icon size={14} aria-hidden />;
 }
 
+/**
+ * What a step returned, as text to read. A job tool's result is a job's state
+ * and log, so it reads as a status line over numbered log lines, not as JSON.
+ */
+function useStepText() {
+  const { t } = useI18n();
+  return (step: RunStep): string => {
+    const raw = output(step);
+    if (step.error || !JOB_TOOLS.has(step.name)) return raw;
+    const report = jobReport(raw);
+    if (!report) return raw;
+    const head: string[] = [];
+    if (report.status)
+      head.push(
+        t(`research.job.${report.status}` as MessageKey) || report.status,
+      );
+    if (report.exitCode !== null && report.exitCode !== undefined)
+      head.push(t("research.process.exitCode", { code: report.exitCode }));
+    if (report.elapsedSeconds)
+      head.push(
+        t("research.process.elapsed", {
+          time: shortDuration(report.elapsedSeconds),
+        }),
+      );
+    const main = mainMetric(report.metrics);
+    if (main) head.push(`${main[0]} ${main[1].toPrecision(4)}`);
+    // A status alone (job_status) also says how long the log is: once it is
+    // done, since a running job's lines are only counted at the end.
+    if (
+      !report.lines.length &&
+      report.total !== undefined &&
+      report.status &&
+      report.status !== "running"
+    )
+      head.push(t("research.process.logLines", { n: report.total }));
+    return [head.join(" · "), logText(report)].filter(Boolean).join("\n");
+  };
+}
+
 /** One row of the trail: a verb, its target in a chip, its state, its output a click away. */
 function StepRow({ row }: { row: Row }) {
   const { t } = useI18n();
@@ -134,8 +178,15 @@ function StepRow({ row }: { row: Row }) {
   const [all, setAll] = useState(false);
   const first = target(row.steps[0]);
   const many = row.steps.length > 1;
+  const stepText = useStepText();
   const text = row.steps
-    .map((s) => (many ? `$ ${target(s)}\n` : "") + output(s).trim())
+    .map(
+      (s) =>
+        (many ? `$ ${target(s)}\n` : "") +
+        stepText(s)
+          .replace(/^\s*\n/, "")
+          .trimEnd(),
+    )
     .filter(Boolean)
     .join("\n\n");
   const lines = text.split("\n");

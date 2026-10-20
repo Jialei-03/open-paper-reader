@@ -217,3 +217,118 @@ export function mainMetric(
   }
   return numbers[0] ?? null;
 }
+
+/** One numbered line of a job's log. */
+export interface LogLine {
+  n: number;
+  text: string;
+}
+
+/** What a job tool returned, read back: its state, and the log lines it carried. */
+export interface JobReport {
+  status?: string;
+  exitCode?: number | null;
+  elapsedSeconds?: number | null;
+  metrics: Record<string, unknown>;
+  lines: LogLine[];
+  /** How many lines the log has in all, when the result says. */
+  total?: number;
+  /** The stored result was cut short, so the lines may stop early. */
+  cut: boolean;
+}
+
+/** The tools whose result is a job's state or log, not printed output. */
+export const JOB_TOOLS = new Set([
+  "job_logs",
+  "job_status",
+  "stop_job",
+  "run_job",
+]);
+
+const LINE = /\{"n":\s*(\d+),\s*"text":\s*("(?:[^"\\]|\\.)*")\s*\}/g;
+
+const field = (raw: string, key: string): string | undefined =>
+  new RegExp(`"${key}":\\s*("(?:[^"\\\\]|\\\\.)*"|-?[\\d.]+|null)`).exec(
+    raw,
+  )?.[1];
+
+const parsed = (v: string | undefined): unknown => {
+  if (v === undefined) return undefined;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
+ * A job tool's result (job_logs, job_status, run_job's wait, stop_job), read
+ * from the stored text. The service keeps only the first part of a result, so
+ * a long log arrives cut mid-line: what can be read is kept.
+ */
+export function jobReport(raw: string): JobReport | null {
+  let whole: Record<string, unknown> | null = null;
+  try {
+    const v = JSON.parse(raw) as unknown;
+    if (v && typeof v === "object" && !Array.isArray(v))
+      whole = v as Record<string, unknown>;
+  } catch {
+    /* cut short: read it piece by piece */
+  }
+  const pick = (key: string): unknown =>
+    whole ? whole[key] : parsed(field(raw, key));
+  const lines: LogLine[] = [];
+  if (whole) {
+    if (Array.isArray(whole.lines))
+      for (const l of whole.lines as unknown[]) {
+        const line = l as Partial<LogLine>;
+        if (typeof line?.n === "number" && typeof line.text === "string")
+          lines.push({ n: line.n, text: line.text });
+      }
+  } else {
+    for (const m of raw.matchAll(LINE)) {
+      const text = parsed(m[2]);
+      if (typeof text === "string") lines.push({ n: Number(m[1]), text });
+    }
+  }
+  const status = pick("status");
+  const exitCode = pick("exit_code");
+  const elapsed = pick("elapsed_seconds");
+  const total = pick("total") ?? pick("log_lines");
+  let metrics: Record<string, unknown> = {};
+  if (whole && whole.metrics && typeof whole.metrics === "object")
+    metrics = whole.metrics as Record<string, unknown>;
+  if (typeof status !== "string" && !lines.length && !raw.includes('"lines"'))
+    return null;
+  return {
+    status: typeof status === "string" ? status : undefined,
+    exitCode: typeof exitCode === "number" ? exitCode : null,
+    elapsedSeconds: typeof elapsed === "number" ? elapsed : null,
+    metrics,
+    lines,
+    total: typeof total === "number" ? total : undefined,
+    cut: !whole,
+  };
+}
+
+/** Log lines as a person reads them: each behind its line number, aligned. */
+export function logText(report: Pick<JobReport, "lines" | "total" | "cut">) {
+  const { lines } = report;
+  if (!lines.length) return "";
+  const width = String(lines[lines.length - 1].n).length;
+  const body = lines.map((l) => `${String(l.n).padStart(width)}  ${l.text}`);
+  const last = lines[lines.length - 1].n;
+  if (report.cut || (report.total !== undefined && last < report.total))
+    body.push(`${" ".repeat(width)}  …`);
+  return body.join("\n");
+}
+
+/** A length of time, short: 45s, 3m12s, 2h5m. */
+export function shortDuration(seconds: number) {
+  const s = Math.max(0, Math.round(seconds));
+  return s >= 3600
+    ? `${Math.floor(s / 3600)}h${Math.round((s % 3600) / 60)}m`
+    : s >= 60
+      ? `${Math.floor(s / 60)}m${s % 60}s`
+      : `${s}s`;
+}

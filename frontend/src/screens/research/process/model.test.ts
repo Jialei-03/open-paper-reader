@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   current,
+  jobReport,
+  logText,
   mainMetric,
   output,
   plainCommand,
   segment,
+  shortDuration,
   summary,
   target,
   type RunStep,
@@ -112,5 +115,90 @@ describe("what a person reads of a run", () => {
       mainMetric({ lr: 0.1, val_acc: 0.97, final_test_acc: "nan" }),
     ).toEqual(["val_acc", 0.97]);
     expect(mainMetric({})).toBeNull();
+  });
+});
+
+describe("a job tool's result, read back", () => {
+  // The service stores a result the way Python's json.dumps writes it.
+  const logs = JSON.stringify({
+    lines: [
+      { n: 7, text: "epoch 1 loss 2.31" },
+      { n: 8, text: 'val_acc 0.41 "best"' },
+      { n: 10, text: "done" },
+    ],
+    total: 12,
+  })
+    .replace(/":/g, '": ')
+    .replace(/,"/g, ', "');
+
+  it("reads job_logs as numbered lines and marks that more follow", () => {
+    const report = jobReport(logs)!;
+    expect(report.lines.map((l) => l.n)).toEqual([7, 8, 10]);
+    expect(report.total).toBe(12);
+    expect(report.cut).toBe(false);
+    expect(logText(report)).toBe(
+      [
+        " 7  epoch 1 loss 2.31",
+        ' 8  val_acc 0.41 "best"',
+        "10  done",
+        "    …",
+      ].join("\n"),
+    );
+  });
+
+  it("keeps the whole lines of a log the service cut short", () => {
+    const cut = logs.slice(0, logs.indexOf("done") + 2);
+    const report = jobReport(cut)!;
+    expect(report.cut).toBe(true);
+    expect(report.lines.map((l) => l.text)).toEqual([
+      "epoch 1 loss 2.31",
+      'val_acc 0.41 "best"',
+    ]);
+    expect(logText(report).split("\n").pop()).toBe("   …");
+  });
+
+  it("ends without a mark when the log is read to its end", () => {
+    const report = jobReport(
+      '{"lines": [{"n": 1, "text": "ok"}], "total": 1}',
+    )!;
+    expect(logText(report)).toBe("1  ok");
+    expect(logText(jobReport('{"lines": [], "total": 0}')!)).toBe("");
+  });
+
+  it("reads job_status: state, exit code, time and metrics", () => {
+    const report = jobReport(
+      JSON.stringify({
+        status: "running",
+        exit_code: null,
+        elapsed_seconds: 192,
+        log_lines: 40,
+        command: "python train.py",
+        metrics: { step: 3, val_acc: 0.912 },
+        points: 3,
+      }),
+    )!;
+    expect(report).toMatchObject({
+      status: "running",
+      exitCode: null,
+      elapsedSeconds: 192,
+      total: 40,
+      metrics: { val_acc: 0.912 },
+      lines: [],
+    });
+    expect(shortDuration(192)).toBe("3m12s");
+    expect(shortDuration(7500)).toBe("2h5m");
+  });
+
+  it("reads a finished run_job wait, cut short, with its state", () => {
+    const raw =
+      '{"job_id": "j1", "status": "failed", "exit_code": 1, "log_lines": 300, "lines": [{"n": 1, "text": "Traceback"}, {"n": 2, "text": "  Fi';
+    const report = jobReport(raw)!;
+    expect(report).toMatchObject({ status: "failed", exitCode: 1, total: 300 });
+    expect(report.lines).toEqual([{ n: 1, text: "Traceback" }]);
+  });
+
+  it("leaves anything else alone", () => {
+    expect(jobReport("plain text")).toBeNull();
+    expect(jobReport('{"ok": true}')).toBeNull();
   });
 });
