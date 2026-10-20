@@ -22,7 +22,7 @@ import type {
 } from "../research-api";
 import type { Agent } from "../scene/frames";
 import { Mascot } from "../scene/Mascot";
-import type { ResearchRun } from "../process/model";
+import { mainMetric, plainCommand, type ResearchRun } from "../process/model";
 import { RunTurn } from "../process/Process";
 import type { ThreadItem } from "./thread";
 import styles from "./Talk.module.css";
@@ -406,9 +406,9 @@ function duration(job: ResearchJob) {
       : `${s}s`;
 }
 
+/** One experiment, as one line: how it went, what it is, its number, how long. */
 export function RunCard({
   job,
-  computes,
   actions,
 }: {
   job: ResearchJob;
@@ -416,67 +416,38 @@ export function RunCard({
   actions: ThreadActions;
 }) {
   const { t } = useI18n();
-  const numbers = headline(job.metrics ?? {});
-  const tracker = trackerLink(job.tracker_url ?? "");
-  const compute = computes.find((c) => c.id === job.compute_id);
+  const main = mainMetric(job.metrics ?? {});
+  const tag = typeof job.config?.tag === "string" ? job.config.tag : "";
   return (
-    <div className={styles.run}>
-      <div className={styles.runHead}>
-        <span className={styles.status} data-status={job.status}>
-          {job.status === "running" ? (
-            <Spinner size={14} />
-          ) : job.status === "succeeded" ? (
-            <Check size={13} aria-hidden />
-          ) : (
-            <X size={13} aria-hidden />
-          )}
+    <button
+      type="button"
+      className={styles.runLine}
+      data-status={job.status}
+      onClick={() => actions.openRun(job.id)}
+      title={job.command}
+    >
+      <span className={styles.status} data-status={job.status}>
+        {job.status === "running" ? (
+          <Spinner size={14} />
+        ) : job.status === "succeeded" ? (
+          <Check size={13} aria-hidden />
+        ) : (
+          <X size={13} aria-hidden />
+        )}
+      </span>
+      <span className={styles.runName}>{tag || plainCommand(job.command)}</span>
+      {main ? (
+        <span className={styles.runMain}>
+          <span>{main[0]}</span>
+          <strong>{main[1].toPrecision(4)}</strong>
+        </span>
+      ) : job.status !== "running" && job.status !== "succeeded" ? (
+        <span className={styles.runMain}>
           {t(`research.job.${job.status}` as MessageKey)}
         </span>
-        <code className={styles.command} title={job.command}>
-          {job.command.split("\n")[0]}
-        </code>
-        <span className={styles.workMeta}>{duration(job)}</span>
-      </div>
-      {numbers.length > 0 && (
-        <div className={styles.numbers}>
-          {numbers.map(([k, v]) => (
-            <span key={k} className={styles.number}>
-              <span>{k}</span>
-              <strong>{number(v)}</strong>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className={styles.runFoot}>
-        {compute && <span>{compute.name}</span>}
-        <button
-          type="button"
-          className={styles.link}
-          onClick={() => actions.openLog(job.id)}
-        >
-          {t("research.run.log")}
-        </button>
-        {job.points > 0 && (
-          <button
-            type="button"
-            className={styles.link}
-            onClick={() => actions.openRun(job.id)}
-          >
-            {t("research.run.curve")}
-          </button>
-        )}
-        {tracker && (
-          <a
-            className={styles.link}
-            href={tracker}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {t("research.run.tracker")}
-          </a>
-        )}
-      </div>
-    </div>
+      ) : null}
+      <span className={styles.workMeta}>{duration(job)}</span>
+    </button>
   );
 }
 

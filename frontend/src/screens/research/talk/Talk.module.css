@@ -1219,3 +1219,70 @@
     scroll-behavior: auto;
   }
 }
+
+/* An experiment in the thread: one quiet line; its details open in the record. */
+.runLine {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-10);
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 0 var(--ui-space-10);
+  border: 0;
+  border-radius: var(--ui-r-8);
+  background: var(--ui-fill);
+  color: var(--ui-fg-1);
+  font: inherit;
+  font-size: var(--ui-text-13);
+  text-align: left;
+  cursor: pointer;
+}
+
+.runLine + .runLine {
+  margin-top: var(--ui-space-4);
+}
+
+.runLine:hover {
+  background: var(--ui-hover);
+}
+
+.runLine:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.runName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runMain {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: var(--ui-space-6);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+.runMain strong {
+  color: var(--ui-fg);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-regular);
+}
+
+/* A long fact in the record: three lines, the rest on a click. */
+.clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  cursor: pointer;
+}

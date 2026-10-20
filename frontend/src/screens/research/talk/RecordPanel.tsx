@@ -14,7 +14,8 @@ import {
   type SeriesPoint,
 } from "../research-api";
 import { ResearchScene } from "../scene/ResearchScene";
-import { headline, Prose, trackerLink, type ThreadActions } from "./ThreadView";
+import { mainMetric, plainCommand } from "../process/model";
+import { Prose, trackerLink, type ThreadActions } from "./ThreadView";
 import { ComputePicker } from "./Pickers";
 import styles from "./Talk.module.css";
 
@@ -104,17 +105,17 @@ function PlanTab({ detail }: { detail: ProjectDetail }) {
         {"metric" in plan && plan.metric && (
           <dl className={styles.kv}>
             <dt>{t("research.plan.metric")}</dt>
-            <dd>{plan.metric}</dd>
+            <Long text={plan.metric} />
             {plan.baseline && (
               <>
                 <dt>{t("research.plan.baseline")}</dt>
-                <dd>{plan.baseline}</dd>
+                <Long text={plan.baseline} />
               </>
             )}
             {plan.goal && (
               <>
                 <dt>{t("research.plan.goal")}</dt>
-                <dd>{plan.goal}</dd>
+                <Long text={plan.goal} />
               </>
             )}
           </dl>
@@ -192,20 +193,11 @@ function RunsTab({
                 {t(`research.job.${job.status}` as MessageKey)}
               </span>
               <span className={styles.command}>
-                {titles.get(job.node_id) ?? ""}
+                {(typeof job.config?.tag === "string" && job.config.tag) ||
+                  titles.get(job.node_id) ||
+                  plainCommand(job.command)}
               </span>
-            </span>
-            <span className={styles.numbers}>
-              {headline(job.metrics ?? {})
-                .slice(0, 3)
-                .map(([k, v]) => (
-                  <span key={k} className={styles.number}>
-                    <span>{k}</span>
-                    <strong>
-                      {typeof v === "number" ? v.toPrecision(4) : String(v)}
-                    </strong>
-                  </span>
-                ))}
+              <MainNumber metrics={job.metrics ?? {}} />
             </span>
           </button>
         ))}
@@ -245,7 +237,9 @@ function RunDetail({
   return (
     <section className={styles.section}>
       <h3 className={styles.sectionTitle}>{t("research.record.run")}</h3>
-      <code className={styles.mono}>{job.command}</code>
+      <code className={styles.mono} title={job.command}>
+        {plainCommand(job.command)}
+      </code>
       {shown && (
         <div className={styles.chart}>
           <div className={styles.tags}>
@@ -536,5 +530,30 @@ function SceneTab({
       live={detail.project.status === "active"}
       onLog={actions.openLog}
     />
+  );
+}
+
+/** A long fact: three lines, the rest on a click. */
+function Long({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <dd
+      className={open ? undefined : styles.clamp}
+      title={open ? undefined : text}
+      onClick={() => setOpen(!open)}
+    >
+      {text}
+    </dd>
+  );
+}
+
+function MainNumber({ metrics }: { metrics: Record<string, unknown> }) {
+  const main = mainMetric(metrics);
+  if (!main) return null;
+  return (
+    <span className={styles.runMain}>
+      <span>{main[0]}</span>
+      <strong>{main[1].toPrecision(4)}</strong>
+    </span>
   );
 }

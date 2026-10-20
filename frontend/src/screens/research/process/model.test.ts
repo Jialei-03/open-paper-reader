@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   current,
+  mainMetric,
   output,
+  plainCommand,
   segment,
   summary,
   target,
@@ -84,5 +86,31 @@ describe("a run, read as a turn", () => {
       ])?.name,
     ).toBe("bash");
     expect(current([step("read")])).toBeNull();
+  });
+});
+
+describe("what a person reads of a run", () => {
+  it("shows a command without its plumbing", () => {
+    expect(
+      plainCommand(
+        "cd /home/lab/ora-research/c558/work && export OMP_NUM_THREADS=2 && python3 -u train.py --seed 0 2>&1 | tail -20",
+      ),
+    ).toBe("python3 -u train.py --seed 0");
+    expect(
+      plainCommand(
+        "(nohup setsid python3 train_gpu.py --seed 1 > logs/a.log 2>&1 &)",
+      ),
+    ).toBe("python3 train_gpu.py --seed 1");
+    expect(plainCommand("ls -la")).toBe("ls -la");
+  });
+
+  it("judges a run by its test accuracy, else validation, never by nan", () => {
+    expect(
+      mainMetric({ step: 3, val_acc: 0.98, final_test_acc: 0.993 }),
+    ).toEqual(["final_test_acc", 0.993]);
+    expect(
+      mainMetric({ lr: 0.1, val_acc: 0.97, final_test_acc: "nan" }),
+    ).toEqual(["val_acc", 0.97]);
+    expect(mainMetric({})).toBeNull();
   });
 });

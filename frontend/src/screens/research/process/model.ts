@@ -147,7 +147,10 @@ export function target(step: RunStep): string {
   ]
     .map((k) => a[k])
     .find((v) => typeof v === "string" && v);
-  return typeof pick === "string" ? pick.split("\n")[0].slice(0, 200) : "";
+  if (typeof pick !== "string") return "";
+  const line =
+    typeof a.command === "string" ? plainCommand(pick) : pick.split("\n")[0];
+  return line.slice(0, 200);
 }
 
 /** What came back, as text: a tool's printed output, or the service's summary. */
@@ -173,4 +176,44 @@ export function current(steps: RunStep[]): RunStep | null {
     if (steps[i].status !== "completed" && steps[i].status !== "failed")
       return steps[i];
   return null;
+}
+
+/**
+ * A command as a person reads it: without the plumbing an agent wraps it in
+ * (changing into the workspace, exported variables, nohup/setsid, redirections
+ * and a tail of the output).
+ */
+export function plainCommand(command: string): string {
+  let c = command.split("\n")[0].trim();
+  for (;;) {
+    const before = c;
+    c = c
+      .replace(/^\(\s*/, "")
+      .replace(/^cd\s+\S+\s*(&&|;)\s*/, "")
+      .replace(/^export\s+(\w+=\S+\s*)+(&&|;)\s*/, "")
+      .replace(/^(\w+=\S+\s+)+/, "")
+      .replace(/^(nohup|setsid|exec|time)\s+/, "");
+    if (c === before) break;
+  }
+  return c
+    .replace(/\s*\)?\s*(>{1,2}\s*\S+)?\s*2>&1.*$/, "")
+    .replace(/\s*\|\s*(tail|head|tee)\b.*$/, "")
+    .replace(/\s*&\s*$/, "")
+    .trim();
+}
+
+/** The one number a run is judged by: test accuracy, else validation, else the first. */
+export function mainMetric(
+  metrics: Record<string, unknown>,
+): [string, number] | null {
+  const numbers = Object.entries(metrics).filter(
+    (e): e is [string, number] =>
+      e[0] !== "step" && typeof e[1] === "number" && Number.isFinite(e[1]),
+  );
+  const order = [/^final_test_acc$/, /test_acc/, /val_acc/, /acc/, /loss/];
+  for (const pattern of order) {
+    const hit = numbers.find(([k]) => pattern.test(k));
+    if (hit) return hit;
+  }
+  return numbers[0] ?? null;
 }
