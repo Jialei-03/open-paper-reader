@@ -13,7 +13,6 @@ import time
 from sqlalchemy import select
 
 from . import research_evidence, research_map, research_sandbox
-from .tool_spec import ID, tool
 from .models import (
     ResearchEvent,
     ResearchJob,
@@ -22,6 +21,7 @@ from .models import (
     ResearchSprint,
     now,
 )
+from .tool_spec import ID, tool
 
 NODE = {"type": "string", "minLength": 8, "maxLength": 36}
 # run_job may wait this long for a short job, so its log is citable in the same sprint
@@ -228,6 +228,11 @@ RESEARCH_TOOLS.append(
                 },
             },
             "assessment": {"type": "string", "maxLength": 2000},
+            "message": {
+                "type": "string",
+                "maxLength": 4000,
+                "description": "研究者在对话里说了话时，用这段直接回复他（中文、口语、说清你据此做了什么判断）",
+            },
             "conclude": {
                 "type": "object",
                 "properties": {
@@ -296,9 +301,76 @@ RESEARCH_TOOLS.append(
         [],
     )
 )
+RESEARCH_TOOLS.append(
+    _research(
+        "propose_plan",
+        "（仅定题阶段）把和研究者聊出来的研究计划写成一张计划卡片，放进对话给他看。每次修改都重新调用一次（新版本覆盖旧版本）。研究者点“开始实验”后，假设才会写进研究地图、数据集才会下载。",
+        {
+            "question": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "聊清楚后的北极星问题，一句话",
+            },
+            "goal": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "成功是什么样子",
+            },
+            "metric": {
+                "type": "string",
+                "maxLength": 300,
+                "description": "主要指标和测法，如：MNIST 官方测试集准确率，3 个种子平均",
+            },
+            "baseline": {"type": "string", "maxLength": 500},
+            "hypotheses": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 8,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string", "maxLength": 300},
+                        "kill_if": {"type": "string", "maxLength": 500},
+                        "value": LEVEL,
+                        "cost": LEVEL,
+                    },
+                    "required": ["title", "kill_if"],
+                    "additionalProperties": False,
+                },
+            },
+            "datasets": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {"type": "string", "maxLength": 40},
+                "description": "系统可下载的公开数据集名（见简报里的目录）",
+            },
+            "compute_id": {"type": "string", "maxLength": 64},
+            "budget": {
+                "type": "object",
+                "properties": {
+                    "max_sprints": {"type": "integer", "minimum": 2, "maximum": 200},
+                    "max_job_hours": {
+                        "type": "number",
+                        "minimum": 0.1,
+                        "maximum": 1000,
+                    },
+                },
+                "additionalProperties": False,
+            },
+            "summary": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "给研究者看的一段说明：为什么这样安排",
+            },
+        },
+        ["hypotheses", "metric", "summary"],
+    )
+)
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
 # What the advisor may use: it looks and judges; it does not do.
 ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
+# What the advisor may use while the plan is talked through: the map and the plan card.
+SCOPING_TOOLS = {"research_map_read", "propose_plan"}
 # What the distiller may use: the project's record, and the playbook.
 DISTILLER_TOOLS = {"research_map_read", "job_status", "job_logs", "distill"}
 
@@ -330,6 +402,16 @@ def _blocked(d, project, sprint, tool_name, reason, message, node=None):
 def gate(app, research, name):
     """Refuses a step that does something before saying which live node it advances."""
     role = research.get("role", "executor")
+    if role == "scoping":
+        if name not in SCOPING_TOOLS:
+            raise ValueError(
+                "定题阶段只聊计划：读地图、查文献，用 propose_plan 写计划卡片"
+            )
+        with app.state.maker() as d:
+            _context(d, research)
+        return
+    if name == "propose_plan":
+        raise ValueError("计划只在定题阶段提出")
     if role == "distiller":
         if name not in DISTILLER_TOOLS:
             raise ValueError("提炼者只读项目记录，最后用 distill 写进研究手册")
@@ -599,6 +681,8 @@ def _run(app, owner, research, name, args):
             )
             result = {"ended": True}
         elif name == "run_job":
+            if project.stage != "experiments":
+                raise ValueError("只有实验阶段才能运行作业")
             node = d.get(ResearchNode, sprint.focus_node_id)
             job = research_sandbox.start_job(
                 settings,
@@ -619,6 +703,10 @@ def _run(app, owner, research, name, args):
                 sprint.id,
             )
             result = _wait(settings, d, job, args.get("wait_seconds", 0))
+        elif name == "propose_plan":
+            from .research_stages import propose_plan
+
+            result = propose_plan(settings, d, project, sprint, args)
         elif name == "advise":
             from .research_advice import apply
 
@@ -683,13 +771,14 @@ async def run_research_tool(app, owner, research, name, args):
 
 async def run_pi(app, research, name, args):
     """A file or shell tool, in the project's own workspace."""
-    result = await asyncio.to_thread(
-        research_sandbox.pi_call,
-        app.state.settings,
-        research["project_id"],
-        name,
-        args,
-    )
+
+    def call():
+        with app.state.maker() as d:
+            return research_sandbox.pi_call(
+                app.state.settings, research["project_id"], name, args, d
+            )
+
+    result = await asyncio.to_thread(call)
     content = result.get("content", [])
     return {
         "content": [x for x in content if x.get("type") != "image"],

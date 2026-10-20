@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from backend import research_map as rm
+from backend import research_stages
 from backend.agent_tools import execute
 from backend.config import Settings, database
 from backend.models import (
@@ -302,9 +303,47 @@ def test_conclude_finishes_project(world):
     assert out["concluded"] is True
     with maker() as d:
         p = d.get(ResearchProject, ids.project)
-        assert p.status == "finished" and p.end_reason == "concluded"
-        assert d.get(ResearchNode, ids.root).status == "supported"
+        # The answer waits for the researcher; the question is not closed yet.
+        assert p.status == "waiting" and p.stage == "conclusion"
+        assert p.conclusion["summary"] == "moderate L2 is best"
+        assert d.get(ResearchNode, ids.root).status != "supported"
         assert d.get(ResearchSprint, ids.advisor).status == "ended"
+        request = d.scalars(
+            select(ResearchEvent).where(
+                ResearchEvent.action == "decision_requested",
+                ResearchEvent.project_id == p.id,
+            )
+        ).one()
+        assert request.detail["kind"] == "conclusion"
+        assert research_stages.decide(d, p, request, True, "ok")
+        assert p.status == "finished" and p.end_reason == "concluded"
+        assert p.stage == "retrospective"
+        assert d.get(ResearchNode, ids.root).status == "supported"
+
+
+def test_a_rejected_conclusion_sends_the_project_back(world):
+    app, maker, ids = world
+    with maker() as d:
+        node = d.get(ResearchNode, ids.hyp)
+        node.evidence_for = [{"summary": "acc=0.9", "evidence": [{"kind": "log"}]}]
+        d.commit()
+    advise(
+        app,
+        ids,
+        {
+            "verdicts": [verdict(ids.hyp, "continue")],
+            "conclude": {"status": "concluded", "summary": "done"},
+        },
+    )
+    with maker() as d:
+        p = d.get(ResearchProject, ids.project)
+        request = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "decision_requested")
+        ).one()
+        research_stages.decide(d, p, request, False, "再跑 3 个种子")
+        assert p.status == "active" and p.stage == "experiments"
+        assert p.conclusion["accepted"] is False
+        assert "再跑 3 个种子" in research_stages.human_notes(d, p)
 
 
 def test_a_no_answer_ends_refuted_whatever_the_status_says(world):
@@ -313,6 +352,9 @@ def test_a_no_answer_ends_refuted_whatever_the_status_says(world):
     with maker() as d:
         node = d.get(ResearchNode, ids.hyp)
         node.evidence_for = [{"summary": "acc=0.688", "evidence": [{"kind": "log"}]}]
+        # An evaluation run: nobody accepts the answer, it stands as proposed.
+        p = d.get(ResearchProject, ids.project)
+        p.budget = {**p.budget, "auto_decide": True}
         d.commit()
     advise(
         app,

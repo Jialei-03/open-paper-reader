@@ -13,8 +13,6 @@ from pathlib import Path
 
 from sqlalchemy import func, select, update
 
-from .filelock import lock_nowait
-from .parent_watch import watch_parent
 from . import agent_budget, agent_limits, translation_settings
 from .agent_attachments import attachments as chat_attachments
 from .agent_budget import RunBudget
@@ -25,23 +23,24 @@ from .agent_reading import read_region
 from .agent_response import clean_response
 from .agent_state import transition
 from .agent_tools import PI_NAMES, TOOL_MAP, TOOLS, execute
-from .research_worker import charge
 from .artifact_preview import store_preview
+from .filelock import lock_nowait
+from .local.paths import agent_runtime_dir
 from .model_options import request_options
 from .models import AgentRun, now
+from .parent_watch import watch_parent
 from .platform_model import ModelSlotBusy, model_slot
 from .reader_context import evidence_text
 from .reading_artifacts import finish_artifact, record_reading_evidence
+from .research_worker import charge
 from .translation_settings import read_config, validate_endpoint
-
-from .local.paths import agent_runtime_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 RESEARCH_SKILLS = {
     role: agent_runtime_dir() / "skills" / f"research-{role}" / "SKILL.md"
-    for role in ("executor", "advisor", "distiller")
+    for role in ("executor", "advisor", "distiller", "scoping")
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
 RESEARCH_BASE = {
@@ -58,8 +57,15 @@ RESEARCH_BASE = {
 
 def research_tools(role="executor"):
     """The executor works (files, shell, jobs, the map); the advisor only reads and judges."""
-    from .research_tools import ADVISOR_TOOLS, DISTILLER_TOOLS
+    from .research_tools import ADVISOR_TOOLS, DISTILLER_TOOLS, SCOPING_TOOLS
 
+    if role == "scoping":
+        return [
+            t
+            for t in TOOLS
+            if (t.get("research") and t["name"] in SCOPING_TOOLS)
+            or t["name"] in RESEARCH_BASE
+        ]
     if role == "distiller":
         return [t for t in TOOLS if t["name"] in DISTILLER_TOOLS]
     if role == "advisor":
@@ -72,7 +78,9 @@ def research_tools(role="executor"):
     return [
         t
         for t in TOOLS
-        if (t.get("research") and t["name"] not in {"advise", "distill"})
+        if (
+            t.get("research") and t["name"] not in {"advise", "distill", "propose_plan"}
+        )
         or t["name"] in PI_NAMES
         or t["name"] in RESEARCH_BASE
     ]

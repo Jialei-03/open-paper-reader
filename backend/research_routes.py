@@ -7,7 +7,7 @@ from fastapi import Depends, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 
-from . import research_map
+from . import research_datasets, research_map
 from .models import (
     AgentRun,
     ResearchEvent,
@@ -41,17 +41,29 @@ class DecisionInput(BaseModel):
 
 
 class ProjectInput(BaseModel):
-    question: str = Field(min_length=1, max_length=2000)
+    # Either a first message (the plan is then talked through), or a question
+    # given outright (evaluation runs, which start experimenting at once).
+    message: str = Field(default="", max_length=8000)
+    question: str = Field(default="", max_length=2000)
     background: str = Field(default="", max_length=20000)
     model_config_id: str = Field(min_length=1, max_length=64)
     budget: Budget | None = None
+    datasets: list[str] = Field(default_factory=list, max_length=5)
+    compute_id: str = Field(default="", max_length=64)
 
-    @field_validator("question")
+    @field_validator("message", "question")
     @classmethod
-    def not_blank(cls, value):
-        if not value.strip():
-            raise ValueError("研究问题不能为空")
+    def trimmed(cls, value):
         return value.strip()
+
+
+class MessageInput(BaseModel):
+    text: str = Field(min_length=1, max_length=8000)
+
+
+class PlanApproval(BaseModel):
+    version: int = Field(ge=1)
+    note: str = Field(default="", max_length=2000)
 
 
 def project_out(p):
@@ -65,6 +77,11 @@ def project_out(p):
         "budget": p.budget,
         "spent": p.spent,
         "session_id": p.session_id,
+        "stage": p.stage,
+        "compute_id": p.compute_id,
+        "plan": p.plan or {},
+        "conclusion_record": p.conclusion or {},
+        "environment": p.environment or {},
         "created_at": p.created_at,
         "updated_at": p.updated_at,
     }
@@ -129,6 +146,11 @@ def job_out(j):
             "started_at",
             "finished_at",
             "log_lines",
+            "compute_id",
+            "config",
+            "metrics",
+            "points",
+            "tracker_url",
         )
     }
 
@@ -200,7 +222,11 @@ def install_research_routes(app, settings, db, auth, human, owned):
 
     @app.post("/api/v1/research/projects")
     def create(body: ProjectInput, a=Depends(auth), d=Depends(db)):
+        from . import research_datasets, research_settings, research_stages
+
         allowed(a, d)
+        if not body.message and not body.question:
+            raise HTTPException(422, "说说你想研究什么")
         cfg = read_config(settings, a["id"], body.model_config_id)
         if not cfg.get("api_key") or not cfg.get("model"):
             raise HTTPException(409, "请先添加并选择可用模型")
@@ -209,11 +235,118 @@ def install_research_routes(app, settings, db, auth, human, owned):
             if body.budget
             else None
         )
-        p = research_map.create_project(
-            d, a["id"], body.question, body.background, body.model_config_id, budget
-        )
+        try:
+            compute_id = (
+                body.compute_id or research_settings.load(settings)["default_compute"]
+            )
+            research_settings.compute(settings, compute_id)
+            p = research_map.create_project(
+                d,
+                a["id"],
+                body.question or body.message[:2000],
+                body.background,
+                body.model_config_id,
+                budget,
+            )
+            p.compute_id = compute_id
+            research_datasets.request(d, p, body.datasets)
+            if body.message:
+                # The plan is talked through first; nothing runs until it is approved.
+                p.stage = "scoping"
+                research_stages.say(d, p, "human", body.message)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
         d.commit()
         return project_out(p)
+
+    @app.post("/api/v1/research/projects/{id}/messages")
+    def message(id: str, body: MessageInput, a=Depends(auth), d=Depends(db)):
+        from . import research_stages
+
+        p = project_of(d, id, a)
+        if p.stage == "done":
+            raise HTTPException(409, "研究已经结束")
+        research_stages.say(d, p, "human", body.text)
+        d.commit()
+        return project_out(p)
+
+    @app.post("/api/v1/research/projects/{id}/plan/approve")
+    def approve_plan(id: str, body: PlanApproval, a=Depends(auth), d=Depends(db)):
+        from . import research_stages
+
+        p = project_of(d, id, a)
+        try:
+            research_stages.approve_plan(settings, d, p, body.version, body.note)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        d.commit()
+        return project_out(p)
+
+    @app.get("/api/v1/research/projects/{id}/jobs/{job_id}/series")
+    def job_series(id: str, job_id: str, a=Depends(auth), d=Depends(db)):
+        from .research_sandbox import series
+
+        p = project_of(d, id, a)
+        job = d.get(ResearchJob, job_id)
+        if not job or job.project_id != p.id:
+            raise HTTPException(404, "Not found")
+        return series(settings, job)
+
+    @app.get("/api/v1/research/settings")
+    def research_settings_get(a=Depends(auth), d=Depends(db)):
+        from . import research_datasets, research_settings
+
+        allowed(a, d)
+        return research_settings.public(research_settings.load(settings)) | {
+            "datasets": research_datasets.catalog()
+        }
+
+    @app.put("/api/v1/research/settings")
+    def research_settings_put(body: dict, a=Depends(auth), d=Depends(db)):
+        from . import research_settings
+
+        allowed(a, d)
+        try:
+            return research_settings.public(research_settings.update(settings, body))
+        except (ValueError, TypeError) as e:
+            raise HTTPException(422, str(e)) from None
+
+    @app.post("/api/v1/research/computes/{compute_id}/test")
+    def test_compute(compute_id: str, a=Depends(auth), d=Depends(db)):
+        """Reaches the compute and reports what it offers (Python, packages, GPUs)."""
+        import subprocess
+
+        from . import research_remote, research_sandbox, research_settings
+
+        allowed(a, d)
+        try:
+            item = research_settings.compute(settings, compute_id)
+            if item["kind"] == "ssh":
+                return research_remote.probe(item)
+            status = research_sandbox.docker_status()
+            if not status["available"]:
+                raise ValueError(status["reason"])
+            done = research_sandbox.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    *research_sandbox.limits(item),
+                    "--mount",
+                    f"type=bind,source={research_sandbox.ORA_DIR},target=/opt/ora,readonly",
+                    research_sandbox.IMAGE,
+                    "python3",
+                    "/opt/ora/probe.py",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=90,
+            )
+            import json as _json
+
+            return _json.loads((done.stdout or "{}").strip().splitlines()[-1])
+        except (ValueError, OSError, IndexError, subprocess.TimeoutExpired) as e:
+            raise HTTPException(409, str(e) or "检测失败") from None
 
     @app.get("/api/v1/research/projects")
     def projects(a=Depends(auth), d=Depends(db)):
@@ -249,6 +382,9 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "jobs": [job_out(j) for j in jobs],
             "docker": docker_state(),
             "input_needed": input_needed(d, p),
+            "datasets": [
+                research_datasets.out(r) for r in research_datasets.of(d, p.id)
+            ],
         }
 
     @app.get("/api/v1/research/projects/{id}/metrics")
@@ -347,8 +483,12 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(404, "Not found")
         if not next(x for x in decisions_of(d, p) if x["id"] == event_id)["open"]:
             raise HTTPException(409, "这件事已经决定过了")
+        from . import research_stages
+
         applied = False
-        if body.approve:
+        if research_stages.decide(d, p, request, body.approve, body.note):
+            applied = True
+        elif body.approve:
             node = d.get(ResearchNode, request.detail.get("node_id"))
             sprint = d.get(ResearchSprint, request.sprint_id)
             if (
@@ -420,6 +560,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
         folder = root / "data"
         folder.mkdir(exist_ok=True)
         (folder / name).write_bytes(data)
+        research_datasets.record_upload(d, p, f"data/{name}", data)
         research_map.event(
             d,
             p,

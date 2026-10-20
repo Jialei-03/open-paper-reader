@@ -1,0 +1,358 @@
+"""Talking the plan through, and the records an experiment leaves behind."""
+
+import io
+import json
+import subprocess
+from types import SimpleNamespace
+
+import pytest
+from sqlalchemy import select
+
+from backend import research_datasets as rd
+from backend import research_map as rm
+from backend import research_remote as rr
+from backend import research_sandbox as rs
+from backend import research_settings as rset
+from backend import research_stages as st
+from backend import research_tracker as rt
+from backend import research_worker as rw
+from backend.config import Settings, database
+from backend.models import (
+    AgentRun,
+    Base,
+    ResearchDataset,
+    ResearchEvent,
+    ResearchJob,
+    ResearchProject,
+    ResearchSprint,
+    User,
+)
+from backend.tests.test_research_sandbox import FakeDocker
+
+PLAN = {
+    "question": "MNIST 上测试准确率能否稳定超过 99.5%？",
+    "metric": "官方测试集准确率，3 个种子平均",
+    "baseline": "两层 CNN 约 99.2%",
+    "hypotheses": [
+        {"title": "数据增强能提升 0.2 个点以上", "kill_if": "3 个种子平均提升 < 0.1"},
+        {"title": "更深的网络更好", "kill_if": "提升 < 0.1 或过拟合"},
+    ],
+    "datasets": ["mnist"],
+    "budget": {"max_sprints": 12, "max_job_hours": 2},
+    "summary": "先复现基线再改。",
+}
+
+
+@pytest.fixture
+def world(tmp_path, monkeypatch):
+    settings = Settings(
+        database_url="sqlite:///" + str(tmp_path / "r.db"),
+        storage=str(tmp_path / "files"),
+        testing=True,
+    )
+    engine, maker = database(settings)
+    Base.metadata.create_all(engine)
+    docker = FakeDocker()
+    monkeypatch.setattr(rs, "run", docker)
+    monkeypatch.setattr(rs, "_status_cache", {})
+    monkeypatch.setattr(rw, "read_config", lambda *a: {"model": "m"})
+    app = SimpleNamespace(state=SimpleNamespace(settings=settings, maker=maker))
+    with maker() as d:
+        user = User(username="r", password="x")
+        d.add(user)
+        d.flush()
+        p = rm.create_project(d, user.id, "想把手写数字识别准确率再提一提", "", "m")
+        p.stage = "scoping"
+        st.say(d, p, "human", "想把手写数字识别准确率再提一提")
+        d.commit()
+        pid = p.id
+    yield SimpleNamespace(
+        app=app, maker=maker, settings=settings, docker=docker, pid=pid
+    )
+    engine.dispose()
+
+
+def _finish_run(w, response):
+    with w.maker() as d:
+        sprint = d.scalars(
+            select(ResearchSprint).order_by(ResearchSprint.number.desc())
+        ).first()
+        run = d.get(AgentRun, sprint.run_id)
+        run.status, run.response = "completed", response
+        d.commit()
+        return sprint.id
+
+
+def test_scoping_is_a_conversation_and_spends_no_sprint(world):
+    with world.maker() as d:
+        rw._plan(world.app, d, d.get(ResearchProject, world.pid))
+        d.commit()
+        sprint = d.scalars(select(ResearchSprint)).one()
+        assert sprint.role == "scoping"
+        run = d.get(AgentRun, sprint.run_id)
+        assert "想把手写数字识别准确率再提一提" in run.prompt
+        assert "mnist" in run.prompt  # the datasets the system can fetch
+        assert d.get(ResearchProject, world.pid).spent["sprints"] == 0
+    _finish_run(world, "基线现在多少？")
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        rw._plan(world.app, d, p)
+        d.commit()
+        # Answered: nothing more starts until the person speaks again.
+        assert st.unanswered(d, p) == []
+        rw._plan(world.app, d, p)
+        assert len(list(d.scalars(select(ResearchSprint)))) == 1
+        said = [
+            (e.actor, e.detail["text"])
+            for e in d.scalars(
+                select(ResearchEvent).where(ResearchEvent.action == "message")
+            )
+        ]
+        assert said[-1] == ("advisor", "基线现在多少？")
+        st.say(d, p, "human", "大概 99.2%")
+        rw._plan(world.app, d, p)
+        assert len(list(d.scalars(select(ResearchSprint)))) == 2
+
+
+def test_a_plan_is_approved_onto_the_map(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        sprint = ResearchSprint(project_id=p.id, number=1, role="scoping", run_id="r")
+        d.add(sprint)
+        d.flush()
+        assert st.propose_plan(world.settings, d, p, sprint, PLAN) == {"version": 1}
+        st.propose_plan(world.settings, d, p, sprint, PLAN)
+        with pytest.raises(ValueError, match="最新"):
+            st.approve_plan(world.settings, d, p, 1)
+        st.approve_plan(world.settings, d, p, 2, "先别用太大的网络")
+        assert p.stage == "experiments" and p.status == "active"
+        assert p.question == PLAN["question"]
+        hyps = [n for n in rm.nodes(d, p) if n.kind == "hypothesis"]
+        assert [h.kill_if for h in hyps] == [h["kill_if"] for h in PLAN["hypotheses"]]
+        assert p.budget["max_job_seconds"] == 7200
+        row = d.scalars(select(ResearchDataset)).one()
+        assert (row.name, row.status, row.path) == ("mnist", "pending", "/data/mnist")
+        assert "先别用太大的网络" in st.human_notes(d, p)
+
+
+def test_a_plan_needs_kill_conditions_and_known_data(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        sprint = ResearchSprint(project_id=p.id, number=1, role="scoping", run_id="r")
+        bad = {**PLAN, "hypotheses": [{"title": "x", "kill_if": ""}]}
+        with pytest.raises(ValueError, match="止损"):
+            st.propose_plan(world.settings, d, p, sprint, bad)
+        with pytest.raises(ValueError, match="数据集"):
+            st.propose_plan(
+                world.settings, d, p, sprint, {**PLAN, "datasets": ["imagenet"]}
+            )
+
+
+def test_experiments_wait_for_their_datasets(world, monkeypatch):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        rd.request(d, p, ["mnist"])
+        rw._plan(world.app, d, p)
+        assert list(d.scalars(select(ResearchSprint))) == []
+
+
+def test_dataset_files_are_checked_against_their_published_hash(world, monkeypatch):
+    monkeypatch.setattr(rd, "urlopen", lambda url, timeout: io.BytesIO(b"not mnist"))
+    with world.maker() as d:
+        rd.request(d, d.get(ResearchProject, world.pid), ["mnist"])
+        d.commit()
+    rd.fetch_pending(world.settings, world.maker)
+    with world.maker() as d:
+        row = d.scalars(select(ResearchDataset)).one()
+        assert row.status == "failed" and "校验不符" in row.note
+
+
+def test_settings_keep_the_key_server_side(world):
+    data = rset.update(
+        world.settings,
+        {
+            "computes": [
+                {
+                    "id": "lab",
+                    "name": "实验室",
+                    "kind": "ssh",
+                    "host": "gpu-box",
+                    "gpus": "0,1",
+                }
+            ],
+            "default_compute": "lab",
+            "tracker": {"kind": "swanlab", "project": "mnist", "api_key": "secret"},
+        },
+    )
+    assert [c["id"] for c in data["computes"]] == ["local", "lab"]
+    shown = rset.public(rset.load(world.settings))
+    assert "api_key" not in shown["tracker"] and shown["tracker"]["has_key"]
+    # Saving again without a key keeps the stored one.
+    rset.update(world.settings, {"tracker": {"kind": "swanlab"}})
+    assert rset.load(world.settings)["tracker"]["api_key"] == "secret"
+    for host in ("a b", "x;rm -rf ~", "-oProxyCommand=x"):
+        with pytest.raises(ValueError, match="SSH"):
+            rset.check_compute({"id": "x", "kind": "ssh", "host": host})
+
+
+def test_a_job_reports_through_ora_into_its_own_folder(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        node = rm.root(d, p)
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r")
+        d.add(sprint)
+        d.flush()
+        job = rs.start_job(world.settings, d, p, node, sprint, "python train.py", 600)
+        d.commit()
+        args = world.docker.calls[-1]
+        mounts = [args[i + 1] for i, a in enumerate(args) if a == "--mount"]
+        assert any(m.endswith("target=/ora-run") for m in mounts)
+        assert any(m.endswith("target=/opt/ora,readonly") for m in mounts)
+        assert "ORA_RUN_DIR=/ora-run" in args and "PYTHONPATH=/opt/ora" in args
+        assert p.environment["local"]["python"] == "3.11.9"
+        folder = rs.rundir(world.settings, p.id, job.id)
+        (folder / "config.json").write_text(json.dumps({"lr": 0.001}))
+        (folder / "metrics.jsonl").write_text(
+            '{"step": 0, "t": 1, "test_acc": 0.98}\n{"step": 1, "t": 2, "test_acc": 0.99}\n'
+        )
+        (folder / "summary.json").write_text(json.dumps({"test_acc": 0.991}))
+        world.docker.containers[job.container]["running"] = False
+        rs._sweep_one(world.settings, d, job)
+        assert job.status == "succeeded"
+        assert job.config == {"lr": 0.001}
+        assert job.metrics == {"step": 1, "test_acc": 0.991}
+        assert job.points == 2
+
+
+def test_run_job_is_refused_while_scoping(world):
+    from backend.research_tools import _run
+
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r", role="executor")
+        d.add(sprint)
+        d.commit()
+        research = {"project_id": p.id, "sprint_id": sprint.id, "role": "executor"}
+    with pytest.raises(ValueError, match="实验阶段"):
+        _run(world.app, "o", research, "run_job", {"command": "ls"})
+
+
+def test_the_ora_module_prints_what_it_records(tmp_path, monkeypatch, capsys):
+    import importlib.util
+
+    monkeypatch.setenv("ORA_RUN_DIR", str(tmp_path))
+    spec = importlib.util.spec_from_file_location("ora", rs.ORA_DIR / "ora.py")
+    ora = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ora)
+    ora.config({"lr": 0.001})
+    ora.log({"test_acc": 0.98765}, step=3)
+    ora.summary({"test_acc": float("nan")})
+    out = capsys.readouterr().out
+    assert "ORA_METRIC step=3 test_acc=0.98765" in out
+    assert json.loads((tmp_path / "summary.json").read_text()) == {"test_acc": "nan"}
+
+
+class FakeSSH:
+    def __init__(self):
+        self.calls = []
+        self.state = "running"
+
+    def __call__(self, args, **kw):
+        self.calls.append(args)
+        if args[0] == "rsync":
+            return subprocess.CompletedProcess(args, 0, "", "")
+        script = args[-1]
+        if "echo $!" in script:
+            return subprocess.CompletedProcess(args, 0, "4242\n", "")
+        if "kill -0" in script:
+            return subprocess.CompletedProcess(args, 0, self.state + "\n", "")
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+
+def test_a_remote_job_runs_detached_and_reports_its_exit(world, monkeypatch):
+    fake = FakeSSH()
+    monkeypatch.setattr(rs, "run", fake)
+    item = rset.check_compute(
+        {
+            "id": "lab",
+            "kind": "ssh",
+            "host": "gpu-box",
+            "remote_dir": "~/ora",
+            "gpus": "1",
+        }
+    )
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        job = ResearchJob(
+            id="j1", project_id=p.id, node_id="n", sprint_id="s", command="python t.py"
+        )
+        rr.start(world.settings, d, item, p, job)
+        assert job.remote == {"host": "gpu-box", "base": f"~/ora/{p.id}", "pid": 4242}
+        launch = fake.calls[-1][-1]
+        assert (
+            "CUDA_VISIBLE_DEVICES=1" in launch and "'(python t.py); echo $?" in launch
+        )
+        assert rr.state(job) == {"Running": True}
+        fake.state = "0"
+        assert rr.state(job) == {"Running": False, "ExitCode": 0}
+        fake.state = "gone"
+        assert rr.state(job) is rs.GONE
+
+
+def test_no_tracker_means_nothing_is_uploaded(world):
+    with world.maker() as d:
+        job = ResearchJob(
+            project_id=world.pid,
+            node_id="n",
+            sprint_id="s",
+            command="x",
+            status="succeeded",
+        )
+        d.add(job)
+        d.commit()
+    rt.sync_pending(world.settings, world.maker)
+    with world.maker() as d:
+        assert d.scalars(select(ResearchJob)).one().tracker_url == "none"
+
+
+def test_the_tracker_gets_the_key_in_its_own_process(world, monkeypatch):
+    rset.update(world.settings, {"tracker": {"kind": "swanlab", "api_key": "k"}})
+    seen = {}
+
+    def fake(args, input, env, **kw):
+        seen["env"], seen["payload"] = env, json.loads(input)
+        return subprocess.CompletedProcess(
+            args, 0, '{"url": "https://swanlab.cn/x"}\n', ""
+        )
+
+    monkeypatch.setattr(rt.subprocess, "run", fake)
+    with world.maker() as d:
+        node = rm.root(d, d.get(ResearchProject, world.pid))
+        job = ResearchJob(
+            project_id=world.pid,
+            node_id=node.id,
+            sprint_id="s",
+            command="x",
+            status="succeeded",
+            metrics={"test_acc": 0.99},
+        )
+        d.add(job)
+        d.flush()
+        rt.sync_one(world.settings, d, job)
+        assert job.tracker_url == "https://swanlab.cn/x"
+    assert seen["env"]["SWANLAB_API_KEY"] == "k"
+    assert seen["payload"]["summary"] == {"test_acc": 0.99}
+    assert "api_key" not in json.dumps(seen["payload"])
+
+
+def test_an_answered_message_turns_the_next_sprint_into_the_advisor(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        s1 = ResearchSprint(project_id=p.id, number=1, run_id="a", status="ended")
+        d.add(s1)
+        d.flush()
+        st.say(d, p, "human", "H2 先别做")
+        assert rw.next_role(d, p, [s1]) == "advisor"

@@ -46,6 +46,8 @@ dependencies = [
 
 [project.optional-dependencies]
 postgres = ["psycopg[binary]==3.2.10"]
+# Mirroring research experiments to an experiment tracker; either one is enough.
+tracking = ["swanlab>=0.10", "wandb>=0.21"]
 
 [project.scripts]
 open-paper-reader = "backend.local.cli:main"

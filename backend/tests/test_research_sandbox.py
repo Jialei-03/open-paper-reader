@@ -37,6 +37,8 @@ class FakeDocker:
             name = args[args.index("--name") + 1]
             self.containers[name] = {"running": True, "exit": 0, "logs": ""}
             out = "cid\n"
+        elif verb == "run" and "/opt/ora/probe.py" in args:
+            out = json.dumps({"python": "3.11.9", "cpus": 2, "gpus": []}) + "\n"
         elif verb == "run" and "cat" in args:
             spec = args[args.index("--mount") + 1]
             mount = spec.split("source=")[1].split(",target=")[0]

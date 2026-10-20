@@ -54,3 +54,19 @@
 ## 交接写什么
 
 下一轮的你只看得到地图和交接。交接要具体，例如："H2 在 3 个种子上平均提升 0.4%，接近 kill_if 的 0.5% 阈值，结论不确定；下一轮把数据量加倍再测一次（作业脚本在 /work/sweep.py）。"不要写"继续研究"这类空话。
+
+## 数据、算力和记录指标
+
+- 研究计划里选定的公开数据集由系统下载好，放在环境变量 `ORA_DATA` 指向的目录下（本机是 `/data`），每个数据集一个子目录，例如 `$ORA_DATA/mnist/train-images-idx3-ubyte.gz`。实验环境没有网络，不要尝试下载。研究者上传的文件在 `data/` 下。
+- 作业可能在远程机器上运行：代码里一律用相对于工作区的路径和 `os.environ["ORA_DATA"]`，不要写死 `/work`。
+- 实验脚本里用 `ora` 模块记录设置和指标（已在 PYTHONPATH 里，无需安装）：
+
+  ```python
+  import ora
+  ora.config({"model": "cnn", "lr": 1e-3, "epochs": 5, "seed": 0})
+  ora.log({"train_loss": loss, "test_acc": acc}, step=epoch)
+  ora.summary({"test_acc": final_acc})
+  ```
+
+  每次调用都会在日志里打印一行 `ORA_CONFIG` / `ORA_METRIC` / `ORA_SUMMARY`，`record_result` 时引用 `ORA_SUMMARY` 那一行。系统会把这些数字结构化保存，并同步到实验追踪（SwanLab 或 W&B）。
+- 一个作业只做一组设置；比较几组设置就启动几个作业，方便逐个对比。

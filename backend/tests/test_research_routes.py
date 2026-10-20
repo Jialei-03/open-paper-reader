@@ -323,3 +323,42 @@ def test_list_shows_how_each_finished_project_was_answered(env):
         d.commit()
     listed = a.get(BASE).json()
     assert listed[0]["conclusion"] == "No: L2 hurts."
+
+
+def test_a_project_starts_from_a_message(env):
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    r = a.post(
+        BASE, json={"message": "想提升手写数字识别准确率", "model_config_id": model}
+    )
+    assert r.status_code == 200, r.text
+    project = r.json()
+    assert project["stage"] == "scoping" and project["compute_id"] == "local"
+    pid = project["id"]
+    assert (
+        a.post(f"{BASE}/{pid}/messages", json={"text": "基线 99.2%"}).status_code == 200
+    )
+    said = [
+        (e["actor"], e["detail"]["text"])
+        for e in a.get(f"{BASE}/{pid}/events").json()
+        if e["action"] == "message"
+    ]
+    assert said == [("human", "想提升手写数字识别准确率"), ("human", "基线 99.2%")]
+    # No plan yet: nothing to approve.
+    assert a.post(f"{BASE}/{pid}/plan/approve", json={"version": 1}).status_code == 409
+    assert a.post(BASE, json={"model_config_id": model}).status_code == 422
+
+
+def test_research_settings_never_show_the_key(env):
+    app, a, _b, settings = env
+    settings.mode = "local"
+    r = a.put(
+        "/api/v1/research/settings",
+        json={"tracker": {"kind": "wandb", "project": "p", "api_key": "secret"}},
+    )
+    assert r.status_code == 200, r.text
+    shown = a.get("/api/v1/research/settings").json()
+    assert "secret" not in str(shown) and shown["tracker"]["has_key"]
+    assert {d["name"] for d in shown["datasets"]} >= {"mnist"}
+    bad = {"computes": [{"id": "x", "kind": "ssh", "host": "a;b"}]}
+    assert a.put("/api/v1/research/settings", json=bad).status_code == 422

@@ -482,8 +482,45 @@ class ResearchProject(Base):
     budget: Mapped[dict] = mapped_column(JSON, default=_research_budget)
     spent: Mapped[dict] = mapped_column(JSON, default=_research_spent)
     session_id: Mapped[str] = mapped_column(ForeignKey("agent_sessions.id"))
+    # scoping (the plan, until a person approves it), experiments, conclusion
+    # (until a person accepts it), retrospective, done
+    stage: Mapped[str] = mapped_column(
+        String(16), default="experiments", server_default="experiments"
+    )
+    # Where experiments run: an entry of the research settings' computes.
+    compute_id: Mapped[str] = mapped_column(
+        String(64), default="local", server_default="local"
+    )
+    # What the run environment looked like, per compute: {compute_id: {...}}.
+    environment: Mapped[dict] = mapped_column(JSON, default=dict)
+    # The plan agreed in conversation during scoping: {version, goal, metric,
+    # hypotheses, datasets, compute_id, budget, approved_at}.
+    plan: Mapped[dict] = mapped_column(JSON, default=dict)
+    # The answer once proposed: {status, answer, summary, proposed_at, accepted, note}.
+    conclusion: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchDataset(Base):
+    """A dataset a project uses: where it came from, and what exactly it was."""
+
+    __tablename__ = "research_datasets"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("research_projects.id"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+    # registry (fetched by the system) or upload (given by the researcher)
+    source: Mapped[str] = mapped_column(String(16))
+    # Where experiments find it: /data/<name> or /work/data/<file>.
+    path: Mapped[str] = mapped_column(String(300))
+    # pending, ready, failed
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    files: Mapped[list] = mapped_column(JSON, default=list)
+    bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
 
 
 class ResearchNode(Base):
@@ -572,6 +609,19 @@ class ResearchJob(Base):
     started_at: Mapped[str] = mapped_column(String(40), default=now)
     finished_at: Mapped[str] = mapped_column(String(40), default="")
     log_lines: Mapped[int] = mapped_column(Integer, default=0)
+    compute_id: Mapped[str] = mapped_column(
+        String(64), default="local", server_default="local"
+    )
+    # How it ran on a remote compute: {host, base, pid}.
+    remote: Mapped[dict] = mapped_column(JSON, default=dict)
+    # What the experiment itself reported through `ora`: its settings, last
+    # values, and how many points it logged.
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    tracker_url: Mapped[str] = mapped_column(
+        String(500), default="", server_default=""
+    )
 
 
 from . import library_collections  # noqa: E402,F401

@@ -33,7 +33,7 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(
         rs,
         "pi_call",
-        lambda settings, project_id, name, args: (
+        lambda settings, project_id, name, args, d=None: (
             calls.append((project_id, name, args))
             or {"content": [{"type": "text", "text": "ok"}]}
         ),

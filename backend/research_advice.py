@@ -281,28 +281,26 @@ def apply(d, project, sprint, args):
         and conclusion.get("status") in {"concluded", "refuted"}
         and project.status in {"active", "waiting"}
     ):
-        project.status = "finished"
-        project.end_reason = conclusion["status"]
-        # The question itself is now answered, one way or the other.
-        root = research_map.root(d, project)
-        research_map.update_node(
-            d,
-            root,
-            status="supported" if conclusion["status"] == "concluded" else "refuted",
-            actor="advisor",
-            sprint_id=sprint.id,
-            reason="导师结束项目：" + conclusion.get("summary", "")[:300],
-        )
-        research_map.event(
-            d,
-            project,
-            None,
-            "advisor",
-            "concluded",
-            {"status": conclusion["status"], "summary": conclusion.get("summary", "")},
-            sprint.id,
-        )
+        from . import research_stages
+
+        if project.budget.get("auto_decide"):
+            # Nobody to ask: the answer stands as proposed.
+            research_stages.finish(
+                d,
+                project,
+                conclusion["status"],
+                conclusion.get("summary", ""),
+                "advisor",
+                sprint.id,
+            )
+        else:
+            # A person accepts the answer, or sends the project back for more.
+            research_stages.propose_conclusion(d, project, sprint, conclusion)
         concluded = True
+    if (args.get("message") or "").strip():
+        from . import research_stages
+
+        research_stages.say(d, project, "advisor", args["message"], sprint.id)
     # The advice is the advisor sprint's handoff.
     sprint.summary = args.get("assessment", "") or sprint.summary
     sprint.status = "ended"

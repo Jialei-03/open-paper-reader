@@ -7,14 +7,14 @@ ones that ended without a handoff, and collects finished experiments.
 
 import json
 import signal
-import time
 import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 from sqlalchemy import select
 
-from . import research_sandbox
+from . import research_datasets, research_sandbox, research_stages, research_tracker
 from .config import Settings, database
 from .filelock import lock_nowait
 from .models import (
@@ -26,7 +26,12 @@ from .models import (
     now,
 )
 from .parent_watch import watch_parent
-from .research_brief import advisor_brief, distiller_brief, executor_brief
+from .research_brief import (
+    advisor_brief,
+    distiller_brief,
+    executor_brief,
+    scoping_brief,
+)
 from .research_map import event
 from .translation_settings import read_config
 
@@ -83,6 +88,30 @@ def _settle(d, project, sprint):
     run = d.get(AgentRun, sprint.run_id)
     if run is None or run.status not in DONE:
         return False
+    if sprint.role == "scoping":
+        # A turn of the conversation: its reply is what the advisor said.
+        reply = (run.response or "").strip()
+        proposed = any(e.action == "plan_proposed" for e in _events(d, sprint))
+        sprint.status = "ended" if run.status == "completed" else "abnormal"
+        sprint.summary = reply[:4000]
+        sprint.updated_at = now()
+        if reply:
+            research_stages.say(d, project, "advisor", reply, sprint.id)
+        elif proposed:
+            research_stages.say(
+                d, project, "advisor", "计划卡片已更新，你看看。", sprint.id
+            )
+        else:
+            research_stages.say(
+                d,
+                project,
+                "system",
+                "导师这次没能回复（"
+                + (run.error or run.status)[:200]
+                + "）。可以再说一次。",
+                sprint.id,
+            )
+        return True
     if (
         sprint.role == "executor"
         and run.status == "completed"
@@ -185,6 +214,18 @@ def _waiting_out(d, project, count):
     return _now() < float(last.detail.get("at", 0)) + delay
 
 
+def _last_human_message(d, project):
+    return d.scalars(
+        select(ResearchEvent.created_at)
+        .where(
+            ResearchEvent.project_id == project.id,
+            ResearchEvent.actor == "human",
+            ResearchEvent.action == "message",
+        )
+        .order_by(ResearchEvent.created_at.desc())
+    ).first()
+
+
 ADVISOR_EVERY = 3
 PROGRESS = {"add_node", "update_node", "record_result"}
 MARKS = (0.5, 0.8)
@@ -212,6 +253,14 @@ def next_role(d, project, history):
     if project.budget.get("advisor") is False:
         # An ablation run: the executor works alone.
         return "executor"
+    said = _last_human_message(d, project)
+    if (
+        said is not None
+        and research_stages.unanswered(d, project)
+        and (not history or history[-1].created_at < said)
+    ):
+        # The person spoke: the advisor answers before anything else moves.
+        return "advisor"
     if not history or history[-1].role == "advisor":
         return "executor"
     since = []
@@ -277,7 +326,27 @@ def _plan(app, d, project):
         ).first()
         if waiting is not None:
             return
+    if project.stage == "scoping":
+        _converse(app, d, project, latest)
+        return
+    if research_datasets.pending(d, project) is not None:
+        return
+    failed = next(
+        (r for r in research_datasets.of(d, project.id) if r.status == "failed"), None
+    )
+    if failed is not None:
+        project.status = "paused"
+        event(
+            d,
+            project,
+            None,
+            "system",
+            "paused",
+            {"reason": f"数据集 {failed.name} 下载失败：{failed.note[:200]}"},
+        )
+        return
     if _over_budget(project):
+        research_stages.set_stage(d, project, "retrospective")
         project.status, project.end_reason = "finished", "budget"
         project.updated_at = now()
         event(d, project, None, "system", "finished", {"end_reason": "budget"})
@@ -328,6 +397,30 @@ def _plan(app, d, project):
         if said is None or (history and said.created_at < history[-1].created_at):
             event(d, project, None, "system", "docker_unavailable", {"reason": reason})
         return
+    _start(app, d, project, latest, role, config)
+
+
+BRIEFS = {
+    "advisor": advisor_brief,
+    "executor": executor_brief,
+    "scoping": scoping_brief,
+}
+
+
+def _converse(app, d, project, latest):
+    """While scoping, the advisor answers each thing the person says."""
+    if not research_stages.unanswered(d, project):
+        return
+    config = read_config(app.state.settings, project.owner, project.model_config_id)
+    if not config.get("model"):
+        research_stages.say(
+            d, project, "system", "模型配置不可用，先在设置里选一个模型。"
+        )
+        return
+    _start(app, d, project, latest, "scoping", config)
+
+
+def _start(app, d, project, latest, role, config):
     number = (latest.number if latest else 0) + 1
     sprint = ResearchSprint(project_id=project.id, number=number, role=role, run_id="")
     d.add(sprint)
@@ -337,9 +430,7 @@ def _plan(app, d, project):
         session_id=project.session_id,
         model_config_id=project.model_config_id,
         model=config["model"],
-        prompt=(advisor_brief if role == "advisor" else executor_brief)(
-            d, project, number, app.state.settings
-        ),
+        prompt=BRIEFS[role](d, project, number, app.state.settings),
         context="research/" + project.id,
         writable=True,
         lane="research",
@@ -354,8 +445,18 @@ def _plan(app, d, project):
     d.add(run)
     d.flush()
     sprint.run_id = run.id
-    project.spent = {**project.spent, "sprints": project.spent.get("sprints", 0) + 1}
-    if number == 1:
+    if role != "scoping":
+        # Talking the plan through is not a research sprint of the budget.
+        project.spent = {
+            **project.spent,
+            "sprints": project.spent.get("sprints", 0) + 1,
+        }
+    if role == "executor" and not any(
+        e.action == "playbook_version"
+        for e in d.scalars(
+            select(ResearchEvent).where(ResearchEvent.project_id == project.id)
+        )
+    ):
         # Which playbook this project ran with, for comparing runs later.
         from . import research_playbook
 
@@ -394,14 +495,18 @@ def _distill(app, d, project):
         )
     )
     if project.budget.get("distill") is False:
+        research_stages.set_stage(d, project, "done")
         return
     mine = [s for s in history if s.role == "distiller"]
     if mine:
         sprint = mine[-1]
         if sprint.status == "running" and _settle(d, project, sprint):
             event(d, project, None, "system", "distiller_silent", {}, sprint.id)
+        if sprint.status != "running":
+            research_stages.set_stage(d, project, "done")
         return
     if not any(s.role == "executor" for s in history):
+        research_stages.set_stage(d, project, "done")
         return
     config = read_config(app.state.settings, project.owner, project.model_config_id)
     if not config.get("model"):
@@ -445,12 +550,18 @@ def _distill(app, d, project):
 
 def tick(app):
     """One round of planning over every active project."""
-    try:
-        research_sandbox.sweep(app.state.settings, app.state.maker)
-    except Exception as e:  # noqa: BLE001 — collecting jobs must not stop planning
-        print(
-            json.dumps({"research_worker": "sweep", "error": str(e)[:300]}), flush=True
-        )
+    for name, step in (
+        ("sweep", research_sandbox.sweep),
+        ("datasets", research_datasets.fetch_pending),
+        ("tracker", research_tracker.sync_pending),
+    ):
+        try:
+            step(app.state.settings, app.state.maker)
+        except Exception as e:  # noqa: BLE001 — housekeeping must not stop planning
+            print(
+                json.dumps({"research_worker": name, "error": str(e)[:300]}),
+                flush=True,
+            )
     with app.state.maker() as d:
         ids = list(
             d.scalars(

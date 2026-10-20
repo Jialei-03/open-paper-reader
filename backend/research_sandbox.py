@@ -1,10 +1,13 @@
-"""Where research experiments run: a project's own workspace, in local Docker.
+"""Where research experiments run: a project's own workspace, in local Docker
+or on a machine reached over SSH (see research_remote).
 
 Every command runs in a container with no network, a read-only root and no
-capabilities; only the project's work directory is mounted, at /work. A
-background job's output is collected by the system into a log outside that
-directory, so what the agent cites as evidence is what really ran, not a file
-it wrote itself.
+capabilities; the project's work directory is mounted at /work, its datasets
+read-only at /data, and the `ora` reporting module at /opt/ora. A background
+job's output is collected by the system into a log outside that directory, and
+what the job reports through `ora` goes to a folder only that job can write,
+so what the agent cites as evidence is what really ran, not a file it wrote
+itself.
 """
 
 import json
@@ -17,9 +20,11 @@ from pathlib import Path
 
 from sqlalchemy import select
 
+from . import research_datasets, research_settings
 from .models import ResearchJob, ResearchNode, ResearchProject, now
 
 IMAGE = "open-research-sandbox:1"
+ORA_DIR = Path(__file__).parent / "research_ora"
 JOB_MAX_SECONDS = int(os.getenv("RESEARCH_JOB_MAX_SECONDS", "7200"))
 WORKSPACE_BYTES = int(os.getenv("RESEARCH_WORKSPACE_BYTES", str(2 * 1024**3)))
 LIMITS = [
@@ -39,6 +44,20 @@ LIMITS = [
     "--tmpfs",
     "/tmp:rw,nosuid,nodev,size=536870912",
 ]
+
+
+def limits(item=None):
+    """LIMITS with the CPU, memory and GPUs of a Docker compute entry."""
+    item = item or research_settings.LOCAL
+    out = list(LIMITS)
+    out[out.index("--cpus") + 1] = f"{item.get('cpus', 2):g}"
+    out[out.index("--memory") + 1] = f"{int(item.get('memory_gb', 4))}g"
+    gpus = item.get("gpus") or ""
+    if gpus:
+        out += ["--gpus", "all" if gpus == "all" else f'"device={gpus}"']
+    return out
+
+
 STATUS_SECONDS = 30
 NO_DOCKER = "未安装或未启动 Docker，实验暂时不能运行"
 NO_IMAGE = "需要先构建研究沙箱镜像：make research-image"
@@ -75,6 +94,15 @@ def logdir(settings, project_id):
     return path
 
 
+def rundir(settings, project_id, job_id):
+    """What one job reports through `ora`: written by that job alone."""
+    if not job_id or "/" in job_id or ".." in job_id:
+        raise ValueError("作业编号不合法")
+    path = _root(settings, project_id) / "runs" / job_id
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def _user():
     # The host user, so what an experiment writes in /work stays the user's own.
     if hasattr(os, "getuid"):
@@ -88,6 +116,28 @@ def _mount(settings, project_id):
         "--mount",
         f"type=bind,source={workdir(settings, project_id)},target=/work",
     ]
+
+
+def _extras(settings, d, project_id):
+    """The reporting module and the project's datasets, read-only; where to find them."""
+    mounts = [
+        "--mount",
+        f"type=bind,source={ORA_DIR},target=/opt/ora,readonly",
+        "-e",
+        "PYTHONPATH=/opt/ora",
+        "-e",
+        "ORA_DATA=/data",
+    ]
+    if d is None:
+        return mounts
+    project = d.get(ResearchProject, project_id)
+    for row in research_datasets.ready(d, project) if project else []:
+        source = research_datasets.cache(settings) / row.name
+        mounts += [
+            "--mount",
+            f"type=bind,source={source},target=/data/{row.name},readonly",
+        ]
+    return mounts
 
 
 def docker_status():
@@ -162,7 +212,7 @@ def _check_visible(settings, project_id):
     _visible.add(project_id)
 
 
-def pi_call(settings, project_id, name, args):
+def pi_call(settings, project_id, name, args, d=None):
     """One file or shell tool call (read, bash, edit, write, grep, find, ls) in /work."""
     _ready()
     _check_visible(settings, project_id)
@@ -179,6 +229,7 @@ def pi_call(settings, project_id, name, args):
         *LIMITS,
         *_user(),
         *_mount(settings, project_id),
+        *_extras(settings, d, project_id),
         IMAGE,
         "node",
         "/app/sandbox-tools.mjs",
@@ -219,9 +270,12 @@ def _size(path):
 
 
 def start_job(settings, d, project, node, sprint, command, timeout_seconds):
-    """Starts a background experiment bound to the node being worked on."""
-    _ready()
-    _check_visible(settings, project.id)
+    """Starts a background experiment bound to the node being worked on,
+    on the project's compute."""
+    item = research_settings.compute(settings, project.compute_id)
+    if item["kind"] == "docker":
+        _ready()
+        _check_visible(settings, project.id)
     command = (command or "").strip()
     if not command:
         raise ValueError("命令不能为空")
@@ -235,10 +289,18 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
         sprint_id=sprint.id,
         command=command,
         timeout_seconds=timeout_seconds,
+        compute_id=item["id"],
     )
     d.add(job)
     d.flush()
     job.container = "ora-job-" + job.id.replace("-", "")[:12]
+    if item["id"] not in (project.environment or {}):
+        probe(settings, d, project, item)
+    if item["kind"] == "ssh":
+        from . import research_remote
+
+        research_remote.start(settings, d, item, project, job)
+        return job
     started = run(
         [
             "docker",
@@ -250,9 +312,16 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
             f"ora.job={job.id}",
             "--label",
             f"ora.project={project.id}",
-            *LIMITS,
+            *limits(item),
             *_user(),
             *_mount(settings, project.id),
+            *_extras(settings, d, project.id),
+            "--mount",
+            f"type=bind,source={rundir(settings, project.id, job.id)},target=/ora-run",
+            "-e",
+            "ORA_RUN_DIR=/ora-run",
+            "-e",
+            f"ORA_JOB_ID={job.id}",
             "-w",
             "/work",
             IMAGE,
@@ -267,6 +336,84 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
     if started.returncode != 0:
         raise ValueError("作业没有启动：" + (started.stderr or "")[-300:])
     return job
+
+
+def probe(settings, d, project, item):
+    """Records what the compute offers (Python, packages, GPUs), once per project."""
+    if item["kind"] == "ssh":
+        from . import research_remote
+
+        info = research_remote.probe(item)
+    else:
+        done = run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                *limits(item),
+                *_user(),
+                *_extras(settings, None, project.id),
+                IMAGE,
+                "python3",
+                "/opt/ora/probe.py",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        lines = (done.stdout or "").strip().splitlines()
+        try:
+            info = json.loads(lines[-1]) if lines else {}
+        except ValueError:
+            info = {}
+        info = {"image": IMAGE, **info}
+    info = {
+        **info,
+        "compute": {k: v for k, v in item.items() if k not in {"id"}},
+        "probed_at": now(),
+    }
+    project.environment = {**(project.environment or {}), item["id"]: info}
+    return info
+
+
+def collect(settings, job):
+    """Reads what the job reported through `ora`: settings, last values, points."""
+    folder = rundir(settings, job.project_id, job.id)
+    config_file = folder / "config.json"
+    summary_file = folder / "summary.json"
+    series_file = folder / "metrics.jsonl"
+    try:
+        job.config = json.loads(config_file.read_text()) if config_file.exists() else {}
+    except ValueError:
+        job.config = {}
+    last, points = {}, 0
+    if series_file.exists():
+        for line in series_file.read_text().splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            points += 1
+            last.update({k: v for k, v in row.items() if k not in {"t"}})
+    try:
+        summary = json.loads(summary_file.read_text()) if summary_file.exists() else {}
+    except ValueError:
+        summary = {}
+    job.metrics = {**last, **summary}
+    job.points = points
+
+
+def series(settings, job):
+    """Every point the job logged, in order."""
+    path = rundir(settings, job.project_id, job.id) / "metrics.jsonl"
+    rows = []
+    if path.exists():
+        for line in path.read_text().splitlines()[:20000]:
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    return rows
 
 
 def _elapsed(job):
@@ -293,8 +440,12 @@ def _inspect(container):
     return json.loads(done.stdout)
 
 
-def _logs(container):
+def _logs(container, job=None):
     # Both streams, in the order they were written.
+    if job is not None and job.remote:
+        from . import research_remote
+
+        return research_remote.logs(job)
     done = run(
         ["docker", "logs", container],
         stdout=subprocess.PIPE,
@@ -306,11 +457,16 @@ def _logs(container):
 
 
 def _kill(job):
+    if job.remote:
+        from . import research_remote
+
+        research_remote.kill(job)
+        return
     run(["docker", "kill", job.container], capture_output=True, text=True, timeout=30)
 
 
 def _finish(settings, d, job, status, exit_code, note=""):
-    text = _logs(job.container)
+    text = _logs(job.container, job)
     if note:
         if text and not text.endswith("\n"):
             text += "\n"
@@ -320,12 +476,18 @@ def _finish(settings, d, job, status, exit_code, note=""):
     job.status = status
     job.exit_code = exit_code
     job.finished_at = now()
-    run(
-        ["docker", "rm", "-f", job.container],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    if job.remote:
+        from . import research_remote
+
+        research_remote.fetch_back(settings, job)
+    else:
+        run(
+            ["docker", "rm", "-f", job.container],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    collect(settings, job)
 
 
 def _charge(d, job):
@@ -341,7 +503,12 @@ def _charge(d, job):
 
 
 def _sweep_one(settings, d, job):
-    state = _inspect(job.container)
+    if job.remote:
+        from . import research_remote
+
+        state = research_remote.state(job)
+    else:
+        state = _inspect(job.container)
     if state is GONE:
         job.status = "lost"
         job.finished_at = now()
@@ -415,7 +582,7 @@ LOG_BYTES = 8 * 1024 * 1024
 def read_log(settings, job, offset, limit):
     """Lines of a job's output, numbered from 1; a running job's, up to now."""
     if job.status == "running":
-        text = _logs(job.container)[-LOG_BYTES:]
+        text = _logs(job.container, job)[-LOG_BYTES:]
     else:
         path = logdir(settings, job.project_id) / f"{job.id}.log"
         text = path.read_text() if path.exists() else ""
