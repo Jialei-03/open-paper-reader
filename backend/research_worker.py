@@ -618,7 +618,7 @@ def tick(app):
     """One round of planning over every active project."""
     for name, step in (
         ("sweep", research_sandbox.sweep),
-        ("datasets", research_datasets.fetch_pending),
+        ("datasets", research_datasets.start_fetching),
         ("tracker", research_tracker.sync_pending),
         ("environments", research_environment.settle),
     ):

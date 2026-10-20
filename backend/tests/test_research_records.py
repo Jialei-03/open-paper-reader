@@ -2,6 +2,7 @@
 
 import io
 import json
+import time
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -167,6 +168,32 @@ def test_dataset_files_are_checked_against_their_published_hash(world, monkeypat
     with world.maker() as d:
         row = d.scalars(select(ResearchDataset)).one()
         assert row.status == "failed" and "校验不符" in row.note
+
+
+def test_a_slow_download_does_not_hold_up_the_scheduler(world, monkeypatch):
+    import threading
+
+    gate = threading.Event()
+
+    class Slow(io.BytesIO):
+        def read(self, n=-1):
+            gate.wait(5)
+            return super().read(n)
+
+    monkeypatch.setattr(rd, "urlopen", lambda url, timeout: Slow(b"x" * 10))
+    with world.maker() as d:
+        rd.request(d, d.get(ResearchProject, world.pid), ["mnist"])
+        d.commit()
+    started = time.monotonic()
+    thread = rd.start_fetching(world.settings, world.maker)
+    assert time.monotonic() - started < 1
+    assert rd.start_fetching(world.settings, world.maker) is None  # one at a time
+    with world.maker() as d:
+        assert d.scalars(select(ResearchDataset)).one().status == "pending"
+    gate.set()
+    thread.join(10)
+    with world.maker() as d:
+        assert d.scalars(select(ResearchDataset)).one().status == "failed"
 
 
 def test_settings_keep_the_key_server_side(world):

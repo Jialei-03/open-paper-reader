@@ -274,6 +274,9 @@ export function ResearchProject({
   const busyNow = working(detail.sprints);
   const liveRun = busyNow ? runsBySprint.get(busyNow.id) : undefined;
   const waitingData = detail.datasets.some((d) => d.status === "pending");
+  // How far the download has got, as the worker last wrote it down.
+  const fetchNote =
+    detail.datasets.find((d) => d.status === "pending" && d.note)?.note ?? "";
   const finished = p.status === "finished" && p.stage === "done";
   const stageIndex = STEPS.indexOf(
     p.stage === "done" ? "retrospective" : p.stage,
@@ -433,6 +436,7 @@ export function ResearchProject({
                 {waitingData && p.stage === "experiments" && (
                   <p className={styles.systemLine}>
                     {t("research.thread.fetching")}
+                    {fetchNote && ` ${fetchNote}`}
                   </p>
                 )}
                 {p.status === "paused" && (

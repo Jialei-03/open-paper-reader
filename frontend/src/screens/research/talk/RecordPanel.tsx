@@ -418,9 +418,7 @@ function SetupTab({
         ) : (
           detail.datasets.map((d) => (
             <div key={d.id} className={styles.nodeRow}>
-              <span>
-                {d.name} <span className={styles.mono}>{d.path}</span>
-              </span>
+              <span>{d.name}</span>
               <span
                 className={styles.tag}
                 data-tone={
@@ -434,7 +432,7 @@ function SetupTab({
                 {t(`research.data.${d.status}` as MessageKey)}
               </span>
               <small>
-                {d.status === "failed"
+                {d.status !== "ready"
                   ? d.note
                   : d.files
                       .map(

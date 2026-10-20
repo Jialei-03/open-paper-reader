@@ -9,11 +9,12 @@ came from.
 """
 
 import hashlib
-import shutil
+import threading
+import time
 import urllib.request
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from .models import ResearchDataset
 
@@ -94,8 +95,9 @@ def request(d, project, names):
         )
 
 
-def fetch(settings, row):
-    """Downloads (or reuses) one registry dataset and verifies every file."""
+def fetch(settings, row, progress=None):
+    """Downloads (or reuses) one registry dataset and verifies every file;
+    `progress(text)` hears how far a download has got, every few seconds."""
     spec = REGISTRY[row.name]
     folder = cache(settings) / row.name
     folder.mkdir(exist_ok=True)
@@ -105,7 +107,14 @@ def fetch(settings, row):
         if not target.exists() or _hashes(target)[0] != md5:
             partial = target.with_suffix(target.suffix + ".part")
             with urlopen(url, timeout=60) as response, partial.open("wb") as out:
-                shutil.copyfileobj(response, out, CHUNK)
+                total = int(getattr(response, "headers", {}).get("Content-Length") or 0)
+                done, said = 0, time.monotonic()
+                while block := response.read(CHUNK):
+                    out.write(block)
+                    done += len(block)
+                    if progress and time.monotonic() - said > PROGRESS_SECONDS:
+                        said = time.monotonic()
+                        progress(_progress_text(name, done, total))
             partial.replace(target)
         got_md5, sha = _hashes(target)
         if got_md5 != md5:
@@ -120,6 +129,44 @@ def fetch(settings, row):
     row.note = url.split("/")[2]
 
 
+PROGRESS_SECONDS = 3
+_fetching = threading.Lock()
+
+
+def _progress_text(name, done, total):
+    mb = done / 1024**2
+    return (
+        f"下载中：{name} {mb:.0f}/{total / 1024**2:.0f} MB"
+        if total
+        else f"下载中：{name} {mb:.0f} MB"
+    )
+
+
+def _note(maker, id, text):
+    with maker() as d:
+        d.execute(
+            update(ResearchDataset).where(ResearchDataset.id == id).values(note=text)
+        )
+        d.commit()
+
+
+def start_fetching(settings, maker):
+    """Fetches what projects asked for in the background, one download at a
+    time, so a slow mirror never holds up the scheduler. None if one is running."""
+    if not _fetching.acquire(blocking=False):
+        return None
+
+    def run():
+        try:
+            fetch_pending(settings, maker)
+        finally:
+            _fetching.release()
+
+    thread = threading.Thread(target=run, name="research-datasets", daemon=True)
+    thread.start()
+    return thread
+
+
 def fetch_pending(settings, maker):
     """Fetches what projects asked for; a failure is written down, not retried in a loop."""
     with maker() as d:
@@ -132,7 +179,7 @@ def fetch_pending(settings, maker):
         with maker() as d:
             row = d.get(ResearchDataset, id)
             try:
-                fetch(settings, row)
+                fetch(settings, row, lambda text, id=id: _note(maker, id, text))
             except (OSError, ValueError) as e:
                 row.status = "failed"
                 row.note = str(e)[:500]
