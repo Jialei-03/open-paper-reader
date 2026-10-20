@@ -3,8 +3,9 @@ import type { Pose } from "./pose";
 
 /**
  * The four animals, 16 × 16 pixels each: the beaver builds (executor), the owl
- * judges (advisor), the shiba keeps the gate (system), the squirrel stores what
- * was learned (distiller). Each has a base picture; a pose changes a few pixels,
+ * judges (advisor), the shiba is the boss who holds everyone to the rules (system),
+ * and the squirrel stores what was learned (distiller). Each has a base picture; a
+ * pose changes a few pixels,
  * in one or two frames that alternate. A pixel is `x,y,colour key`; `.` clears it.
  */
 export interface Sprite {
@@ -144,6 +145,7 @@ export const SPRITES: Record<Agent, Sprite> = {
       ],
     },
   },
+  // The boss: a shiba in a navy suit, white shirt and red tie.
   system: {
     palette: {
       d: "#3b2a20",
@@ -152,46 +154,47 @@ export const SPRITES: Record<Agent, Sprite> = {
       k: "#1a1410",
       n: "#2a1d16",
       u: "#2f3e5c",
-      U: "#1f2a40",
-      y: "#f2c94c",
-      r: "#d64541",
       w: "#ffffff",
+      r: "#d64541",
+      p: "#ffffff",
+      q: "#b9c2cc",
     },
     base: [
       "................",
-      "....uuuuuuuu....",
-      "...uuuuyuuuuu...",
-      ".doUUUUUUUUUUod.",
+      "..dd........dd..",
+      "..dod......dod..",
+      ".dooooooooooood.",
       ".dooooooooooood.",
       ".dookoooooookod.",
       ".dcccooooooccd..",
       "..dccccnnccccd..",
       "...dcccccccccd..",
-      "....dooooooood..",
-      "...doooyyooood..",
-      "..dooocccccoood.",
-      "..dooocccccoood.",
-      "...doooooooood..",
+      "....duuwwuud....",
+      "...duuuwruuud...",
+      "..duuuuwruuuud..",
+      "..duuuuurruuuud.",
+      "...duuuuuuuuud..",
       "...dod.....dod..",
       "...dd......dd...",
     ],
     poses: {
       idle: [[], ["4,5,o", "11,5,o"]],
       talk: [["7,8,k", "8,8,k"], []],
+      carry: [paper(6, 11)],
       // A paw up with the stop sign, waved.
       stop: [
+        [
+          ...box(12, 0, 15, 3, "r"),
+          ...span(1, 13, 14, "w"),
+          "14,5,o",
+          "14,6,o",
+          "14,7,o",
+        ],
         [
           ...box(12, 1, 15, 4, "r"),
           ...span(2, 13, 14, "w"),
           "14,6,o",
           "14,7,o",
-          "14,8,o",
-        ],
-        [
-          ...box(12, 2, 15, 5, "r"),
-          ...span(3, 13, 14, "w"),
-          "14,7,o",
-          "14,8,o",
           "7,8,k",
           "8,8,k",
         ],

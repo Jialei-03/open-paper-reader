@@ -105,16 +105,23 @@ export function ResearchScene({
   const distillerSeen = beats
     .slice(0, at + 1)
     .some((b) => b.frame.who === "distiller");
-  // Everyone sits; the shiba gets up and steps in front of the gate while on duty.
+  // Everyone sits at their desk. On a handoff the beaver or the owl carries its notes
+  // to the other's desk; the boss comes down from its dais to stop the beaver.
   const where = (agent: Agent) => {
     const pose = poseFor(agent, frame);
-    const spot = figure(agent, agent === "system" && pose !== "idle");
+    const away =
+      (agent === "system" && pose === "stop") ||
+      ((agent === "executor" || agent === "advisor") && pose === "carry");
+    const spot = figure(agent, away);
     // A figure is 24 room pixels tall; a perched one shows its top 81%.
-    return { pose, spot, head: spot.y - (spot.perched ? 19.5 : 24) };
+    return { pose, spot, away, head: spot.y - (spot.perched ? 19.5 : 24) };
   };
-  // What the actor did travels from above its head to where it lands.
+  // Whoever walks over carries its work in person; other work travels to where it lands.
+  const walks =
+    (frame.handoff && (frame.who === "executor" || frame.who === "advisor")) ||
+    frame.step?.action === "drift_blocked";
   const flight =
-    frame.to && !still
+    frame.to && !still && !walks
       ? {
           from: { x: where(frame.who).spot.x, y: where(frame.who).head },
           to: SPOT[frame.to],
@@ -180,7 +187,7 @@ export function ResearchScene({
         {/* Names and words float above the room, so no desk hides them. */}
         {AGENTS.map((agent) => {
           if (agent === "distiller" && !distillerSeen) return null;
-          const { spot, head } = where(agent);
+          const { spot, head, away } = where(agent);
           const active = frame.who === agent;
           return (
             <div
@@ -188,6 +195,7 @@ export function ResearchScene({
               className={styles.label}
               data-agent={agent}
               data-active={active || undefined}
+              data-away={away || undefined}
               style={pct(spot.x, head) as CSSProperties}
             >
               {active && (

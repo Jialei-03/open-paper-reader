@@ -6,6 +6,10 @@ import type { Agent, Place } from "./frames";
  * pixel on a 320 × 200 canvas that the page scales up without smoothing, so every
  * slope stays a pixel staircase. World units: x runs along the right wall, y along
  * the left wall, z up; the far corner of the floor is (0, 0, 0).
+ *
+ * The room is symmetric about its middle (x = y): the beaver's workstation on the
+ * left, the owl's mirrored on the right, the boss's raised desk at the back between
+ * them, the rug in the middle.
  */
 export const LW = 320;
 export const LH = 200;
@@ -16,25 +20,26 @@ export const project = (x: number, y: number, z = 0) => ({
   y: OY + (x + y) / 2 - z,
 });
 
+/** The boss's dais: how high it lifts the boss's desk and chair. */
+const DAIS = 7;
+
 /**
- * Where each agent sits, and where it goes when it gets up. The beaver and the owl
- * sit on office chairs behind their desks, facing the room; the shiba keeps a stool
- * on the rug and walks over to the beaver's desk to stop it; the squirrel reads in an
- * armchair by the bookshelf. `perched` figures sit on top of something low (a stool,
- * an armchair), so their legs are hidden; a desk hides the others' by itself.
+ * Where each agent sits, and where it goes on an errand: the beaver and the owl take
+ * their notes to each other's desk; the boss comes down to the beaver's desk to stop
+ * it. `perched` figures sit on something low (the squirrel's armchair), so their legs
+ * are hidden; a desk hides the others' by itself.
  */
 interface Seat {
   at: [number, number, number];
+  errand?: [number, number, number];
   perched: boolean;
 }
 const SEATS: Record<Agent, Seat> = {
-  executor: { at: [33, 47, 4], perched: false },
-  advisor: { at: [97, 43, 4], perched: false },
-  system: { at: [72, 86, 8], perched: true },
+  executor: { at: [35, 63, 4], errand: [80, 54, 0], perched: false },
+  advisor: { at: [63, 35, 4], errand: [54, 80, 0], perched: false },
+  system: { at: [24, 24, DAIS + 4], errand: [52, 80, 0], perched: false },
   distiller: { at: [107, 26, 8], perched: true },
 };
-/** The shiba on duty: in front of the beaver's desk, to stop it. */
-const ON_DUTY: [number, number, number] = [54, 78, 0];
 
 export interface Figure {
   /** The point under the visible figure, on the screen. */
@@ -45,23 +50,24 @@ export interface Figure {
   perched: boolean;
 }
 
-/** Where `agent` is: sitting, unless it is on its feet. */
-export function figure(agent: Agent, standing: boolean): Figure {
+/** Where `agent` is: at its seat, or away on its errand. */
+export function figure(agent: Agent, away: boolean): Figure {
   const seat = SEATS[agent];
-  const [x, y, z] = standing && agent === "system" ? ON_DUTY : seat.at;
+  const errand = away ? seat.errand : undefined;
+  const [x, y, z] = errand ?? seat.at;
   return {
     ...project(x, y, z),
     depth: project(x, y, 0).y,
-    perched: seat.perched && !(standing && agent === "system"),
+    perched: seat.perched && !errand,
   };
 }
 
-/** Where work lands. */
+/** Where work lands. `gate` is the boss's desk (the system's place). */
 export const SPOT: Record<Place, { x: number; y: number }> = {
   board: project(45, 0, 45),
-  bench: project(18, 62, 22),
-  desk: project(90, 58, 15),
-  gate: project(72, 86, 10),
+  bench: project(27, 77, 22),
+  desk: project(77, 27, 22),
+  gate: project(37, 37, DAIS + 18),
   shelf: project(104, 12, 30),
   person: project(0, 81, 25),
 };
@@ -83,17 +89,12 @@ const along = (
   w: number,
   h: number,
   slant: 1 | -1,
-): Area => ({
-  ...project(x, y, z),
-  w,
-  h,
-  slant,
-});
+): Area => ({ ...project(x, y, z), w, h, slant });
 
 export const AREA = {
   board: along(20, 0, 64, 50, 38, 1),
-  screen: along(18, 67, 27, 10, 10, -1),
-  note: along(98, 66, 20, 16, 6, 1),
+  screen: along(28, 81, 28, 8, 10, -1),
+  note: along(69, 44, 20, 16, 6, 1),
   door: along(0, 90, 59, 17, 5, -1),
 } as const;
 
@@ -151,16 +152,16 @@ function filler(data: Uint8ClampedArray): Paint {
 const quad = (...corners: [number, number, number][]) =>
   corners.map(([x, y, z]) => project(x, y, z));
 
-/** A rectangle on the right wall (the plane y = y0) or a box face facing +y. */
+/** A rectangle on the plane y = y0 (the right wall, or a face turned to the left). */
 const onY = (y0: number, x0: number, x1: number, z0: number, z1: number) =>
   quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]);
-/** A rectangle on the left wall (the plane x = x0) or a box face facing +x. */
+/** A rectangle on the plane x = x0 (the left wall, or a face turned to the right). */
 const onX = (x0: number, y0: number, y1: number, z0: number, z1: number) =>
   quad([x0, y0, z0], [x0, y1, z0], [x0, y1, z1], [x0, y0, z1]);
 const flat = (x0: number, x1: number, y0: number, y1: number, z: number) =>
   quad([x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]);
 
-/** A solid box: its top and the two faces turned to the viewer, with a darker edge. */
+/** A solid box: its top and the two faces turned to the viewer. */
 function box(
   paint: Paint,
   [x0, x1, y0, y1, z0, z1]: number[],
@@ -169,6 +170,27 @@ function box(
   paint(onY(y1, x0, x1, z0, z1), left);
   paint(onX(x1, y0, y1, z0, z1), right);
   paint(flat(x0, x1, y0, y1, z1), top);
+}
+
+const WOOD = ["#b5835b", "#a8754f", "#8d5f3d"];
+const DARK = ["#3a3a40", "#2b2b30", "#202024"];
+const BLUE = ["#3f5f8a", "#2f4f7a", "#24406a"];
+const POLE = ["#4a4a50", "#3a3a40", "#2a2a30"];
+
+/** An office chair with its back on the far side along x (`backAlongX`) or along y. */
+function chair(
+  paint: Paint,
+  cx: number,
+  cy: number,
+  z: number,
+  backAlongX: boolean,
+  colors = BLUE,
+) {
+  box(paint, [cx - 1, cx + 1, cy - 1, cy + 1, z, z + 6], POLE);
+  box(paint, [cx - 6, cx + 6, cy - 5, cy + 5, z + 6, z + 8], colors);
+  if (backAlongX)
+    box(paint, [cx - 7, cx - 5, cy - 6, cy + 6, z + 8, z + 25], colors);
+  else box(paint, [cx - 6, cx + 6, cy - 7, cy - 5, z + 8, z + 25], colors);
 }
 
 /** The walls, floor and everything that stands behind the agents. */
@@ -187,10 +209,10 @@ function paintBack(paint: Paint) {
         flat(i * 12, i * 12 + 12, j * 12, j * 12 + 12, 0),
         (i + j) % 2 ? "#c89f74" : "#bf946a",
       );
-  // Rug.
-  paint(flat(34, 82, 40, 96, 0), "#8f9fbb");
-  paint(flat(37, 79, 43, 93, 0), "#b8c4d6");
-  // Left wall: window, and the door to you with its sign.
+  // Rug in the middle of the room.
+  paint(flat(52, 92, 52, 92, 0), "#8f9fbb");
+  paint(flat(55, 89, 55, 89, 0), "#b8c4d6");
+  // Left wall: window, the door to you with its sign, and a plant by the front.
   paint(onX(0, 12, 46, 28, 62), "#8a6a4f");
   paint(onX(0, 14, 44, 30, 60), "#bfe0f2");
   paint(onX(0, 28, 30, 30, 60), "#8a6a4f");
@@ -204,6 +226,9 @@ function paintBack(paint: Paint) {
   paint(onX(0, 73, 75, 24, 26), "#f2c94c");
   paint(onX(0, 72, 90, 53, 60), "#7a5a40");
   paint(onX(0, 73, 89, 54, 59), "#f8f4ec");
+  box(paint, [3, 11, 100, 108, 0, 9], ["#9a5232", "#b5653f", "#a35a37"]);
+  box(paint, [4, 10, 101, 107, 9, 22], ["#6faa5f", "#5f9a5a", "#4f8a4a"]);
+  box(paint, [5, 9, 102, 106, 22, 27], ["#7fba6f", "#6faa5f", "#5f9a5a"]);
   // Right wall: whiteboard with its tray, and a clock.
   paint(onY(0, 18, 72, 22, 66), "#9aa3ad");
   paint(onY(0, 20, 70, 24, 64), "#fbfbf8");
@@ -215,10 +240,6 @@ function paintBack(paint: Paint) {
   paint(onY(0, 83, 91, 59, 67), "#f8f4ec");
   paint(onY(0, 86, 87, 63, 66), "#3a3a3a");
   paint(onY(0, 86, 89, 63, 64), "#3a3a3a");
-  // Plant in the corner by the right wall.
-  box(paint, [74, 82, 3, 11, 0, 9], ["#9a5232", "#b5653f", "#a35a37"]);
-  box(paint, [75, 81, 4, 10, 9, 22], ["#6faa5f", "#5f9a5a", "#4f8a4a"]);
-  box(paint, [76, 80, 5, 9, 22, 27], ["#7fba6f", "#6faa5f", "#5f9a5a"]);
   // Bookshelf against the right wall: the playbook.
   box(paint, [92, 118, 0, 12, 0, 56], ["#8a6a4f", "#7a5a40", "#6a4c36"]);
   paint(onY(12, 94, 116, 3, 53), "#4a3526");
@@ -245,68 +266,72 @@ function paintBack(paint: Paint) {
     }
   paint(onY(12, 94, 116, 18, 20), "#7a5a40");
   paint(onY(12, 94, 116, 35, 37), "#7a5a40");
-  // Office chairs behind the two desks, facing the room.
-  for (const [x0, y0] of [
-    [26, 40],
-    [90, 36],
-  ]) {
-    box(
-      paint,
-      [x0 + 6, x0 + 8, y0 + 4, y0 + 6, 0, 6],
-      ["#4a4a50", "#3a3a40", "#2a2a30"],
-    );
-    box(
-      paint,
-      [x0 + 1, x0 + 13, y0 + 1, y0 + 9, 6, 8],
-      ["#3f5f8a", "#2f4f7a", "#24406a"],
-    );
-    box(
-      paint,
-      [x0 + 1, x0 + 13, y0, y0 + 2, 8, 25],
-      ["#3f5f8a", "#2f4f7a", "#24406a"],
-    );
-  }
+  // The boss's dais in the back corner, with a step and a high-backed red chair.
+  box(paint, [12, 52, 12, 52, 0, DAIS], ["#9c7652", "#8a6545", "#76563a"]);
+  box(paint, [20, 44, 52, 56, 0, 3], ["#9c7652", "#8a6545", "#76563a"]);
+  const RED = ["#c0504a", "#a5403a", "#8a332e"];
+  box(paint, [23, 25, 23, 25, DAIS, DAIS + 6], POLE);
+  box(paint, [17, 30, 17, 30, DAIS + 6, DAIS + 8], RED);
+  box(paint, [15, 18, 15, 30, DAIS + 8, DAIS + 30], RED);
+  box(paint, [15, 30, 15, 18, DAIS + 8, DAIS + 30], RED);
+  // The two workstation chairs, mirrored: the beaver's back to the right wall,
+  // the owl's back to the left wall.
+  chair(paint, 35, 61, 0, false);
+  chair(paint, 61, 35, 0, true);
   // The squirrel's armchair by the bookshelf.
+  const GREEN = ["#8aaa7a", "#7a9a6a", "#6a8a5a"];
   box(paint, [100, 114, 18, 21, 0, 20], ["#7a9a6a", "#6a8a5a", "#5a7a4a"]);
-  box(paint, [100, 114, 21, 30, 0, 8], ["#8aaa7a", "#7a9a6a", "#6a8a5a"]);
-  box(paint, [100, 102, 21, 30, 8, 13], ["#8aaa7a", "#7a9a6a", "#6a8a5a"]);
-  box(paint, [112, 114, 21, 30, 8, 13], ["#8aaa7a", "#7a9a6a", "#6a8a5a"]);
+  box(paint, [100, 114, 21, 30, 0, 8], GREEN);
+  box(paint, [100, 102, 21, 30, 8, 13], GREEN);
+  box(paint, [112, 114, 21, 30, 8, 13], GREEN);
 }
 
-/** The executor's desk, its monitor turned sideways so the beaver can be seen. */
+/** The beaver's workstation on the left: a desk, a monitor at its far end, a keyboard. */
 function paintBench(paint: Paint) {
-  box(paint, [14, 48, 54, 70, 0, 14], ["#b5835b", "#a8754f", "#8d5f3d"]);
-  box(paint, [15, 20, 60, 64, 14, 16], ["#3a3a40", "#2b2b30", "#202024"]);
-  box(paint, [16, 18, 56, 68, 16, 29], ["#3a3a40", "#2b2b30", "#202024"]);
-  paint(onX(18, 57, 67, 17, 28), "#1d2b24");
-  box(paint, [28, 40, 56, 60, 14, 15], ["#6a6a72", "#5a5a60", "#4a4a50"]);
+  box(paint, [26, 44, 68, 86, 0, 14], WOOD);
+  box(paint, [26, 30, 75, 79, 14, 16], DARK);
+  box(paint, [26, 28, 72, 82, 16, 29], DARK);
+  paint(onX(28, 73, 81, 17, 28), "#1d2b24");
+  box(paint, [31, 39, 70, 74, 14, 15], ["#6a6a72", "#5a5a60", "#4a4a50"]);
 }
 
-/** The shiba's stool, on the rug in the middle of the room. */
-function paintStool(paint: Paint) {
-  box(paint, [71, 73, 85, 87, 0, 6], ["#6b7078", "#5b6068", "#4b5058"]);
-  box(paint, [68, 76, 82, 90, 6, 8], ["#d64541", "#b5362f", "#9a2e28"]);
-}
-
-/** The advisor's desk: a lamp at the far end, papers at the front, the owl's face clear. */
+/** The owl's workstation on the right, mirrored: a desk, a lamp at its far end, papers. */
 function paintDesk(paint: Paint) {
-  box(paint, [80, 112, 50, 66, 0, 14], ["#b5835b", "#a8754f", "#8d5f3d"]);
-  box(paint, [100, 110, 58, 65, 14, 15], ["#ffffff", "#e9e4da", "#dcd6ca"]);
-  box(paint, [82, 84, 52, 54, 14, 26], ["#4a4a4a", "#3a3a3a", "#2a2a2a"]);
-  box(paint, [79, 87, 50, 56, 26, 30], ["#3f8a7a", "#2f6b5e", "#24564b"]);
+  box(paint, [68, 86, 26, 44, 0, 14], WOOD);
+  box(paint, [76, 78, 27, 29, 14, 26], ["#4a4a4a", "#3a3a3a", "#2a2a2a"]);
+  box(paint, [73, 81, 26, 31, 26, 30], ["#3f8a7a", "#2f6b5e", "#24564b"]);
+  box(paint, [70, 74, 31, 39, 14, 15], ["#ffffff", "#e9e4da", "#dcd6ca"]);
+}
+
+/** The boss's desk on the dais, square to the middle of the room, with a nameplate. */
+function paintBoss(paint: Paint) {
+  box(
+    paint,
+    [28, 46, 28, 46, DAIS, DAIS + 14],
+    ["#6b4a33", "#5a3d2a", "#4a3222"],
+  );
+  box(
+    paint,
+    [36, 44, 42, 44, DAIS + 14, DAIS + 17],
+    ["#f2c94c", "#d9b13a", "#b8952e"],
+  );
+  box(
+    paint,
+    [30, 36, 30, 36, DAIS + 14, DAIS + 15],
+    ["#ffffff", "#e9e4da", "#dcd6ca"],
+  );
 }
 
 /**
- * The room in layers, back to front. Each piece of furniture is its own layer at its
- * front corner's depth, so an agent sitting behind a desk is hidden by it.
+ * The room in layers, back to front. Each desk is its own layer at its front corner's
+ * depth, so an agent sitting behind a desk is hidden by it.
  */
 const LAYERS: { key: string; depth: number; paint: (paint: Paint) => void }[] =
   [
     { key: "back", depth: 0, paint: paintBack },
-    { key: "bench", depth: project(48, 70).y, paint: paintBench },
-    { key: "desk", depth: project(112, 66).y, paint: paintDesk },
-    // Under the shiba: just behind the point it sits on.
-    { key: "stool", depth: project(72, 86).y - 1, paint: paintStool },
+    { key: "boss", depth: project(46, 46).y, paint: paintBoss },
+    { key: "bench", depth: project(44, 86).y, paint: paintBench },
+    { key: "desk", depth: project(86, 44).y, paint: paintDesk },
   ];
 
 function Layer({

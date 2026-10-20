@@ -1051,9 +1051,9 @@ export const en = {
   "research.talk.empty":
     "Nothing has happened yet. Once the first sprint starts, every step between the executor, the advisor and the system shows up here.",
   "research.talk.lead":
-    "The executor acts, the advisor judges, the system checks. Each step names the node on the map it is about.",
+    "The executor acts, the advisor judges, the boss holds everyone to the rules. Each step names the node on the map it is about.",
   "research.role.executor": "Executor",
-  "research.role.system": "System",
+  "research.role.system": "Boss",
   "research.talk.focus": "Focus",
   "research.talk.add": "New {kind}",
   "research.talk.killIf": "Kill condition: {text}",

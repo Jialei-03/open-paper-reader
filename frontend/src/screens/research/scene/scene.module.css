@@ -538,9 +538,9 @@
   }
 }
 
-/* The shiba speaks right in front of the beaver's desk: its words go to the side,
-   so the beaver's face stays in view. */
-.label[data-agent="system"] .bubble {
+/* Someone away from their desk stands in front of another's: their words go to the
+   side, so the one they came to see stays in view. */
+.label[data-away] .bubble {
   position: absolute;
   bottom: 0;
   left: calc(100% + 0.6cqw);
