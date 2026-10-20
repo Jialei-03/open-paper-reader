@@ -176,6 +176,22 @@ def scoping_brief(d, project, sprint_number, settings=None):
     return "\n\n".join(parts)
 
 
+def _job_line(job):
+    """A job as the system recorded it: how it ended, its tag, what it measured."""
+    line = f"- {job.id} [{job.status}, exit={job.exit_code}, {job.log_lines} 行]"
+    tag = str((job.config or {}).get("tag") or "")[:80]
+    if tag:
+        line += f" {tag}"
+    measured = [
+        f"{k}={v:.6g}" if isinstance(v, float) else f"{k}={v}"
+        for k, v in (job.metrics or {}).items()
+        if isinstance(v, (int, float)) and not isinstance(v, bool) and k != "step"
+    ][:8]
+    if measured:
+        line += "：" + "，".join(measured)
+    return line + f"\n  命令：{job.command[:200]}"
+
+
 def _cited_jobs(d, project):
     cited = set()
     for node in research_map.nodes(d, project):
@@ -380,10 +396,7 @@ def advisor_brief(d, project, sprint_number, settings=None):
     if jobs:
         parts.append(
             "## 最近的作业（可用 job_logs 抽查）\n"
-            + "\n".join(
-                f"- {j.id} [{j.status}, exit={j.exit_code}, {j.log_lines} 行] {j.command[:200]}"
-                for j in jobs
-            )
+            + "\n".join(_job_line(j) for j in jobs)
         )
     rules = _playbook(settings) if project.budget.get("playbook", True) else ""
     if rules:
@@ -421,7 +434,9 @@ def _data_files(settings, project):
         for f in sorted(folder.rglob("*"))
         if f.is_file() and not f.is_symlink()
     ][:50]
-    return "## 研究者提供的数据（工作区的 data/ 下）\n" + "\n".join(files) if files else ""
+    return (
+        "## 研究者提供的数据（工作区的 data/ 下）\n" + "\n".join(files) if files else ""
+    )
 
 
 def executor_brief(d, project, sprint_number, settings=None):
@@ -476,10 +491,7 @@ def executor_brief(d, project, sprint_number, settings=None):
     if jobs:
         parts.append(
             "## 已结束、尚未作为证据引用的作业\n"
-            + "\n".join(
-                f"- {j.id} [{j.status}, exit={j.exit_code}, {j.log_lines} 行] {j.command[:200]}"
-                for j in jobs
-            )
+            + "\n".join(_job_line(j) for j in jobs)
         )
     rules = _playbook(settings) if project.budget.get("playbook", True) else ""
     if rules:

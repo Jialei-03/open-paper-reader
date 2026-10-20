@@ -7,6 +7,7 @@ import { lastPage } from "../reader/engine/page-memory";
 import { followLink, readerHash } from "../reader/route";
 import { Card, CardHeader } from "../ui";
 import { HomeRecommend } from "./home/HomeRecommend";
+import { HomeResearch } from "./home/HomeResearch";
 import { HomePaper } from "./home/HomePaper";
 import { ImportDrop, useFileDrop } from "./home/ImportDrop";
 import styles from "./home/HomeScreen.module.css";
@@ -85,10 +86,12 @@ export function HomeScreen({ owner, papers, go, reload }: HomeScreenProps) {
         </CardHeader>
         {papers.length === 0 ? (
           <div className={styles.empty}>
+            <HomeResearch go={go} />
             <ImportDrop imports={imports} large over={over} />
           </div>
         ) : (
           <div className={styles.body}>
+            <HomeResearch go={go} />
             {reading.length > 0 && (
               <section aria-labelledby="home-continue">
                 <h2 id="home-continue" className={styles.sectionTitle}>

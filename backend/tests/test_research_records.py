@@ -976,9 +976,15 @@ def test_the_advisor_can_ask_the_researcher_without_stopping_the_work(world):
         d.flush()
         root = rm.root(d, p)
         apply(
-            d, p, sprint,
-            {"verdicts": [{"node_id": root.id, "verdict": "continue", "reason": "x"}],
-             "ask_researcher": "“紧凑 CNN”按参数 ≤100k 算可以吗？"},
+            d,
+            p,
+            sprint,
+            {
+                "verdicts": [
+                    {"node_id": root.id, "verdict": "continue", "reason": "x"}
+                ],
+                "ask_researcher": "“紧凑 CNN”按参数 ≤100k 算可以吗？",
+            },
         )
         ask = d.scalars(
             select(ResearchEvent).where(ResearchEvent.action == "decision_requested")
@@ -986,8 +992,77 @@ def test_the_advisor_can_ask_the_researcher_without_stopping_the_work(world):
         assert ask.detail["kind"] == "question" and p.status == "active"
         assert st.decide(d, p, ask, True, "可以，≤100k")
         said = d.scalars(
-            select(ResearchEvent).where(
-                ResearchEvent.action == "message", ResearchEvent.actor == "human"
-            ).order_by(ResearchEvent.created_at.desc())
+            select(ResearchEvent)
+            .where(ResearchEvent.action == "message", ResearchEvent.actor == "human")
+            .order_by(ResearchEvent.created_at.desc())
         ).first()
         assert "≤100k" in said.detail["text"]
+
+
+def test_briefs_show_what_each_finished_job_measured(world):
+    from backend.research_brief import advisor_brief, executor_brief
+
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        node = rm.root(d, p)
+        d.add(
+            ResearchJob(
+                project_id=p.id,
+                node_id=node.id,
+                sprint_id="s",
+                command="python train.py",
+                status="succeeded",
+                exit_code=0,
+                config={"tag": "cnn-seed0"},
+                metrics={"test_acc": 0.9123, "step": 400, "note": "x"},
+                started_at="2026-10-20T10:00:00+00:00",
+                finished_at="2026-10-20T10:05:00+00:00",
+            )
+        )
+        d.flush()
+        for brief in (executor_brief(d, p, 2), advisor_brief(d, p, 2)):
+            assert "cnn-seed0" in brief and "test_acc=0.9123" in brief
+            assert "step=" not in brief
+
+
+def test_a_dataset_comes_from_its_fastest_mirror(world, monkeypatch):
+    import hashlib
+
+    content = b"cifar" * 50000
+
+    class Stream(io.BytesIO):
+        def __init__(self, data, pause):
+            super().__init__(data)
+            self.pause = pause
+
+        def read(self, n=-1):
+            time.sleep(self.pause)
+            return super().read(min(n, 4096) if n and n > 0 else 4096)
+
+    opened = []
+
+    def fake(url, timeout):
+        opened.append(url)
+        return Stream(content, 0.3 if "slow" in url else 0)
+
+    spec = {
+        "title": "toy",
+        "files": [
+            (
+                "toy.bin",
+                ("https://slow.example/toy.bin", "https://fast.example/toy.bin"),
+                hashlib.md5(content).hexdigest(),
+            )
+        ],
+    }
+    monkeypatch.setitem(rd.REGISTRY, "toy", spec)
+    monkeypatch.setattr(rd, "urlopen", fake)
+    monkeypatch.setattr(rd, "TRY_SECONDS", 0.5)
+    row = ResearchDataset(project_id=world.pid, name="toy", source="registry")
+    rd.fetch(world.settings, row)
+    assert row.status == "ready" and row.note == "fast.example"
+    assert opened[-1] == "https://fast.example/toy.bin"
+    again = ResearchDataset(project_id=world.pid, name="toy", source="registry")
+    rd.fetch(world.settings, again)
+    assert again.status == "ready" and again.note == "本机缓存"

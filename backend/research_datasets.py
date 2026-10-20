@@ -50,13 +50,19 @@ REGISTRY = {
         "files": [
             (
                 "cifar-10-python.tar.gz",
-                "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz",
+                (
+                    "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz",
+                    # PaddlePaddle's copy of the same file (same md5).
+                    "https://dataset.bj.bcebos.com/cifar/cifar-10-python.tar.gz",
+                ),
                 "c58f30108f718f92721af3b95e74349a",
             ),
         ],
     },
 }
 CHUNK = 1024 * 1024
+# How long each mirror of a file is tried before the fastest is chosen.
+TRY_SECONDS = 2
 # Through one name, so tests can stand in for the network.
 urlopen = urllib.request.urlopen
 
@@ -95,6 +101,28 @@ def request(d, project, names):
         )
 
 
+def _fastest(urls):
+    """The mirror that delivered the most in a short try; the file's published
+    md5 is checked afterwards whichever it was."""
+    if isinstance(urls, str):
+        return urls
+    if len(urls) == 1:
+        return urls[0]
+    best, most = urls[0], -1
+    for url in urls:
+        got = 0
+        try:
+            with urlopen(url, timeout=15) as response:
+                end = time.monotonic() + TRY_SECONDS
+                while time.monotonic() < end and (block := response.read(64 * 1024)):
+                    got += len(block)
+        except OSError:
+            continue
+        if got > most:
+            best, most = url, got
+    return best
+
+
 def fetch(settings, row, progress=None):
     """Downloads (or reuses) one registry dataset and verifies every file;
     `progress(text)` hears how far a download has got, every few seconds."""
@@ -102,9 +130,13 @@ def fetch(settings, row, progress=None):
     folder = cache(settings) / row.name
     folder.mkdir(exist_ok=True)
     files = []
-    for name, url, md5 in spec["files"]:
+    url = ""
+    for name, urls, md5 in spec["files"]:
         target = folder / name
         if not target.exists() or _hashes(target)[0] != md5:
+            if progress:
+                progress(f"在挑最快的下载源：{name}")
+            url = _fastest(urls)
             partial = target.with_suffix(target.suffix + ".part")
             with urlopen(url, timeout=60) as response, partial.open("wb") as out:
                 total = int(getattr(response, "headers", {}).get("Content-Length") or 0)
@@ -126,7 +158,7 @@ def fetch(settings, row, progress=None):
     row.files = files
     row.bytes = sum(f["bytes"] for f in files)
     row.status = "ready"
-    row.note = url.split("/")[2]
+    row.note = url.split("/")[2] if url else "本机缓存"
 
 
 PROGRESS_SECONDS = 3
