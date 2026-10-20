@@ -1272,4 +1272,5 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.research.gpuHint":
     "all 表示全部；也可以填编号，如 0,1；留空表示不用 GPU。",
   "settings.research.save": "保存",
+  "research.setup.move": "换到其他算力",
 };

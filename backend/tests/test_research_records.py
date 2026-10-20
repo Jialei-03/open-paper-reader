@@ -3,6 +3,7 @@
 import io
 import json
 import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -388,3 +389,123 @@ def test_scoping_turns_do_not_count_as_rounds_before_a_review(world):
         d.flush()
         st.say(d, p, "advisor", "计划已生效")
         assert rw.next_role(d, p, talk) == "executor"
+
+
+def _tools(tmp_path, name, args):
+    done = subprocess.run(
+        [sys.executable, str(rs.ORA_DIR / "tools.py")],
+        input=json.dumps({"name": name, "args": args}) + "\n",
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+    )
+    return json.loads(done.stdout.strip().splitlines()[-1])
+
+
+def test_remote_tools_work_in_the_workspace_and_stay_inside_it(tmp_path):
+    assert (
+        "Successfully wrote"
+        in _tools(
+            tmp_path, "write", {"path": "a/train.py", "content": "x = 1\ny = 2\n"}
+        )["result"]["content"][0]["text"]
+    )
+    _tools(
+        tmp_path,
+        "edit",
+        {"path": "a/train.py", "edits": [{"oldText": "y = 2", "newText": "y = 3"}]},
+    )
+    assert (tmp_path / "a/train.py").read_text() == "x = 1\ny = 3\n"
+    read = _tools(tmp_path, "read", {"path": "a/train.py", "offset": 2})
+    assert read["result"]["content"][0]["text"] == "y = 3"
+    grep = _tools(tmp_path, "grep", {"pattern": "y =", "glob": "*.py"})
+    assert "a/train.py:2: y = 3" in grep["result"]["content"][0]["text"]
+    assert (
+        "train.py"
+        in _tools(tmp_path, "find", {"pattern": "*.py"})["result"]["content"][0]["text"]
+    )
+    assert _tools(tmp_path, "ls", {})["result"]["content"][0]["text"] == "a/"
+    failed = _tools(tmp_path, "bash", {"command": "echo hi; exit 3"})["result"]
+    assert failed["isError"] and "hi" in failed["content"][0]["text"]
+    assert "工作区" in _tools(tmp_path, "read", {"path": "../outside"})["error"]
+
+
+def test_tool_calls_of_an_ssh_project_run_on_that_machine(world, monkeypatch):
+    calls = []
+
+    def fake(args, input=None, **kw):
+        calls.append(args)
+        if args[0] == "ssh" and input:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                json.dumps({"result": {"content": [{"type": "text", "text": "ok"}]}})
+                + "\n",
+                "",
+            )
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(rs, "run", fake)
+    rset.update(
+        world.settings,
+        {
+            "computes": [
+                {"id": "wsl", "kind": "ssh", "host": "wsl-box", "remote_dir": "~/ora"}
+            ]
+        },
+    )
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.compute_id = "wsl"
+        data = rs.workdir(world.settings, p.id) / "data"
+        data.mkdir()
+        (data / "x.csv").write_text("1")
+        out = rs.pi_call(world.settings, p.id, "ls", {}, d)
+        assert out["content"][0]["text"] == "ok"
+        rsyncs = [c for c in calls if c[0] == "rsync"]
+        # Uploads go over, and nothing on that machine is deleted.
+        assert any(c[-1] == f"wsl-box:~/ora/{p.id}/work/data/" for c in rsyncs)
+        assert not any("--delete" in c for c in rsyncs)
+        assert calls[-1][-1].startswith(
+            f"cd ~/ora/{p.id}/work && env PYTHONPATH=~/ora/ora"
+        )
+        before = len(calls)
+        rs.pi_call(world.settings, p.id, "ls", {}, d)
+        # Nothing changed, so nothing is copied again.
+        assert len(calls) == before + 1
+
+
+def test_a_moved_project_takes_its_workspace_along_once(world, monkeypatch):
+    calls, seeded = [], {"v": False}
+
+    def fake(args, input=None, **kw):
+        calls.append(args)
+        script = args[-1] if args[0] == "ssh" else ""
+        if "test -e" in script:
+            return subprocess.CompletedProcess(
+                args, 0, "yes\n" if seeded["v"] else "no\n", ""
+            )
+        if "touch" in script:
+            seeded["v"] = True
+        if args[0] == "ssh" and input:
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps({"result": {"content": []}}) + "\n", ""
+            )
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    monkeypatch.setattr(rs, "run", fake)
+    rr._prepared.clear()
+    rset.update(
+        world.settings, {"computes": [{"id": "wsl", "kind": "ssh", "host": "wsl-box"}]}
+    )
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.compute_id = "wsl"
+        (rs.workdir(world.settings, p.id) / "train.py").write_text("print(1)")
+        rs.pi_call(world.settings, p.id, "ls", {}, d)
+        whole = [c for c in calls if c[0] == "rsync" and c[-1].endswith("/work/")]
+        assert len(whole) == 1 and "--delete" not in whole[0]
+        rr._prepared.clear()
+        rs.pi_call(world.settings, p.id, "ls", {}, d)
+        assert (
+            len([c for c in calls if c[0] == "rsync" and c[-1].endswith("/work/")]) == 1
+        )

@@ -1364,4 +1364,5 @@ export const en = {
   "settings.research.gpuHint":
     "all for every GPU, or numbers like 0,1; empty for none.",
   "settings.research.save": "Save",
+  "research.setup.move": "Move to another compute",
 } as const;

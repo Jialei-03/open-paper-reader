@@ -362,3 +362,22 @@ def test_research_settings_never_show_the_key(env):
     assert {d["name"] for d in shown["datasets"]} >= {"mnist"}
     bad = {"computes": [{"id": "x", "kind": "ssh", "host": "a;b"}]}
     assert a.put("/api/v1/research/settings", json=bad).status_code == 422
+
+
+def test_a_project_can_move_to_another_compute(env):
+    app, a, _b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    pid = a.post(BASE, json={"message": "MNIST", "model_config_id": model}).json()["id"]
+    url = f"{BASE}/{pid}/compute"
+    assert a.post(url, json={"compute_id": "nowhere"}).status_code == 422
+    a.put(
+        "/api/v1/research/settings",
+        json={"computes": [{"id": "wsl", "kind": "ssh", "host": "wsl-box"}]},
+    )
+    moved = a.post(url, json={"compute_id": "wsl"})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["compute_id"] == "wsl"
+    events = a.get(f"{BASE}/{pid}/events").json()
+    assert events[-1]["action"] == "compute_changed"
+    assert events[-1]["detail"] == {"from": "local", "to": "wsl"}

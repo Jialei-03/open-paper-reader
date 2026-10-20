@@ -219,6 +219,10 @@ export const startProject = (body: {
 export const sendMessage = (id: string, text: string) =>
   send(`${BASE}/${id}/messages`, { text }) as Promise<ResearchProject>;
 
+/** Where the next experiments run; a running job stays where it is. */
+export const moveCompute = (id: string, compute_id: string) =>
+  send(`${BASE}/${id}/compute`, { compute_id }) as Promise<ResearchProject>;
+
 export const approvePlan = (id: string, version: number, note = "") =>
   send(`${BASE}/${id}/plan/approve`, {
     version,

@@ -61,6 +61,10 @@ class MessageInput(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
 
 
+class ComputeInput(BaseModel):
+    compute_id: str = Field(min_length=1, max_length=64)
+
+
 class PlanApproval(BaseModel):
     version: int = Field(ge=1)
     note: str = Field(default="", max_length=2000)
@@ -267,6 +271,40 @@ def install_research_routes(app, settings, db, auth, human, owned):
         if p.stage == "done":
             raise HTTPException(409, "研究已经结束")
         research_stages.say(d, p, "human", body.text)
+        d.commit()
+        return project_out(p)
+
+    @app.post("/api/v1/research/projects/{id}/compute")
+    def move_compute(id: str, body: ComputeInput, a=Depends(auth), d=Depends(db)):
+        """Where the next experiments run; a job already running stays where it is."""
+        from . import research_settings
+
+        p = project_of(d, id, a)
+        try:
+            research_settings.compute(settings, body.compute_id)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        if body.compute_id != p.compute_id:
+            old = research_settings.compute(settings, p.compute_id)
+            if old["kind"] == "ssh":
+                from .research_remote import pull
+
+                try:
+                    pull(settings, old, p.id)
+                except ValueError as e:
+                    raise HTTPException(
+                        409, "没能把远程工作区拿回来：" + str(e)
+                    ) from None
+            research_map.event(
+                d,
+                p,
+                None,
+                "human",
+                "compute_changed",
+                {"from": p.compute_id, "to": body.compute_id},
+            )
+            p.compute_id = body.compute_id
+            p.updated_at = now()
         d.commit()
         return project_out(p)
 

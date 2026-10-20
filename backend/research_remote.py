@@ -1,8 +1,10 @@
-"""Experiments on a machine reached over SSH (a lab server with GPUs).
+"""Projects on a machine reached over SSH (a lab server, a WSL box with a GPU).
 
-The project's workspace is copied there before a job and copied back after
-it, together with what the job reported through `ora`. Datasets and the `ora`
-module go along once. The job runs detached, either as a plain process or in
+For such a project the workspace lives there: the agent's file and shell
+tools run there (research_ora/tools.py, standard library only) and so do its
+experiments. What the researcher uploads and the datasets are copied over
+(never deleting anything there); after each job the workspace and what the
+job reported through `ora` are copied back, so this machine keeps the record. The job runs detached, either as a plain process or in
 Docker on that machine (with `--gpus`); its exit code is written next to its
 log so the system can tell a finished job from a lost one.
 
@@ -12,6 +14,7 @@ user's own ~/.ssh/config; nothing here holds a password.
 
 import json
 import shlex
+import subprocess
 
 from . import research_datasets, research_sandbox
 from .research_sandbox import GONE, IMAGE, ORA_DIR
@@ -57,22 +60,88 @@ def _push_ora(item):
     _rsync(f"{ORA_DIR}/", f"{host}:{root}/ora/")
 
 
-def start(settings, d, item, project, job):
+_prepared = {}
+
+
+def prepare(settings, d, item, project):
+    """The remote workspace, the `ora` module, the datasets and the uploads, in place.
+
+    Done again only when something to copy changed (a new dataset, a new upload).
+    """
     host, root = item["host"], item["remote_dir"]
     base = _base(item, project.id)
-    run_dir = f"{base}/runs/{job.id}"
-    ssh(host, f"mkdir -p {base}/work {run_dir} {base}/logs")
-    _push_ora(item)
-    for row in research_datasets.ready(d, project):
-        _rsync(
-            f"{research_datasets.cache(settings) / row.name}/",
-            f"{host}:{root}/datasets/{row.name}/",
-        )
-    _rsync(
-        f"{research_sandbox.workdir(settings, project.id)}/",
-        f"{host}:{base}/work/",
-        delete=True,
+    data = research_sandbox.workdir(settings, project.id) / "data"
+    datasets = [row.name for row in research_datasets.ready(d, project)]
+    stamp = (
+        tuple(datasets),
+        tuple(sorted((f.name, f.stat().st_mtime) for f in data.iterdir()))
+        if data.exists()
+        else (),
     )
+    if _prepared.get((item["id"], project.id)) == stamp:
+        return base
+    ssh(host, f"mkdir -p {base}/work {base}/runs {base}/logs")
+    seeded = ssh(host, f"test -e {base}/.seeded && echo yes || echo no")
+    if (seeded.stdout or "").strip() != "yes":
+        # The first time here (a new project, or one moved from another compute):
+        # what was written so far comes along. Nothing there is deleted.
+        _rsync(
+            f"{research_sandbox.workdir(settings, project.id)}/",
+            f"{host}:{base}/work/",
+        )
+        ssh(host, f"touch {base}/.seeded")
+    _push_ora(item)
+    for name in datasets:
+        _rsync(
+            f"{research_datasets.cache(settings) / name}/",
+            f"{host}:{root}/datasets/{name}/",
+        )
+    if data.exists():
+        _rsync(f"{data}/", f"{host}:{base}/work/data/")
+    _prepared[(item["id"], project.id)] = stamp
+    return base
+
+
+def tool_call(settings, d, item, project, name, args):
+    """One file or shell tool call in the remote workspace."""
+    base = prepare(settings, d, item, project)
+    root = item["remote_dir"]
+    script = (
+        f"cd {base}/work && env PYTHONPATH={root}/ora ORA_DATA={root}/datasets "
+        f"{_gpu_env(item)}{item.get('python') or 'python3'} {root}/ora/tools.py"
+    )
+    try:
+        done = _run_input([*SSH, item["host"], script], {"name": name, "args": args})
+    except subprocess.TimeoutExpired:
+        raise ValueError(
+            "远程命令超时（单条命令最长 60 秒，长任务请用 run_job）"
+        ) from None
+    if done.returncode == 255:
+        raise ValueError(f"连不上 {item['host']}：" + (done.stderr or "")[-300:])
+    lines = (done.stdout or "").strip().splitlines()
+    if not lines:
+        raise ValueError("远程环境没有返回结果：" + (done.stderr or "")[-300:])
+    reply = json.loads(lines[-1])
+    if reply.get("error"):
+        raise ValueError(reply["error"])
+    return reply["result"]
+
+
+def _run_input(args, request):
+    return research_sandbox.run(
+        args,
+        input=json.dumps(request) + "\n",
+        capture_output=True,
+        text=True,
+        timeout=75,
+    )
+
+
+def start(settings, d, item, project, job):
+    host, root = item["host"], item["remote_dir"]
+    base = prepare(settings, d, item, project)
+    run_dir = f"{base}/runs/{job.id}"
+    ssh(host, f"mkdir -p {run_dir}")
     log = f"{base}/logs/{job.id}.log"
     wrapped = f"({job.command}); echo $? > {run_dir}/.exit"
     if item.get("runner") == "docker":
@@ -159,6 +228,14 @@ def kill(job):
         ssh(r["host"], f"kill -- -{r['pid']} 2>/dev/null || kill {r['pid']}")
 
 
+def pull(settings, item, project_id):
+    """The remote workspace back to this machine (the project moves elsewhere)."""
+    _rsync(
+        f"{item['host']}:{_base(item, project_id)}/work/",
+        f"{research_sandbox.workdir(settings, project_id)}/",
+    )
+
+
 def fetch_back(settings, job):
     """The workspace and the job's reports, back to this machine."""
     r = job.remote
@@ -188,6 +265,8 @@ def probe(item):
         script = (
             f"{_gpu_env(item)}{item.get('python') or 'python3'} {root}/ora/probe.py"
         )
+    if not (ssh(item["host"], "command -v rsync").stdout or "").strip():
+        raise ValueError(f"{item['host']} 上没有 rsync：sudo apt install rsync")
     done = ssh(item["host"], script, timeout=90)
     lines = (done.stdout or "").strip().splitlines()
     try:

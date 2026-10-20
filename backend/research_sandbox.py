@@ -213,7 +213,15 @@ def _check_visible(settings, project_id):
 
 
 def pi_call(settings, project_id, name, args, d=None):
-    """One file or shell tool call (read, bash, edit, write, grep, find, ls) in /work."""
+    """One file or shell tool call (read, bash, edit, write, grep, find, ls) in /work,
+    or in the remote workspace of a project that runs over SSH."""
+    project = d.get(ResearchProject, project_id) if d is not None else None
+    if project is not None:
+        item = research_settings.compute(settings, project.compute_id)
+        if item["kind"] == "ssh":
+            from . import research_remote
+
+            return research_remote.tool_call(settings, d, item, project, name, args)
     _ready()
     _check_visible(settings, project_id)
     container = "ora-pi-" + uuid.uuid4().hex[:12]

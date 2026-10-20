@@ -24,6 +24,7 @@ import {
   getProject,
   jobLog,
   listEvents,
+  moveCompute,
   pauseProject,
   readResearchSettings,
   resumeProject,
@@ -191,6 +192,14 @@ export function ResearchProject({
     openLog: async (jobId) => {
       try {
         setLog({ jobId, lines: await jobLog(id, jobId) });
+      } catch (error) {
+        fail(error);
+      }
+    },
+    moveCompute: async (computeId) => {
+      try {
+        await moveCompute(id, computeId);
+        refresh();
       } catch (error) {
         fail(error);
       }

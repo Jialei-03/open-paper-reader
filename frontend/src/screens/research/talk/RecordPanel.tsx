@@ -15,6 +15,7 @@ import {
 } from "../research-api";
 import { ResearchScene } from "../scene/ResearchScene";
 import { headline, Prose, trackerLink, type ThreadActions } from "./ThreadView";
+import { ComputePicker } from "./Pickers";
 import styles from "./Talk.module.css";
 
 export type RecordTab = "plan" | "runs" | "setup" | "answer" | "scene";
@@ -75,7 +76,13 @@ export function RecordPanel({
         {tab === "runs" && (
           <RunsTab detail={detail} run={run} onRun={onRun} actions={actions} />
         )}
-        {tab === "setup" && <SetupTab detail={detail} computes={computes} />}
+        {tab === "setup" && (
+          <SetupTab
+            detail={detail}
+            computes={computes}
+            onMove={actions.moveCompute}
+          />
+        )}
         {tab === "answer" && <AnswerTab detail={detail} />}
         {tab === "scene" && (
           <SceneTab detail={detail} events={events} actions={actions} />
@@ -344,9 +351,11 @@ function Curve({ points }: { points: number[] }) {
 function SetupTab({
   detail,
   computes,
+  onMove,
 }: {
   detail: ProjectDetail;
   computes: Compute[];
+  onMove(id: string): void;
 }) {
   const { t } = useI18n();
   const compute = computes.find((c) => c.id === detail.project.compute_id);
@@ -355,6 +364,16 @@ function SetupTab({
     <>
       <section className={styles.section}>
         <h3 className={styles.sectionTitle}>{t("research.setup.compute")}</h3>
+        {computes.length > 1 && detail.project.status !== "finished" && (
+          <div className={styles.tags}>
+            <ComputePicker
+              computes={computes}
+              value={detail.project.compute_id}
+              onChange={(id) => id !== detail.project.compute_id && onMove(id)}
+              label={t("research.setup.move")}
+            />
+          </div>
+        )}
         <dl className={styles.kv}>
           <dt>{t("research.setup.where")}</dt>
           <dd>

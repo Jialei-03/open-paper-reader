@@ -76,6 +76,7 @@ export interface ThreadActions {
   decide(id: string, approve: boolean, note: string): void;
   openLog(jobId: string): void;
   openRun(jobId: string): void;
+  moveCompute(computeId: string): void;
   busy: boolean;
 }
 

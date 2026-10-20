@@ -385,7 +385,11 @@ def _plan(app, d, project):
     if outages and _waiting_out(d, project, outages):
         return
     role = next_role(d, project, history)
-    if role == "executor" and not research_sandbox.docker_status()["available"]:
+    if (
+        role == "executor"
+        and _local(app, project)
+        and not research_sandbox.docker_status()["available"]
+    ):
         # The executor's work is experiments: without Docker a sprint only spends tokens.
         reason = research_sandbox.docker_status()["reason"]
         said = d.scalars(
@@ -400,6 +404,17 @@ def _plan(app, d, project):
             event(d, project, None, "system", "docker_unavailable", {"reason": reason})
         return
     _start(app, d, project, latest, role, config)
+
+
+def _local(app, project):
+    """Whether the project's experiments run in this machine's Docker."""
+    from . import research_settings
+
+    try:
+        item = research_settings.compute(app.state.settings, project.compute_id)
+    except ValueError:
+        return True
+    return item["kind"] == "docker"
 
 
 BRIEFS = {
