@@ -958,6 +958,8 @@ export const en = {
   "research.job.failed": "failed",
   "research.job.timeout": "timed out",
   "research.job.lost": "lost",
+  "research.job.cancelled": "Cancelled",
+  "research.tool.stop_job": "Stop a job",
   "research.cost": "Spent: {tokens} tokens, {seconds} s of experiments",
   "research.kind.question": "Question",
   "research.kind.hypothesis": "Hypothesis",

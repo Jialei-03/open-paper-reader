@@ -1028,6 +1028,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(409, "研究已结束")
         if p.status == "waiting":
             raise HTTPException(409, WAITING)
+        from .research_sandbox import PAUSED_NOTE
+
+        # Paused means nothing runs: not the round, not its experiments.
+        halt(d, p, PAUSED_NOTE)
         return move(p, "paused", d)
 
     @app.post("/api/v1/research/projects/{id}/resume")
@@ -1039,9 +1043,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(409, WAITING)
         return move(p, "active", d)
 
-    @app.post("/api/v1/research/projects/{id}/stop")
-    def stop(id: str, a=Depends(auth), d=Depends(db)):
-        p = project_of(d, id, a)
+    def halt(d, p, note):
+        """The round in progress is cancelled and the running jobs stopped."""
+        from . import research_sandbox
+
         running = [
             s.run_id
             for s in d.scalars(
@@ -1060,7 +1065,12 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 )
                 .values(status="cancelled", updated_at=now())
             )
-        from .research_sandbox import stop_jobs
+        research_sandbox.stop_jobs(settings, d, p.id, note)
 
-        stop_jobs(settings, d, p.id)
+    @app.post("/api/v1/research/projects/{id}/stop")
+    def stop(id: str, a=Depends(auth), d=Depends(db)):
+        from .research_sandbox import STOPPED_NOTE
+
+        p = project_of(d, id, a)
+        halt(d, p, STOPPED_NOTE)
         return move(p, "finished", d, "stopped")

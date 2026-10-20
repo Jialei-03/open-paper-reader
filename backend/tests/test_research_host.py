@@ -158,3 +158,22 @@ def test_before_its_first_job_the_brief_uses_what_preparing_found(world):
         text = _setting_out(settings, p)
         assert "mps" in text and "torch 2.14" in text
         assert "macOS-15.5-arm64" in text and "8 核" in text and "16 GB" in text
+
+
+def test_an_agent_stops_its_own_job_and_cannot_kill_by_name(world):
+    settings, maker, pid = world
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        node = rm.root(d, p)
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r")
+        d.add(sprint)
+        d.flush()
+        job = rs.start_job(settings, d, p, node, sprint, "sleep 30", 60)
+        rs.stop_job(settings, d, job)
+        assert job.status == "cancelled"
+        assert (
+            rs.read_log(settings, job, 0, 50)["lines"][-1]["text"] == rs.CANCELLED_NOTE
+        )
+        for command in ("pkill -f train.py", "killall python", "kill -9 $(pgrep -f x)"):
+            with pytest.raises(ValueError, match="stop_job"):
+                rs.pi_call(settings, pid, "bash", {"command": command}, d)

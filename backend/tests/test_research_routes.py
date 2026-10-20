@@ -616,6 +616,49 @@ def test_moving_the_environment_also_moves_the_pending_plan(env):
         p = d.get(ResearchProject, pid)
         p.plan = {"version": 1, "compute_id": "host", "approved_at": None}
         d.commit()
-    assert a.post(f"{BASE}/{pid}/compute", json={"compute_id": "local"}).status_code == 200
+    assert (
+        a.post(f"{BASE}/{pid}/compute", json={"compute_id": "local"}).status_code == 200
+    )
     with app.state.maker() as d:
         assert d.get(ResearchProject, pid).plan["compute_id"] == "local"
+
+
+def test_pausing_stops_the_round_and_the_jobs_but_can_resume(env, monkeypatch):
+    from backend import research_sandbox
+
+    app, a, _b, settings = env
+    owner, model = configure(app, a, settings)
+    project = create(a, model).json()
+    stopped = []
+    monkeypatch.setattr(
+        research_sandbox,
+        "stop_jobs",
+        lambda s, d, pid, note=None: stopped.append((pid, note)),
+    )
+    with app.state.maker() as d:
+        run = AgentRun(
+            owner=owner,
+            session_id=project["session_id"],
+            model_config_id=model,
+            model="m",
+            prompt="sprint",
+            status="running",
+            lane="research",
+        )
+        d.add(run)
+        d.flush()
+        d.add(
+            ResearchSprint(
+                project_id=project["id"], number=1, run_id=run.id, status="running"
+            )
+        )
+        d.commit()
+        run_id = run.id
+    paused = a.post(f"{BASE}/{project['id']}/pause", json={})
+    assert paused.json()["status"] == "paused"
+    with app.state.maker() as d:
+        assert d.get(AgentRun, run_id).status == "cancelled"
+    assert stopped == [(project["id"], research_sandbox.PAUSED_NOTE)]
+    assert (
+        a.post(f"{BASE}/{project['id']}/resume", json={}).json()["status"] == "active"
+    )

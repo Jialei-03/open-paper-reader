@@ -894,6 +894,8 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.job.failed": "失败",
   "research.job.timeout": "超时",
   "research.job.lost": "已丢失",
+  "research.job.cancelled": "已取消",
+  "research.tool.stop_job": "停止实验",
   "research.cost": "花费：{tokens} tokens，实验 {seconds} 秒",
   "research.kind.question": "问题",
   "research.kind.hypothesis": "假设",

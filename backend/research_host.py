@@ -14,6 +14,7 @@ a lost one even after a restart.
 
 import json
 import os
+import re
 import shlex
 import signal
 import subprocess
@@ -25,6 +26,19 @@ from .research_sandbox import GONE, ORA_DIR
 
 LOG_BYTES = 8 * 1024 * 1024
 SETUP_CAP = 120
+# Ending processes by name reaches the researcher's own programs on this machine.
+BY_NAME = re.compile(r"\b(pkill|killall)\b|\bkill\b[^\n;|&]*\$\(\s*pgrep")
+BY_NAME_REFUSED = (
+    "这台机器上还跑着研究者自己的程序，不能按名字结束进程（pkill、killall、kill $(pgrep ...)）。"
+    "要停实验，用 stop_job(job_id)。"
+)
+
+
+def _check(name, args):
+    if name == "bash" and BY_NAME.search(str(args.get("command") or "")):
+        raise ValueError(BY_NAME_REFUSED)
+
+
 KEEP = ("HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "TERM")
 
 
@@ -85,6 +99,7 @@ def _tools(settings, item, cwd, request, timeout):
 
 def tool_call(settings, d, item, project, name, args):
     """One file or shell tool call in the project's workspace."""
+    _check(name, args)
     work = research_sandbox.workdir(settings, project.id)
     return _tools(settings, item, work, {"name": name, "args": args}, 75)
 
@@ -92,6 +107,7 @@ def tool_call(settings, d, item, project, name, args):
 def setup_call(settings, item, name, args):
     """A tool call of the agent preparing this machine, in host-setup, with a
     longer limit per command (longer installs go to the background)."""
+    _check(name, args)
     request = {"name": name, "args": args, "cap": SETUP_CAP}
     try:
         return _tools(settings, item, setup_dir(settings), request, SETUP_CAP + 20)

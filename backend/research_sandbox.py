@@ -68,6 +68,8 @@ NOT_SHARED = (
 )
 QUOTA_NOTE = "[系统] 工作区超过配额，作业被终止"
 STOPPED_NOTE = "[系统] 研究已停止，作业被终止"
+PAUSED_NOTE = "[系统] 研究已暂停，作业被终止"
+CANCELLED_NOTE = "[系统] 执行者停止了这个作业"
 
 # The CLI, through one name so tests can stand in for it.
 run = subprocess.run
@@ -604,8 +606,8 @@ def sweep(settings, maker):
                 d.rollback()
 
 
-def stop_jobs(settings, d, project_id):
-    """Stops a project's running experiments (the project was stopped)."""
+def stop_jobs(settings, d, project_id, note=STOPPED_NOTE):
+    """Stops a project's running experiments (the project was stopped or paused)."""
     for job in list(
         d.scalars(
             select(ResearchJob).where(
@@ -616,10 +618,19 @@ def stop_jobs(settings, d, project_id):
         try:
             _kill(job)
             _charge(d, job)
-            _finish(settings, d, job, "failed", None, note=STOPPED_NOTE)
+            _finish(settings, d, job, "failed", None, note=note)
         except (ValueError, OSError, subprocess.TimeoutExpired):
             job.status = "lost"
             job.finished_at = now()
+
+
+def stop_job(settings, d, job):
+    """Stops one running job of the project, and only that one."""
+    if job.status != "running":
+        raise ValueError(f"作业已经结束（{job.status}）")
+    _kill(job)
+    _charge(d, job)
+    _finish(settings, d, job, "cancelled", None, note=CANCELLED_NOTE)
 
 
 def job_status(job):

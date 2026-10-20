@@ -160,6 +160,12 @@ RESEARCH_TOOLS = [
         ["job_id"],
     ),
     _research(
+        "stop_job",
+        "停止本项目的一个运行中的作业（只停这一个，日志会保留，状态记为已取消）。改了配置要重跑时，先用它停掉旧作业，不要用 pkill 之类按名字结束进程。",
+        {"job_id": ID},
+        ["job_id"],
+    ),
+    _research(
         "job_logs",
         "读取后台作业日志的若干行（行号从 1 开始）；运行中的作业返回到目前为止的输出。",
         {
@@ -817,6 +823,10 @@ def _run(app, owner, research, name, args):
             result = {**counts, "version": book["version"]}
         elif name == "job_status":
             return research_sandbox.job_status(_job(d, project, args["job_id"]))
+        elif name == "stop_job":
+            job = _job(d, project, args["job_id"])
+            research_sandbox.stop_job(settings, d, job)
+            result = research_sandbox.job_status(job)
         elif name == "job_logs":
             return research_sandbox.read_log(
                 settings,
