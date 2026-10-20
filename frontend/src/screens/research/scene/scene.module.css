@@ -1,0 +1,538 @@
+/* The research room: agents at their places, what they do travelling between them. */
+
+.scene {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+}
+
+.empty {
+  margin: 0;
+  color: var(--ui-fg-2);
+}
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 340px;
+  aspect-ratio: 16 / 8;
+  border-radius: var(--ui-r-16);
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0 58%,
+      color-mix(in srgb, var(--ui-fg) 4%, transparent) 58% 100%
+    ),
+    var(--ui-bg-1);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+}
+
+/* Furniture: quiet shapes with a label; the one in use is lit. */
+.prop {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 96px;
+  padding: 8px 10px 6px;
+  border-radius: var(--ui-r-10);
+  background: var(--ui-bg-2);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+  transform: translate(-50%, 0);
+  transition:
+    box-shadow var(--ui-dur-2) var(--ui-ease-out),
+    background var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.prop[data-lit] {
+  box-shadow: inset 0 0 0 1.5px var(--ui-fg-2);
+}
+
+.prop[data-place="person"],
+.prop[data-place="shelf"] {
+  min-width: 72px;
+}
+
+.prop[data-place="gate"] {
+  min-width: 56px;
+  padding: 26px 6px 6px;
+  background:
+    repeating-linear-gradient(90deg, var(--ui-fg-3) 0 3px, transparent 3px 12px)
+      top / 100% 20px no-repeat,
+    var(--ui-bg-2);
+}
+
+.propLabel {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-11);
+  white-space: nowrap;
+}
+
+.terminal {
+  display: block;
+  overflow: hidden;
+  max-width: 180px;
+  padding: 4px 6px;
+  border-radius: var(--ui-r-6);
+  background: #1c1b19;
+  color: #e9e4da;
+  font-family: var(--ui-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.board {
+  position: absolute;
+  width: min(38%, 340px);
+  padding: 10px 12px;
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-2);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+  transform: translate(-50%, -50%);
+  transition: box-shadow var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.board[data-lit] {
+  box-shadow: inset 0 0 0 1.5px var(--ui-fg-2);
+}
+
+.board ul {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.board li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow: hidden;
+  border-radius: var(--ui-r-4);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-11);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: background var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.board li[data-current] {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+}
+
+.boardDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ui-fg-3);
+}
+
+.board li[data-status="supported"] .boardDot {
+  background: var(--ui-success-text);
+}
+
+.board li[data-status="refuted"] .boardDot,
+.board li[data-status="abandoned"] .boardDot {
+  background: var(--ui-danger-text);
+}
+
+.board li[data-status="active"] .boardDot {
+  background: var(--ui-fg);
+}
+
+/* The agents. */
+.agent {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -100%);
+}
+
+.figure {
+  transform-origin: 50% 100%;
+}
+
+.agent[data-active] .figure {
+  animation: work 900ms var(--ui-ease-out) infinite alternate;
+}
+
+.agent[data-stopped] .figure {
+  animation: halt 320ms ease-in-out 2;
+}
+
+.name {
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: var(--ui-r-pill);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-11);
+  font-weight: var(--ui-weight-strong);
+}
+
+.agent[data-active] .name {
+  background: var(--ui-fg);
+  color: var(--ui-bg-1);
+}
+
+.mascotPixels {
+  display: block;
+}
+
+.mascotImage {
+  display: block;
+  object-fit: contain;
+}
+
+.eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: blink 5s infinite;
+}
+
+.bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: var(--ui-r-10);
+  background: var(--ui-bg-1);
+  box-shadow:
+    0 0 0 1px var(--ui-edge-subtle),
+    0 6px 18px rgb(0 0 0 / 8%);
+  font-size: var(--ui-text-12);
+  animation: pop var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.bubble[data-tone="warn"] strong {
+  color: var(--ui-warning-text);
+}
+
+.bubble[data-tone="done"] strong {
+  color: var(--ui-success-text);
+}
+
+.bubbleNode {
+  overflow: hidden;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: var(--ui-r-6);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-11);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.stopSign {
+  position: absolute;
+  top: -4px;
+  right: -14px;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--ui-danger-text);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  animation: pop var(--ui-dur-2) var(--ui-ease-out);
+}
+
+/* What travels: a handoff note, a verdict stamp, a result. */
+.token {
+  position: absolute;
+  z-index: 3;
+  width: 18px;
+  height: 22px;
+  margin: -11px 0 0 -9px;
+  border-radius: 3px;
+  background: var(--ui-bg-1);
+  box-shadow:
+    0 0 0 1px var(--ui-fg-3),
+    0 4px 10px rgb(0 0 0 / 12%);
+  animation: fly var(--fly) var(--ui-ease-out) forwards;
+}
+
+.token[data-kind="paper"] {
+  background:
+    repeating-linear-gradient(
+        to bottom,
+        transparent 0 4px,
+        var(--ui-fg-3) 4px 5px
+      )
+      content-box,
+    var(--ui-bg-1);
+  padding: 4px 3px;
+}
+
+.token[data-kind="stamp"] {
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border-radius: 50%;
+  background: var(--ui-fg);
+}
+
+.token[data-kind="dot"] {
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: var(--ui-fg-1);
+}
+
+@keyframes fly {
+  from {
+    left: var(--x0);
+    top: var(--y0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    left: var(--x1);
+    top: var(--y1);
+    opacity: 0;
+  }
+}
+
+@keyframes work {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes halt {
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes blink {
+  0%,
+  96%,
+  100% {
+    transform: scaleY(1);
+  }
+  98% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+
+/* Replay controls and the full text of the step in play. */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-8);
+  align-items: center;
+}
+
+.scrub {
+  flex: 1;
+  min-width: 140px;
+  accent-color: var(--ui-fg);
+}
+
+.counter {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-1);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+  font-size: var(--ui-text-13);
+}
+
+.caption p {
+  margin: 0;
+}
+
+.captionHead {
+  display: flex;
+  gap: var(--ui-space-8);
+  align-items: center;
+}
+
+.captionWho {
+  font-weight: var(--ui-weight-strong);
+}
+
+.captionSprint,
+.captionMeta {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.captionLabel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.caption[data-tone="warn"] .captionLabel strong {
+  color: var(--ui-warning-text);
+}
+
+.caption[data-tone="done"] .captionLabel strong {
+  color: var(--ui-success-text);
+}
+
+.captionNote {
+  color: var(--ui-fg-1);
+  white-space: pre-wrap;
+}
+
+.captionLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: var(--ui-text-12);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* The looks dialog. */
+.looks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.look {
+  display: flex;
+  gap: var(--ui-space-16);
+  align-items: flex-start;
+}
+
+.lookFigure {
+  display: grid;
+  flex: none;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-2);
+}
+
+.lookFields {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+}
+
+.lookActions {
+  display: flex;
+  gap: var(--ui-space-8);
+  align-items: center;
+}
+
+.uploadLabel {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--ui-r-8);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+  font-size: var(--ui-text-13);
+  cursor: pointer;
+}
+
+.uploadLabel:focus-within {
+  outline: 2px solid var(--ui-fg);
+  outline-offset: 2px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .stage {
+    aspect-ratio: 4 / 3;
+  }
+
+  .board {
+    width: 46%;
+  }
+
+  .terminal {
+    max-width: 110px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent[data-active] .figure,
+  .agent[data-stopped] .figure,
+  .eye,
+  .bubble,
+  .stopSign,
+  .token {
+    animation: none;
+  }
+}
+
+/* The advisor's latest verdict, lying on the desk like the last command on the bench. */
+.paper {
+  display: block;
+  overflow: hidden;
+  max-width: 150px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  background: var(--ui-bg-1);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 10%);
+  color: var(--ui-fg);
+  font-size: 11px;
+  font-weight: var(--ui-weight-strong);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
