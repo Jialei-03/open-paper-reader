@@ -5,7 +5,7 @@
 </p>
 <p align="center"><b>Read papers right away at <a href="https://papers.dougao.online">papers.dougao.online</a>, nothing to install; the research agent runs on your own computer.</b></p>
 
-**An open-source research agent: give it a research question and it keeps its direction, makes progress sprint after sprint, knows when to back off, and backs every result with evidence you can check.** Built on the [Pi](https://github.com/earendil-works/pi) agent; you choose the model.
+**An open-source research agent: it agrees on a research plan with you in conversation, runs real experiments on your computer or a remote GPU, keeps its direction round after round, knows when to back off, and backs every result with evidence you can check.** Built on the [Pi](https://github.com/earendil-works/pi) agent; you choose the model.
 
 [简体中文](README.md) · English · [Use it online](https://papers.dougao.online) · [Local build](docs/LOCAL.md) · [All docs](docs/README.md)
 
@@ -23,33 +23,35 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 
 ## How it works
 
-- **Research map.** The direction of the research lives in a persistent tree, not in a chat: the north-star question, sub-questions, hypotheses, experiments, findings. Each node has a status, a confidence, evidence and doubts, and every change records who made it and why.
-- **Sprints.** Each sprint starts from the map and the last handoff, with no chat history. Work can go on for many sprints, across days, and picks up from the map after any interruption.
-- **Focus before acting.** Before running code, writing files or changing the map, the agent must say which node of the map it is advancing. Without that, or on a branch already refuted, the action is refused and logged. That both prevents drift and measures it.
-- **Kill conditions.** Every hypothesis states up front what result would show it is a dead end. When a result meets the condition, the hypothesis is refuted.
-- **Advisor.** A read-only advisor reviews the map every 3 sprints, after a stop signal or a finding, at half and four-fifths of the budget, and when two sprints in a row moved nothing. For each node it says continue, invest, drop, pivot, or ask a person, and the verdict takes effect.
-- **Evidence.** Experiments run in an isolated Docker sandbox on your computer (no network, only the project's own directory mounted), and the system keeps their logs. A result is recorded only with real log lines or sentences from a paper, and every number in it must appear in that evidence.
-- **Playbook: improving across projects.** When a project ends, a distiller turns how it went (the advisor's calls, the kill decisions, the drift) into "in this situation, do this" judgment rules. A rule takes effect once two projects support it, and harmful rules are retired. Later projects read the playbook. The aim is a research process that improves while the model stays the same; that is not shown yet (see Status).
-- **Process metrics.** Drift, backtrack delay, handoff rate, evidence count and cost per supported finding are computed from the record, so different setups can be compared.
+- **It starts with a conversation**: say in one sentence what you want to find out. The advisor talks it through and writes a plan card: the metric, the baseline, what comes first, and what result would sink each hypothesis (its kill condition). Experiments start when you approve it.
+- **Projects, a board, and chats**: research is organized in projects, with a board showing where every research, hypothesis and experiment stands. Each project holds chats where you can ask how things are going; chats only read, so they never disturb work in progress.
+- **Research map**: the direction lives in a persistent tree, not in chat history: north-star question → sub-questions → hypotheses → experiments → findings. Every change records who made it and why. Each round starts from the map and the last handoff, so work can run for many rounds over days.
+- **Focus before acting**: before running code, writing files or changing the map, the executor must say which node it advances; if it does not, or that branch has been refuted, the action is refused and logged.
+- **The advisor judges, you decide**: a read-only advisor reviews the map, checks numbers against the logs, and decides to continue, invest, drop or pivot, asking you when it needs to. The plan, the conclusion and any extra budget are your call.
+- **Environments set up by an agent**: experiments run directly on your computer (using an Apple-silicon or NVIDIA GPU), in an isolated Docker container, or on a lab machine over SSH. An agent installs what is needed, and the system checks it before calling it ready.
+- **Evidence**: the system collects each experiment's logs, settings and metrics instead of trusting the agent to copy them. A result can only cite real log lines or a paper's own sentences, and its numbers must appear in them verbatim. Runs can be mirrored to SwanLab or Weights & Biases.
+- **Playbook (self-improvement across projects)**: when a research ends, a distiller turns what happened into judgment rules ("in this situation, do this"). A rule takes effect once two researches support it, and later researches read it. It has not been shown to help yet (see the status below).
+
+Details are in [Research](docs/RESEARCH.md) (Chinese).
 
 ## Status
 
-This is an early version. What has actually run:
+This is an early version. What actually works end to end:
 
-- **The full research loop**, end to end with a real model (gpt-6-luna): local Docker experiments, the research map, the advisor, evidence checks, the playbook and the research report.
+- **The whole research flow**: projects and board, scoping by conversation, local / Docker / SSH environments, the advisor, evidence checks, the playbook, the research report. Run with a real model on an M1 Mac on a CIFAR-10 question, with experiments on MPS.
 - **Seven evaluation rounds** on held-out tasks covering four kinds of research judgment:
 
-  | Task | The right move |
+  | Task | The right behavior |
   |---|---|
-  | Find a threshold | Numbers that match the truth |
-  | Missing data | Say so and stop to ask |
-  | A tempting dead end | Refute it and stop |
-  | Label leakage | Doubt a near-perfect score and find the leaking column |
+  | Find the best threshold | A number matching the precomputed truth |
+  | Missing data | Report it honestly and stop to ask |
+  | Tempting dead end | Refute it and stop |
+  | Label leak | Distrust a near-perfect score and find the leaking column |
 
-  The main failures each round found were fixed; the model never changed. In the latest round, 17 of 18 runs ended the right way. On a pre-registered set of tasks never used in development, all 15 runs without the playbook ended the right way. On the leakage task, right endings went from 3 of 6 in round 3 to 9 of 10 in round 7. See the [evaluation record](docs/research/2026-10-20-third-results.md) (in Chinese).
-- **The advisor's job is knowing when to stop.** Without it, the executor stays honest and gets the numbers right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost.
-- **The playbook (self-improvement) is not shown to help yet.** Rules learned from an empty playbook cut cost by 27% on the tasks used throughout development (20/20 vs 17/20 full marks). On a pre-registered set of fresh tasks this **did not replicate**: 13/15 vs 15/15 right endings, at 12% more cost. With 15 runs per condition on the fresh leakage task, no effect was detected either (sprint difference +1.00, 95% CI 0.00 to 2.07). See the [controlled run](docs/research/2026-10-20-learned-playbook.md) and the [fresh held-out set](docs/research/2026-10-20-fresh-heldout-plan.md).
-- **Not there yet**: more seeds and tasks of other kinds, research in the hosted version (it runs locally for now), and GPU experiments.
+  Each round's main failures were fixed without changing the model. In the latest round 17 of 18 runs ended the right way; on a pre-registered set of new tasks never used in development, all 15 runs without the playbook ended the right way. See the [evaluation record](docs/research/2026-10-20-third-results.md).
+- **The advisor's value is knowing when to stop**: without it the executor stayed honest and its numbers were right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost.
+- **The playbook has not been shown to help**: rules learned from an empty playbook cut cost by 27% on the tasks used during development, but this **did not replicate** on a pre-registered set of new tasks. See the [controlled comparison](docs/research/2026-10-20-learned-playbook.md) and the [fresh held-out set](docs/research/2026-10-20-fresh-heldout-plan.md).
+- **Not yet**: event-driven scheduling (rounds are polled today) and research in the hosted version (it runs locally only).
 
 ## Reading papers
 
@@ -68,26 +70,20 @@ git clone https://github.com/Jialei-03/open-research-agent
 cd open-research-agent
 make install   # .venv plus backend, frontend and agent runtime dependencies
 make build     # build the frontend
-python -m backend.local --port 8765   # local edition, no sign-in, open http://127.0.0.1:8765
+python -m backend.local --port 8765   # local build, no sign-in, open http://127.0.0.1:8765
 ```
 
-Research needs Docker and a one-time sandbox build:
-
-```bash
-make research-image
-```
-
-With colima on macOS, Docker sees only your home directory by default. The data directory is `~/.open-paper-reader/`, so nothing needs changing. Add a model in Settings the first time (an API key or a local model). See [Local build](docs/LOCAL.md).
+On first open, add a model in Settings → Models (an API key or a local model), then prepare an environment in Settings → Research environments: for the default one (this computer, listed as “本机”), press “Let an agent prepare it” and an agent sets up a separate Python environment in the data folder. For the isolated Docker environment, build its image first with `make research-image`. Data lives in `~/.open-paper-reader/` by default. See [Local build](docs/LOCAL.md) and [Research](docs/RESEARCH.md).
 
 ## Development
 
 ```bash
-make help      # every command
+make help      # all commands
 make test      # backend tests
 ```
 
-Layout, tests and conventions are in [Development](docs/DEVELOPMENT.md). The research design and plans are in [`docs/superpowers/`](docs/superpowers/).
+Getting started on a new machine, the code map, how the research system runs, testing and conventions are in the [development handbook](docs/DEVELOPMENT.md) (Chinese).
 
 ## License
 
-[MIT](LICENSE). Third-party licenses are in [NOTICE](NOTICE.md). Not affiliated with Anthropic or OpenAI.
+[MIT](LICENSE). Third-party licenses are in [NOTICE](NOTICE.md). This project is not affiliated with Anthropic or OpenAI.

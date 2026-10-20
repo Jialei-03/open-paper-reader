@@ -20,7 +20,14 @@ const steps = [
 ] as const;
 
 const modes = ["original", "parallel", "translated"] as const;
-const research = ["map", "focus", "advisor", "evidence", "playbook"] as const;
+const research = [
+  "conversation",
+  "projects",
+  "environments",
+  "advisor",
+  "evidence",
+  "playbook",
+] as const;
 const local = ["data", "account", "models", "planned"] as const;
 
 function InstallCommand() {

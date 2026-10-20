@@ -782,19 +782,13 @@ export const en = {
   "site.nav.research": "How the research moves",
   "site.research.title": "How the research moves",
   "site.research.body":
-    "Automated research agents often finish the engineering yet fail to move the research: they misjudge what is worth doing, do not back off dead ends, and drift from the goal. Each part here is built against those failures.",
-  "site.research.map.title": "Research map",
-  "site.research.map.body":
-    "The direction lives in a persistent tree, not a chat: questions, hypotheses that can fail, experiments, findings. Every sprint starts from the map and picks up after any interruption.",
-  "site.research.focus.title": "Focus before acting",
-  "site.research.focus.body":
-    "Before running code, writing files or changing the map, the agent says which node it advances; actions that stray are refused and logged.",
-  "site.research.advisor.title": "Independent advisor",
+    "Automated research agents often finish the engineering yet fail to move the research: they misjudge what is worth doing, do not back off dead ends, and drift from the goal. Each part here is built against those failures, and the key decisions stay yours.",
+  "site.research.advisor.title": "The advisor judges, you decide",
   "site.research.advisor.body":
-    "A read-only advisor reviews the map on a schedule, checks numbers against the logs, and decides: continue, invest, drop, pivot, or ask you.",
+    "A read-only advisor reviews the research map, checks numbers against the logs, and decides to continue, invest, drop or pivot, asking you when it needs to. A conclusion counts only once you accept it, or you can ask for more work.",
   "site.research.evidence.title": "Evidence",
   "site.research.evidence.body":
-    "Experiments run in an isolated sandbox on your computer and the system keeps their logs. A result can only cite real log lines or a paper's own sentences, and the numbers must match.",
+    "The system collects each experiment's logs, settings and metrics instead of trusting the agent to copy them. A result can only cite real log lines or a paper's own sentences, and the numbers must match.",
   "site.research.playbook.title": "Playbook",
   "site.research.playbook.body":
     "When a project ends, the advisor's calls and the kill decisions become judgment rules; a rule supported by two projects takes effect, and later projects read it.",
@@ -802,17 +796,17 @@ export const en = {
     "In the latest evaluation round, 17 of 18 runs ended the right way: answers matched the precomputed truth, and a tempting dead end and a label leak were both refuted. With data missing, it stops to ask and never makes data up. Without the advisor, every project used its whole budget.",
   "site.research.resultLink": "Evaluation record",
   "site.research.alt":
-    "The research page: research map, sprint timeline and process metrics.",
+    "The research page: the conversation with the advisor and each round's work in the middle; the plan, experiments and metrics on the right.",
   "site.nav.start": "Read papers online",
   "site.language": "Language",
   "site.hero.title":
     "Give it a research question. It keeps its direction, moves forward sprint by sprint, and shows evidence you can check.",
   "site.hero.lead":
-    "Open Research Agent is an open-source research agent: a research map, an independent advisor, kill conditions, real experiments in an isolated sandbox, and a playbook that improves across projects. Research runs on your own computer; the paper-reading part works online right away.",
+    "Open Research Agent is an open-source research agent: it agrees on a plan with you in conversation, runs real experiments on your computer or a remote GPU, keeps its direction with an independent advisor, and backs every result with evidence. Research runs on your own computer; the paper-reading part works online right away.",
   "site.hero.start": "Read papers online",
   "site.hero.source": "View source",
   "site.shot.alt":
-    "The research page: the research map on the left (questions, hypotheses, findings and their confidence), each sprint's handoff and the advisor's calls on the right, sprints, cost and process metrics on top.",
+    "The research page: the researcher's conversation with the advisor, the plan card and each round's work in the middle; the plan, experiments and metrics on the right.",
   "site.how.title": "Reading papers: from a PDF to an answer you can check",
   "site.how.import.title": "Import",
   "site.how.import.body":
@@ -833,14 +827,14 @@ export const en = {
     "One paper, three ways to read it. Switch at the top of the reader at any time.",
   "site.open.title": "Open source",
   "site.open.body":
-    "Open Research Agent is open source under the MIT license. Research runs on your own computer (it needs Docker); to just read papers, use the hosted version with your own key. Chinese and English, light and dark.",
+    "Open Research Agent is open source under the MIT license. Research runs on your own computer; to just read papers, use the hosted version with your own key. Chinese and English, light and dark.",
   "site.nav.modes": "Reading modes",
   "site.nav.local": "Local-first",
   "site.hero.install": "Run it on your own computer",
   "site.hero.copy": "Copy command",
   "site.hero.copied": "Copied",
   "site.hero.note":
-    "Research needs Docker. Add a model the first time you open it; no sign-in after that.",
+    "Add a model the first time you open it; no sign-in after that. Experiments run directly on your computer by default, or in Docker or over SSH.",
   "site.how.guide.alt":
     "The guide tab: a three-line summary, keywords and a guide by section, each with page chips.",
   "site.how.select.alt":
@@ -872,6 +866,15 @@ export const en = {
     "Letting the Claude Code or Codex on your machine read papers. Only a plan for now; it is not in the current version.",
   "site.open.source": "View on GitHub",
   "site.footer": "MIT license. Not affiliated with Anthropic or OpenAI.",
+  "site.research.conversation.title": "Start with a conversation",
+  "site.research.conversation.body":
+    "Say in one sentence what you want to find out. The advisor talks it through and writes a plan card: the metric, the baseline, what comes first, and what result would sink each hypothesis. Experiments start when you approve it.",
+  "site.research.projects.title": "Projects, a board, and chats",
+  "site.research.projects.body":
+    "Research is organized in projects, with a board showing where every research, hypothesis and experiment stands. Each project holds chats where you can ask how things are going; they only read, so they never disturb work in progress.",
+  "site.research.environments.title": "Environments set up by an agent",
+  "site.research.environments.body":
+    "Experiments run directly on your computer (using an Apple-silicon or NVIDIA GPU), in Docker, or on a lab machine over SSH. An agent installs what is needed, and the system checks it before calling it ready.",
   "login.home": "Open Research Agent home",
   "login.title": "Welcome back",
   "login.title.register": "Create an account",

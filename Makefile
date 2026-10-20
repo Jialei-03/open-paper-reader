@@ -32,7 +32,7 @@ web: ## Run the frontend dev server with hot reload on http://127.0.0.1:5173
 worker: env ## Run the assistant worker (reading guides, quizzes, page translation, the assistant)
 	set -a; . ./.env; set +a; $(PY) -m backend.agent_worker
 
-research-image: ## Build the research sandbox image (Docker; needed to run experiments)
+research-image: ## Build the image for the Docker research environment (optional)
 	docker build -f deploy/Dockerfile.research-sandbox -t open-research-sandbox:1 .
 
 test: ## Backend tests

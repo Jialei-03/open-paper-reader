@@ -725,36 +725,31 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.nav.research": "研究怎么推进",
   "site.research.title": "研究怎么推进",
   "site.research.body":
-    "自动科研 Agent 常常能把工程做完，却推进不了研究：不知道什么值得做、走进死胡同不回头、做着做着偏离目标。这里每一步都为这些问题而设计。",
-  "site.research.map.title": "研究地图",
-  "site.research.map.body":
-    "方向不放在聊天记录里，而是一棵持久的树：问题、可证伪的假设、实验、发现。每一轮都从地图出发，中断后接着做。",
-  "site.research.focus.title": "先聚焦再动手",
-  "site.research.focus.body":
-    "运行代码、写文件、改地图之前，必须说明在推进哪个节点；跑偏的动作会被拦下并记录。",
-  "site.research.advisor.title": "独立导师",
+    "自动科研 Agent 常常能把工程做完，却推进不了研究：不知道什么值得做、走进死胡同不回头、做着做着偏离目标。这里每一步都为这些问题而设计，关键的决定留给你。",
+  "site.research.advisor.title": "导师判断，你来拍板",
   "site.research.advisor.body":
-    "只读的导师定期审视地图，按日志核对数字，决定继续、加注、放弃、转向或请你拍板。",
+    "只读的导师审视研究地图，按日志核对数字，决定继续、加注、放弃还是转向；需要你的时候会问你。结论要你接受才算数，也可以要求补做。",
   "site.research.evidence.title": "证据",
   "site.research.evidence.body":
-    "实验在本机隔离环境里跑，日志由系统保存。结论只能引用真实的日志行或论文原句，数字必须对得上。",
+    "实验的日志、配置和指标由系统采集，不靠 Agent 自己抄。结论只能引用真实的日志行或论文原句，数字必须对得上。",
   "site.research.playbook.title": "研究手册",
   "site.research.playbook.body":
     "项目结束后，把导师的判断和止损的经过提炼成判断规则；被两个项目支持的规则才会生效，之后的项目都会读到。",
   "site.research.result":
     "在最新一轮评测里，18 次运行有 17 次以正确的方式结束：该回答的数字与真值一致，诱人的死胡同和标签泄漏都被否定。缺数据时，它会停下来问人，从不编造数据。去掉导师后，项目全部跑满预算。",
   "site.research.resultLink": "评测记录",
-  "site.research.alt": "研究页：研究地图、轮次时间线和过程指标。",
+  "site.research.alt":
+    "研究页：中间是和导师的对话与每一轮的工作，右边是计划、实验和指标。",
   "site.nav.start": "在线读论文",
   "site.language": "语言",
   "site.hero.title":
     "给它一个研究问题，它会守住方向、一轮一轮推进，并拿出能核对的证据。",
   "site.hero.lead":
-    "Open Research Agent 是开源的研究 Agent：研究地图、独立导师、止损条件、隔离环境里的真实实验，以及跨项目自我改进的研究手册。研究在你自己的电脑上运行；读论文的部分可以直接在线使用。",
+    "Open Research Agent 是开源的研究 Agent：和你对话定下计划，在你的电脑或远程 GPU 上做真实实验，由独立导师守住方向，结论有据可查。研究在你自己的电脑上运行；读论文的部分可以直接在线使用。",
   "site.hero.start": "在线读论文",
   "site.hero.source": "查看源码",
   "site.shot.alt":
-    "研究页：左边是研究地图（问题、假设、发现及其置信度），右边是每一轮的交接和导师的判断，上方是轮次、花费和过程指标。",
+    "研究页：中间是研究者和导师的对话、计划卡片和每一轮的工作过程，右边是研究计划、实验和指标。",
   "site.how.title": "读论文：从一份 PDF，到一个能核对的回答",
   "site.how.import.title": "导入",
   "site.how.import.body":
@@ -774,14 +769,14 @@ export const zh: { [K in keyof typeof en]: string } = {
   "site.modes.body": "同一篇论文，三种读法，在阅读器顶部随时切换。",
   "site.open.title": "开源",
   "site.open.body":
-    "Open Research Agent 以 MIT 许可开源。研究功能需要在自己电脑上运行（需要 Docker）；只想读论文，可以直接用在线版，同样用你自己的密钥。中文和英文界面，浅色和深色。",
+    "Open Research Agent 以 MIT 许可开源。研究功能在你自己的电脑上运行；只想读论文，可以直接用在线版，同样用你自己的密钥。中文和英文界面，浅色和深色。",
   "site.nav.modes": "阅读方式",
   "site.nav.local": "本地优先",
   "site.hero.install": "在自己的电脑上运行",
   "site.hero.copy": "复制命令",
   "site.hero.copied": "已复制",
   "site.hero.note":
-    "研究功能需要 Docker。第一次打开时添加一个模型，之后不用登录。",
+    "第一次打开时添加一个模型，之后不用登录。实验默认直接在本机运行，也可以改用 Docker 或 SSH。",
   "site.how.guide.alt":
     "右侧导读标签：三句摘要、关键词和按章节的导读，每节后面有页码标签。",
   "site.how.select.alt":
@@ -811,6 +806,15 @@ export const zh: { [K in keyof typeof en]: string } = {
     "让你本机的 Claude Code 或 Codex 来读论文，目前只是计划，现在的版本里没有。",
   "site.open.source": "在 GitHub 上查看",
   "site.footer": "MIT 许可。与 Anthropic、OpenAI 无关联。",
+  "site.research.conversation.title": "从一次对话开始",
+  "site.research.conversation.body":
+    "一句话说你想弄清楚什么。导师和你聊几句，写出一张计划卡片：指标、基线、先做什么、每个假设什么结果算失败。你点头，实验才开始。",
+  "site.research.projects.title": "项目、看板和对话",
+  "site.research.projects.body":
+    "研究按项目组织，看板上看得到每个研究、假设和实验走到哪一步。项目里可以开多个对话随时问进展，只读，不会打扰正在跑的研究。",
+  "site.research.environments.title": "环境交给 Agent",
+  "site.research.environments.body":
+    "实验可以直接在你的电脑上跑（用上 Apple 芯片或 NVIDIA 的 GPU），也可以放进 Docker，或者通过 SSH 跑在实验室的机器上。环境由 Agent 装好，系统亲自检测过才算就绪。",
   "login.home": "Open Research Agent 首页",
   "login.title": "欢迎回来",
   "login.title.register": "创建账户",
