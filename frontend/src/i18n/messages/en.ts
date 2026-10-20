@@ -1514,4 +1514,6 @@ export const en = {
   "projects.saved": "Saved",
   "projects.archive": "Archive project",
   "projects.unarchive": "Unarchive",
+  "projects.moreLeft": "Show the columns to the left",
+  "projects.moreRight": "Show the columns to the right",
 } as const;

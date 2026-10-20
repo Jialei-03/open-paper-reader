@@ -1417,4 +1417,6 @@ export const zh: { [K in keyof typeof en]: string } = {
   "projects.saved": "已保存",
   "projects.archive": "归档项目",
   "projects.unarchive": "取消归档",
+  "projects.moreLeft": "查看左边的列",
+  "projects.moreRight": "查看右边的列",
 };

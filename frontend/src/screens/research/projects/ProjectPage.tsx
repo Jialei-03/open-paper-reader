@@ -1,5 +1,7 @@
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   FlaskConical,
   Lightbulb,
   Microscope,
@@ -175,6 +177,78 @@ function Board({
   const [idea, setIdea] = useState("");
   const [over, setOver] = useState<Column | "">("");
   const strip = useRef<HTMLDivElement>(null);
+  // How many cards sit in the columns past each edge.
+  const [past, setPast] = useState({ left: 0, right: 0 });
+
+  const measure = useCallback(() => {
+    const el = strip.current;
+    if (!el) return;
+    const box = el.getBoundingClientRect();
+    let left = 0;
+    let right = 0;
+    for (const column of Array.from(el.children) as HTMLElement[]) {
+      const rect = column.getBoundingClientRect();
+      const n = Number(column.dataset.count) || 0;
+      if (rect.right <= box.left + 24) left += n || 0.001;
+      else if (rect.left >= box.right - 24) right += n || 0.001;
+    }
+    setPast({ left, right });
+  }, []);
+
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [measure, cards.length]);
+
+  // Pressing on the board's background and dragging pans it, as on a desk.
+  const pan = useRef<{ x: number; left: number; id: number } | null>(null);
+  const [panning, setPanning] = useState(false);
+  const grab = (event: React.PointerEvent<HTMLDivElement>) => {
+    const el = strip.current;
+    if (!el || event.button !== 0) return;
+    if (
+      (event.target as HTMLElement).closest(
+        "article, button, input, textarea, a, form, [draggable='true']",
+      )
+    )
+      return;
+    pan.current = {
+      x: event.clientX,
+      left: el.scrollLeft,
+      id: event.pointerId,
+    };
+    el.setPointerCapture(event.pointerId);
+    setPanning(true);
+  };
+  const drag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const el = strip.current;
+    if (!el || !pan.current) return;
+    el.scrollLeft = pan.current.left - (event.clientX - pan.current.x);
+  };
+  const release = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (pan.current && strip.current?.hasPointerCapture(event.pointerId))
+      strip.current.releasePointerCapture(event.pointerId);
+    pan.current = null;
+    setPanning(false);
+  };
+
+  const turn = (direction: 1 | -1) => {
+    const el = strip.current;
+    if (!el) return;
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollBy({
+      left: direction * el.clientWidth * 0.8,
+      behavior: still ? "auto" : "smooth",
+    });
+  };
 
   // A mouse wheel turns the board sideways, unless a column under the pointer
   // still has its own cards to scroll that way.
@@ -214,63 +288,103 @@ function Board({
   };
 
   return (
-    <div className={styles.board} ref={strip}>
-      {columns.map((column) => {
-        const here = cards.filter((c) => c.column === column);
-        return (
-          <section
-            key={column}
-            className={styles.column}
-            data-column={column}
-            data-over={over === column || undefined}
-            onDragOver={(event) => {
-              if (hand.includes(column)) {
-                event.preventDefault();
-                setOver(column);
-              }
-            }}
-            onDragLeave={() => setOver("")}
-            onDrop={(event) =>
-              drop(column, event.dataTransfer.getData("text/card"))
-            }
-          >
-            <header className={styles.columnHead}>
-              <span className={styles.columnDot} data-column={column} />
-              {t(`projects.column.${column}` as MessageKey)}
-              <span className={styles.count}>{here.length}</span>
-            </header>
-            {column === "triage" && (
-              <form
-                className={styles.ideaForm}
-                onSubmit={async (event) => {
+    <div className={styles.boardWrap}>
+      {past.left > 0 && (
+        <button
+          type="button"
+          className={styles.more}
+          data-side="left"
+          aria-label={t("projects.moreLeft")}
+          onClick={() => turn(-1)}
+        >
+          <ChevronLeft size={14} aria-hidden />
+          {Math.floor(past.left) > 0 && Math.floor(past.left)}
+        </button>
+      )}
+      {past.right > 0 && (
+        <button
+          type="button"
+          className={styles.more}
+          data-side="right"
+          aria-label={t("projects.moreRight")}
+          onClick={() => turn(1)}
+        >
+          {Math.floor(past.right) > 0 && Math.floor(past.right)}
+          <ChevronRight size={14} aria-hidden />
+        </button>
+      )}
+      <div
+        className={styles.board}
+        ref={strip}
+        data-panning={panning || undefined}
+        onPointerDown={grab}
+        onPointerMove={drag}
+        onPointerUp={release}
+        onPointerCancel={release}
+      >
+        {columns.map((column) => {
+          const here = cards.filter((c) => c.column === column);
+          return (
+            <section
+              key={column}
+              className={styles.column}
+              data-column={column}
+              data-count={here.length}
+              data-over={over === column || undefined}
+              onDragOver={(event) => {
+                if (hand.includes(column)) {
                   event.preventDefault();
-                  if (!idea.trim()) return;
-                  try {
-                    await addCard(workspace.id, idea.trim());
-                    setIdea("");
-                    refresh();
-                  } catch (error) {
-                    fail(error);
-                  }
-                }}
-              >
-                <Plus size={14} aria-hidden />
-                <input
-                  value={idea}
-                  placeholder={t("projects.ideaPlaceholder")}
-                  aria-label={t("projects.ideaPlaceholder")}
-                  onChange={(e) => setIdea(e.target.value)}
-                />
-              </form>
-            )}
-            <div className={styles.cards} data-cards>
-              {here.map((card) => (
-                <CardFace key={card.id} card={card} go={go} refresh={refresh} />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+                  setOver(column);
+                }
+              }}
+              onDragLeave={() => setOver("")}
+              onDrop={(event) =>
+                drop(column, event.dataTransfer.getData("text/card"))
+              }
+            >
+              <header className={styles.columnHead}>
+                <span className={styles.columnDot} data-column={column} />
+                {t(`projects.column.${column}` as MessageKey)}
+                <span className={styles.count}>{here.length}</span>
+              </header>
+              {column === "triage" && (
+                <form
+                  className={styles.ideaForm}
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    if (!idea.trim()) return;
+                    try {
+                      await addCard(workspace.id, idea.trim());
+                      setIdea("");
+                      refresh();
+                    } catch (error) {
+                      fail(error);
+                    }
+                  }}
+                >
+                  <Plus size={14} aria-hidden />
+                  <input
+                    value={idea}
+                    placeholder={t("projects.ideaPlaceholder")}
+                    aria-label={t("projects.ideaPlaceholder")}
+                    onChange={(e) => setIdea(e.target.value)}
+                  />
+                </form>
+              )}
+              <div className={styles.cards} data-cards>
+                {here.map((card) => (
+                  <CardFace
+                    key={card.id}
+                    card={card}
+                    go={go}
+                    refresh={refresh}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

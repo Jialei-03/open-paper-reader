@@ -188,8 +188,6 @@
 .board {
   display: grid;
   grid-auto-columns: minmax(240px, 1fr);
-  scrollbar-width: thin;
-  scrollbar-color: var(--ui-edge) transparent;
   grid-auto-flow: column;
   gap: var(--ui-space-12);
   height: 100%;
@@ -229,6 +227,97 @@
   color: var(--ui-fg-3);
   font-weight: var(--ui-weight-regular);
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * A scrollbar that stays: macOS hides overlay scrollbars until one scrolls,
+ * and a board's columns past the edge would go unseen. (Setting
+ * scrollbar-width would switch these rules off in Chromium.)
+ */
+.board::-webkit-scrollbar {
+  height: 10px;
+}
+
+.board::-webkit-scrollbar-track {
+  margin: 0 var(--ui-space-16);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-fill);
+}
+
+.board::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--ui-r-pill);
+  background: color-mix(in oklab, var(--ui-fg) 28%, transparent);
+  background-clip: padding-box;
+}
+
+.board::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--ui-fg) 45%, transparent);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .board {
+    scrollbar-width: thin;
+  }
+}
+
+/* The background can be grabbed and dragged to pan the board. */
+.board {
+  cursor: grab;
+}
+
+.board[data-panning] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.board article,
+.board button,
+.board input {
+  cursor: auto;
+}
+
+.boardWrap {
+  position: relative;
+  height: 100%;
+}
+
+/* More columns past an edge: a button there says how many cards, and goes. */
+.more {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  height: 32px;
+  padding: 0 var(--ui-space-10);
+  border: 0;
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-elev);
+  box-shadow: var(--ui-elev-2);
+  color: var(--ui-fg-1);
+  font: inherit;
+  font-size: var(--ui-text-12);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.more[data-side="left"] {
+  left: var(--ui-space-8);
+}
+
+.more[data-side="right"] {
+  right: var(--ui-space-8);
+}
+
+.more:hover {
+  color: var(--ui-fg);
+}
+
+.more:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-elev-2), var(--ui-focus-ring);
 }
 
 /* One quiet colour per column, also the dot on rows and the edge of cards. */
