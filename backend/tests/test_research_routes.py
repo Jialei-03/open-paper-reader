@@ -400,3 +400,25 @@ def test_an_environment_is_prepared_by_an_agent_run(env):
     assert progress["run"]["status"] == "queued" and progress["steps"] == []
     shown = a.get("/api/v1/research/settings").json()
     assert shown["states"]["wsl"]["status"] == "preparing"
+
+
+def test_a_research_run_can_be_watched_by_its_owner_only(env):
+    app, a, b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    a.put(
+        "/api/v1/research/settings",
+        json={"computes": [{"id": "wsl", "kind": "ssh", "host": "research-wsl"}]},
+    )
+    run_id = a.post(
+        "/api/v1/research/environments/wsl/prepare", json={"model_config_id": model}
+    ).json()["run_id"]
+    with app.state.maker() as d:
+        run = d.get(AgentRun, run_id)
+        run.steps = [{"name": "bash", "status": "completed", "said": "先看看显卡"}]
+        d.commit()
+    shown = a.get(f"/api/v1/research/runs/{run_id}").json()
+    assert shown["status"] == "queued" and shown["role"] == "envsetup"
+    assert shown["steps"][0]["said"] == "先看看显卡"
+    assert "prompt" not in shown
+    assert b.get(f"/api/v1/research/runs/{run_id}").status_code == 404

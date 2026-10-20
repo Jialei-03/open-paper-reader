@@ -355,6 +355,30 @@ def install_research_routes(app, settings, db, auth, human, owned):
         except (ValueError, TypeError) as e:
             raise HTTPException(422, str(e)) from None
 
+    @app.get("/api/v1/research/runs/{run_id}")
+    def research_run(run_id: str, a=Depends(auth), d=Depends(db)):
+        """One agent run of research (a sprint, a scoping turn, a preparation), as it goes."""
+        allowed(a, d)
+        run = d.get(AgentRun, run_id)
+        if run is None or run.owner != a["id"] or run.lane != "research":
+            raise HTTPException(404, "Not found")
+        runtime = run.runtime or {}
+        return {
+            "id": run.id,
+            "status": run.status,
+            "response": run.response or "",
+            "error": run.error or "",
+            "steps": run.steps or [],
+            "role": (runtime.get("research") or {}).get("role", ""),
+            "runtime": {
+                k: runtime.get(k)
+                for k in ("phase", "execution_seconds", "waiting_seconds")
+                if k in runtime
+            },
+            "created_at": run.created_at,
+            "updated_at": run.updated_at,
+        }
+
     @app.post("/api/v1/research/environments/{env_id}/prepare")
     def prepare_environment(
         env_id: str, body: PrepareInput, a=Depends(auth), d=Depends(db)

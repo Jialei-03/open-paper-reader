@@ -55,6 +55,10 @@ RESEARCH_BASE = {
 }
 
 
+# Preparing a machine downloads gigabytes; it gets four times an ordinary run's time.
+SETUP_FACTOR = 4
+
+
 def research_tools(role="executor"):
     """The executor works (files, shell, jobs, the map); the advisor only reads and judges."""
     from .research_tools import (
@@ -334,6 +338,7 @@ def _process(app, job_id, cfg):
             + json.dumps(checkpoint, ensure_ascii=False)
         )
     response = ""
+    said_shown = False
     final_answer = None
     steps = []
     failed = ""
@@ -341,7 +346,11 @@ def _process(app, job_id, cfg):
     calls = 0
     image_count = len(payload.get("images", []))
     # Read when the run starts, so the budget is one setting, also in tests.
-    budget = RunBudget(agent_budget.EXECUTION_SECONDS, agent_budget.WAIT_SECONDS)
+    budget = RunBudget(
+        agent_budget.EXECUTION_SECONDS
+        * (SETUP_FACTOR if (research or {}).get("role") == "envsetup" else 1),
+        agent_budget.WAIT_SECONDS,
+    )
 
     def phase(value):
         with maker() as d:
@@ -457,6 +466,7 @@ def _process(app, job_id, cfg):
                             raise ValueError("回复超过长度限制")
                     elif event["type"] == "reset":
                         response = ""
+                        said_shown = False
                         store()
                     elif event["type"] == "tool":
                         phase("tool")
@@ -475,15 +485,20 @@ def _process(app, job_id, cfg):
                             )
                             for k, v in args.items()
                         }
-                        steps.append(
-                            {
-                                "name": name,
-                                "label": TOOL_MAP.get(name, {}).get("label", name),
-                                "status": "running",
-                                "arguments": audit_args,
-                                "fingerprint": fingerprint(name, args),
-                            }
-                        )
+                        step = {
+                            "name": name,
+                            "label": TOOL_MAP.get(name, {}).get("label", name),
+                            "status": "running",
+                            "arguments": audit_args,
+                            "fingerprint": fingerprint(name, args),
+                        }
+                        # What the model wrote before this call (why it does it),
+                        # once per message: later calls of the message share it.
+                        words = clean_response(response).strip()
+                        if words and not said_shown:
+                            step["said"] = words[-4000:]
+                            said_shown = True
+                        steps.append(step)
                         store()
                         try:
                             reused = (

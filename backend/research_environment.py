@@ -51,6 +51,9 @@ def brief(item, needs, allow_sudo, previous):
             else "不要使用 sudo，也不要改系统 Python：所有东西装在用户主目录下。"
         ),
         "## 工作目录\n你的 bash 在这台机器的 ~/ora-setup 里运行，可以联网下载。",
+        "## 范围\n只准备环境。不要查看、修改或运行研究项目的任何东西"
+        f"（{item.get('remote_dir', '~/ora-research')} 下除 ora/ 以外的目录都是研究项目），"
+        "不要启动训练或实验，也不要找“任务说明文件”：要做的事就是这份简报。",
     ]
     if previous.get("python"):
         lines.append(
@@ -60,6 +63,10 @@ def brief(item, needs, allow_sudo, previous):
                 ensure_ascii=False,
             )[:3000]
         )
+    lines.append(
+        "## 先检查现成的\n如果这台机器上已经有一个满足要求的环境（上一次准备的，或研究者自己装的），"
+        "验证它能用之后立刻调用 finish_setup，不要重装，也不要继续四处查看。"
+    )
     lines.append(
         "## 结束\n装好并亲自验证后，调用 finish_setup：python 填要用的解释器的绝对路径或 ~ 开头的路径，"
         "recipe 写一段能在一台同样的新机器上重做这次准备的 shell 脚本，summary 写给研究者看。"
@@ -90,7 +97,7 @@ def start(settings, d, owner, env_id, model_config_id, needs="", allow_sudo=Fals
         model_config_id=model_config_id,
         model=config["model"],
         prompt=brief(item, needs, allow_sudo, current),
-        context="research-environment/" + env_id,
+        context="",
         writable=True,
         lane="research",
         runtime={
