@@ -381,3 +381,22 @@ def test_a_project_can_move_to_another_compute(env):
     events = a.get(f"{BASE}/{pid}/events").json()
     assert events[-1]["action"] == "compute_changed"
     assert events[-1]["detail"] == {"from": "local", "to": "wsl"}
+
+
+def test_an_environment_is_prepared_by_an_agent_run(env):
+    app, a, _b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    base = "/api/v1/research/environments"
+    assert a.post(f"{base}/local/prepare", json={}).status_code == 409
+    a.put(
+        "/api/v1/research/settings",
+        json={"computes": [{"id": "wsl", "kind": "ssh", "host": "research-wsl"}]},
+    )
+    started = a.post(f"{base}/wsl/prepare", json={"model_config_id": model})
+    assert started.status_code == 200, started.text
+    assert started.json()["state"]["status"] == "preparing"
+    progress = a.get(f"{base}/wsl/progress").json()
+    assert progress["run"]["status"] == "queued" and progress["steps"] == []
+    shown = a.get("/api/v1/research/settings").json()
+    assert shown["states"]["wsl"]["status"] == "preparing"

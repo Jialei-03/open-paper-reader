@@ -61,6 +61,12 @@ class MessageInput(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
 
 
+class PrepareInput(BaseModel):
+    model_config_id: str = Field(default="", max_length=64)
+    needs: str = Field(default="", max_length=2000)
+    allow_sudo: bool = False
+
+
 class ComputeInput(BaseModel):
     compute_id: str = Field(min_length=1, max_length=64)
 
@@ -348,6 +354,34 @@ def install_research_routes(app, settings, db, auth, human, owned):
             return research_settings.public(research_settings.update(settings, body))
         except (ValueError, TypeError) as e:
             raise HTTPException(422, str(e)) from None
+
+    @app.post("/api/v1/research/environments/{env_id}/prepare")
+    def prepare_environment(
+        env_id: str, body: PrepareInput, a=Depends(auth), d=Depends(db)
+    ):
+        """An agent logs in to the machine and prepares it; see research_environment."""
+        from . import research_environment
+        from .translation_settings import read_store
+
+        allowed(a, d)
+        model = body.model_config_id or read_store(settings, a["id"]).get(
+            "active_id", ""
+        )
+        try:
+            run = research_environment.start(
+                settings, d, a["id"], env_id, model, body.needs, body.allow_sudo
+            )
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        d.commit()
+        return research_environment.progress(settings, d, env_id) | {"run_id": run.id}
+
+    @app.get("/api/v1/research/environments/{env_id}/progress")
+    def environment_progress(env_id: str, a=Depends(auth), d=Depends(db)):
+        from . import research_environment
+
+        allowed(a, d)
+        return research_environment.progress(settings, d, env_id)
 
     @app.post("/api/v1/research/computes/{compute_id}/test")
     def test_compute(compute_id: str, a=Depends(auth), d=Depends(db)):

@@ -37,6 +37,7 @@ def default():
         "computes": [dict(LOCAL)],
         "default_compute": "local",
         "tracker": {"kind": "none", "project": "open-research-agent", "mode": "local"},
+        "states": {},
     }
 
 
@@ -53,6 +54,8 @@ def load(settings):
         "computes": computes,
         "default_compute": data.get("default_compute") or "local",
         "tracker": {**base["tracker"], **(data.get("tracker") or {})},
+        # What preparing each environment produced (research_environment).
+        "states": data.get("states") or {},
     }
 
 
@@ -66,9 +69,12 @@ def save(settings, data):
 
 
 def compute(settings, compute_id):
-    for item in load(settings)["computes"]:
+    """An environment, with the Python its preparation settled on (if any)."""
+    data = load(settings)
+    for item in data["computes"]:
         if item["id"] == compute_id:
-            return item
+            python = data["states"].get(compute_id, {}).get("python")
+            return {**item, "python": python} if python else item
     raise ValueError(f"找不到算力配置：{compute_id}")
 
 
@@ -165,6 +171,7 @@ def update(settings, body):
         "computes": computes,
         "default_compute": default_compute,
         "tracker": tracker,
+        "states": {k: v for k, v in old["states"].items() if k in ids},
     }
     save(settings, data)
     return data

@@ -14,7 +14,13 @@ from types import SimpleNamespace
 
 from sqlalchemy import select
 
-from . import research_datasets, research_sandbox, research_stages, research_tracker
+from . import (
+    research_datasets,
+    research_environment,
+    research_sandbox,
+    research_stages,
+    research_tracker,
+)
 from .config import Settings, database
 from .filelock import lock_nowait
 from .models import (
@@ -53,7 +59,8 @@ def fallback_summary(run):
 
 def charge(maker, research, tokens):
     """Model tokens, to the sprint, the node in focus at the time, and the project."""
-    if tokens <= 0:
+    if tokens <= 0 or not research.get("sprint_id"):
+        # Preparing an environment belongs to no project's budget.
         return
     from .models import ResearchNode
 
@@ -571,6 +578,7 @@ def tick(app):
         ("sweep", research_sandbox.sweep),
         ("datasets", research_datasets.fetch_pending),
         ("tracker", research_tracker.sync_pending),
+        ("environments", research_environment.settle),
     ):
         try:
             step(app.state.settings, app.state.maker)

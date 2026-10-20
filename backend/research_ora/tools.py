@@ -61,8 +61,8 @@ def read(args):
     return _text(text)
 
 
-def bash(args):
-    timeout = min(max(int(args.get("timeout") or BASH_MAX), 1), BASH_MAX)
+def bash(args, cap=BASH_MAX):
+    timeout = min(max(int(args.get("timeout") or cap), 1), cap)
     try:
         done = subprocess.run(
             ["bash", "-c", args["command"]],
@@ -206,9 +206,13 @@ def main():
         tool = TOOLS.get(request.get("name"))
         if tool is None:
             raise ValueError("Unknown Pi tool")
-        print(
-            json.dumps({"result": tool(request.get("args") or {})}, ensure_ascii=False)
-        )
+        args = request.get("args") or {}
+        if tool is bash:
+            # Preparing an environment may take a few minutes per command.
+            result = bash(args, min(int(request.get("cap") or BASH_MAX), 600))
+        else:
+            result = tool(args)
+        print(json.dumps({"result": result}, ensure_ascii=False))
     except Exception as e:  # noqa: BLE001 — every failure goes back to the agent as text
         print(json.dumps({"error": str(e)[:1000]}, ensure_ascii=False))
 
