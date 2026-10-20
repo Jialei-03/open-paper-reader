@@ -139,6 +139,30 @@ export const stopProject = (id: string) => move(id, "stop");
 export const reportUrl = (id: string, lang: "zh" | "en") =>
   `/api/v1${BASE}/${id}/report?lang=${lang}`;
 
+/** One step in a project's record: who did what, to which node, in which sprint. */
+export interface ResearchEvent {
+  id: string;
+  node_id: string | null;
+  sprint_id: string | null;
+  actor: "executor" | "advisor" | "distiller" | "system" | string;
+  action: string;
+  detail: Record<string, unknown>;
+  created_at: string;
+}
+
+/** The whole record, oldest first (the service pages it 200 at a time). */
+export async function listEvents(projectId: string): Promise<ResearchEvent[]> {
+  const all: ResearchEvent[] = [];
+  for (;;) {
+    const after = all.length ? all[all.length - 1].created_at : "";
+    const page = await api<ResearchEvent[]>(
+      `${BASE}/${projectId}/events${after ? `?after=${encodeURIComponent(after)}` : ""}`,
+    );
+    all.push(...page);
+    if (page.length < 200) return all;
+  }
+}
+
 export const jobLog = (projectId: string, jobId: string, offset = 0) =>
   api<LogLines>(`${BASE}/${projectId}/jobs/${jobId}/log?offset=${offset}`);
 

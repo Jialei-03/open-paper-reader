@@ -7,6 +7,7 @@ import {
   CardHeader,
   Dialog,
   IconButton,
+  SegmentedControl,
   Spinner,
   toast,
 } from "../../ui";
@@ -16,6 +17,7 @@ import { MetricsStrip } from "./MetricsStrip";
 import {
   getProject,
   listDecisions,
+  listEvents,
   projectMetrics,
   jobLog,
   pauseProject,
@@ -23,11 +25,14 @@ import {
   resumeProject,
   stopProject,
   type Decision,
+  type ResearchEvent,
   type ProjectMetrics,
   type LogLines,
   type ProjectDetail,
 } from "./research-api";
 import { statusKey } from "./ResearchListScreen";
+import { buildConversation } from "./conversation";
+import { ResearchConversation } from "./ResearchConversation";
 import { ResearchMap } from "./ResearchMap";
 import { SprintTimeline } from "./SprintTimeline";
 import styles from "./Research.module.css";
@@ -55,6 +60,8 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
   const [log, setLog] = useState<{ jobId: string; lines: LogLines } | null>(
     null,
   );
+  const [events, setEvents] = useState<ResearchEvent[]>([]);
+  const [view, setView] = useState<"talk" | "map">("talk");
   const [reads, setReads] = useState(0);
   // Counts the timer's rounds; a round in a hidden tab only waits for the next.
   const [rounds, setRounds] = useState(0);
@@ -66,6 +73,7 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
         setDetail(value);
         setFailed("");
         projectMetrics(id).then(setMetrics, () => setMetrics(null));
+        listEvents(id).then(setEvents, () => undefined);
         if (value.project.status === "waiting")
           listDecisions(id).then(setDecisions, () => setDecisions([]));
         else setDecisions([]);
@@ -155,6 +163,8 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
 
   const { project, nodes, sprints, jobs, docker } = detail;
   const focus = sprints.find((sprint) => sprint.status === "running");
+  // The detail lists the latest sprints newest first; the exchange reads oldest first.
+  const turns = buildConversation(events, sprints, nodes);
   const meters: [string, number, number][] = [
     [
       t("research.meter.sprints"),
@@ -264,28 +274,66 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
             nodes={nodes}
             onDecided={() => setReads((n) => n + 1)}
           />
-          <div className={styles.columns}>
-            <section className={styles.column} aria-labelledby="research-map">
-              <h2 id="research-map" className={styles.sectionTitle}>
-                {t("research.map")}
-              </h2>
-              <ResearchMap
-                nodes={nodes}
-                jobs={jobs}
-                focusId={focus?.focus_node_id ?? null}
+          <SegmentedControl
+            kind="tabs"
+            size="sm"
+            label={t("research.view.label")}
+            value={view}
+            onChange={setView}
+            options={[
+              {
+                value: "talk",
+                label: t("research.view.talk"),
+                panelId: "research-talk",
+              },
+              {
+                value: "map",
+                label: t("research.view.map"),
+                panelId: "research-columns",
+              },
+            ]}
+          />
+          {view === "talk" ? (
+            <section
+              id="research-talk"
+              role="tabpanel"
+              aria-labelledby="research-talk-tab"
+              className={styles.talkPanel}
+            >
+              <ResearchConversation
+                turns={turns}
                 onLog={(jobId) => void openLog(jobId)}
               />
             </section>
-            <section
-              className={styles.column}
-              aria-labelledby="research-sprints"
+          ) : (
+            <div
+              id="research-columns"
+              role="tabpanel"
+              aria-labelledby="research-columns-tab"
+              className={styles.columns}
             >
-              <h2 id="research-sprints" className={styles.sectionTitle}>
-                {t("research.sprints")}
-              </h2>
-              <SprintTimeline sprints={sprints} nodes={nodes} />
-            </section>
-          </div>
+              <section className={styles.column} aria-labelledby="research-map">
+                <h2 id="research-map" className={styles.sectionTitle}>
+                  {t("research.map")}
+                </h2>
+                <ResearchMap
+                  nodes={nodes}
+                  jobs={jobs}
+                  focusId={focus?.focus_node_id ?? null}
+                  onLog={(jobId) => void openLog(jobId)}
+                />
+              </section>
+              <section
+                className={styles.column}
+                aria-labelledby="research-sprints"
+              >
+                <h2 id="research-sprints" className={styles.sectionTitle}>
+                  {t("research.sprints")}
+                </h2>
+                <SprintTimeline sprints={sprints} nodes={nodes} />
+              </section>
+            </div>
+          )}
         </div>
       </div>
       <Dialog
