@@ -369,7 +369,10 @@ export function ResearchProject({
         .find((e) => e.actor === "advisor" && e.action === "message");
       return typeof said?.detail.text === "string" ? said.detail.text : "";
     }),
-    ...modelCommands(t, models, p.model_config_id, chooseModel),
+    // A finished research has no next round to change the model of.
+    ...(finished
+      ? []
+      : modelCommands(t, models, p.model_config_id, chooseModel)),
   ];
   const stageIndex = STEPS.indexOf(
     p.stage === "done" ? "retrospective" : p.stage,
