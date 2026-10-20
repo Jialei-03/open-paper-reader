@@ -21,6 +21,7 @@ import {
   type Environment,
   type ResearchSettings,
 } from "../research/research-api";
+import { AgentRunView } from "../research/talk/AgentRunView";
 import { Section } from "./Section";
 import styles from "./Settings.module.css";
 
@@ -535,25 +536,7 @@ function ProgressDialog({
               {state.error}
             </p>
           )}
-          <ol className={styles.steps}>
-            {progress.steps.map((step, i) => (
-              <li key={i} className={styles.stepItem}>
-                <span className={styles.settingLabel}>
-                  {step.command ? (
-                    <code className={styles.code}>{step.command}</code>
-                  ) : (
-                    step.label || step.name
-                  )}
-                </span>
-                {step.output && (
-                  <pre className={styles.stepOutput}>{step.output}</pre>
-                )}
-              </li>
-            ))}
-            {live && (
-              <li className={styles.muted}>{t("settings.research.working")}</li>
-            )}
-          </ol>
+          {state?.run_id && <AgentRunView runId={state.run_id} />}
         </div>
       )}
     </Dialog>

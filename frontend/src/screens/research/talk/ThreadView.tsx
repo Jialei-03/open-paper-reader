@@ -7,7 +7,7 @@ import {
   Gauge,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useI18n } from "../../../i18n/I18nProvider";
@@ -41,7 +41,15 @@ export function Prose({ text }: { text: string }) {
   );
 }
 
-function Speaker({ role, note }: { role: string; note?: string }) {
+function Speaker({
+  role,
+  note,
+  action,
+}: {
+  role: string;
+  note?: string;
+  action?: ReactNode;
+}) {
   const { t } = useI18n();
   return (
     <div className={styles.speaker}>
@@ -50,15 +58,31 @@ function Speaker({ role, note }: { role: string; note?: string }) {
         `research.role.${role === "scoping" ? "advisor" : role}` as MessageKey,
       )}
       {note && <span className={styles.speakerNote}>{note}</span>}
+      {action}
     </div>
   );
 }
 
-export function Thinking({ role }: { role: string }) {
+export function Thinking({
+  role,
+  onWatch,
+}: {
+  role: string;
+  onWatch?(): void;
+}) {
   const { t } = useI18n();
   return (
     <div className={styles.theirs} aria-live="polite">
-      <Speaker role={role} />
+      <Speaker
+        role={role}
+        action={
+          onWatch && (
+            <button type="button" className={styles.link} onClick={onWatch}>
+              {t("research.run.watch")}
+            </button>
+          )
+        }
+      />
       <span
         className={styles.thinking}
         aria-label={t("research.thread.thinking")}
@@ -77,6 +101,8 @@ export interface ThreadActions {
   openLog(jobId: string): void;
   openRun(jobId: string): void;
   moveCompute(computeId: string): void;
+  /** Opens the window that shows an agent's run as it happens. */
+  watchRun(runId: string): void;
   busy: boolean;
 }
 
@@ -511,6 +537,26 @@ function WorkBlock({
           <strong>{title}</strong>
           {focus ? ` · ${focus}` : ""}
         </span>
+        {item.sprint.run_id && (
+          <span
+            role="button"
+            tabIndex={0}
+            className={styles.link}
+            onClick={(event) => {
+              event.stopPropagation();
+              actions.watchRun(item.sprint.run_id);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                actions.watchRun(item.sprint.run_id);
+              }
+            }}
+          >
+            {t("research.run.watch")}
+          </span>
+        )}
         <span className={styles.workMeta}>
           {running ? (
             <span className={styles.status}>

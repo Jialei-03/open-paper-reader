@@ -36,6 +36,7 @@ import {
   type ResearchEvent,
   type Stage,
 } from "./research-api";
+import { AgentRunView } from "./talk/AgentRunView";
 import { Composer } from "./talk/Composer";
 import { RecordPanel, type RecordTab } from "./talk/RecordPanel";
 import { buildThread, working } from "./talk/thread";
@@ -82,6 +83,7 @@ export function ResearchProject({
   const [log, setLog] = useState<{ jobId: string; lines: LogLines } | null>(
     null,
   );
+  const [watching, setWatching] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
@@ -196,6 +198,7 @@ export function ResearchProject({
         fail(error);
       }
     },
+    watchRun: (runId) => setWatching(runId),
     moveCompute: async (computeId) => {
       try {
         await moveCompute(id, computeId);
@@ -382,7 +385,12 @@ export function ResearchProject({
                 actions={actions}
               />
               {pending && <div className={styles.mine}>{pending}</div>}
-              {thinking && <Thinking role={thinking} />}
+              {thinking && busyNow && (
+                <Thinking
+                  role={thinking}
+                  onWatch={() => setWatching(busyNow.run_id)}
+                />
+              )}
               {waitingData && p.stage === "experiments" && (
                 <p className={styles.systemLine}>
                   {t("research.thread.fetching")}
@@ -423,6 +431,15 @@ export function ResearchProject({
           />
         )}
       </div>
+      <Dialog
+        open={!!watching}
+        onClose={() => setWatching("")}
+        title={t("research.run.title")}
+        side
+        size="lg"
+      >
+        {watching && <AgentRunView runId={watching} />}
+      </Dialog>
       <Dialog
         open={!!log}
         onClose={() => setLog(null)}

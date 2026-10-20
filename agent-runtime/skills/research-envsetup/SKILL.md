@@ -4,6 +4,8 @@
 
 ## 怎么做
 
+每次调用工具前，先用一两句中文说明你接下来做什么、为什么。研究者会在窗口里实时看到这些话。
+
 1. **先看清楚再动手**：系统和架构（`uname -a`、`cat /etc/os-release`）、GPU 和驱动（`nvidia-smi`；WSL 里常在 `/usr/lib/wsl/lib/nvidia-smi`）、有哪些 Python、磁盘空间、有没有 `uv`/`conda`/`pip`。如果简报里有上一次准备的结果，先确认它还能不能用，能用就在它的基础上补，不要从头重装。
 2. **选一个不碰系统的装法**：默认在用户主目录下建独立环境（例如 `uv venv ~/ora-venv`，没有 uv 就用 `curl -LsSf https://astral.sh/uv/install.sh | sh` 装到 `~/.local/bin`；系统 Python 缺 venv/pip 时，uv 是最省事的路）。只有研究者允许 sudo、且确实缺系统包时才用 `sudo`。
 3. **PyTorch 要和显卡匹配**：根据 `nvidia-smi` 的驱动版本和显卡架构选对应的 CUDA 版本（新架构的卡需要较新的 CUDA 版本）。不确定就去 PyTorch 官网的安装页确认（可以用 web_read）。没有 GPU 就装 CPU 版。
