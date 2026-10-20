@@ -273,6 +273,7 @@
 /* ---------- Project page ---------- */
 
 .page {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -383,6 +384,7 @@
 
 .talk {
   position: relative;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -393,6 +395,16 @@
   flex: 1 1 auto;
   overflow-y: auto;
   scroll-behavior: smooth;
+}
+
+/* Nothing in the column may be wider than the column: long commands are cut, not spread. */
+.thread > *,
+.work,
+.workBody,
+.run,
+.runHead {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .thread {

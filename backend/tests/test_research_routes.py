@@ -1,4 +1,4 @@
-from backend.models import AgentRun, ResearchSprint
+from backend.models import AgentRun, ResearchProject, ResearchSprint
 from backend.tests.test_acceptance import env as env  # noqa: PLC0414
 from backend.tests.test_agents import configure
 
@@ -422,3 +422,39 @@ def test_a_research_run_can_be_watched_by_its_owner_only(env):
     assert shown["steps"][0]["said"] == "先看看显卡"
     assert "prompt" not in shown
     assert b.get(f"/api/v1/research/runs/{run_id}").status_code == 404
+
+
+def test_the_runs_of_a_project_come_with_their_steps(env):
+    app, a, b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    pid = a.post(BASE, json={"message": "MNIST", "model_config_id": model}).json()["id"]
+    with app.state.maker() as d:
+        run = AgentRun(
+            owner=d.get(ResearchProject, pid).owner,
+            session_id=d.get(ResearchProject, pid).session_id,
+            model_config_id=model,
+            model="m",
+            prompt="secret brief",
+            lane="research",
+            response="好的",
+            steps=[
+                {
+                    "name": "bash",
+                    "status": "completed",
+                    "said": "先看看",
+                    "result": {"summary": "x" * 9000},
+                }
+            ],
+        )
+        d.add(run)
+        d.flush()
+        d.add(ResearchSprint(project_id=pid, number=1, role="scoping", run_id=run.id))
+        d.commit()
+    runs = a.get(f"{BASE}/{pid}/runs").json()
+    assert len(runs) == 1
+    one = runs[0]
+    assert one["sprint_number"] == 1 and one["role"] == "scoping"
+    assert one["steps"][0]["said"] == "先看看" and "prompt" not in one
+    assert len(one["steps"][0]["result"]["summary"]) <= 4000
+    assert b.get(f"{BASE}/{pid}/runs").status_code == 404

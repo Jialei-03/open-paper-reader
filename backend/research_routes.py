@@ -355,20 +355,21 @@ def install_research_routes(app, settings, db, auth, human, owned):
         except (ValueError, TypeError) as e:
             raise HTTPException(422, str(e)) from None
 
-    @app.get("/api/v1/research/runs/{run_id}")
-    def research_run(run_id: str, a=Depends(auth), d=Depends(db)):
-        """One agent run of research (a sprint, a scoping turn, a preparation), as it goes."""
-        allowed(a, d)
-        run = d.get(AgentRun, run_id)
-        if run is None or run.owner != a["id"] or run.lane != "research":
-            raise HTTPException(404, "Not found")
+    def run_out(run, sprint=None, step_chars=4000):
         runtime = run.runtime or {}
-        return {
+        steps = []
+        for step in run.steps or []:
+            step = dict(step)
+            result = step.get("result")
+            if isinstance(result, dict) and isinstance(result.get("summary"), str):
+                step["result"] = {**result, "summary": result["summary"][:step_chars]}
+            steps.append(step)
+        out = {
             "id": run.id,
             "status": run.status,
             "response": run.response or "",
             "error": run.error or "",
-            "steps": run.steps or [],
+            "steps": steps,
             "role": (runtime.get("research") or {}).get("role", ""),
             "runtime": {
                 k: runtime.get(k)
@@ -378,6 +379,41 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "created_at": run.created_at,
             "updated_at": run.updated_at,
         }
+        if sprint is not None:
+            out |= {
+                "sprint_id": sprint.id,
+                "sprint_number": sprint.number,
+                "role": sprint.role,
+            }
+        return out
+
+    @app.get("/api/v1/research/projects/{id}/runs")
+    def project_runs(id: str, a=Depends(auth), d=Depends(db)):
+        """What each recent round did, step by step: the thread shows it inline."""
+        p = project_of(d, id, a)
+        sprints = list(
+            d.scalars(
+                select(ResearchSprint)
+                .where(ResearchSprint.project_id == p.id)
+                .order_by(ResearchSprint.number.desc())
+                .limit(40)
+            )
+        )
+        out = []
+        for sprint in reversed(sprints):
+            run = d.get(AgentRun, sprint.run_id) if sprint.run_id else None
+            if run is not None:
+                out.append(run_out(run, sprint))
+        return out
+
+    @app.get("/api/v1/research/runs/{run_id}")
+    def research_run(run_id: str, a=Depends(auth), d=Depends(db)):
+        """One agent run of research (a sprint, a scoping turn, a preparation), as it goes."""
+        allowed(a, d)
+        run = d.get(AgentRun, run_id)
+        if run is None or run.owner != a["id"] or run.lane != "research":
+            raise HTTPException(404, "Not found")
+        return run_out(run)
 
     @app.post("/api/v1/research/environments/{env_id}/prepare")
     def prepare_environment(
