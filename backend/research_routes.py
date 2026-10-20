@@ -1101,6 +1101,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(409, "研究已结束，不能继续")
         if any(x["open"] for x in decisions_of(d, p)):
             raise HTTPException(409, WAITING)
+        from . import research_datasets
+
+        # Resuming after a failed download means: try it again.
+        research_datasets.retry_failed(d, p)
         return move(p, "active", d)
 
     def halt(d, p, note):

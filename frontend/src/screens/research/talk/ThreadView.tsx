@@ -112,6 +112,8 @@ export function ThreadView({
             );
           case "stage":
             return <StageMark key={item.id} to={item.to} note={item.note} />;
+          case "notice":
+            return <Notice key={item.id} item={item} />;
           case "decision":
             return <DecisionCard key={item.id} item={item} actions={actions} />;
           case "work":
@@ -140,6 +142,33 @@ function MessageItem({ who, text }: { who: string; text: string }) {
       <Speaker role={who} />
       <Prose text={text} />
     </div>
+  );
+}
+
+/** One thing the system did by itself, said in a quiet line. */
+function Notice({ item }: { item: Extract<ThreadItem, { kind: "notice" }> }) {
+  const { t } = useI18n();
+  const text = (key: string) => String(item.detail[key] ?? "");
+  const mb = Number(item.detail.bytes ?? 0) / 1024 ** 2;
+  const line =
+    item.action === "dataset_fetching"
+      ? t("research.notice.fetching", { name: text("name") })
+      : item.action === "dataset_ready"
+        ? t("research.notice.ready", {
+            name: text("name"),
+            size: mb >= 1 ? `${mb.toFixed(0)} MB` : "",
+            source: text("source"),
+          })
+        : item.action === "dataset_failed"
+          ? t("research.notice.failed", {
+              name: text("name"),
+              reason: text("reason"),
+            })
+          : t("research.notice.paused", { reason: text("reason") });
+  return (
+    <p className={styles.notice} data-failed={item.failed || undefined}>
+      {line}
+    </p>
   );
 }
 

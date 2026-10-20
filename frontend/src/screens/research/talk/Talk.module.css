@@ -404,6 +404,17 @@
 }
 
 /* A stage changed: a rule across the column with a few words on it. */
+.notice {
+  margin: 0;
+  font-size: var(--ui-text-13);
+  line-height: 1.6;
+  color: var(--ui-fg-3);
+}
+
+.notice[data-failed] {
+  color: var(--ui-danger-text);
+}
+
 .stageMark {
   display: flex;
   align-items: center;

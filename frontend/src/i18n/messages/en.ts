@@ -1174,6 +1174,11 @@ export const en = {
   "research.composer.finished": "This research has ended",
   "research.thread.fetching":
     "Downloading and checking the datasets; the first round starts when they are ready.",
+  "research.notice.fetching": "Started downloading the dataset {name}.",
+  "research.notice.ready":
+    "Dataset {name} downloaded and verified ({size}, from {source}).",
+  "research.notice.failed": "Downloading the dataset {name} failed: {reason}",
+  "research.notice.paused": "The research paused: {reason}",
   "research.thread.paused":
     "Research is paused; resume it from the menu at the top right.",
   "research.plan.title": "Research plan",

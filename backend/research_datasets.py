@@ -138,15 +138,17 @@ def fetch(settings, row, progress=None):
                 progress(f"在挑最快的下载源：{name}")
             url = _fastest(urls)
             partial = target.with_suffix(target.suffix + ".part")
-            with urlopen(url, timeout=60) as response, partial.open("wb") as out:
-                total = int(getattr(response, "headers", {}).get("Content-Length") or 0)
-                done, said = 0, time.monotonic()
-                while block := response.read(CHUNK):
-                    out.write(block)
-                    done += len(block)
-                    if progress and time.monotonic() - said > PROGRESS_SECONDS:
-                        said = time.monotonic()
-                        progress(_progress_text(name, done, total))
+            for attempt in range(ATTEMPTS):
+                try:
+                    _download(url, partial, name, progress)
+                    break
+                except OSError:
+                    # A connection cut midway (a proxy, a flaky network) is tried again.
+                    if attempt == ATTEMPTS - 1:
+                        raise
+                    if progress:
+                        progress(f"下载中断，{RETRY_WAIT * (attempt + 1)} 秒后重试：{name}")
+                    time.sleep(RETRY_WAIT * (attempt + 1))
             partial.replace(target)
         got_md5, sha = _hashes(target)
         if got_md5 != md5:
@@ -162,6 +164,20 @@ def fetch(settings, row, progress=None):
 
 
 PROGRESS_SECONDS = 3
+ATTEMPTS = 3
+RETRY_WAIT = 5
+
+
+def _download(url, partial, name, progress):
+    with urlopen(url, timeout=60) as response, partial.open("wb") as out:
+        total = int(getattr(response, "headers", {}).get("Content-Length") or 0)
+        done, said = 0, time.monotonic()
+        while block := response.read(CHUNK):
+            out.write(block)
+            done += len(block)
+            if progress and time.monotonic() - said > PROGRESS_SECONDS:
+                said = time.monotonic()
+                progress(_progress_text(name, done, total))
 _fetching = threading.Lock()
 
 
@@ -210,12 +226,49 @@ def fetch_pending(settings, maker):
     for id in ids:
         with maker() as d:
             row = d.get(ResearchDataset, id)
+            # Each step on the project's record, so the research page can say it.
+            _said(d, row, "dataset_fetching", {})
+            d.commit()
             try:
                 fetch(settings, row, lambda text, id=id: _note(maker, id, text))
+                _said(
+                    d,
+                    row,
+                    "dataset_ready",
+                    {"bytes": row.bytes, "source": row.note},
+                )
             except (OSError, ValueError) as e:
                 row.status = "failed"
                 row.note = str(e)[:500]
+                _said(d, row, "dataset_failed", {"reason": row.note})
             d.commit()
+
+
+def _said(d, row, action, detail):
+    from . import research_map
+    from .models import ResearchProject
+
+    project = d.get(ResearchProject, row.project_id)
+    if project is not None:
+        research_map.event(
+            d, project, None, "system", action, {"name": row.name, **detail}
+        )
+
+
+def retry_failed(d, project):
+    """The project's failed downloads go back in line (the researcher resumed it)."""
+    rows = list(
+        d.scalars(
+            select(ResearchDataset).where(
+                ResearchDataset.project_id == project.id,
+                ResearchDataset.status == "failed",
+                ResearchDataset.source == "registry",
+            )
+        )
+    )
+    for row in rows:
+        row.status, row.note = "pending", ""
+    return len(rows)
 
 
 def ready(d, project):

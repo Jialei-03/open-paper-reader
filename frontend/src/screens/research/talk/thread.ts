@@ -24,6 +24,15 @@ export type ThreadItem =
     }
   | { kind: "stage"; id: string; to: string; note: string; at: string }
   | {
+      /** What the system did on its own: a dataset fetched, the work paused. */
+      kind: "notice";
+      id: string;
+      action: string;
+      detail: Record<string, unknown>;
+      failed: boolean;
+      at: string;
+    }
+  | {
       kind: "work";
       id: string;
       sprint: ResearchSprint;
@@ -50,6 +59,13 @@ const HIDDEN = new Set([
 ]);
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
+
+/** System steps said in the conversation itself, as one quiet line each. */
+const NOTICES = new Set([
+  "dataset_fetching",
+  "dataset_ready",
+  "dataset_failed",
+]);
 
 export function buildThread(
   events: ResearchEvent[],
@@ -105,6 +121,24 @@ export function buildThread(
         id: event.id,
         to: str(event.detail.to),
         note: event.actor === "human" ? str(event.detail.note) : "",
+        at,
+      });
+      continue;
+    }
+    if (
+      NOTICES.has(event.action) ||
+      (event.action === "paused" &&
+        event.actor === "system" &&
+        str(event.detail.reason))
+    ) {
+      items.push({
+        kind: "notice",
+        id: event.id,
+        action: event.action,
+        detail: event.detail,
+        failed:
+          event.action !== "dataset_fetching" &&
+          event.action !== "dataset_ready",
         at,
       });
       continue;

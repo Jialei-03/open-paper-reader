@@ -1095,6 +1095,11 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.composer.waiting": "有事等你拍板，也可以先说说你的想法",
   "research.composer.finished": "这项研究已经结束",
   "research.thread.fetching": "正在下载并校验数据集，好了就开始第一轮实验。",
+  "research.notice.fetching": "开始下载数据集 {name}。",
+  "research.notice.ready":
+    "数据集 {name} 已下载并校验通过（{size}，来自 {source}）。",
+  "research.notice.failed": "数据集 {name} 下载失败：{reason}",
+  "research.notice.paused": "研究暂停了：{reason}",
   "research.thread.paused": "研究已暂停，在右上角的菜单里可以继续。",
   "research.plan.title": "研究计划",
   "research.plan.version": "第 {n} 版",

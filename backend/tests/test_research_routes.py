@@ -680,3 +680,30 @@ def test_pausing_stops_the_round_and_the_jobs_but_can_resume(env, monkeypatch):
     assert (
         a.post(f"{BASE}/{project['id']}/resume", json={}).json()["status"] == "active"
     )
+
+
+def test_resuming_after_a_failed_download_tries_it_again(env):
+    from backend.models import ResearchDataset
+
+    app, a, _b, settings = env
+    _, model = configure(app, a, settings)
+    project = create(a, model).json()
+    with app.state.maker() as d:
+        d.add(
+            ResearchDataset(
+                project_id=project["id"],
+                name="mnist",
+                source="registry",
+                path="/data/mnist",
+                status="failed",
+                note="SSL: UNEXPECTED_EOF_WHILE_READING",
+            )
+        )
+        p = d.get(ResearchProject, project["id"])
+        p.status = "paused"
+        d.commit()
+    r = a.post(f"{BASE}/{project['id']}/resume", json={})
+    assert r.status_code == 200 and r.json()["status"] == "active"
+    with app.state.maker() as d:
+        row = d.scalars(select(ResearchDataset)).one()
+        assert (row.status, row.note) == ("pending", "")

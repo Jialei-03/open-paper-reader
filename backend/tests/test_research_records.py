@@ -1066,3 +1066,52 @@ def test_a_dataset_comes_from_its_fastest_mirror(world, monkeypatch):
     again = ResearchDataset(project_id=world.pid, name="toy", source="registry")
     rd.fetch(world.settings, again)
     assert again.status == "ready" and again.note == "本机缓存"
+
+
+def test_a_download_cut_midway_is_tried_again(world, monkeypatch):
+    import hashlib
+
+    content = b"mnist" * 1000
+    calls = []
+
+    def flaky(url, timeout):
+        calls.append(url)
+        if len(calls) < 3:
+            raise OSError("[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred")
+        return io.BytesIO(content)
+
+    spec = {
+        "title": "toy",
+        "files": [("toy.bin", "https://one.example/toy.bin", hashlib.md5(content).hexdigest())],
+    }
+    monkeypatch.setitem(rd.REGISTRY, "toy", spec)
+    monkeypatch.setattr(rd, "urlopen", flaky)
+    monkeypatch.setattr(rd, "RETRY_WAIT", 0)
+    row = ResearchDataset(project_id=world.pid, name="toy", source="registry")
+    rd.fetch(world.settings, row)
+    assert row.status == "ready" and len(calls) == 3
+
+    monkeypatch.setattr(rd, "urlopen", lambda url, timeout: (_ for _ in ()).throw(OSError("down")))
+    (rd.cache(world.settings) / "toy" / "toy.bin").unlink()
+    with pytest.raises(OSError):
+        rd.fetch(world.settings, ResearchDataset(project_id=world.pid, name="toy", source="registry"))
+
+
+def test_a_download_is_on_the_project_record_as_it_goes(world, monkeypatch):
+    monkeypatch.setattr(rd, "urlopen", lambda url, timeout: io.BytesIO(b"not mnist"))
+    with world.maker() as d:
+        rd.request(d, d.get(ResearchProject, world.pid), ["mnist"])
+        d.commit()
+    rd.fetch_pending(world.settings, world.maker)
+    with world.maker() as d:
+        said = [
+            (e.action, e.detail["name"])
+            for e in d.scalars(
+                select(ResearchEvent).where(ResearchEvent.action.like("dataset_%"))
+            )
+        ]
+        failed = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "dataset_failed")
+        ).one()
+    assert said == [("dataset_fetching", "mnist"), ("dataset_failed", "mnist")]
+    assert "校验不符" in failed.detail["reason"]
