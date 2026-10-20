@@ -180,7 +180,7 @@ export function buildThread(
         id: sprint.id,
         sprint,
         steps: [],
-        jobs: jobs.filter((j) => j.sprint_id === sprint.id),
+        jobs: inOrder(jobs, sprint.id),
         at,
       };
       blocks.set(sprint.id, block);
@@ -196,13 +196,20 @@ export function buildThread(
         id: sprint.id,
         sprint,
         steps: [],
-        jobs: jobs.filter((j) => j.sprint_id === sprint.id),
+        jobs: inOrder(jobs, sprint.id),
         at: sprint.created_at,
       });
   }
   if (stage !== "scoping")
     for (const item of items) if (item.kind === "plan") item.current = false;
   return items;
+}
+
+/** A sprint's experiments in the order they started, like the steps above them. */
+function inOrder(jobs: ResearchJob[], sprintId: string) {
+  return jobs
+    .filter((j) => j.sprint_id === sprintId)
+    .sort((a, b) => a.started_at.localeCompare(b.started_at));
 }
 
 function systemSprint(event: ResearchEvent): ResearchSprint {

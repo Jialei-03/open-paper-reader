@@ -119,6 +119,56 @@ describe("buildThread", () => {
     expect(items[2].kind === "decision" && items[2].open).toBe(false);
   });
 
+  it("lists a sprint's experiments in the order they started", () => {
+    const job = (id: string, started_at: string) =>
+      ({ id, sprint_id: "s5", started_at }) as ResearchJob;
+    // The service sends them newest first.
+    const jobs = [
+      job("third", "2026-10-20T10:03:00"),
+      job("second", "2026-10-20T10:02:00"),
+      job("first", "2026-10-20T10:01:00"),
+    ];
+    const items = buildThread(
+      [ev("run_job", "executor", {}, "s5")],
+      [sprint("s5", "executor")],
+      jobs,
+      [],
+      "experiments",
+    );
+    const work = items[0];
+    expect(work.kind === "work" && work.jobs.map((j) => j.id)).toEqual([
+      "first",
+      "second",
+      "third",
+    ]);
+  });
+
+  it("says in order when a dataset is fetched or fails and why it paused", () => {
+    const items = buildThread(
+      [
+        ev("dataset_fetching", "system", { name: "mnist" }),
+        ev("dataset_failed", "system", { name: "mnist", reason: "SSL" }),
+        ev("paused", "system", { reason: "数据集 mnist 下载失败" }),
+        ev("paused", "human", { end_reason: "" }),
+      ],
+      [],
+      [],
+      [],
+      "experiments",
+    );
+    const notices = items.filter((i) => i.kind === "notice");
+    expect(notices.map((i) => i.kind === "notice" && i.action)).toEqual([
+      "dataset_fetching",
+      "dataset_failed",
+      "paused",
+    ]);
+    expect(notices.map((i) => i.kind === "notice" && i.failed)).toEqual([
+      false,
+      true,
+      true,
+    ]);
+  });
+
   it("shows a running sprint before its first step", () => {
     const items = buildThread(
       [],
