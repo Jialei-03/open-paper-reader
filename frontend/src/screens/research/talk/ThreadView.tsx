@@ -170,6 +170,10 @@ function PlanCard({
 }) {
   const { t } = useI18n();
   const compute = computes.find((c) => c.id === plan.compute_id);
+  const [whole, setWhole] = useState(false);
+  const long = (plan.summary ?? "").length > 240;
+  // Experiments need the environment ready; say so before the person agrees.
+  const unready = !!compute && compute.ready === false;
   return (
     <article
       className={styles.card}
@@ -196,7 +200,24 @@ function PlanCard({
           {plan.question && (
             <h3 className={styles.planQuestion}>{plan.question}</h3>
           )}
-          {plan.summary && <Prose text={plan.summary} />}
+          {plan.summary && (
+            <div
+              className={styles.summary}
+              data-clamped={(long && !whole) || undefined}
+            >
+              <Prose text={plan.summary} />
+            </div>
+          )}
+          {long && (
+            <button
+              type="button"
+              className={styles.more}
+              aria-expanded={whole}
+              onClick={() => setWhole(!whole)}
+            >
+              {t(whole ? "research.plan.less" : "research.plan.more")}
+            </button>
+          )}
           <dl className={styles.facts}>
             {plan.metric && (
               <>
@@ -218,12 +239,29 @@ function PlanCard({
             )}
           </dl>
           <ol className={styles.hyps}>
-            {plan.hypotheses.map((h) => (
+            {plan.hypotheses.map((h, i) => (
               <li key={h.title} className={styles.hyp}>
-                <span className={styles.hypTitle}>{h.title}</span>
+                <span className={styles.hypTitle}>
+                  {h.title}
+                  {i === 0 && plan.hypotheses.length > 1 && (
+                    <span className={styles.first}>
+                      {t("research.plan.first")}
+                    </span>
+                  )}
+                </span>
                 <span className={styles.hypKill}>
                   {t("research.plan.killIf", { text: h.kill_if })}
                 </span>
+                {h.value && (
+                  <span className={styles.hypKill}>
+                    {t("research.plan.value", { text: h.value })}
+                  </span>
+                )}
+                {h.cost && (
+                  <span className={styles.hypKill}>
+                    {t("research.plan.cost", { text: h.cost })}
+                  </span>
+                )}
               </li>
             ))}
           </ol>
@@ -234,7 +272,10 @@ function PlanCard({
                 {name}
               </span>
             ))}
-            <span className={styles.tag}>
+            <span
+              className={styles.tag}
+              data-tone={unready && !approved ? "warn" : undefined}
+            >
               <Cpu size={12} aria-hidden />
               {compute?.name ?? plan.compute_id}
             </span>
@@ -252,7 +293,18 @@ function PlanCard({
       )}
       {current && !approved && (
         <footer className={styles.cardFoot}>
-          <p>{t("research.plan.hint")}</p>
+          <p>
+            {unready ? (
+              <>
+                {t("research.plan.notReady", { name: compute?.name ?? "" })}{" "}
+                <a href="#settings/environments">
+                  {t("research.plan.prepare")}
+                </a>
+              </>
+            ) : (
+              t("research.plan.hint")
+            )}
+          </p>
           <Button
             variant="primary"
             size="sm"
@@ -279,6 +331,8 @@ function DecisionCard({
   const d = item.event.detail as Record<string, string>;
   const conclusion = d.kind === "conclusion";
   const budget = d.kind === "budget";
+  // The advisor asks something only the researcher knows; the work goes on meanwhile.
+  const question = d.kind === "question";
   return (
     <article
       className={`${styles.card} ${item.open ? styles.ask : ""}`}
@@ -294,7 +348,9 @@ function DecisionCard({
             ? t("research.ask.conclusion")
             : budget
               ? t("research.ask.budget")
-              : t("research.ask.title")}
+              : question
+                ? t("research.ask.question")
+                : t("research.ask.title")}
         </strong>
         {conclusion ? (
           <span
@@ -303,7 +359,7 @@ function DecisionCard({
           >
             {t(`research.end.${d.status || "concluded"}` as MessageKey)}
           </span>
-        ) : d.proposal && !budget ? (
+        ) : d.proposal && !budget && !question ? (
           <span className={styles.tag}>
             {t(`research.talk.verdict.${d.proposal}` as MessageKey)}
           </span>
@@ -316,12 +372,14 @@ function DecisionCard({
         {item.open && (
           <textarea
             className={styles.note}
-            rows={2}
+            rows={question ? 3 : 2}
             value={note}
             placeholder={t(
               conclusion
                 ? "research.ask.notePlaceholderMore"
-                : "research.ask.notePlaceholder",
+                : question
+                  ? "research.ask.answerPlaceholder"
+                  : "research.ask.notePlaceholder",
             )}
             aria-label={t("research.ask.note")}
             onChange={(event) => setNote(event.target.value)}
@@ -329,7 +387,20 @@ function DecisionCard({
         )}
       </div>
       <footer className={styles.cardFoot}>
-        {item.open ? (
+        {item.open && question ? (
+          <>
+            <p>{t("research.ask.questionHint")}</p>
+            <Button
+              size="sm"
+              variant="primary"
+              loading={actions.busy}
+              disabled={!note.trim()}
+              onClick={() => actions.decide(item.id, true, note)}
+            >
+              {t("research.ask.answer")}
+            </Button>
+          </>
+        ) : item.open ? (
           <>
             <p>
               {t(

@@ -569,6 +569,9 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 {"from": p.compute_id, "to": body.compute_id},
             )
             p.compute_id = body.compute_id
+            if p.plan and not p.plan.get("approved_at"):
+                # The person's latest choice is what approving the plan starts on.
+                p.plan = {**p.plan, "compute_id": body.compute_id}
             p.updated_at = now()
         d.commit()
         return project_out(p)

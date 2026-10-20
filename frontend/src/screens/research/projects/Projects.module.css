@@ -376,6 +376,17 @@
   font-size: var(--ui-text-13);
 }
 
+/* One ring, on the whole field, not a second one on the bare input inside it. */
+.ideaForm input:focus,
+.ideaForm input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.ideaForm:focus-within {
+  box-shadow: var(--ui-focus-ring);
+}
+
 .cards {
   display: flex;
   flex-direction: column;
@@ -598,4 +609,28 @@
   .project:hover {
     transform: none;
   }
+}
+
+/* A project with no research yet opens on where one begins. */
+.start {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--ui-space-48) var(--ui-space-16) var(--ui-space-24);
+}
+
+.start h2 {
+  margin: 0;
+  font-size: var(--ui-text-20);
+  font-weight: 600;
+  color: var(--ui-fg);
+}
+
+.start p {
+  margin: 0 0 var(--ui-space-8);
+  color: var(--ui-fg-2);
+  line-height: 1.6;
 }

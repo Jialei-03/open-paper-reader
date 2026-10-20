@@ -1255,8 +1255,21 @@ export const en = {
   "research.plan.budget": "Up to {sprints} rounds, {hours} h of experiments",
   "research.plan.hint":
     "Not quite right? Keep talking below and the advisor will revise it.",
+  "research.plan.more": "Show all",
+  "research.plan.less": "Show less",
+  "research.plan.first": "First",
+  "research.plan.value": "Value: {text}",
+  "research.plan.cost": "Cost: {text}",
+  "research.plan.notReady":
+    "Experiments will run on “{name}”, which is not prepared yet.",
+  "research.plan.prepare": "Prepare it",
   "research.plan.start": "Start experiments with this plan",
   "research.ask.title": "Your call",
+  "research.ask.question": "The advisor asks",
+  "research.ask.answerPlaceholder": "Write your answer",
+  "research.ask.questionHint":
+    "The work does not stop for this; the advisor adjusts next round to what you say.",
+  "research.ask.answer": "Answer",
   "research.ask.conclusion": "The advisor proposes a conclusion",
   "research.ask.hint": "The advisor's proposal takes effect only if you agree.",
   "research.ask.conclusionHint":
@@ -1302,6 +1315,7 @@ export const en = {
   "research.setup.where": "Runs on",
   "research.setup.machine": "Machine",
   "research.setup.noGpu": "None",
+  "research.setup.appleGpu": "Apple silicon (MPS)",
   "research.setup.notProbed": "Detected automatically on the first experiment.",
   "research.setup.data": "Datasets",
   "research.setup.noData": "No datasets yet.",
@@ -1329,6 +1343,7 @@ export const en = {
   "settings.research.computes": "Environments",
   "settings.research.default": "Default",
   "settings.research.noGpu": "none",
+  "settings.research.hostMeta": "Runs directly on this computer, no container",
   "settings.research.localMeta":
     "{cpus} CPU · {memory} GB · runs without network",
   "settings.research.test": "Check",
@@ -1418,6 +1433,11 @@ export const en = {
   "research.tool.propose_plan": "Wrote the plan card",
   "research.tool.finish_setup": "Submitted for checking",
   "research.work.scoping": "Advisor · scoping",
+  "research.tool.add_node": "Add to the map",
+  "research.tool.update_node": "Update the map",
+  "research.tool.end_sprint": "End the round",
+  "research.tool.distill": "Distill lessons",
+  "research.tool.read_skill": "Read a skill",
   "research.process.andMore": " and more",
   "research.process.showAll": "Show all ({lines} lines)",
   "research.process.done": "Worked",
@@ -1430,6 +1450,8 @@ export const en = {
   "research.process.doing": "{who}: {verb}",
   "research.process.queued": "{who} is queued",
   "research.process.thinking": "{who} is thinking",
+  "research.process.pending": "Thinking…",
+  "research.process.waitingTurn": "Waiting to start…",
   "research.process.steps": "{n} steps",
   "research.question.edit": "Edit the research question",
   "research.question.lead":
@@ -1500,6 +1522,9 @@ export const en = {
   "projects.ideaPlaceholder": "Note an idea, press Enter",
   "projects.startResearch": "Start research",
   "projects.newResearch": "Start a new research in this project",
+  "projects.startTitle": "Start with a question",
+  "projects.startLead":
+    "Say in one sentence what you want to find out. The advisor talks it through with you and turns it into a plan that can be tested; experiments start only after you approve it.",
   "projects.newResearchPlaceholder":
     "Start a new research in this project: what do you want to find out?",
   "projects.noResearch":

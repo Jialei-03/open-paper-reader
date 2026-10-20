@@ -261,7 +261,7 @@ export interface Compute {
   ready?: boolean;
   id: string;
   name: string;
-  kind: "docker" | "ssh";
+  kind: "host" | "docker" | "ssh";
   gpus: string;
   cpus?: number;
   memory_gb?: number;

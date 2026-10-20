@@ -166,9 +166,11 @@ export function ResearchSection({
                   </span>
                   <span className={styles.rowMeta}>
                     {probe[c.id] ||
-                      (c.kind === "ssh"
+                      (c.kind !== "docker"
                         ? [
-                            c.host,
+                            c.kind === "ssh"
+                              ? c.host
+                              : t("settings.research.hostMeta"),
                             state.probe ? describe(state.probe) : "",
                             state.status === "failed" ? state.error : "",
                           ]
@@ -181,7 +183,7 @@ export function ResearchSection({
                   </span>
                 </div>
                 <div className={styles.rowActions}>
-                  {c.kind === "ssh" &&
+                  {c.kind !== "docker" &&
                     (state.status === "preparing" ? (
                       <Button
                         size="sm"
@@ -203,7 +205,7 @@ export function ResearchSection({
                         )}
                       </Button>
                     ))}
-                  {c.kind === "ssh" &&
+                  {c.kind !== "docker" &&
                     state.status &&
                     state.status !== "preparing" && (
                       <Button
@@ -227,7 +229,7 @@ export function ResearchSection({
                       {t("settings.research.makeDefault")}
                     </Button>
                   )}
-                  {c.id !== "local" && (
+                  {c.kind === "ssh" && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -237,7 +239,7 @@ export function ResearchSection({
                           computes: data.computes.filter((x) => x.id !== c.id),
                           default_compute:
                             data.default_compute === c.id
-                              ? "local"
+                              ? "host"
                               : data.default_compute,
                         })
                       }
@@ -488,16 +490,18 @@ function PrepareDialog({
           rows={4}
           onChange={(e) => setNeeds(e.target.value)}
         />
-        <label className={styles.setting}>
-          <input
-            type="checkbox"
-            checked={sudo}
-            onChange={(e) => setSudo(e.target.checked)}
-          />
-          <span className={styles.settingLabel}>
-            {t("settings.research.allowSudo")}
-          </span>
-        </label>
+        {env?.kind === "ssh" && (
+          <label className={styles.setting}>
+            <input
+              type="checkbox"
+              checked={sudo}
+              onChange={(e) => setSudo(e.target.checked)}
+            />
+            <span className={styles.settingLabel}>
+              {t("settings.research.allowSudo")}
+            </span>
+          </label>
+        )}
       </div>
     </Dialog>
   );

@@ -388,6 +388,11 @@
   animation: sweep 2.2s linear infinite;
 }
 
+.pending {
+  margin: 0;
+  font-size: var(--ui-text-13);
+}
+
 @keyframes sweep {
   from {
     background-position: 100% 0;

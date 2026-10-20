@@ -392,7 +392,9 @@ function SetupTab({
               <dd>
                 {env.gpus?.length
                   ? env.gpus.join(", ")
-                  : t("research.setup.noGpu")}
+                  : env.mps
+                    ? t("research.setup.appleGpu")
+                    : t("research.setup.noGpu")}
               </dd>
               {Object.entries(env.packages ?? {}).map(([k, v]) => (
                 <Fragment key={k} k={k} v={v} />
@@ -405,7 +407,7 @@ function SetupTab({
             </>
           )}
         </dl>
-        {!detail.docker.available && compute?.kind !== "ssh" && (
+        {!detail.docker.available && compute?.kind === "docker" && (
           <p className={styles.empty}>{detail.docker.reason}</p>
         )}
       </section>

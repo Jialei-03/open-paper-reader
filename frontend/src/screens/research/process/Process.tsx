@@ -73,8 +73,9 @@ function useVerb() {
   const { t } = useI18n();
   return (step: Pick<RunStep, "name" | "label">) => {
     const key = `research.tool.${step.name}` as MessageKey;
+    // A tool without a verb of its own reads as its label, never as nothing.
     const said = t(key);
-    return said === key ? step.label || step.name : said;
+    return said && said !== key ? said : step.label || step.name;
   };
 }
 
@@ -264,6 +265,7 @@ export function RunTurn({
   final?: string;
   children?: ReactNode;
 }) {
+  const { t } = useI18n();
   const live = !!run && isLive(run);
   const [open, setOpen] = useState(false);
   const steps = run?.steps ?? [];
@@ -287,6 +289,15 @@ export function RunTurn({
         <>
           <Trail steps={steps} live />
           {writing && <Words text={writing} live />}
+          {steps.length === 0 && !writing && (
+            <p className={`${styles.pending} ${styles.sweep}`}>
+              {t(
+                run?.status === "queued"
+                  ? "research.process.waitingTurn"
+                  : "research.process.pending",
+              )}
+            </p>
+          )}
         </>
       ) : (
         <>

@@ -136,15 +136,23 @@ export function ProjectPage({
         role="tabpanel"
         aria-labelledby={`project-${current}-tab`}
       >
-        {current === "board" && (
-          <Board
-            workspace={w}
-            columns={columns}
-            cards={cards}
-            go={go}
-            refresh={refresh}
-          />
+        {current === "board" && w.researches.length === 0 && (
+          <section className={styles.start}>
+            <h2>{t("projects.startTitle")}</h2>
+            <p>{t("projects.startLead")}</p>
+            <NewResearch workspace={w} go={go} />
+          </section>
         )}
+        {current === "board" &&
+          (w.researches.length > 0 || cards.length > 0) && (
+            <Board
+              workspace={w}
+              columns={columns}
+              cards={cards}
+              go={go}
+              refresh={refresh}
+            />
+          )}
         {current === "researches" && <Researches workspace={w} go={go} />}
         {current === "files" && <Files workspace={w} onSaved={refresh} />}
       </div>
@@ -486,15 +494,15 @@ function CardFace({
 
 const STAGE_KEY = (s: string) => `research.stage.${s}` as MessageKey;
 
-/** The researches of the project, and where a new one begins. */
-function Researches({
+/** Where a new research begins: one sentence, then a talk with the advisor. */
+function NewResearch({
   workspace,
   go,
 }: {
-  workspace: Workspace & { researches: ResearchSummary[] };
+  workspace: Workspace;
   go(hash: string): void;
 }) {
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [models, setModels] = useState<ModelRow[]>([]);
@@ -519,6 +527,60 @@ function Researches({
     );
   }, []);
 
+  return (
+    <Composer
+      value={text}
+      onChange={setText}
+      busy={busy}
+      label={t("projects.newResearch")}
+      placeholder={t("projects.newResearchPlaceholder")}
+      sendLabel={t("research.home.send")}
+      onSend={async () => {
+        setBusy(true);
+        try {
+          const p = await startProject({
+            message: text.trim(),
+            model_config_id: modelId,
+            compute_id: computeId || undefined,
+            workspace_id: workspace.id,
+          });
+          go(`research/${p.id}`);
+        } catch (error) {
+          fail(error);
+          setBusy(false);
+        }
+      }}
+      tools={
+        <>
+          <ModelPicker
+            models={models}
+            value={modelId}
+            onChange={setModelId}
+            label={t("research.home.model")}
+          />
+          {computes.length > 1 && (
+            <ComputePicker
+              computes={computes}
+              value={computeId}
+              onChange={setComputeId}
+              label={t("research.home.compute")}
+            />
+          )}
+        </>
+      }
+    />
+  );
+}
+
+/** The researches of the project, and where a new one begins. */
+function Researches({
+  workspace,
+  go,
+}: {
+  workspace: Workspace & { researches: ResearchSummary[] };
+  go(hash: string): void;
+}) {
+  const { t, locale } = useI18n();
   const when = (stamp: string) =>
     new Intl.DateTimeFormat(locale, {
       month: "short",
@@ -529,47 +591,7 @@ function Researches({
 
   return (
     <div className={styles.researches}>
-      <Composer
-        value={text}
-        onChange={setText}
-        busy={busy}
-        label={t("projects.newResearch")}
-        placeholder={t("projects.newResearchPlaceholder")}
-        sendLabel={t("research.home.send")}
-        onSend={async () => {
-          setBusy(true);
-          try {
-            const p = await startProject({
-              message: text.trim(),
-              model_config_id: modelId,
-              compute_id: computeId || undefined,
-              workspace_id: workspace.id,
-            });
-            go(`research/${p.id}`);
-          } catch (error) {
-            fail(error);
-            setBusy(false);
-          }
-        }}
-        tools={
-          <>
-            <ModelPicker
-              models={models}
-              value={modelId}
-              onChange={setModelId}
-              label={t("research.home.model")}
-            />
-            {computes.length > 1 && (
-              <ComputePicker
-                computes={computes}
-                value={computeId}
-                onChange={setComputeId}
-                label={t("research.home.compute")}
-              />
-            )}
-          </>
-        }
-      />
+      <NewResearch workspace={workspace} go={go} />
       {workspace.researches.length === 0 ? (
         <p className={styles.empty}>{t("projects.noResearch")}</p>
       ) : (

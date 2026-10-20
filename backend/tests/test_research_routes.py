@@ -605,3 +605,17 @@ def test_leaving_an_unreachable_machine_that_ran_nothing_is_allowed(env, monkeyp
     assert (
         a.post(f"{BASE}/{pid}/compute", json={"compute_id": "host"}).status_code == 409
     )
+
+
+def test_moving_the_environment_also_moves_the_pending_plan(env):
+    app, a, _b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    pid = a.post(BASE, json={"message": "MNIST", "model_config_id": model}).json()["id"]
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, pid)
+        p.plan = {"version": 1, "compute_id": "host", "approved_at": None}
+        d.commit()
+    assert a.post(f"{BASE}/{pid}/compute", json={"compute_id": "local"}).status_code == 200
+    with app.state.maker() as d:
+        assert d.get(ResearchProject, pid).plan["compute_id"] == "local"

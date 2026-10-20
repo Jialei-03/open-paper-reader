@@ -745,6 +745,49 @@
   color: var(--ui-fg);
 }
 
+.first {
+  margin-left: var(--ui-space-8);
+  padding: 1px var(--ui-space-6);
+  border-radius: var(--ui-r-4);
+  background: var(--ui-fill);
+  font-size: var(--ui-text-12);
+  color: var(--ui-fg-1);
+  vertical-align: 1px;
+}
+
+/* A long summary shows its start; the rest is one click away. */
+.summary[data-clamped] {
+  max-height: 7.5em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 60%, transparent);
+}
+
+.more {
+  align-self: flex-start;
+  margin-top: calc(-1 * var(--ui-space-8));
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--ui-text-13);
+  color: var(--ui-fg-2);
+  cursor: pointer;
+}
+
+.more:hover {
+  color: var(--ui-fg);
+}
+
+.more:focus-visible {
+  outline: none;
+  border-radius: var(--ui-r-4);
+  box-shadow: var(--ui-focus-ring);
+}
+
+.cardFoot a {
+  color: var(--ui-fg);
+}
+
 .hypKill {
   font-size: var(--ui-text-13);
   line-height: var(--ui-leading);
