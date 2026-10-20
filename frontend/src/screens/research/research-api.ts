@@ -16,6 +16,7 @@ export interface ResearchProject {
   };
   spent: { sprints: number; tokens: number; job_seconds: number };
   session_id: string;
+  workspace_id: string;
   stage: Stage;
   compute_id: string;
   plan: ResearchPlan | Record<string, never>;
@@ -219,6 +220,7 @@ export const startProject = (body: {
   message: string;
   model_config_id: string;
   compute_id?: string;
+  workspace_id?: string;
 }) => send(BASE, body) as Promise<ResearchProject>;
 
 export const sendMessage = (id: string, text: string) =>
@@ -452,3 +454,85 @@ export function uploadFile(projectId: string, file: File) {
     body,
   });
 }
+
+/** A project: researches pursued together, and what they share. */
+export interface Workspace {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  kind: "research" | "eval";
+  compute_id: string;
+  model_config_id: string;
+  archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkspaceRow extends Workspace {
+  researches: number;
+  running: number;
+  waiting: number;
+  ideas: number;
+  active_at: string;
+}
+
+export type Column =
+  | "triage"
+  | "todo"
+  | "running"
+  | "review"
+  | "done"
+  | "dropped";
+
+/** A research as a project lists it. */
+export interface ResearchSummary {
+  id: string;
+  question: string;
+  stage: Stage;
+  status: ResearchProject["status"];
+  end_reason: string;
+  column: Column;
+  rounds: number;
+  best: { name: string; value: number } | null;
+  working: string;
+  waiting: number;
+  compute_id: string;
+  updated_at: string;
+}
+
+export interface BoardCard {
+  id: string;
+  kind: "research" | "hypothesis" | "experiment" | "finding" | "idea";
+  title: string;
+  summary: string;
+  column: Column;
+  movable: boolean;
+  research: { id: string; question: string } | null;
+  working: string;
+  best?: { name: string; value: number } | null;
+  evidence?: number;
+  status?: string;
+  stage?: Stage;
+  updated_at: string;
+}
+
+const WS = "/research/workspaces";
+
+export const listWorkspaces = () => api<WorkspaceRow[]>(WS);
+export const createWorkspace = (name: string, description = "") =>
+  send(WS, { name, description }) as Promise<Workspace>;
+export const getWorkspace = (id: string) =>
+  api<Workspace & { researches: ResearchSummary[] }>(`${WS}/${id}`);
+export const updateWorkspace = (id: string, body: Partial<Workspace>) =>
+  send(`${WS}/${id}`, body, "PATCH") as Promise<Workspace>;
+export const getBoard = (id: string) =>
+  api<{ columns: Column[]; cards: BoardCard[] }>(`${WS}/${id}/board`);
+export const addCard = (id: string, title: string, body = "") =>
+  send(`${WS}/${id}/cards`, { title, body });
+export const moveCard = (cardId: string, status: Column) =>
+  send(`/research/cards/${cardId}`, { status }, "PATCH");
+export const startCard = (cardId: string, model_config_id = "") =>
+  send(`/research/cards/${cardId}/start`, {
+    model_config_id,
+  }) as Promise<ResearchProject>;

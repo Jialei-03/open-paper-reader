@@ -43,7 +43,8 @@ import { AppActions, AppSidebar, QUICK_OPEN_SHORTCUT } from "./AppSidebar";
 import styles from "./AppShell.module.css";
 import { QuickOpen } from "./QuickOpen";
 import { parseAppRoute, type AppRoute } from "./routes";
-import { ResearchHome } from "../screens/research/ResearchHome";
+import { ProjectPage } from "../screens/research/projects/ProjectPage";
+import { ProjectsHome } from "../screens/research/projects/ProjectsHome";
 import { ResearchProject } from "../screens/research/ResearchProject";
 
 // The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
@@ -293,15 +294,23 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
           {shown.screen === "discover" && (
             <DiscoverScreen papers={papers} go={go} reload={reload} />
           )}
-          {shown.screen === "research" &&
-            (shown.projectId ? (
-              <ResearchProject
-                key={shown.projectId}
-                id={shown.projectId}
+          {shown.screen === "research" && shown.projectId && (
+            <ResearchProject
+              key={shown.projectId}
+              id={shown.projectId}
+              go={go}
+            />
+          )}
+          {shown.screen === "projects" &&
+            (shown.workspaceId ? (
+              <ProjectPage
+                key={shown.workspaceId}
+                id={shown.workspaceId}
+                tab={shown.tab}
                 go={go}
               />
             ) : (
-              <ResearchHome go={go} />
+              <ProjectsHome go={go} />
             ))}
         </Shell>
         <Toaster />

@@ -1,0 +1,510 @@
+/*
+ * Research projects: a grid of projects, and inside one a board (after
+ * Hermes's Kanban, MIT), the list of its researches, and what they share.
+ */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ui-bg-1);
+}
+
+.inner {
+  box-sizing: border-box;
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: var(--ui-space-40) var(--ui-space-24) var(--ui-space-48);
+  overflow-y: auto;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-16);
+  margin-bottom: var(--ui-space-24);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-30);
+  font-weight: var(--ui-weight-regular);
+}
+
+.empty {
+  margin: var(--ui-space-24) 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-14);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--ui-space-16);
+}
+
+.project {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  min-height: 132px;
+  padding: var(--ui-space-16) var(--ui-space-20);
+  border-radius: var(--ui-r-16);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-elev-1);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    box-shadow var(--ui-dur-2) var(--ui-ease-out),
+    transform var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.project:hover {
+  box-shadow: var(--ui-elev-2);
+  transform: translateY(-1px);
+}
+
+.project:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.projectName {
+  font-size: var(--ui-text-16);
+  font-weight: var(--ui-weight-strong);
+  color: var(--ui-fg);
+}
+
+.projectAbout {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.projectFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.badge {
+  padding: 1px var(--ui-space-8);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-fill);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+}
+
+.badge[data-tone="you"] {
+  background: var(--ui-fg);
+  color: var(--ui-bg);
+}
+
+.badge[data-tone="live"] {
+  color: var(--ui-success-text);
+}
+
+.rest {
+  margin-top: var(--ui-space-32);
+}
+
+.restToggle {
+  margin-bottom: var(--ui-space-12);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-fg-2);
+  font: inherit;
+  font-size: var(--ui-text-13);
+  cursor: pointer;
+}
+
+.form,
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-16);
+}
+
+/* Inside a project */
+
+.projectHead {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-12) var(--ui-space-16);
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border-bottom: 1px solid var(--ui-edge-subtle);
+}
+
+.projectTitle {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.projectTitle h1 {
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--ui-text-16);
+  font-weight: var(--ui-weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projectTitle p {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The board */
+
+.board {
+  display: grid;
+  grid-auto-columns: minmax(250px, 1fr);
+  grid-auto-flow: column;
+  gap: var(--ui-space-12);
+  height: 100%;
+  box-sizing: border-box;
+  padding: var(--ui-space-16);
+  overflow-x: auto;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  min-width: 0;
+  min-height: 0;
+  padding: var(--ui-space-8);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-fill);
+  transition: box-shadow var(--ui-dur-1) var(--ui-ease-out);
+}
+
+.column[data-over] {
+  box-shadow: inset 0 0 0 1.5px var(--ui-fg-2);
+}
+
+.columnHead {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-4) var(--ui-space-6);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-strong);
+}
+
+.count {
+  margin-left: auto;
+  color: var(--ui-fg-3);
+  font-weight: var(--ui-weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One quiet colour per column, also the dot on rows and the edge of cards. */
+.columnDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--ui-r-pill);
+  background: var(--tone);
+}
+
+[data-column="triage"] {
+  --tone: color-mix(in oklab, var(--ui-fg) 30%, transparent);
+}
+
+[data-column="todo"] {
+  --tone: color-mix(in oklab, var(--ui-fg) 55%, transparent);
+}
+
+[data-column="running"] {
+  --tone: #3b82c4;
+}
+
+[data-column="review"] {
+  --tone: #c08a1e;
+}
+
+[data-column="done"] {
+  --tone: var(--ui-success-text);
+}
+
+[data-column="dropped"] {
+  --tone: color-mix(in oklab, var(--ui-fg) 22%, transparent);
+}
+
+.ideaForm {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  padding: 0 var(--ui-space-10);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg);
+  box-shadow: inset 0 0 0 1px var(--ui-edge-subtle);
+  color: var(--ui-fg-3);
+}
+
+.ideaForm input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: var(--ui-text-13);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  min-height: 40px;
+  overflow-y: auto;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--ui-r-10);
+  background: var(--ui-bg);
+  box-shadow:
+    inset 3px 0 0 var(--tone),
+    var(--ui-elev-1);
+}
+
+.card[draggable="true"] {
+  cursor: grab;
+}
+
+/* An agent is at work on it: the edge breathes. */
+.card[data-live]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 1.5px var(--tone);
+  animation: breathe 1.8s var(--ui-ease-in-out) infinite;
+  pointer-events: none;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-10) var(--ui-space-12) var(--ui-space-10)
+    var(--ui-space-14, 14px);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cardBody:disabled {
+  cursor: inherit;
+}
+
+.cardBody:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.cardKind {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+}
+
+.cardMetric {
+  margin-left: auto;
+  color: var(--ui-fg-1);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-11);
+}
+
+.cardTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.cardSummary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-width: 0;
+  padding: 0 var(--ui-space-12) var(--ui-space-8) var(--ui-space-14, 14px);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+}
+
+.working {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-4);
+  color: var(--ui-fg-1);
+}
+
+.cardResearch {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Researches */
+
+.researches {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-24);
+  width: min(820px, 100%);
+  margin: 0 auto;
+  padding: var(--ui-space-32) var(--ui-space-16);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-6) var(--ui-space-12);
+  padding: var(--ui-space-12);
+  border-radius: var(--ui-r-10);
+  color: inherit;
+  text-decoration: none;
+}
+
+.row:hover {
+  background: var(--ui-hover);
+}
+
+.row:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.rowQuestion {
+  flex: 1 1 320px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ui-text-14);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowFacts {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-10);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+/* What they share */
+
+.files {
+  box-sizing: border-box;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--ui-space-32) var(--ui-space-16);
+}
+
+.defaults {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-8);
+}
+
+.defaultsLabel {
+  margin-right: var(--ui-space-8);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-space-8);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card[data-live]::after {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  .project:hover {
+    transform: none;
+  }
+}

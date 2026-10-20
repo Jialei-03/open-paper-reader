@@ -182,9 +182,9 @@ export function AppSidebar({
         <SidebarItem
           icon={FlaskConical}
           label={t("app.research")}
-          href="#research"
-          active={screen === "research"}
-          onClick={followLink(go, "research")}
+          href="#projects"
+          active={screen === "projects" || screen === "research"}
+          onClick={followLink(go, "projects")}
         />
       </SidebarSection>
       {reading.length > 0 && (

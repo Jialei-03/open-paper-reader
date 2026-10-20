@@ -260,7 +260,7 @@ export function ResearchProject({
             icon={ArrowLeft}
             label={t("research.back")}
             size="sm"
-            onClick={() => go("research")}
+            onClick={() => go("projects")}
           />
         </div>
         <div className={styles.thread}>
@@ -304,7 +304,13 @@ export function ResearchProject({
           icon={ArrowLeft}
           label={t("research.back")}
           size="sm"
-          onClick={() => go("research")}
+          onClick={() =>
+            go(
+              detail?.project.workspace_id
+                ? `projects/${detail.project.workspace_id}`
+                : "projects",
+            )
+          }
         />
         <h1 className={styles.headTitle}>
           <button

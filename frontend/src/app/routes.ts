@@ -16,6 +16,12 @@ export type AppRoute =
   | { screen: "discover"; redirect?: string }
   | { screen: "settings"; category?: string; redirect?: string }
   | { screen: "research"; projectId?: string; redirect?: string }
+  | {
+      screen: "projects";
+      workspaceId?: string;
+      tab?: string;
+      redirect?: string;
+    }
   | { screen: "open"; url: string; redirect?: string }
   | { screen: "reader"; reader: ReaderRoute; redirect?: string };
 
@@ -43,12 +49,20 @@ export function parseAppRoute(hash: string): AppRoute {
       ? { screen: "settings", category }
       : { screen: "settings", redirect: "settings" };
   }
-  if (path === "research") return { screen: "research" };
+  // Research lives in projects now; the old list address opens them.
+  if (path === "research") return { screen: "projects", redirect: "projects" };
+  if (path === "projects") return { screen: "projects" };
+  if (path.startsWith("projects/")) {
+    const [workspaceId, tab] = path.slice("projects/".length).split("/");
+    return /^[0-9a-f-]{36}$/.test(workspaceId)
+      ? { screen: "projects", workspaceId, ...(tab ? { tab } : {}) }
+      : { screen: "projects", redirect: "projects" };
+  }
   if (path.startsWith("research/")) {
     const projectId = path.slice("research/".length);
     return /^[0-9a-f-]{36}$/.test(projectId)
       ? { screen: "research", projectId }
-      : { screen: "research", redirect: "research" };
+      : { screen: "projects", redirect: "projects" };
   }
   if (path === "open") {
     // From the browser extension: the address of a paper to import, then read.
