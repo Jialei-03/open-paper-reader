@@ -6,27 +6,13 @@ import { Button, IconButton, SegmentedControl } from "../../../ui";
 import type { Turn } from "../conversation";
 import { describeStep, type Described } from "../describe";
 import type { ResearchNode } from "../research-api";
-import {
-  buildFrames,
-  HOME,
-  type Agent,
-  type Frame,
-  type Place,
-} from "./frames";
+import { buildFrames, type Agent, type Frame } from "./frames";
 import { Mascot } from "./Mascot";
+import { poseFor } from "./pose";
+import { AREA, areaStyle, pct, RoomArt, SPOT, STAND } from "./Room";
 import { MascotDialog } from "./MascotDialog";
 import { loadLooks, type Look } from "./mascots";
 import styles from "./scene.module.css";
-
-/** Where each place sits on the stage, in percent of its width and height. */
-const AT: Record<Place, { x: number; y: number }> = {
-  person: { x: 10, y: 18 },
-  shelf: { x: 86, y: 18 },
-  board: { x: 50, y: 30 },
-  bench: { x: 16, y: 72 },
-  gate: { x: 36, y: 78 },
-  desk: { x: 84, y: 72 },
-};
 
 const AGENTS: Agent[] = ["executor", "system", "advisor", "distiller"];
 const ROLE: Record<Agent, MessageKey> = {
@@ -119,69 +105,52 @@ export function ResearchScene({
   const distillerSeen = beats
     .slice(0, at + 1)
     .some((b) => b.frame.who === "distiller");
-  const personAsked = frame.to === "person";
+  // What the actor did travels from above its head to where it lands.
   const flight =
-    frame.to && frame.to !== HOME[frame.who] && !still
-      ? { from: AT[HOME[frame.who]], to: AT[frame.to] }
+    frame.to && !still
+      ? {
+          from: { x: STAND[frame.who].x, y: STAND[frame.who].y - 22 },
+          to: SPOT[frame.to],
+        }
       : null;
 
   return (
     <div className={styles.scene}>
       <div className={styles.stage} aria-hidden="true">
-        <Prop
-          place="person"
-          label={t("research.scene.place.person")}
-          lit={personAsked}
-        />
-        <Prop
-          place="shelf"
-          label={t("research.scene.place.shelf")}
-          lit={frame.to === "shelf"}
-        />
-        <Prop
-          place="gate"
-          label={t("research.scene.place.gate")}
-          lit={frame.who === "system"}
-        />
-        <Prop
-          place="bench"
-          label={t("research.scene.place.bench")}
-          lit={frame.who === "executor"}
+        <RoomArt />
+        <span
+          className={styles.doorSign}
+          style={areaStyle(AREA.door)}
+          data-lit={frame.to === "person" || undefined}
         >
-          <code className={styles.terminal}>
-            {lastCommand ? `$ ${lastCommand}` : "$ _"}
-          </code>
-        </Prop>
-        <Prop
-          place="desk"
-          label={t("research.scene.place.desk")}
-          lit={frame.who === "advisor"}
-        >
-          <span className={styles.paper}>{lastVerdict ?? "…"}</span>
-        </Prop>
+          {t("research.scene.place.person")}
+        </span>
+        <code className={styles.screen} style={areaStyle(AREA.screen)}>
+          {lastCommand ? `$ ${lastCommand}` : "$ _"}
+        </code>
+        {lastVerdict && (
+          <span className={styles.deskNote} style={areaStyle(AREA.note)}>
+            {lastVerdict}
+          </span>
+        )}
         <Board
           nodes={nodes}
           current={frame.step?.node ?? ""}
           lit={frame.to === "board"}
-          label={t("research.scene.place.board")}
         />
 
         {AGENTS.map((agent) => {
           if (agent === "distiller" && !distillerSeen) return null;
-          const home = AT[HOME[agent]];
+          const pose = poseFor(agent, frame);
           const active = frame.who === agent;
-          const stopped =
-            frame.step?.action === "drift_blocked" && agent === "executor";
           return (
             <div
               key={agent}
               className={styles.agent}
               data-agent={agent}
               data-active={active || undefined}
-              data-stopped={stopped || undefined}
-              style={
-                { left: `${home.x}%`, top: `${home.y + 1}%` } as CSSProperties
-              }
+              data-pose={pose}
+              style={pct(STAND[agent].x, STAND[agent].y) as CSSProperties}
             >
               {active && (
                 <div
@@ -195,16 +164,12 @@ export function ResearchScene({
                   )}
                 </div>
               )}
-              {stopped && (
-                <span className={styles.stopSign}>
-                  {t("research.scene.stop")}
-                </span>
-              )}
               <div className={styles.figure}>
                 <Mascot
                   agent={agent}
                   look={looks[agent]}
-                  size={agent === "system" ? 60 : 76}
+                  pose={pose}
+                  size={80}
                 />
               </div>
               <span className={styles.name}>{name(agent)}</span>
@@ -225,10 +190,10 @@ export function ResearchScene({
             }
             style={
               {
-                "--x0": `${flight.from.x}%`,
-                "--y0": `${flight.from.y - 10}%`,
-                "--x1": `${flight.to.x}%`,
-                "--y1": `${flight.to.y}%`,
+                "--x0": pct(flight.from.x, flight.from.y).left,
+                "--y0": pct(flight.from.x, flight.from.y).top,
+                "--x1": pct(flight.to.x, flight.to.y).left,
+                "--y1": pct(flight.to.x, flight.to.y).top,
                 "--fly": `${Math.round(900 / Number(speed))}ms`,
               } as CSSProperties
             }
@@ -342,65 +307,33 @@ export function ResearchScene({
   );
 }
 
-function Prop({
-  place,
-  label,
-  lit,
-  children,
-}: {
-  place: Place;
-  label: string;
-  lit: boolean;
-  children?: React.ReactNode;
-}) {
-  const at = AT[place];
-  return (
-    <div
-      className={styles.prop}
-      data-place={place}
-      data-lit={lit || undefined}
-      style={{ left: `${at.x}%`, top: `${at.y}%` }}
-    >
-      {children}
-      <span className={styles.propLabel}>{label}</span>
-    </div>
-  );
-}
-
-/** The research map as a board in the middle of the room, the node in play marked. */
+/** The research map on the whiteboard, the node in play marked. */
 function Board({
   nodes,
   current,
   lit,
-  label,
 }: {
   nodes: ResearchNode[];
   current: string;
   lit: boolean;
-  label: string;
 }) {
-  const at = AT.board;
-  const shown = nodes.slice(0, 6);
   return (
-    <div
+    <ul
       className={styles.board}
+      style={areaStyle(AREA.board)}
       data-lit={lit || undefined}
-      style={{ left: `${at.x}%`, top: `${at.y}%` }}
     >
-      <span className={styles.propLabel}>{label}</span>
-      <ul>
-        {shown.map((node) => (
-          <li
-            key={node.id}
-            data-status={node.status}
-            data-current={node.title === current || undefined}
-            style={{ paddingInlineStart: node.parent_id ? 12 : 0 }}
-          >
-            <span className={styles.boardDot} />
-            {node.title}
-          </li>
-        ))}
-      </ul>
-    </div>
+      {nodes.slice(0, 7).map((node) => (
+        <li
+          key={node.id}
+          data-status={node.status}
+          data-current={node.title === current || undefined}
+          style={{ paddingInlineStart: node.parent_id ? 10 : 0 }}
+        >
+          <span className={styles.boardDot} />
+          {node.title}
+        </li>
+      ))}
+    </ul>
   );
 }

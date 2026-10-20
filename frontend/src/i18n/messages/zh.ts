@@ -958,11 +958,6 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.view.scene": "场景",
   "research.scene.empty":
     "还没有动作。第一轮开始后，执行者、导师和系统会在这里干活。",
-  "research.scene.place.bench": "工作台",
-  "research.scene.place.board": "研究地图",
-  "research.scene.place.desk": "导师书桌",
-  "research.scene.place.gate": "闸门",
-  "research.scene.place.shelf": "研究手册",
   "research.scene.place.person": "你",
   "research.scene.play": "播放",
   "research.scene.pause": "暂停",
@@ -972,8 +967,6 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.scene.speed": "速度",
   "research.scene.step": "第 {index} / {total} 步",
   "research.scene.live": "跟随最新",
-  "research.scene.stop": "停",
-  "research.scene.idle": "等着",
   "research.scene.looks": "角色形象",
   "research.scene.looks.description":
     "给每个角色起名字，或上传你自己设计的形象（PNG、SVG、GIF、WebP，最大 1.5 MB）。只保存在这台电脑的浏览器里。",
