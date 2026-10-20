@@ -466,6 +466,45 @@ def _research_spent():
     return {"sprints": 0, "tokens": 0, "job_seconds": 0}
 
 
+class ResearchWorkspace(Base):
+    """A project: the researches pursued together, their board, and what they share
+    (instructions every agent reads, a default environment and model)."""
+
+    __tablename__ = "research_workspaces"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="")
+    instructions: Mapped[str] = mapped_column(Text, default="")
+    # Evaluation runs are kept apart from research a person leads.
+    kind: Mapped[str] = mapped_column(String(16), default="research")
+    compute_id: Mapped[str] = mapped_column(String(64), default="")
+    model_config_id: Mapped[str] = mapped_column(String(36), default="")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchCard(Base):
+    """A card of a project's board that is not a research or a node of one: an
+    idea or a task a person wrote down. Starting a research from it links them."""
+
+    __tablename__ = "research_cards"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("research_workspaces.id"), index=True
+    )
+    title: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text, default="")
+    # triage (an idea), todo, dropped; once a research starts it follows that research
+    status: Mapped[str] = mapped_column(String(16), default="triage")
+    project_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str] = mapped_column(String(16), default="human")
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
 class ResearchProject(Base):
     """A research question pursued over many sprints, from a persistent map."""
 
@@ -473,6 +512,10 @@ class ResearchProject(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     question: Mapped[str] = mapped_column(Text)
+    # The project it belongs to (research_workspaces); set for every research.
+    workspace_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True
+    )
     background: Mapped[str] = mapped_column(Text, default="")
     model_config_id: Mapped[str] = mapped_column(String(36))
     # active, waiting (for a person), paused, finished
@@ -619,9 +662,7 @@ class ResearchJob(Base):
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     metrics: Mapped[dict] = mapped_column(JSON, default=dict)
     points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    tracker_url: Mapped[str] = mapped_column(
-        String(500), default="", server_default=""
-    )
+    tracker_url: Mapped[str] = mapped_column(String(500), default="", server_default="")
 
 
 from . import library_collections  # noqa: E402,F401

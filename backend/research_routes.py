@@ -10,6 +10,8 @@ from sqlalchemy import select, update
 from . import research_datasets, research_map
 from .models import (
     AgentRun,
+    ResearchCard,
+    ResearchWorkspace,
     ResearchEvent,
     ResearchJob,
     ResearchNode,
@@ -18,7 +20,7 @@ from .models import (
     User,
     now,
 )
-from .translation_settings import read_config
+from .translation_settings import read_config, read_store
 
 LOCAL_ONLY = "研究功能目前只在本机版提供"
 UPLOAD_BYTES = 200 * 1024 * 1024
@@ -50,11 +52,41 @@ class ProjectInput(BaseModel):
     budget: Budget | None = None
     datasets: list[str] = Field(default_factory=list, max_length=5)
     compute_id: str = Field(default="", max_length=64)
+    workspace_id: str = Field(default="", max_length=64)
 
     @field_validator("message", "question")
     @classmethod
     def trimmed(cls, value):
         return value.strip()
+
+
+class WorkspaceInput(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=4000)
+
+
+class WorkspacePatch(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    description: str | None = Field(default=None, max_length=4000)
+    instructions: str | None = Field(default=None, max_length=20000)
+    compute_id: str | None = Field(default=None, max_length=64)
+    model_config_id: str | None = Field(default=None, max_length=64)
+    archived: bool | None = None
+
+
+class CardInput(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    body: str = Field(default="", max_length=8000)
+
+
+class CardPatch(BaseModel):
+    title: str | None = Field(default=None, max_length=300)
+    body: str | None = Field(default=None, max_length=8000)
+    status: str | None = Field(default=None, max_length=16)
+
+
+class StartInput(BaseModel):
+    model_config_id: str = Field(default="", max_length=64)
 
 
 class MessageInput(BaseModel):
@@ -103,6 +135,7 @@ def project_out(p):
         "budget": p.budget,
         "spent": p.spent,
         "session_id": p.session_id,
+        "workspace_id": p.workspace_id,
         "stage": p.stage,
         "compute_id": p.compute_id,
         "plan": p.plan or {},
@@ -246,6 +279,140 @@ def install_research_routes(app, settings, db, auth, human, owned):
         allowed(a, d)
         return owned(d, ResearchProject, id, a)
 
+    def workspace_for(d, a, workspace_id, budget=None):
+        from . import research_workspaces
+
+        if workspace_id:
+            w = d.get(ResearchWorkspace, workspace_id)
+            if w is None or w.owner != a["id"]:
+                raise HTTPException(404, "Not found")
+            return w
+        if budget is not None and budget.auto_decide:
+            research_workspaces.ensure(d, a["id"])
+        return research_workspaces.default_for(d, a["id"])
+
+    def workspace_of(d, id, a):
+        allowed(a, d)
+        w = d.get(ResearchWorkspace, id)
+        if w is None or w.owner != a["id"]:
+            raise HTTPException(404, "Not found")
+        return w
+
+    @app.get("/api/v1/research/workspaces")
+    def workspaces(a=Depends(auth), d=Depends(db)):
+        from . import research_workspaces
+
+        allowed(a, d)
+        out = research_workspaces.overview(d, a["id"])
+        d.commit()
+        return out
+
+    @app.post("/api/v1/research/workspaces")
+    def new_workspace(body: WorkspaceInput, a=Depends(auth), d=Depends(db)):
+        from . import research_workspaces
+
+        allowed(a, d)
+        try:
+            w = research_workspaces.create(d, a["id"], body.name, body.description)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        d.commit()
+        return research_workspaces.workspace_out(w)
+
+    @app.get("/api/v1/research/workspaces/{id}")
+    def workspace(id: str, a=Depends(auth), d=Depends(db)):
+        from . import research_workspaces
+
+        w = workspace_of(d, id, a)
+        return research_workspaces.workspace_out(w) | {
+            "researches": [
+                research_workspaces.summary(d, p)
+                for p in research_workspaces.researches(d, w)
+            ]
+        }
+
+    @app.patch("/api/v1/research/workspaces/{id}")
+    def edit_workspace(id: str, body: WorkspacePatch, a=Depends(auth), d=Depends(db)):
+        from . import research_workspaces
+
+        w = workspace_of(d, id, a)
+        try:
+            research_workspaces.update(d, w, body.model_dump())
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        d.commit()
+        return research_workspaces.workspace_out(w)
+
+    @app.get("/api/v1/research/workspaces/{id}/board")
+    def workspace_board(id: str, a=Depends(auth), d=Depends(db)):
+        from . import research_workspaces
+
+        return research_workspaces.board(d, workspace_of(d, id, a))
+
+    @app.post("/api/v1/research/workspaces/{id}/cards")
+    def new_card(id: str, body: CardInput, a=Depends(auth), d=Depends(db)):
+        from . import research_workspaces
+
+        w = workspace_of(d, id, a)
+        try:
+            card = research_workspaces.add_card(d, w, body.title, body.body)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        d.commit()
+        return {"id": card.id, "title": card.title, "status": card.status}
+
+    def card_of(d, id, a):
+        card = d.get(ResearchCard, id)
+        if card is None:
+            raise HTTPException(404, "Not found")
+        workspace_of(d, card.workspace_id, a)
+        return card
+
+    @app.patch("/api/v1/research/cards/{id}")
+    def edit_card(id: str, body: CardPatch, a=Depends(auth), d=Depends(db)):
+        from . import research_workspaces
+
+        card = card_of(d, id, a)
+        try:
+            if body.status:
+                research_workspaces.move_card(d, card, body.status)
+            if body.title is not None and body.title.strip():
+                card.title = body.title.strip()
+            if body.body is not None:
+                card.body = body.body
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        card.updated_at = now()
+        d.commit()
+        return {"id": card.id, "title": card.title, "status": card.status}
+
+    @app.post("/api/v1/research/cards/{id}/start")
+    def start_card(id: str, body: StartInput, a=Depends(auth), d=Depends(db)):
+        """An idea becomes a research: its words open the talk with the advisor."""
+        card = card_of(d, id, a)
+        if card.project_id:
+            raise HTTPException(409, "这张卡已经开始研究")
+        w = d.get(ResearchWorkspace, card.workspace_id)
+        message = card.title + (f"\n\n{card.body}" if card.body.strip() else "")
+        made = create(
+            ProjectInput(
+                message=message,
+                model_config_id=body.model_config_id
+                or w.model_config_id
+                or read_store(settings, a["id"]).get("active_id", "")
+                or "none",
+                compute_id=w.compute_id,
+                workspace_id=w.id,
+            ),
+            a,
+            d,
+        )
+        card = d.get(ResearchCard, id)
+        card.project_id = made["id"]
+        card.updated_at = now()
+        d.commit()
+        return made
+
     @app.post("/api/v1/research/projects")
     def create(body: ProjectInput, a=Depends(auth), d=Depends(db)):
         from . import research_datasets, research_settings, research_stages
@@ -262,8 +429,11 @@ def install_research_routes(app, settings, db, auth, human, owned):
             else None
         )
         try:
+            home = workspace_for(d, a, body.workspace_id, body.budget)
             compute_id = (
-                body.compute_id or research_settings.load(settings)["default_compute"]
+                body.compute_id
+                or home.compute_id
+                or research_settings.load(settings)["default_compute"]
             )
             research_settings.compute(settings, compute_id)
             p = research_map.create_project(
@@ -275,6 +445,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 budget,
             )
             p.compute_id = compute_id
+            p.workspace_id = home.id
             research_datasets.request(d, p, body.datasets)
             if body.message:
                 # The plan is talked through first; nothing runs until it is approved.

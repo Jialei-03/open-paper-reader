@@ -513,3 +513,54 @@ def test_limits_are_lifted_and_a_running_retrospective_stops(env):
     assert out["budget"]["max_sprints"] is None
     with app.state.maker() as d:
         assert d.get(AgentRun, run_id).status == "cancelled"
+
+
+WS = "/api/v1/research/workspaces"
+
+
+def test_projects_hold_researches_and_a_board(env):
+    app, a, b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    w = a.post(WS, json={"name": "MNIST", "description": "手写数字"}).json()
+    assert w["name"] == "MNIST"
+    r = a.post(
+        BASE,
+        json={
+            "message": "想提高准确率",
+            "model_config_id": model,
+            "workspace_id": w["id"],
+        },
+    )
+    assert r.status_code == 200 and r.json()["workspace_id"] == w["id"]
+    card = a.post(f"{WS}/{w['id']}/cards", json={"title": "试试 EMA"}).json()
+    assert (
+        a.patch(
+            f"/api/v1/research/cards/{card['id']}", json={"status": "todo"}
+        ).status_code
+        == 200
+    )
+    started = a.post(
+        f"/api/v1/research/cards/{card['id']}/start", json={"model_config_id": model}
+    )
+    assert started.status_code == 200, started.text
+    board = a.get(f"{WS}/{w['id']}/board").json()
+    kinds = sorted(c["kind"] for c in board["cards"])
+    assert kinds == ["research", "research"]
+    detail = a.get(f"{WS}/{w['id']}").json()
+    assert len(detail["researches"]) == 2
+    listed = {x["id"]: x for x in a.get(WS).json()}
+    assert listed[w["id"]]["researches"] == 2
+    patched = a.patch(f"{WS}/{w['id']}", json={"instructions": "只用公开数据"}).json()
+    assert patched["instructions"] == "只用公开数据"
+    assert b.get(f"{WS}/{w['id']}").status_code == 404
+
+
+def test_a_research_without_a_project_goes_to_the_default_one(env):
+    app, a, _b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    r = a.post(BASE, json={"message": "Q", "model_config_id": model}).json()
+    assert r["workspace_id"]
+    names = [w["name"] for w in a.get(WS).json()]
+    assert names == ["我的研究"]

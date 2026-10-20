@@ -84,8 +84,17 @@ def _talk(d, project):
     return parts
 
 
+def _instructions(d, project):
+    """What the researcher wrote for every research of the project."""
+    from .models import ResearchWorkspace
+
+    w = d.get(ResearchWorkspace, project.workspace_id) if project.workspace_id else None
+    text = (w.instructions or "").strip() if w else ""
+    return [f"## 项目说明（研究者为整个项目写的，必须遵守）\n{text}"] if text else []
+
+
 def _context_parts(d, project, settings):
-    parts = []
+    parts = _instructions(d, project)
     moved = d.scalars(
         select(ResearchEvent)
         .where(
@@ -124,7 +133,7 @@ def scoping_brief(d, project, sprint_number, settings=None):
     """The conversation so far, the plan card as it stands, and what can be used."""
     from . import research_datasets, research_settings, research_stages
 
-    parts = [f"# 定题对话 · 第 {sprint_number} 轮"]
+    parts = [f"# 定题对话 · 第 {sprint_number} 轮", *_instructions(d, project)]
     lines = []
     for row in research_stages.conversation(d, project):
         if row.action == "plan_proposed":
