@@ -239,6 +239,8 @@ export const jobSeries = (projectId: string, jobId: string) =>
   api<SeriesPoint[]>(`${BASE}/${projectId}/jobs/${jobId}/series`);
 
 export interface Compute {
+  /** Whether experiments can be sent there now (client-side, from its state). */
+  ready?: boolean;
   id: string;
   name: string;
   kind: "docker" | "ssh";
@@ -262,10 +264,56 @@ export interface ResearchSettings {
     has_key: boolean;
   };
   datasets?: { name: string; title: string }[];
+  /** What preparing each environment produced (backend research_environment.py). */
+  states: Record<string, EnvState>;
 }
 
+export interface EnvState {
+  status?: "preparing" | "ready" | "failed";
+  version?: number;
+  python?: string;
+  recipe?: string;
+  summary?: string;
+  needs?: string;
+  allow_sudo?: boolean;
+  error?: string;
+  prepared_at?: string;
+  run_id?: string;
+  probe?: Environment;
+}
+
+export interface EnvProgress {
+  state: EnvState;
+  run: { status: string; response: string } | null;
+  steps: {
+    name: string;
+    label: string;
+    status: string;
+    command: string;
+    output: string;
+  }[];
+}
+
+export const prepareEnvironment = (
+  id: string,
+  body: { model_config_id?: string; needs?: string; allow_sudo?: boolean },
+) => send(`/research/environments/${id}/prepare`, body) as Promise<EnvProgress>;
+
+export const environmentProgress = (id: string) =>
+  api<EnvProgress>(`/research/environments/${id}/progress`);
+
 export const readResearchSettings = () =>
-  api<ResearchSettings>("/research/settings");
+  api<ResearchSettings>("/research/settings").then((s) => ({
+    ...s,
+    // Docker is ready from its image; a machine once an agent has prepared it.
+    computes: s.computes.map((c) => ({
+      ...c,
+      ready:
+        c.kind === "docker" ||
+        s.states?.[c.id]?.status === "ready" ||
+        !!c.python,
+    })),
+  }));
 
 export const saveResearchSettings = (
   body: Partial<Omit<ResearchSettings, "tracker">> & {

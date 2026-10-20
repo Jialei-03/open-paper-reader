@@ -1222,7 +1222,7 @@ export const en = {
     "For example: push handwritten digit recognition a bit further",
   "research.home.send": "Send",
   "research.home.model": "Choose a model",
-  "research.home.compute": "Choose compute",
+  "research.home.compute": "Choose an environment",
   "research.home.noModel": "Add a model in Settings first",
   "research.home.recent": "Recent research",
   "research.home.playbook": "Playbook",
@@ -1298,7 +1298,7 @@ export const en = {
   "research.record.noRuns": "No experiments have run yet.",
   "research.record.runCount": "All runs ({n})",
   "research.record.run": "This run",
-  "research.setup.compute": "Compute and environment",
+  "research.setup.compute": "Research environment",
   "research.setup.where": "Runs on",
   "research.setup.machine": "Machine",
   "research.setup.noGpu": "None",
@@ -1322,11 +1322,11 @@ export const en = {
   "research.answer.reportZh": "Chinese",
   "research.answer.reportEn": "English",
   "research.home.all": "Show all {n}",
-  "settings.research.title": "Research: compute and experiment tracking",
+  "settings.research.title": "Research environments",
   "settings.research.lead":
-    "Where research experiments run and where their numbers go. SSH machines log in with the keys in your own ~/.ssh/config; no password is stored here.",
-  "settings.research.addSsh": "Add an SSH machine",
-  "settings.research.computes": "Compute",
+    "Where experiments run. Add a machine, then let an agent log in and prepare it; it counts as ready only once the system has checked it. SSH logs in with the keys in your own ~/.ssh/config; no password is stored here.",
+  "settings.research.addSsh": "Add a machine",
+  "settings.research.computes": "Environments",
   "settings.research.default": "Default",
   "settings.research.noGpu": "none",
   "settings.research.localMeta":
@@ -1348,7 +1348,7 @@ export const en = {
   "settings.research.keyHint":
     "Kept only in this machine's research settings file and never shown.",
   "settings.research.sshLead":
-    "The workspace is copied to this machine for each experiment and copied back when it ends.",
+    "An SSH host you can log in to without a password; an agent prepares it once added.",
   "settings.research.add": "Add",
   "settings.research.name": "Name",
   "settings.research.namePlaceholder": "Lab 4-GPU box",
@@ -1362,7 +1362,28 @@ export const en = {
   "settings.research.pythonHint":
     "The Python with PyTorch on that machine, e.g. a conda environment's path.",
   "settings.research.gpuHint":
-    "all for every GPU, or numbers like 0,1; empty for none.",
+    "GPU numbers to use, like 0 or 0,1; all for every GPU; empty for none.",
   "settings.research.save": "Save",
-  "research.setup.move": "Move to another compute",
+  "research.setup.move": "Move to another environment",
+  "settings.research.status.local": "From the image",
+  "settings.research.status.new": "Not prepared",
+  "settings.research.status.preparing": "Agent preparing",
+  "settings.research.status.ready": "Ready · version {version}",
+  "settings.research.status.failed": "Preparation failed",
+  "settings.research.prepare": "Let an agent prepare it",
+  "settings.research.reprepare": "Prepare again",
+  "settings.research.watch": "Watch",
+  "settings.research.details": "Preparation record",
+  "settings.research.prepareTitle": "Prepare {name}",
+  "settings.research.prepareLead":
+    "The agent logs in, looks at the GPU, driver and existing Python, then installs what is needed. When it is done the system checks the Python it chose; only then is the environment ready.",
+  "settings.research.needs": "What this environment must provide",
+  "settings.research.needsDefault":
+    "Python 3, PyTorch matching this machine's GPU and driver (CPU build if there is no GPU), plus numpy, scipy, scikit-learn, pandas and matplotlib. Installed under the home folder, leaving the system Python alone.",
+  "settings.research.allowSudo": "Allow sudo for system packages",
+  "settings.research.prepareStart": "Start preparing",
+  "settings.research.progressTitle": "Preparing {name}",
+  "settings.research.readyPython": "Experiments use {python} ({probe})",
+  "settings.research.recipe": "Script to redo this preparation",
+  "settings.research.working": "The agent is working on the machine…",
 } as const;

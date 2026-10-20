@@ -76,12 +76,14 @@ export function ComputePicker({
       label={label}
       icon={Cpu}
       current={current?.name ?? label}
-      items={computes.map((c) => ({
-        id: c.id,
-        label: c.name + (c.gpus ? ` · GPU ${c.gpus}` : ""),
-        icon: c.id === value ? Check : undefined,
-        onSelect: () => onChange(c.id),
-      }))}
+      items={computes
+        .filter((c) => c.ready !== false || c.id === value)
+        .map((c) => ({
+          id: c.id,
+          label: c.name + (c.gpus ? ` · GPU ${c.gpus}` : ""),
+          icon: c.id === value ? Check : undefined,
+          onSelect: () => onChange(c.id),
+        }))}
     />
   );
 }

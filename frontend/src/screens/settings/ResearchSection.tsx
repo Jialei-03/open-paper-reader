@@ -1,35 +1,35 @@
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
-import { Button, Dialog, SegmentedControl, TextField, toast } from "../../ui";
+import type { MessageKey } from "../../i18n/i18n";
 import {
+  Button,
+  Dialog,
+  SegmentedControl,
+  TextArea,
+  TextField,
+  toast,
+} from "../../ui";
+import {
+  environmentProgress,
+  prepareEnvironment,
   readResearchSettings,
   saveResearchSettings,
   testCompute,
   type Compute,
+  type EnvProgress,
   type Environment,
   type ResearchSettings,
 } from "../research/research-api";
 import { Section } from "./Section";
 import styles from "./Settings.module.css";
 
-const BLANK: Compute = {
-  id: "",
-  name: "",
-  kind: "ssh",
-  host: "",
-  remote_dir: "~/ora-research",
-  runner: "shell",
-  python: "python3",
-  gpus: "",
-};
-
 const slug = (text: string) =>
   text
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 40) || "gpu";
+    .slice(0, 40) || "machine";
 
 const describe = (env: Environment) =>
   [
@@ -40,20 +40,31 @@ const describe = (env: Environment) =>
     .filter(Boolean)
     .join(" · ");
 
+interface Draft {
+  name: string;
+  host: string;
+  gpus: string;
+}
+
 /**
- * Where research experiments run (this machine's Docker, or machines over
- * SSH) and where their numbers are mirrored (SwanLab or Weights & Biases).
+ * Research environments: where experiments run. An SSH machine is prepared by
+ * an agent that logs in and sets it up; the system checks the result itself
+ * before the environment counts as ready. Also where run numbers are mirrored.
  */
 export function ResearchSection() {
   const { t } = useI18n();
   const [data, setData] = useState<ResearchSettings | null>(null);
-  const [draft, setDraft] = useState<Compute | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
+  const [preparing, setPreparing] = useState<Compute | null>(null);
+  const [watching, setWatching] = useState<Compute | null>(null);
 
-  useEffect(() => {
+  const reload = () =>
     readResearchSettings().then(setData, () => setData(null));
+  useEffect(() => {
+    reload();
   }, []);
 
   const fail = (error: unknown) =>
@@ -96,6 +107,14 @@ export function ResearchSection() {
     );
 
   const tracker = data.tracker;
+  const stateOf = (c: Compute) => data.states?.[c.id] ?? {};
+  const statusKey = (c: Compute): MessageKey => {
+    if (c.kind === "docker") return "settings.research.status.local";
+    const status = stateOf(c).status;
+    return status
+      ? (`settings.research.status.${status}` as MessageKey)
+      : "settings.research.status.new";
+  };
   return (
     <Section
       title={t("settings.research.title")}
@@ -105,70 +124,114 @@ export function ResearchSection() {
           size="sm"
           variant="secondary"
           icon={Plus}
-          onClick={() => setDraft({ ...BLANK })}
+          onClick={() => setDraft({ name: "", host: "", gpus: "" })}
         >
           {t("settings.research.addSsh")}
         </Button>
       }
     >
-      <h3 className={styles.subTitle}>{t("settings.research.computes")}</h3>
       <div className={styles.list}>
-        {data.computes.map((c) => (
-          <div key={c.id} className={styles.row}>
-            <div className={styles.rowText}>
-              <span className={styles.rowTitle}>
-                {c.name}
-                {c.id === data.default_compute && (
+        {data.computes.map((c) => {
+          const state = stateOf(c);
+          return (
+            <div key={c.id} className={styles.row}>
+              <div className={styles.rowText}>
+                <span className={styles.rowTitle}>
+                  {c.name}
                   <span className={styles.badge}>
-                    {t("settings.research.default")}
+                    {t(statusKey(c), { version: state.version ?? 0 })}
                   </span>
+                  {c.id === data.default_compute && (
+                    <span className={styles.badge}>
+                      {t("settings.research.default")}
+                    </span>
+                  )}
+                </span>
+                <span className={styles.rowMeta}>
+                  {probe[c.id] ||
+                    (c.kind === "ssh"
+                      ? [
+                          c.host,
+                          state.probe ? describe(state.probe) : "",
+                          state.status === "failed" ? state.error : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : t("settings.research.localMeta", {
+                          cpus: c.cpus ?? 2,
+                          memory: c.memory_gb ?? 4,
+                        }))}
+                </span>
+              </div>
+              <div className={styles.rowActions}>
+                {c.kind === "ssh" &&
+                  (state.status === "preparing" ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setWatching(c)}
+                    >
+                      {t("settings.research.watch")}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant={state.status === "ready" ? "ghost" : "primary"}
+                      onClick={() => setPreparing(c)}
+                    >
+                      {t(
+                        state.status === "ready"
+                          ? "settings.research.reprepare"
+                          : "settings.research.prepare",
+                      )}
+                    </Button>
+                  ))}
+                {c.kind === "ssh" &&
+                  state.status &&
+                  state.status !== "preparing" && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setWatching(c)}
+                    >
+                      {t("settings.research.details")}
+                    </Button>
+                  )}
+                <Button size="sm" variant="ghost" onClick={() => check(c.id)}>
+                  {t("settings.research.test")}
+                </Button>
+                {c.id !== data.default_compute && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => save({ default_compute: c.id })}
+                  >
+                    {t("settings.research.makeDefault")}
+                  </Button>
                 )}
-              </span>
-              <span className={styles.rowMeta}>
-                {probe[c.id] ||
-                  (c.kind === "ssh"
-                    ? `${c.host} · ${c.runner} · GPU ${c.gpus || t("settings.research.noGpu")}`
-                    : t("settings.research.localMeta", {
-                        cpus: c.cpus ?? 2,
-                        memory: c.memory_gb ?? 4,
-                      }))}
-              </span>
+                {c.id !== "local" && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() =>
+                      save({
+                        computes: data.computes.filter((x) => x.id !== c.id),
+                        default_compute:
+                          data.default_compute === c.id
+                            ? "local"
+                            : data.default_compute,
+                      })
+                    }
+                  >
+                    {t("settings.research.remove")}
+                  </Button>
+                )}
+              </div>
             </div>
-            <div className={styles.rowActions}>
-              <Button size="sm" variant="ghost" onClick={() => check(c.id)}>
-                {t("settings.research.test")}
-              </Button>
-              {c.id !== data.default_compute && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => save({ default_compute: c.id })}
-                >
-                  {t("settings.research.makeDefault")}
-                </Button>
-              )}
-              {c.id !== "local" && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() =>
-                    save({
-                      computes: data.computes.filter((x) => x.id !== c.id),
-                      default_compute:
-                        data.default_compute === c.id
-                          ? "local"
-                          : data.default_compute,
-                    })
-                  }
-                >
-                  {t("settings.research.remove")}
-                </Button>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <h3 className={styles.subTitle}>{t("settings.research.tracker")}</h3>
@@ -254,17 +317,21 @@ export function ResearchSection() {
             <Button
               variant="primary"
               loading={busy}
-              disabled={!draft?.host?.trim()}
+              disabled={!draft?.host.trim()}
               onClick={async () => {
                 if (!draft) return;
-                const item = {
-                  ...draft,
-                  name: draft.name.trim() || draft.host!.trim(),
-                  id: slug(draft.name || draft.host || ""),
+                const item: Compute = {
+                  id: slug(draft.name || draft.host),
+                  name: draft.name.trim() || draft.host.trim(),
+                  kind: "ssh",
+                  host: draft.host.trim(),
+                  remote_dir: "~/ora-research",
+                  runner: "shell",
+                  gpus: draft.gpus.trim(),
                 };
                 if (await save({ computes: [...data.computes, item] })) {
                   setDraft(null);
-                  check(item.id);
+                  setPreparing(item);
                 }
               }}
             >
@@ -284,46 +351,211 @@ export function ResearchSection() {
             <TextField
               label={t("settings.research.host")}
               value={draft.host}
-              placeholder="gpu-box"
+              placeholder="research-wsl"
               description={t("settings.research.hostHint")}
               onChange={(e) => setDraft({ ...draft, host: e.target.value })}
             />
             <TextField
-              label={t("settings.research.remoteDir")}
-              value={draft.remote_dir}
-              onChange={(e) =>
-                setDraft({ ...draft, remote_dir: e.target.value })
-              }
-            />
-            <SegmentedControl
-              kind="radio"
-              size="sm"
-              label={t("settings.research.runner")}
-              value={draft.runner ?? "shell"}
-              onChange={(runner) => setDraft({ ...draft, runner })}
-              options={[
-                { value: "shell", label: t("settings.research.shell") },
-                { value: "docker", label: "Docker" },
-              ]}
-            />
-            {draft.runner !== "docker" && (
-              <TextField
-                label={t("settings.research.python")}
-                value={draft.python}
-                description={t("settings.research.pythonHint")}
-                onChange={(e) => setDraft({ ...draft, python: e.target.value })}
-              />
-            )}
-            <TextField
               label="GPU"
               value={draft.gpus}
-              placeholder="all"
+              placeholder="0"
               description={t("settings.research.gpuHint")}
               onChange={(e) => setDraft({ ...draft, gpus: e.target.value })}
             />
           </div>
         )}
       </Dialog>
+
+      <PrepareDialog
+        env={preparing}
+        initial={preparing ? stateOf(preparing) : {}}
+        onClose={() => setPreparing(null)}
+        onStarted={(env) => {
+          setPreparing(null);
+          reload();
+          setWatching(env);
+        }}
+      />
+      <ProgressDialog
+        env={watching}
+        onClose={() => {
+          setWatching(null);
+          reload();
+        }}
+      />
     </Section>
+  );
+}
+
+function PrepareDialog({
+  env,
+  initial,
+  onClose,
+  onStarted,
+}: {
+  env: Compute | null;
+  initial: { needs?: string; allow_sudo?: boolean };
+  onClose(): void;
+  onStarted(env: Compute): void;
+}) {
+  const { t } = useI18n();
+  const [needs, setNeeds] = useState("");
+  const [sudo, setSudo] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    setNeeds(initial.needs || t("settings.research.needsDefault"));
+    setSudo(!!initial.allow_sudo);
+    // Filled anew each time the dialog opens for an environment.
+  }, [env?.id]);
+  return (
+    <Dialog
+      open={!!env}
+      onClose={onClose}
+      title={t("settings.research.prepareTitle", { name: env?.name ?? "" })}
+      description={t("settings.research.prepareLead")}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            variant="primary"
+            loading={busy}
+            disabled={!needs.trim()}
+            onClick={async () => {
+              if (!env) return;
+              setBusy(true);
+              try {
+                await prepareEnvironment(env.id, {
+                  needs: needs.trim(),
+                  allow_sudo: sudo,
+                });
+                onStarted(env);
+              } catch (error) {
+                toast.show({
+                  message:
+                    error instanceof Error ? error.message : String(error),
+                  tone: "error",
+                });
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {t("settings.research.prepareStart")}
+          </Button>
+        </>
+      }
+    >
+      <div className={styles.column}>
+        <TextArea
+          label={t("settings.research.needs")}
+          value={needs}
+          rows={4}
+          onChange={(e) => setNeeds(e.target.value)}
+        />
+        <label className={styles.setting}>
+          <input
+            type="checkbox"
+            checked={sudo}
+            onChange={(e) => setSudo(e.target.checked)}
+          />
+          <span className={styles.settingLabel}>
+            {t("settings.research.allowSudo")}
+          </span>
+        </label>
+      </div>
+    </Dialog>
+  );
+}
+
+function ProgressDialog({
+  env,
+  onClose,
+}: {
+  env: Compute | null;
+  onClose(): void;
+}) {
+  const { t } = useI18n();
+  const [progress, setProgress] = useState<EnvProgress | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!env) {
+      setProgress(null);
+      return;
+    }
+    environmentProgress(env.id).then(setProgress, () => undefined);
+  }, [env?.id, tick]);
+  const live = progress?.state.status === "preparing";
+  useEffect(() => {
+    if (!env || !live) return;
+    const timer = window.setTimeout(() => setTick((n) => n + 1), 3000);
+    return () => window.clearTimeout(timer);
+  }, [env, live, tick]);
+  const state = progress?.state;
+  return (
+    <Dialog
+      open={!!env}
+      onClose={onClose}
+      size="lg"
+      title={t("settings.research.progressTitle", { name: env?.name ?? "" })}
+      description={
+        state?.status
+          ? t(`settings.research.status.${state.status}` as MessageKey, {
+              version: state.version ?? 0,
+            })
+          : ""
+      }
+    >
+      {!progress ? (
+        <p className={styles.muted}>{t("common.loading")}</p>
+      ) : (
+        <div className={styles.column}>
+          {state?.status === "ready" && (
+            <>
+              <p className={styles.settingHint}>{state.summary}</p>
+              <p className={styles.settingHint}>
+                {t("settings.research.readyPython", {
+                  python: state.python ?? "",
+                  probe: state.probe ? describe(state.probe) : "",
+                })}
+              </p>
+              {state.recipe && (
+                <details>
+                  <summary className={styles.settingLabel}>
+                    {t("settings.research.recipe")}
+                  </summary>
+                  <pre className={styles.code}>{state.recipe}</pre>
+                </details>
+              )}
+            </>
+          )}
+          {state?.status === "failed" && (
+            <p role="alert" className={styles.error}>
+              {state.error}
+            </p>
+          )}
+          <ol className={styles.steps}>
+            {progress.steps.map((step, i) => (
+              <li key={i} className={styles.stepItem}>
+                <span className={styles.settingLabel}>
+                  {step.command ? (
+                    <code className={styles.code}>{step.command}</code>
+                  ) : (
+                    step.label || step.name
+                  )}
+                </span>
+                {step.output && (
+                  <pre className={styles.stepOutput}>{step.output}</pre>
+                )}
+              </li>
+            ))}
+            {live && (
+              <li className={styles.muted}>{t("settings.research.working")}</li>
+            )}
+          </ol>
+        </div>
+      )}
+    </Dialog>
   );
 }
