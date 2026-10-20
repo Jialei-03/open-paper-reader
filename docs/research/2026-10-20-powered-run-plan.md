@@ -19,3 +19,29 @@
 次要指标：token 之差，以及满分次数。
 
 无论结果如何都如实报告，结论只依据上面写好的规则。
+
+---
+
+# 结果（08:09 跑完）
+
+```
+fresh-fraud-leak: playbook n=15, no-playbook n=15
+sprints: playbook 4.80, no-playbook 3.80, difference 1.00 (95% CI 0.00 to 2.07)
+tokens: playbook 36213.53, no-playbook 35035.93, difference 1177.60 (95% CI -6576.20 to 8698.20)
+full marks: playbook 14/15, no-playbook 15/15
+```
+
+**按预注册的规则：区间包含 0，没有检测到学到的手册减少轮数的作用。** 点估计的方向反而是手册多用了一轮，区间下界正好在 0 上。token 和满分次数也没有可信的差别。读手册那次没满分，是一次跑满 8 轮的运行：导师判定执行者在重复已经做过的事，偏离率超过了评分线。
+
+和之前的结果放在一起：
+
+- 在开发中反复使用的 `leaky-feature` 上，学到的手册看起来省了将近一半的花费；
+- 在同类型的新任务上，预注册的 5 个种子和这次的 15 个种子，都没有看到这个作用。
+
+最一致的解释是：之前的优势是对开发集的过拟合，加上小样本的噪声。
+
+可以这样复现这张表：
+
+```bash
+python scripts/research_eval/compare.py --task fresh-fraud-leak scripts/research_eval/results/2026-10-20-powered-*.jsonl
+```
