@@ -30,12 +30,17 @@ def _setting_out(settings, project):
     lines = []
     try:
         item = research_settings.compute(settings, project.compute_id)
-        env = (project.environment or {}).get(item["id"], {})
+        # What the project's own first job found, or else what preparing the
+        # environment found.
+        env = (project.environment or {}).get(item["id"]) or (
+            research_settings.load(settings)["states"].get(item["id"], {}).get("probe")
+            or {}
+        )
         gpus = (
             ", ".join(env.get("gpus") or [])
             or (env.get("mps") and "Apple 芯片，PyTorch 用 torch.device('mps')")
             or (item.get("gpus") and "已配置")
-            or "无"
+            or ("无" if env else "未检测")
         )
         lines.append(
             f"- 算力：{item['name']}（{item['kind']}，GPU：{gpus}）"

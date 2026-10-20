@@ -131,3 +131,22 @@ def test_the_executor_is_told_this_machine_has_an_apple_gpu(world):
             "host": {"python": "3.12", "packages": {"torch": "2.11"}, "mps": True}
         }
         assert "mps" in _setting_out(settings, p)
+
+
+def test_before_its_first_job_the_brief_uses_what_preparing_found(world):
+    from backend import research_environment as re_
+    from backend.research_brief import _setting_out
+
+    settings, maker, pid = world
+    re_.set_state(
+        settings,
+        "host",
+        status="ready",
+        python="/x/bin/python",
+        probe={"python": "3.12", "packages": {"torch": "2.14"}, "mps": True},
+    )
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        assert not p.environment
+        text = _setting_out(settings, p)
+        assert "mps" in text and "torch 2.14" in text

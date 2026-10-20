@@ -606,6 +606,25 @@ def _process(app, job_id, cfg):
                                 if isinstance(e, ValueError)
                                 else "工具执行失败或超时，请重试"
                             )
+                            if not isinstance(e, ValueError):
+                                # Where it broke, for whoever runs the server: the
+                                # kind of error and the line, never its text.
+                                where = e.__traceback__
+                                while where and where.tb_next:
+                                    where = where.tb_next
+                                print(
+                                    json.dumps(
+                                        {
+                                            "agent_tool_error": name,
+                                            "type": type(e).__name__,
+                                            "at": f"{Path(where.tb_frame.f_code.co_filename).name}:{where.tb_lineno}"
+                                            if where
+                                            else "",
+                                        }
+                                    ),
+                                    file=sys.stderr,
+                                    flush=True,
+                                )
                             steps[-1].update(status="failed", error=message)
                             reply = {
                                 "id": event["id"],
