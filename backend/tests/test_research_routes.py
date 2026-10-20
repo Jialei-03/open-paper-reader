@@ -1,8 +1,16 @@
+import pytest
 from sqlalchemy import select
 
 from backend.models import AgentRun, ResearchProject, ResearchSprint
-from backend.tests.test_acceptance import env as env  # noqa: PLC0414
+from backend.tests.test_acceptance import env as cloud_env  # noqa: F401
 from backend.tests.test_agents import configure
+
+
+@pytest.fixture
+def env(cloud_env):  # noqa: F811
+    """Research is the local edition's: its tests run as that edition."""
+    cloud_env[3].mode = "local"
+    return cloud_env
 
 BASE = "/api/v1/research/projects"
 
@@ -81,12 +89,14 @@ def test_stop_cancels_running_sprint(env):
     assert a.post(f"{BASE}/{project['id']}/resume", json={}).status_code == 409
 
 
-def test_cloud_non_admin_forbidden(env):
-    _app, a, b, _settings = env
-    r = b.get(BASE)
-    assert r.status_code == 403
-    assert "本机版" in r.json()["detail"]
-    assert a.get(BASE).status_code == 200
+def test_the_hosted_site_offers_no_research_even_to_admins(env):
+    _app, a, b, settings = env
+    settings.mode = "cloud"
+    for client in (a, b):  # alice is an admin, bob is not
+        r = client.get(BASE)
+        assert r.status_code == 403
+        assert "本机版" in r.json()["detail"]
+    assert a.get("/api/v1/research/workspaces").status_code == 403
 
 
 def waiting_project(app, a, settings):
@@ -230,7 +240,8 @@ def test_playbook_list_and_review(env):
         ).status_code
         == 404
     )
-    assert b.get("/api/v1/research/playbook").status_code == 403
+    settings.mode = "cloud"
+    assert a.get("/api/v1/research/playbook").status_code == 403
 
 
 def test_upload_and_list_workspace_files(env):

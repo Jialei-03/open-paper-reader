@@ -13,8 +13,15 @@ from backend.models import (
     ResearchProject,
     ResearchSprint,
 )
-from backend.tests.test_acceptance import env as env  # noqa: PLC0414
+from backend.tests.test_acceptance import env as cloud_env  # noqa: F401
 from backend.tests.test_agents import configure
+
+
+@pytest.fixture
+def env(cloud_env):  # noqa: F811
+    """Research is the local edition's: its tests run as that edition."""
+    cloud_env[3].mode = "local"
+    return cloud_env
 
 WS = "/api/v1/research/workspaces"
 

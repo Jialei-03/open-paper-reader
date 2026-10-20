@@ -25,6 +25,7 @@ import {
 import { ResearchSection } from "./ResearchSection";
 import { UsageSection } from "./UsageSection";
 import { PlaybookPanel } from "../research/PlaybookPanel";
+import { useLocal } from "../../app/edition";
 import styles from "./SettingsWindow.module.css";
 
 export type SettingsCategory =
@@ -121,7 +122,7 @@ function Body({
  * close button or a click outside closes it; the page underneath stays as it was.
  */
 export function SettingsWindow({
-  category,
+  category: asked,
   onCategory,
   onClose,
   go,
@@ -145,17 +146,28 @@ export function SettingsWindow({
   const label = (id: SettingsCategory) =>
     t(`settings.category.${id}` as MessageKey);
   const q = query.trim().toLowerCase();
-  const groups = GROUPS.map((g) => ({
-    ...g,
-    entries: g.entries.filter(
-      (e) =>
-        !q ||
-        label(e.id).toLowerCase().includes(q) ||
-        t(`settings.keywords.${e.id}` as MessageKey)
-          .toLowerCase()
-          .includes(q),
-    ),
-  })).filter((g) => g.entries.length);
+  // Research comes with the local edition; the hosted site has no settings for it.
+  const local = useLocal();
+  const research = GROUPS.find((g) => g.title === "settings.group.research");
+  const category =
+    local === false && research?.entries.some((e) => e.id === asked)
+      ? "general"
+      : asked;
+  const groups = GROUPS.filter(
+    (g) => local !== false || g.title !== "settings.group.research",
+  )
+    .map((g) => ({
+      ...g,
+      entries: g.entries.filter(
+        (e) =>
+          !q ||
+          label(e.id).toLowerCase().includes(q) ||
+          t(`settings.keywords.${e.id}` as MessageKey)
+            .toLowerCase()
+            .includes(q),
+      ),
+    }))
+    .filter((g) => g.entries.length);
 
   return (
     <dialog

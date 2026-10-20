@@ -41,10 +41,12 @@ import {
 } from "../ui";
 import { AppActions, AppSidebar, QUICK_OPEN_SHORTCUT } from "./AppSidebar";
 import styles from "./AppShell.module.css";
+import { useLocal } from "./edition";
 import { QuickOpen } from "./QuickOpen";
 import { parseAppRoute, type AppRoute } from "./routes";
 import { ProjectPage } from "../screens/research/projects/ProjectPage";
 import { ProjectsHome } from "../screens/research/projects/ProjectsHome";
+import { LocalOnly } from "../screens/research/LocalOnly";
 import { ResearchProject } from "../screens/research/ResearchProject";
 
 // The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
@@ -98,19 +100,10 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
   const [tick, setTick] = useState(0);
   const [quickOpen, setQuickOpen] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
-  // This machine's own server (`mode: "local"`) has one person and no session to end.
-  const [local, setLocal] = useState(false);
+  // This machine's own server (`mode: "local"`) has one person and no session
+  // to end; until the server says, the sign-out stays: the safer way to be wrong.
+  const local = useLocal();
   const floating = useMediaQuery(SIDEBAR_FLOATS);
-  useEffect(() => {
-    const controller = new AbortController();
-    api<{ mode?: string }>("/health", { signal: controller.signal }).then(
-      (health) => setLocal(health.mode === "local"),
-      () => {
-        /* Without an answer the sign-out stays: it is the safer way to be wrong. */
-      },
-    );
-    return () => controller.abort();
-  }, []);
   const reload = useCallback(() => setTick((n) => n + 1), []);
   const go = useCallback((hash: string) => {
     location.hash = hash;
@@ -201,7 +194,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
     () => ({
       owner: user.id,
       quickOpen: () => setQuickOpen(true),
-      signOut: local ? undefined : () => void signOut(),
+      signOut: local === true ? undefined : () => void signOut(),
     }),
     [signOut, local, user.id],
   );
@@ -297,14 +290,19 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
           {shown.screen === "discover" && (
             <DiscoverScreen papers={papers} go={go} reload={reload} />
           )}
-          {shown.screen === "research" && shown.projectId && (
-            <ResearchProject
-              key={shown.projectId}
-              id={shown.projectId}
-              go={go}
-            />
-          )}
+          {(shown.screen === "research" || shown.screen === "projects") &&
+            local === false && <LocalOnly />}
+          {shown.screen === "research" &&
+            local !== false &&
+            shown.projectId && (
+              <ResearchProject
+                key={shown.projectId}
+                id={shown.projectId}
+                go={go}
+              />
+            )}
           {shown.screen === "projects" &&
+            local !== false &&
             (shown.workspaceId ? (
               <ProjectPage
                 key={shown.workspaceId}

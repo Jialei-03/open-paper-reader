@@ -1284,6 +1284,10 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.keywords.data": "数据 存储 导出",
   "settings.keywords.usage": "用量 token 额度",
   "settings.keywords.access": "分享 访问 链接 令牌",
+  "research.localOnly.title": "研究 Agent 在你自己的电脑上运行",
+  "research.localOnly.lead":
+    "研究要在你的电脑、GPU 或实验室的机器上跑真实的实验，所以只在本机版里提供；在线版用来读论文。在自己的电脑上部署本机版就能开始研究：",
+  "research.localOnly.guide": "完整的安装说明见 GitHub",
   "projects.title": "项目",
   "projects.new": "新建项目",
   "projects.newLead":

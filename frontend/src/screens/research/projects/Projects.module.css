@@ -42,6 +42,26 @@
   font-size: var(--ui-text-14);
 }
 
+.lead {
+  max-width: 640px;
+  margin: 0 0 var(--ui-space-16);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-14);
+  line-height: 1.6;
+}
+
+.steps {
+  max-width: 640px;
+  margin: 0 0 var(--ui-space-16);
+  padding: var(--ui-space-16);
+  overflow-x: auto;
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-13);
+  line-height: 1.7;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

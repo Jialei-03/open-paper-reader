@@ -22,7 +22,7 @@ from .models import (
 )
 from .translation_settings import read_config, read_store
 
-LOCAL_ONLY = "研究功能目前只在本机版提供"
+LOCAL_ONLY = "研究功能只在本机版提供，请在自己的电脑上部署后使用"
 UPLOAD_BYTES = 200 * 1024 * 1024
 
 
@@ -272,12 +272,10 @@ def conclusion(d, p):
 
 def install_research_routes(app, settings, db, auth, human, owned):
     def allowed(a, d):
-        """Research runs code and spends model budget: local edition, or admins."""
+        """Research runs experiments on the researcher's own machines: the
+        local edition only, for every account of the hosted site alike."""
         human(a)
-        if settings.mode == "local":
-            return
-        user = d.get(User, a["id"])
-        if not user or not user.admin:
+        if settings.mode != "local":
             raise HTTPException(403, LOCAL_ONLY)
 
     def project_of(d, id, a):

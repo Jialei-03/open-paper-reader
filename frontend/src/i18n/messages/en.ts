@@ -1372,6 +1372,10 @@ export const en = {
   "settings.keywords.data": "data storage export",
   "settings.keywords.usage": "usage tokens quota",
   "settings.keywords.access": "sharing access links tokens",
+  "research.localOnly.title": "The research agent runs on your own computer",
+  "research.localOnly.lead":
+    "Research runs real experiments on your computer, your GPU or your lab's machines, so it comes with the local edition; the hosted site is for reading papers. Deploy the local edition on your own computer to start researching:",
+  "research.localOnly.guide": "Full install instructions on GitHub",
   "projects.title": "Projects",
   "projects.new": "New project",
   "projects.newLead":
