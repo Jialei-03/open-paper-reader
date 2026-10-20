@@ -74,6 +74,7 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 | --- | --- |
 | `main.py`、`models.py`、`migrations/versions/` | API 组装、数据模型、Alembic 迁移 |
 | `local/` | 本机版的启动、数据目录和后台进程管理 |
+| `cloud_link.py` | 本机版连接线上账号：登录一次换访问令牌（存在数据目录的 `cloud-link.json`，不存密码），按 PDF 的 SHA-256 双向同步论文；只在本机版注册接口 |
 | `agent_worker.py`、`agent_tools.py`、`tool_spec.py` | Agent 运行的调度、给模型的工具清单、工具执行和权限 |
 | `agents.py` | 阅读助手的会话与运行接口 |
 | `research_routes.py` | 研究的全部 HTTP 接口 |

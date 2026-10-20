@@ -3,6 +3,7 @@ import {
   Database,
   Gauge,
   KeyRound,
+  RefreshCw,
   BookOpen,
   LineChart,
   Search,
@@ -15,6 +16,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
 import { AccessSection } from "./AccessSection";
+import { CloudSection } from "./CloudSection";
 import { DataSection } from "./DataSection";
 import { ModelsSection } from "./ModelsSection";
 import {
@@ -36,7 +38,8 @@ export type SettingsCategory =
   | "playbook"
   | "data"
   | "usage"
-  | "access";
+  | "access"
+  | "cloud";
 
 interface Entry {
   id: SettingsCategory;
@@ -77,6 +80,7 @@ const GROUPS: { title: MessageKey; entries: Entry[] }[] = [
         id: "access",
         icon: KeyRound,
       },
+      { id: "cloud", icon: RefreshCw },
     ],
   },
 ];
@@ -113,6 +117,8 @@ function Body({
       return <UsageSection />;
     case "access":
       return <AccessSection go={go} />;
+    case "cloud":
+      return <CloudSection />;
   }
 }
 
@@ -150,7 +156,8 @@ export function SettingsWindow({
   const local = useLocal();
   const research = GROUPS.find((g) => g.title === "settings.group.research");
   const category =
-    local === false && research?.entries.some((e) => e.id === asked)
+    (local === false && research?.entries.some((e) => e.id === asked)) ||
+    (local !== true && asked === "cloud")
       ? "general"
       : asked;
   const groups = GROUPS.filter(
@@ -160,11 +167,13 @@ export function SettingsWindow({
       ...g,
       entries: g.entries.filter(
         (e) =>
-          !q ||
-          label(e.id).toLowerCase().includes(q) ||
-          t(`settings.keywords.${e.id}` as MessageKey)
-            .toLowerCase()
-            .includes(q),
+          // Linking to a hosted account is the local edition's.
+          (e.id !== "cloud" || local === true) &&
+          (!q ||
+            label(e.id).toLowerCase().includes(q) ||
+            t(`settings.keywords.${e.id}` as MessageKey)
+              .toLowerCase()
+              .includes(q)),
       ),
     }))
     .filter((g) => g.entries.length);

@@ -714,6 +714,29 @@ export const en = {
   "settings.usage.unknown#other":
     "{count} requests didn't report their usage and aren't counted.",
   "settings.usage.error": "Usage couldn't be read. Try again later.",
+  "settings.category.cloud": "Online account",
+  "settings.keywords.cloud": "online account sync papers sign in cloud",
+  "settings.cloud.title": "Online account",
+  "settings.cloud.lead":
+    "Link your account on the hosted site to sync papers between this computer and it.",
+  "settings.cloud.origin": "Hosted site address",
+  "settings.cloud.username": "Username",
+  "settings.cloud.password": "Password",
+  "settings.cloud.passwordHint":
+    "Used once to sign in and get an access token for this computer; the password is not kept here.",
+  "settings.cloud.connect": "Connect",
+  "settings.cloud.connected":
+    "Connected to {username} on {origin}; the access token expires {date}.",
+  "settings.cloud.sync": "Sync papers",
+  "settings.cloud.syncing": "Syncing {done}/{total}…",
+  "settings.cloud.disconnect": "Disconnect",
+  "settings.cloud.result":
+    "Synced {date}: {downloaded} downloaded from the site, {uploaded} uploaded to it.",
+  "settings.cloud.withoutPdf":
+    "{n} papers on the site have no PDF and were not synced.",
+  "settings.cloud.scope":
+    "Syncing only adds, never deletes: a paper one side lacks is copied to the other with its PDF, and papers with the same PDF are the same paper. Notes, highlights and later edits are not synced yet. Disconnecting only makes this computer forget the token; to cancel it for good, revoke it on the hosted site under Settings → Sharing and access.",
+  "settings.cloud.failed": "That did not work; try again later",
   "settings.access.title": "Share links and credentials",
   "settings.access.lead":
     "What you've handed out. Revoking takes effect at once.",

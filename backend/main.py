@@ -477,6 +477,10 @@ def create_app(settings=None):
     from .url_import import install_url_routes
 
     install_url_routes(app, settings, db, auth, snapshot, idem, save)
+    if settings.mode == "local":
+        from .cloud_link import install_cloud_link_routes
+
+        install_cloud_link_routes(app, settings, maker, auth, human, snapshot)
 
     from .agents import install_agent_routes
 

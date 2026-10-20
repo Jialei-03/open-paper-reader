@@ -664,6 +664,28 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.usage.unknown#one": "{count} 次请求没有返回用量，未计入。",
   "settings.usage.unknown#other": "{count} 次请求没有返回用量，未计入。",
   "settings.usage.error": "没能读取用量，请稍后再试。",
+  "settings.category.cloud": "线上账号",
+  "settings.keywords.cloud": "线上 账号 同步 论文 登录 云端",
+  "settings.cloud.title": "线上账号",
+  "settings.cloud.lead":
+    "连上你在线上站点的账号，就能在本机和线上之间同步论文。",
+  "settings.cloud.origin": "线上站点地址",
+  "settings.cloud.username": "用户名",
+  "settings.cloud.password": "密码",
+  "settings.cloud.passwordHint":
+    "只用来登录一次，换一个本机专用的访问令牌；密码不会保存在这台电脑上。",
+  "settings.cloud.connect": "连接",
+  "settings.cloud.connected":
+    "已连接 {origin} 上的账号 {username}，访问令牌 {date} 到期。",
+  "settings.cloud.sync": "同步论文",
+  "settings.cloud.syncing": "正在同步 {done}/{total}…",
+  "settings.cloud.disconnect": "断开",
+  "settings.cloud.result":
+    "{date} 同步：从线上下载 {downloaded} 篇，上传到线上 {uploaded} 篇。",
+  "settings.cloud.withoutPdf": "线上有 {n} 篇没有 PDF 的论文没有同步。",
+  "settings.cloud.scope":
+    "同步只新增、不删除：一边没有的论文连同 PDF 复制到另一边，PDF 相同的算同一篇。笔记、批注和之后的修改暂不同步。断开只是让这台电脑忘掉令牌，要彻底作废它，在线上站点的「设置 → 分享与访问」里撤销。",
+  "settings.cloud.failed": "没有成功，请稍后重试",
   "settings.access.title": "分享链接和凭据",
   "settings.access.lead": "你交出去的访问权限。撤销后立即失效。",
   "settings.shares.title": "分享链接",

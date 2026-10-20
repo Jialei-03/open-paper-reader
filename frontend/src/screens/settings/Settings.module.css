@@ -160,6 +160,18 @@
   color: var(--ui-danger-text);
 }
 
+.cloudForm {
+  display: grid;
+  gap: var(--ui-space-12);
+  max-width: 420px;
+}
+
+.cloudActions {
+  display: flex;
+  gap: var(--ui-space-8);
+  margin: var(--ui-space-12) 0;
+}
+
 /* How much of the storage is used: a thin bar. */
 .meter {
   height: var(--ui-space-6);
