@@ -24,7 +24,10 @@ const STAND_AT: Record<Agent, [number, number, number]> = {
   distiller: [104, 6, 56],
 };
 export const STAND = Object.fromEntries(
-  Object.entries(STAND_AT).map(([agent, [x, y, z]]) => [agent, project(x, y, z)]),
+  Object.entries(STAND_AT).map(([agent, [x, y, z]]) => [
+    agent,
+    project(x, y, z),
+  ]),
 ) as Record<Agent, { x: number; y: number }>;
 
 /** Where work lands. */
@@ -47,7 +50,14 @@ export interface Area {
   slant: 1 | -1;
 }
 
-const along = (x: number, y: number, z: number, w: number, h: number, slant: 1 | -1): Area => ({
+const along = (
+  x: number,
+  y: number,
+  z: number,
+  w: number,
+  h: number,
+  slant: 1 | -1,
+): Area => ({
   ...project(x, y, z),
   w,
   h,
@@ -112,7 +122,8 @@ function filler(data: Uint8ClampedArray): Paint {
   };
 }
 
-const quad = (...corners: [number, number, number][]) => corners.map(([x, y, z]) => project(x, y, z));
+const quad = (...corners: [number, number, number][]) =>
+  corners.map(([x, y, z]) => project(x, y, z));
 
 /** A rectangle on the right wall (the plane y = y0) or a box face facing +y. */
 const onY = (y0: number, x0: number, x1: number, z0: number, z1: number) =>
@@ -146,7 +157,10 @@ function paintRoom(data: Uint8ClampedArray) {
   // Floor: wooden tiles in two tones.
   for (let i = 0; i < 10; i++)
     for (let j = 0; j < 10; j++)
-      paint(flat(i * 12, i * 12 + 12, j * 12, j * 12 + 12, 0), (i + j) % 2 ? "#c89f74" : "#bf946a");
+      paint(
+        flat(i * 12, i * 12 + 12, j * 12, j * 12 + 12, 0),
+        (i + j) % 2 ? "#c89f74" : "#bf946a",
+      );
   // Rug.
   paint(flat(34, 82, 40, 96, 0), "#8f9fbb");
   paint(flat(37, 79, 43, 93, 0), "#b8c4d6");
@@ -182,11 +196,26 @@ function paintRoom(data: Uint8ClampedArray) {
   // Bookshelf against the right wall: the playbook.
   box(paint, [92, 118, 0, 12, 0, 56], ["#8a6a4f", "#7a5a40", "#6a4c36"]);
   paint(onY(12, 94, 116, 3, 53), "#4a3526");
-  const books = ["#c0392b", "#2f6b5e", "#e9b949", "#53627f", "#d9774f", "#6f9a7a", "#8c6a4f"];
-  for (const [shelf, z] of [[0, 4], [1, 21], [2, 38]] as const)
+  const books = [
+    "#c0392b",
+    "#2f6b5e",
+    "#e9b949",
+    "#53627f",
+    "#d9774f",
+    "#6f9a7a",
+    "#8c6a4f",
+  ];
+  for (const [shelf, z] of [
+    [0, 4],
+    [1, 21],
+    [2, 38],
+  ] as const)
     for (let k = 0; k < 10; k++) {
       const x = 95 + k * 2.1;
-      paint(onY(12, x, x + 1.6, z, z + 13 - ((k + shelf) % 3) * 2), books[(k + shelf * 3) % books.length]);
+      paint(
+        onY(12, x, x + 1.6, z, z + 13 - ((k + shelf) % 3) * 2),
+        books[(k + shelf * 3) % books.length],
+      );
     }
   paint(onY(12, 94, 116, 18, 20), "#7a5a40");
   paint(onY(12, 94, 116, 35, 37), "#7a5a40");
