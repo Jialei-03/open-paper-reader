@@ -80,6 +80,29 @@ def _talk(d, project):
 
 def _context_parts(d, project, settings):
     parts = []
+    moved = d.scalars(
+        select(ResearchEvent)
+        .where(
+            ResearchEvent.project_id == project.id,
+            ResearchEvent.action == "compute_changed",
+        )
+        .order_by(ResearchEvent.created_at.desc())
+    ).first()
+    if moved is not None and settings is not None:
+        from . import research_settings
+
+        def name(env_id):
+            try:
+                return research_settings.compute(settings, env_id)["name"]
+            except ValueError:
+                return env_id
+
+        parts.append(
+            "## 研究环境换过\n"
+            f"研究者把实验从「{name(moved.detail.get('from'))}」换到了「{name(moved.detail.get('to'))}」。"
+            "按现在的环境做实验；如果研究问题或计划里写的硬件限制和现在的环境冲突，"
+            "不要自己改问题，在交接或回复里指出来，请研究者决定。"
+        )
     setting = _setting_out(settings, project)
     data = _datasets(d, project)
     if setting or data:

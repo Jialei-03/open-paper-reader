@@ -55,8 +55,9 @@ RESEARCH_BASE = {
 }
 
 
-# Preparing a machine downloads gigabytes; it gets four times an ordinary run's time.
-SETUP_FACTOR = 4
+# Preparing a machine downloads gigabytes; an executor round writes code and
+# checks short runs. Both get more than an ordinary run's ten minutes.
+TIME_FACTOR = {"envsetup": 4, "executor": 2}
 
 
 def research_tools(role="executor"):
@@ -348,7 +349,7 @@ def _process(app, job_id, cfg):
     # Read when the run starts, so the budget is one setting, also in tests.
     budget = RunBudget(
         agent_budget.EXECUTION_SECONDS
-        * (SETUP_FACTOR if (research or {}).get("role") == "envsetup" else 1),
+        * TIME_FACTOR.get((research or {}).get("role", ""), 1),
         agent_budget.WAIT_SECONDS,
     )
 

@@ -424,6 +424,23 @@ def _local(app, project):
     return item["kind"] == "docker"
 
 
+def _live_focus(d, project):
+    from .models import ResearchNode
+    from .research_map import is_live
+
+    last = d.scalars(
+        select(ResearchSprint)
+        .where(
+            ResearchSprint.project_id == project.id,
+            ResearchSprint.role == "executor",
+            ResearchSprint.focus_node_id.is_not(None),
+        )
+        .order_by(ResearchSprint.number.desc())
+    ).first()
+    node = d.get(ResearchNode, last.focus_node_id) if last else None
+    return node.id if node is not None and is_live(d, node) else None
+
+
 BRIEFS = {
     "advisor": advisor_brief,
     "executor": executor_brief,
@@ -447,6 +464,9 @@ def _converse(app, d, project, latest):
 def _start(app, d, project, latest, role, config):
     number = (latest.number if latest else 0) + 1
     sprint = ResearchSprint(project_id=project.id, number=number, role=role, run_id="")
+    if role == "executor":
+        # Carrying on with the same node needs no new focus (and no blocked step).
+        sprint.focus_node_id = _live_focus(d, project)
     d.add(sprint)
     d.flush()
     run = AgentRun(

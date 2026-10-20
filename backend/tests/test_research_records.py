@@ -693,3 +693,49 @@ def test_preparation_steps_read_as_plain_output(world, monkeypatch):
         step = re_.progress(world.settings, d, "wsl")["steps"][0]
     assert step["command"] == "uname -a"
     assert step["output"] == "Ubuntu 24.04\nok"
+
+
+def test_an_executor_round_keeps_the_focus_of_the_last_one(world):
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        root = rm.root(d, p)
+        hyp = rm.add_node(
+            d, p, root.id, "hypothesis", "H1", kill_if="k", actor="human", reason="r"
+        )
+        last = ResearchSprint(
+            project_id=p.id,
+            number=1,
+            run_id="r",
+            role="executor",
+            status="ended",
+            focus_node_id=hyp.id,
+        )
+        d.add(last)
+        d.commit()
+        rw._start(world.app, d, p, last, "executor", {"model": "m"})
+        d.commit()
+        new = d.scalars(select(ResearchSprint).where(ResearchSprint.number == 2)).one()
+        assert new.focus_node_id == hyp.id
+        hyp.status = "refuted"
+        rw._start(world.app, d, p, new, "executor", {"model": "m"})
+        third = d.scalars(
+            select(ResearchSprint).where(ResearchSprint.number == 3)
+        ).one()
+        assert third.focus_node_id is None
+
+
+def test_briefs_say_when_the_environment_changed(world):
+    from backend.research_brief import executor_brief
+
+    rset.update(
+        world.settings,
+        {"computes": [{"id": "wsl", "name": "WSL GPU", "kind": "ssh", "host": "h"}]},
+    )
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        rm.event(d, p, None, "human", "compute_changed", {"from": "local", "to": "wsl"})
+        p.compute_id = "wsl"
+        brief = executor_brief(d, p, 5, world.settings)
+        assert "研究环境换过" in brief and "WSL GPU" in brief
