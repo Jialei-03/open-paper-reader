@@ -93,6 +93,11 @@ class MessageInput(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
 
 
+class ChatInput(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    model_config_id: str = Field(default="", max_length=64)
+
+
 class PrepareInput(BaseModel):
     model_config_id: str = Field(default="", max_length=64)
     needs: str = Field(default="", max_length=2000)
@@ -342,6 +347,63 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(422, str(e)) from None
         d.commit()
         return research_workspaces.workspace_out(w)
+
+    def chat_out(session):
+        return {
+            "id": session.id,
+            "title": session.title,
+            "workspace_id": session.workspace_id,
+            "created_at": session.created_at,
+            "updated_at": session.updated_at,
+        }
+
+    def chat_of(d, id, a):
+        from .models import AgentSession
+
+        allowed(a, d)
+        session = d.get(AgentSession, id)
+        if session is None or session.owner != a["id"] or not session.workspace_id:
+            raise HTTPException(404, "Not found")
+        return session
+
+    @app.get("/api/v1/research/workspaces/{id}/chats")
+    def workspace_chats(id: str, a=Depends(auth), d=Depends(db)):
+        """The project's conversations, the last spoken in first."""
+        from . import research_chat
+
+        return [chat_out(s) for s in research_chat.chats(d, workspace_of(d, id, a))]
+
+    @app.post("/api/v1/research/workspaces/{id}/chats")
+    def new_chat(id: str, body: ChatInput, a=Depends(auth), d=Depends(db)):
+        """A new conversation about the project, starting with a question."""
+        from . import research_chat
+
+        w = workspace_of(d, id, a)
+        try:
+            session = research_chat.start(
+                settings, d, a["id"], w, body.message, body.model_config_id
+            )
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        d.commit()
+        return chat_out(session)
+
+    @app.post("/api/v1/research/chats/{id}/messages")
+    def chat_message(id: str, body: ChatInput, a=Depends(auth), d=Depends(db)):
+        from . import research_chat
+
+        session = chat_of(d, id, a)
+        w = research_chat.workspace_of(d, session)
+        if w is None or w.owner != a["id"]:
+            raise HTTPException(404, "Not found")
+        try:
+            research_chat.ask(
+                settings, d, a["id"], session, w, body.message, body.model_config_id
+            )
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
+        d.commit()
+        return chat_out(session)
 
     @app.get("/api/v1/research/workspaces/{id}/board")
     def workspace_board(id: str, a=Depends(auth), d=Depends(db)):

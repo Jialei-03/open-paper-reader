@@ -160,6 +160,18 @@ RESEARCH_TOOLS = [
         ["job_id"],
     ),
     _research(
+        "project_overview",
+        "（项目对话）读这个项目里所有研究的现状：阶段、最近几轮交接、实验和它们的指标（运行中的给出最新进度）。",
+        {},
+        [],
+    ),
+    _research(
+        "research_read",
+        "（项目对话）读项目里一个研究的全部：研究地图、最近几轮、实验和指标。",
+        {"research_id": ID},
+        ["research_id"],
+    ),
+    _research(
         "stop_job",
         "停止本项目的一个运行中的作业（只停这一个，日志会保留，状态记为已取消）。改了配置要重跑时，先用它停掉旧作业，不要用 pkill 之类按名字结束进程。",
         {"job_id": ID},
@@ -432,6 +444,12 @@ ENVSETUP_TOOLS = {
 }
 # What the distiller may use: the project's record, and the playbook.
 DISTILLER_TOOLS = {"research_map_read", "job_status", "job_logs", "distill"}
+# A conversation in a project reads; it changes nothing and starts nothing.
+CHAT_TOOLS = {"project_overview", "research_read", "job_status", "job_logs"}
+CHAT_REFUSED = (
+    "项目对话是只读的：可以查看项目里的研究、实验和日志，但不能做实验或改动研究。"
+    "要推进研究，请研究者在研究页面里说"
+)
 
 
 def _context(d, research):
@@ -467,6 +485,12 @@ def gate(app, research, name):
                 "准备环境时只能在这台机器上读写文件、执行命令，最后用 finish_setup"
             )
         return
+    if role == "chat":
+        if name not in CHAT_TOOLS | LITERATURE:
+            raise ValueError(CHAT_REFUSED)
+        return
+    if name in {"project_overview", "research_read"}:
+        raise ValueError("只有项目对话能用这个工具")
     if name == "finish_setup":
         raise ValueError("只有准备环境时才能调用 finish_setup")
     if role == "scoping":
@@ -662,12 +686,37 @@ def _wait(settings, d, job, seconds):
     }
 
 
+def _chat(app, research, name, args):
+    from . import research_chat
+    from .models import ResearchWorkspace
+
+    settings = app.state.settings
+    with app.state.maker() as d:
+        if name == "project_overview":
+            workspace = d.get(ResearchWorkspace, research["workspace_id"])
+            return {"text": research_chat.overview(d, workspace, settings)}
+        if name == "research_read":
+            return {
+                "text": research_chat.read_research(
+                    d, research, args["research_id"], settings
+                )
+            }
+        job = research_chat.job_of(d, research, args["job_id"])
+        if name == "job_status":
+            return research_sandbox.job_status(job)
+        return research_sandbox.read_log(
+            settings, job, args.get("offset", 0), args.get("limit", 200)
+        )
+
+
 def _run(app, owner, research, name, args):
     settings = app.state.settings
     if research.get("role") == "envsetup":
         from . import research_environment
 
         return research_environment.finish(settings, research["env_id"], args)
+    if research.get("role") == "chat":
+        return _chat(app, research, name, args)
     with app.state.maker() as d:
         project, sprint = _context(d, research)
         if name == "research_map_read":

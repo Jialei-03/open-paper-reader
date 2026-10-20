@@ -134,6 +134,8 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         )
         return (
             AgentSession.owner == owner,
+            # A research project's conversations live in that project.
+            AgentSession.workspace_id.is_(None),
             AgentSession.id.not_in(artifact_sessions),
             AgentSession.id.not_in(generated_sessions),
         )

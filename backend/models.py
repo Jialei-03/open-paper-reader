@@ -307,6 +307,10 @@ class AgentSession(Base):
     owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String(100), default="新会话")
     paper_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    # A conversation inside a research project (research_chat); none for the reader's.
+    workspace_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True
+    )
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
 

@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 RESEARCH_SKILLS = {
     role: agent_runtime_dir() / "skills" / f"research-{role}" / "SKILL.md"
-    for role in ("executor", "advisor", "distiller", "scoping", "envsetup")
+    for role in ("executor", "advisor", "distiller", "scoping", "envsetup", "chat")
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
 RESEARCH_BASE = {
@@ -64,11 +64,19 @@ def research_tools(role="executor"):
     """The executor works (files, shell, jobs, the map); the advisor only reads and judges."""
     from .research_tools import (
         ADVISOR_TOOLS,
+        CHAT_TOOLS,
         DISTILLER_TOOLS,
         ENVSETUP_TOOLS,
         SCOPING_TOOLS,
     )
 
+    if role == "chat":
+        return [
+            t
+            for t in TOOLS
+            if (t.get("research") and t["name"] in CHAT_TOOLS)
+            or t["name"] in RESEARCH_BASE
+        ]
     if role == "envsetup":
         return [t for t in TOOLS if t["name"] in ENVSETUP_TOOLS]
     if role == "scoping":
@@ -92,7 +100,15 @@ def research_tools(role="executor"):
         for t in TOOLS
         if (
             t.get("research")
-            and t["name"] not in {"advise", "distill", "propose_plan", "finish_setup"}
+            and t["name"]
+            not in {
+                "advise",
+                "distill",
+                "propose_plan",
+                "finish_setup",
+                "project_overview",
+                "research_read",
+            }
         )
         or t["name"] in PI_NAMES
         or t["name"] in RESEARCH_BASE
@@ -135,9 +151,11 @@ def _process(app, job_id, cfg):
         if not cfg.get("api_key") or cfg.get("model") != r.model:
             raise ValueError("模型配置已变更，请重新发送任务")
         history = []
+        # A conversation in a project remembers its turns; a round does not.
         previous = (
             []
-            if (r.runtime or {}).get("reading_artifact_id") or research
+            if (r.runtime or {}).get("reading_artifact_id")
+            or (research and research.get("role") != "chat")
             else list(
                 d.scalars(
                     select(AgentRun)
