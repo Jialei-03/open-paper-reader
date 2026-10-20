@@ -34,6 +34,7 @@ import { statusKey } from "./ResearchListScreen";
 import { buildConversation } from "./conversation";
 import { ResearchConversation } from "./ResearchConversation";
 import { ResearchMap } from "./ResearchMap";
+import { ResearchScene } from "./scene/ResearchScene";
 import { SprintTimeline } from "./SprintTimeline";
 import styles from "./Research.module.css";
 
@@ -61,7 +62,7 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
     null,
   );
   const [events, setEvents] = useState<ResearchEvent[]>([]);
-  const [view, setView] = useState<"talk" | "map">("talk");
+  const [view, setView] = useState<"scene" | "talk" | "map">("scene");
   const [reads, setReads] = useState(0);
   // Counts the timer's rounds; a round in a hidden tab only waits for the next.
   const [rounds, setRounds] = useState(0);
@@ -282,6 +283,11 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
             onChange={setView}
             options={[
               {
+                value: "scene",
+                label: t("research.view.scene"),
+                panelId: "research-scene",
+              },
+              {
                 value: "talk",
                 label: t("research.view.talk"),
                 panelId: "research-talk",
@@ -293,7 +299,20 @@ export function ResearchProjectScreen({ id, go }: ResearchProjectScreenProps) {
               },
             ]}
           />
-          {view === "talk" ? (
+          {view === "scene" ? (
+            <section
+              id="research-scene"
+              role="tabpanel"
+              aria-labelledby="research-scene-tab"
+            >
+              <ResearchScene
+                turns={turns}
+                nodes={nodes}
+                live={project.status === "active"}
+                onLog={(jobId) => void openLog(jobId)}
+              />
+            </section>
+          ) : view === "talk" ? (
             <section
               id="research-talk"
               role="tabpanel"
