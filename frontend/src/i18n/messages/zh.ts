@@ -1093,7 +1093,8 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.composer.scoping": "回复导师，或者告诉他你想怎么改计划",
   "research.composer.experiments": "随时插话，导师会在下一轮回应你",
   "research.composer.waiting": "有事等你拍板，也可以先说说你的想法",
-  "research.composer.finished": "这项研究已经结束",
+  "research.composer.finished":
+    "这项研究已经结束；输入 / 可以下载报告、查看文件",
   "research.thread.fetching": "正在下载并校验数据集，好了就开始第一轮实验。",
   "research.notice.fetching": "开始下载数据集 {name}。",
   "research.notice.ready":

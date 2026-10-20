@@ -1171,7 +1171,8 @@ export const en = {
     "Chime in any time; the advisor answers in the next round",
   "research.composer.waiting":
     "Something needs your call; you can also just say what you think",
-  "research.composer.finished": "This research has ended",
+  "research.composer.finished":
+    "This research has finished; type / to download its report or see its files",
   "research.thread.fetching":
     "Downloading and checking the datasets; the first round starts when they are ready.",
   "research.notice.fetching": "Started downloading the dataset {name}.",

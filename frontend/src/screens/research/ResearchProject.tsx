@@ -556,7 +556,7 @@ export function ResearchProject({
               onChange={setText}
               onSend={say}
               busy={!!pending}
-              disabled={finished}
+              commandsOnly={finished}
               label={t("research.composer.label")}
               placeholder={t(
                 finished ? "research.composer.finished" : placeholder,

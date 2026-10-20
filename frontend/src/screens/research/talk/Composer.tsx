@@ -25,6 +25,7 @@ export function Composer({
   commands,
   status,
   acceptInserts = false,
+  commandsOnly = false,
 }: {
   value: string;
   onChange(value: string): void;
@@ -45,6 +46,8 @@ export function Composer({
   status?: ReactNode;
   /** Takes the "@path" the research's files panel sends ("insert into the composer"). */
   acceptInserts?: boolean;
+  /** Nothing more to say here (a finished research), but its slash commands still run. */
+  commandsOnly?: boolean;
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -73,7 +76,7 @@ export function Composer({
     window.addEventListener(INSERT_EVENT, take);
     return () => window.removeEventListener(INSERT_EVENT, take);
   }, [acceptInserts]);
-  const ready = value.trim().length > 0 && !busy && !disabled;
+  const ready = value.trim().length > 0 && !busy && !disabled && !commandsOnly;
   const send = () => {
     if (slash.submit()) return;
     if (ready) onSend();
