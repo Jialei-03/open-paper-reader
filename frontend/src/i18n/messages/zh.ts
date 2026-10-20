@@ -1338,4 +1338,11 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.process.queued": "{who}在排队",
   "research.process.thinking": "{who}在思考",
   "research.process.steps": "{n} 步",
+  "research.question.edit": "修改研究问题",
+  "research.question.lead":
+    "你是这项研究的负责人，可以随时改问题。导师和执行者从下一轮起按新问题推进，你写的原因也会给它们看。",
+  "research.question.label": "研究问题",
+  "research.question.note": "为什么改（可选）",
+  "research.question.notePlaceholder": "比如：换到了 GPU，不再限制只用 CPU",
+  "research.question.save": "保存",
 };

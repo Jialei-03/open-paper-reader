@@ -219,6 +219,13 @@ export const startProject = (body: {
 export const sendMessage = (id: string, text: string) =>
   send(`${BASE}/${id}/messages`, { text }) as Promise<ResearchProject>;
 
+/** The researcher restates the question; the note says why (agents read it). */
+export const restateQuestion = (id: string, question: string, note: string) =>
+  send(`${BASE}/${id}/question`, {
+    question,
+    note,
+  }) as Promise<ResearchProject>;
+
 /** Where the next experiments run; a running job stays where it is. */
 export const moveCompute = (id: string, compute_id: string) =>
   send(`${BASE}/${id}/compute`, { compute_id }) as Promise<ResearchProject>;

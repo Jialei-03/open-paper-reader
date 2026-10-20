@@ -67,6 +67,18 @@ class PrepareInput(BaseModel):
     allow_sudo: bool = False
 
 
+class QuestionInput(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    note: str = Field(default="", max_length=2000)
+
+    @field_validator("question")
+    @classmethod
+    def not_blank(cls, value):
+        if not value.strip():
+            raise ValueError("研究问题不能为空")
+        return value.strip()
+
+
 class ComputeInput(BaseModel):
     compute_id: str = Field(min_length=1, max_length=64)
 
@@ -277,6 +289,28 @@ def install_research_routes(app, settings, db, auth, human, owned):
         if p.stage == "done":
             raise HTTPException(409, "研究已经结束")
         research_stages.say(d, p, "human", body.text)
+        d.commit()
+        return project_out(p)
+
+    @app.post("/api/v1/research/projects/{id}/question")
+    def restate(id: str, body: QuestionInput, a=Depends(auth), d=Depends(db)):
+        """The researcher, as the one in charge, restates what is being asked."""
+        p = project_of(d, id, a)
+        if p.status == "finished":
+            raise HTTPException(409, "研究已结束")
+        before = p.question
+        if body.question != before:
+            p.question = body.question
+            research_map.root(d, p).title = body.question[:300]
+            research_map.event(
+                d,
+                p,
+                None,
+                "human",
+                "question_changed",
+                {"from": before, "to": body.question, "note": body.note},
+            )
+            p.updated_at = now()
         d.commit()
         return project_out(p)
 

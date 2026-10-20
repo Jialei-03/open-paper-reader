@@ -17,7 +17,16 @@ import {
 } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
-import { Dialog, IconButton, Menu, Spinner, toast } from "../../ui";
+import {
+  Button,
+  Dialog,
+  IconButton,
+  Menu,
+  Spinner,
+  TextArea,
+  TextField,
+  toast,
+} from "../../ui";
 import {
   approvePlan,
   decide,
@@ -25,6 +34,7 @@ import {
   jobLog,
   listEvents,
   listRuns,
+  restateQuestion,
   moveCompute,
   pauseProject,
   readResearchSettings,
@@ -86,6 +96,10 @@ export function ResearchProject({
     null,
   );
   const [runs, setRuns] = useState<ResearchRun[]>([]);
+  const [editing, setEditing] = useState<{
+    question: string;
+    note: string;
+  } | null>(null);
   const runsBySprint = useMemo(
     () =>
       new Map(runs.filter((r) => r.sprint_id).map((r) => [r.sprint_id!, r])),
@@ -291,8 +305,16 @@ export function ResearchProject({
           size="sm"
           onClick={() => go("research")}
         />
-        <h1 className={styles.headTitle} title={p.question}>
-          {p.question}
+        <h1 className={styles.headTitle}>
+          <button
+            type="button"
+            className={styles.titleButton}
+            title={t("research.question.edit")}
+            disabled={p.status === "finished"}
+            onClick={() => setEditing({ question: p.question, note: "" })}
+          >
+            {p.question}
+          </button>
         </h1>
         <ol className={styles.stages} aria-label={t("research.stages")}>
           {STEPS.map((step, i) => (
@@ -443,6 +465,58 @@ export function ResearchProject({
           />
         )}
       </div>
+      <Dialog
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title={t("research.question.edit")}
+        description={t("research.question.lead")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditing(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!editing?.question.trim()}
+              onClick={async () => {
+                if (!editing) return;
+                try {
+                  await restateQuestion(
+                    id,
+                    editing.question.trim(),
+                    editing.note.trim(),
+                  );
+                  setEditing(null);
+                  refresh();
+                } catch (error) {
+                  fail(error);
+                }
+              }}
+            >
+              {t("research.question.save")}
+            </Button>
+          </>
+        }
+      >
+        {editing && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <TextArea
+              label={t("research.question.label")}
+              rows={4}
+              value={editing.question}
+              onChange={(e) =>
+                setEditing({ ...editing, question: e.target.value })
+              }
+            />
+            <TextField
+              label={t("research.question.note")}
+              value={editing.note}
+              placeholder={t("research.question.notePlaceholder")}
+              onChange={(e) => setEditing({ ...editing, note: e.target.value })}
+            />
+          </div>
+        )}
+      </Dialog>
       <Dialog
         open={!!log}
         onClose={() => setLog(null)}

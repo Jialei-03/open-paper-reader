@@ -458,3 +458,27 @@ def test_the_runs_of_a_project_come_with_their_steps(env):
     assert one["steps"][0]["said"] == "先看看" and "prompt" not in one
     assert len(one["steps"][0]["result"]["summary"]) <= 4000
     assert b.get(f"{BASE}/{pid}/runs").status_code == 404
+
+
+def test_the_researcher_can_restate_the_question(env):
+    app, a, _b, settings = env
+    settings.mode = "local"
+    _, model = configure(app, a, settings)
+    pid = a.post(
+        BASE, json={"message": "CPU only MNIST", "model_config_id": model}
+    ).json()["id"]
+    r = a.post(
+        f"{BASE}/{pid}/question", json={"question": "GPU MNIST", "note": "不再限制 CPU"}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["question"] == "GPU MNIST"
+    detail = a.get(f"{BASE}/{pid}").json()
+    root = [n for n in detail["nodes"] if n["parent_id"] is None][0]
+    assert root["title"] == "GPU MNIST"
+    last = a.get(f"{BASE}/{pid}/events").json()[-1]
+    assert last["action"] == "question_changed" and last["actor"] == "human"
+    assert (
+        last["detail"]["from"] == "CPU only MNIST"
+        and last["detail"]["note"] == "不再限制 CPU"
+    )
+    assert a.post(f"{BASE}/{pid}/question", json={"question": "  "}).status_code == 422

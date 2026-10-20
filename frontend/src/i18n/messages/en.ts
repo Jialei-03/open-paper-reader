@@ -1431,4 +1431,12 @@ export const en = {
   "research.process.queued": "{who} is queued",
   "research.process.thinking": "{who} is thinking",
   "research.process.steps": "{n} steps",
+  "research.question.edit": "Edit the research question",
+  "research.question.lead":
+    "You lead this research and can restate the question at any time. From the next round the advisor and executor work on the new one, and they see your reason.",
+  "research.question.label": "Research question",
+  "research.question.note": "Why (optional)",
+  "research.question.notePlaceholder":
+    "E.g. moved to a GPU, no longer CPU-only",
+  "research.question.save": "Save",
 } as const;

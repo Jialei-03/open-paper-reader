@@ -302,7 +302,9 @@ def human_notes(d, project, limit=3):
         .where(
             ResearchEvent.project_id == project.id,
             ResearchEvent.actor == "human",
-            ResearchEvent.action.in_(["human_decision", "stage_changed", "note"]),
+            ResearchEvent.action.in_(
+                ["human_decision", "stage_changed", "note", "question_changed"]
+            ),
         )
         .order_by(ResearchEvent.created_at.desc())
         .limit(10)
