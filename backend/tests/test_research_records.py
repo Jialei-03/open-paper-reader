@@ -1115,3 +1115,23 @@ def test_a_download_is_on_the_project_record_as_it_goes(world, monkeypatch):
         ).one()
     assert said == [("dataset_fetching", "mnist"), ("dataset_failed", "mnist")]
     assert "校验不符" in failed.detail["reason"]
+
+
+def test_briefs_name_the_language_the_researcher_asked_in(world):
+    from backend.research_brief import (
+        advisor_brief,
+        executor_brief,
+        researcher_language,
+    )
+
+    assert researcher_language("能否把 MNIST 准确率推到 99%？") == "中文"
+    assert researcher_language("Can a small CNN reach 99% on MNIST?") == "英文"
+    assert researcher_language("MNISTで99%に届くか？") == "日语"
+    assert researcher_language("Un réseau léger atteint-il 99 % sur MNIST ?") == "研究问题所用的语言"
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.question = "在 MPS 上能否把 MNIST 测试集准确率稳定推到 99%？"
+        for brief in (executor_brief(d, p, 2), advisor_brief(d, p, 2)):
+            assert "## 语言\n研究者用中文提问" in brief
+        p.question = "Can a small CNN reach 99% on MNIST?"
+        assert "研究者用英文提问" in executor_brief(d, p, 2)
