@@ -143,10 +143,18 @@ def test_before_its_first_job_the_brief_uses_what_preparing_found(world):
         "host",
         status="ready",
         python="/x/bin/python",
-        probe={"python": "3.12", "packages": {"torch": "2.14"}, "mps": True},
+        probe={
+            "python": "3.12",
+            "packages": {"torch": "2.14"},
+            "mps": True,
+            "platform": "macOS-15.5-arm64",
+            "cpus": 8,
+            "memory_gb": 16.0,
+        },
     )
     with maker() as d:
         p = d.get(ResearchProject, pid)
         assert not p.environment
         text = _setting_out(settings, p)
         assert "mps" in text and "torch 2.14" in text
+        assert "macOS-15.5-arm64" in text and "8 核" in text and "16 GB" in text

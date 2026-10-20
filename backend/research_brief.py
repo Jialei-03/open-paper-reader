@@ -51,6 +51,17 @@ def _setting_out(settings, project):
                 else ""
             )
         )
+        machine = "，".join(
+            x
+            for x in (
+                env.get("platform"),
+                env.get("cpus") and f"{env['cpus']} 核",
+                env.get("memory_gb") and f"{env['memory_gb']:g} GB 内存",
+            )
+            if x
+        )
+        if machine:
+            lines.append(f"- 机器：{machine}")
     except ValueError:
         pass
     return "\n".join(lines)
