@@ -356,3 +356,19 @@ def test_an_answered_message_turns_the_next_sprint_into_the_advisor(world):
         d.flush()
         st.say(d, p, "human", "H2 先别做")
         assert rw.next_role(d, p, [s1]) == "advisor"
+
+
+def test_scoping_may_read_literature_but_not_run_anything(world):
+    from backend.research_tools import gate
+
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        sprint = ResearchSprint(project_id=p.id, number=1, run_id="r", role="scoping")
+        d.add(sprint)
+        d.commit()
+        research = {"project_id": p.id, "sprint_id": sprint.id, "role": "scoping"}
+    for name in ("search_papers", "read_paper", "web_read", "propose_plan"):
+        gate(world.app, research, name)
+    for name in ("run_job", "bash", "advise", "add_node"):
+        with pytest.raises(ValueError, match="定题"):
+            gate(world.app, research, name)

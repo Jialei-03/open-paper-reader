@@ -38,8 +38,8 @@ import { AppActions, AppSidebar, QUICK_OPEN_SHORTCUT } from "./AppSidebar";
 import styles from "./AppShell.module.css";
 import { QuickOpen } from "./QuickOpen";
 import { parseAppRoute, type AppRoute } from "./routes";
-import { ResearchListScreen } from "../screens/research/ResearchListScreen";
-import { ResearchProjectScreen } from "../screens/research/ResearchProjectScreen";
+import { ResearchHome } from "../screens/research/ResearchHome";
+import { ResearchProject } from "../screens/research/ResearchProject";
 
 // The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
 const ReaderScreen = lazy(() =>
@@ -267,9 +267,13 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
           {route.screen === "settings" && <SettingsScreen go={go} />}
           {route.screen === "research" &&
             (route.projectId ? (
-              <ResearchProjectScreen id={route.projectId} go={go} />
+              <ResearchProject
+                key={route.projectId}
+                id={route.projectId}
+                go={go}
+              />
             ) : (
-              <ResearchListScreen go={go} />
+              <ResearchHome go={go} />
             ))}
         </Shell>
         <Toaster />

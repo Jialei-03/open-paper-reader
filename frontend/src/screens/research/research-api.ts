@@ -11,10 +11,91 @@ export interface ResearchProject {
   budget: { max_sprints: number; max_tokens: number; max_job_seconds: number };
   spent: { sprints: number; tokens: number; job_seconds: number };
   session_id: string;
+  stage: Stage;
+  compute_id: string;
+  plan: ResearchPlan | Record<string, never>;
+  conclusion_record: ConclusionRecord | Record<string, never>;
+  /** What each compute offered when the project first ran on it. */
+  environment: Record<string, Environment>;
   created_at: string;
   updated_at: string;
   /** How a finished project was answered (the list only); "" otherwise. */
   conclusion?: string;
+}
+
+export type Stage =
+  | "scoping"
+  | "experiments"
+  | "conclusion"
+  | "retrospective"
+  | "done";
+
+export const STAGES: Stage[] = [
+  "scoping",
+  "experiments",
+  "conclusion",
+  "retrospective",
+  "done",
+];
+
+/** The plan talked through while scoping (backend research_stages.py check_plan). */
+export interface ResearchPlan {
+  version: number;
+  question: string;
+  goal: string;
+  metric: string;
+  baseline: string;
+  hypotheses: {
+    title: string;
+    kill_if: string;
+    value: string;
+    cost: string;
+  }[];
+  datasets: string[];
+  compute_id: string;
+  budget: { max_sprints: number; max_job_hours: number };
+  summary: string;
+  approved_at: string | null;
+}
+
+export interface ConclusionRecord {
+  status: "concluded" | "refuted";
+  answer: string;
+  summary: string;
+  proposed_at: string;
+  accepted: boolean | null;
+  note: string;
+  decided_at?: string;
+}
+
+/** What the probe found on a compute (backend research_ora/probe.py). */
+export interface Environment {
+  python?: string;
+  platform?: string;
+  machine?: string;
+  cpus?: number;
+  memory_gb?: number;
+  packages?: Record<string, string>;
+  gpus?: string[];
+  cuda?: boolean;
+  mps?: boolean;
+  image?: string;
+  host?: string;
+  compute?: Record<string, unknown>;
+  probed_at?: string;
+}
+
+export interface Dataset {
+  id: string;
+  name: string;
+  title: string;
+  source: "registry" | "upload";
+  path: string;
+  status: "pending" | "ready" | "failed";
+  files: { name: string; bytes: number; md5?: string; sha256: string }[];
+  bytes: number;
+  note: string;
+  created_at: string;
 }
 
 export type NodeKind = "question" | "hypothesis" | "experiment" | "finding";
@@ -97,6 +178,12 @@ export interface ResearchJob {
   started_at: string;
   finished_at: string;
   log_lines: number;
+  compute_id: string;
+  config: Record<string, unknown>;
+  metrics: Record<string, unknown>;
+  points: number;
+  /** "" not yet mirrored, "none", an address, "local:<folder>", or "error: …". */
+  tracker_url: string;
 }
 
 export interface ProjectDetail {
@@ -107,6 +194,7 @@ export interface ProjectDetail {
   docker: { available: boolean; reason: string };
   /** What the advisor said the project waits for (a file, a definition); "" otherwise. */
   input_needed: string;
+  datasets: Dataset[];
 }
 
 export interface LogLines {
@@ -120,6 +208,72 @@ export const listProjects = () => api<ResearchProject[]>(BASE);
 
 export const getProject = (id: string, signal?: AbortSignal) =>
   api<ProjectDetail>(`${BASE}/${id}`, { signal });
+
+/** A project starts from what the researcher says; the plan is talked through. */
+export const startProject = (body: {
+  message: string;
+  model_config_id: string;
+  compute_id?: string;
+}) => send(BASE, body) as Promise<ResearchProject>;
+
+export const sendMessage = (id: string, text: string) =>
+  send(`${BASE}/${id}/messages`, { text }) as Promise<ResearchProject>;
+
+export const approvePlan = (id: string, version: number, note = "") =>
+  send(`${BASE}/${id}/plan/approve`, {
+    version,
+    note,
+  }) as Promise<ResearchProject>;
+
+export interface SeriesPoint {
+  step: number | null;
+  t: number;
+  [metric: string]: unknown;
+}
+
+export const jobSeries = (projectId: string, jobId: string) =>
+  api<SeriesPoint[]>(`${BASE}/${projectId}/jobs/${jobId}/series`);
+
+export interface Compute {
+  id: string;
+  name: string;
+  kind: "docker" | "ssh";
+  gpus: string;
+  cpus?: number;
+  memory_gb?: number;
+  host?: string;
+  remote_dir?: string;
+  runner?: "shell" | "docker";
+  python?: string;
+}
+
+export interface ResearchSettings {
+  computes: Compute[];
+  default_compute: string;
+  tracker: {
+    kind: "none" | "swanlab" | "wandb";
+    mode: "local" | "cloud";
+    project: string;
+    entity?: string;
+    has_key: boolean;
+  };
+  datasets?: { name: string; title: string }[];
+}
+
+export const readResearchSettings = () =>
+  api<ResearchSettings>("/research/settings");
+
+export const saveResearchSettings = (
+  body: Partial<Omit<ResearchSettings, "tracker">> & {
+    tracker?: Partial<ResearchSettings["tracker"]> & {
+      api_key?: string;
+      clear_key?: boolean;
+    };
+  },
+) => send("/research/settings", body, "PUT") as Promise<ResearchSettings>;
+
+export const testCompute = (id: string) =>
+  send(`/research/computes/${id}/test`, {}) as Promise<Environment>;
 
 export const createProject = (body: {
   question: string;
@@ -173,7 +327,10 @@ export interface Decision {
   sprint_id: string | null;
   detail: {
     node_id: string;
-    proposal: "continue" | "invest" | "kill" | "pivot";
+    /** plan and conclusion are the stage gates; the rest are the advisor's proposals. */
+    kind?: "plan" | "conclusion";
+    status?: "concluded" | "refuted";
+    proposal: "continue" | "invest" | "kill" | "pivot" | "accept_conclusion";
     reason: string;
     new_hypothesis?: { title: string; kill_if: string } | null;
   };

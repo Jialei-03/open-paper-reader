@@ -369,8 +369,20 @@ RESEARCH_TOOLS.append(
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
 # What the advisor may use: it looks and judges; it does not do.
 ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
-# What the advisor may use while the plan is talked through: the map and the plan card.
+# What the advisor may use while the plan is talked through: the map, the
+# literature, and the plan card.
 SCOPING_TOOLS = {"research_map_read", "propose_plan"}
+LITERATURE = {
+    "read_skill",
+    "search_papers",
+    "list_papers",
+    "read_paper",
+    "read_file",
+    "search_file",
+    "read_region",
+    "list_figures",
+    "web_read",
+}
 # What the distiller may use: the project's record, and the playbook.
 DISTILLER_TOOLS = {"research_map_read", "job_status", "job_logs", "distill"}
 
@@ -403,7 +415,7 @@ def gate(app, research, name):
     """Refuses a step that does something before saying which live node it advances."""
     role = research.get("role", "executor")
     if role == "scoping":
-        if name not in SCOPING_TOOLS:
+        if name not in SCOPING_TOOLS | LITERATURE:
             raise ValueError(
                 "定题阶段只聊计划：读地图、查文献，用 propose_plan 写计划卡片"
             )
