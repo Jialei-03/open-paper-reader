@@ -311,8 +311,24 @@ class AgentSession(Base):
     workspace_id: Mapped[str | None] = mapped_column(
         String(36), nullable=True, index=True
     )
+    # The model the conversation goes on with (changed from its composer); none: the default.
+    model_config_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class AgentSessionEntry(Base):
+    """One entry of a conversation's Pi session (messages, model changes,
+    compactions), in the order Pi wrote them; Pi rebuilds the session from them."""
+
+    __tablename__ = "agent_session_entries"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("agent_sessions.id"), index=True
+    )
+    seq: Mapped[int] = mapped_column(Integer)
+    entry: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
 
 
 class AgentRun(Base):

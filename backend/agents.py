@@ -20,6 +20,7 @@ from .models import (
     AgentQuota,
     AgentRun,
     AgentSession,
+    AgentSessionEntry,
     File,
     Paper,
     ReadingArtifact,
@@ -58,6 +59,9 @@ class RunInput(Strict):
     resume_run_id: str | None = Field(default=None, pattern=r"^[0-9a-f-]{36}$")
     attachment_ids: list[str] = Field(default_factory=list, max_length=5)
     model_options: RunOptionsInput | None = None
+    # "/compact" in the composer: Pi summarizes the conversation so far, with
+    # what to keep (the rest of `prompt` after the command) as its instructions.
+    command: Literal["compact"] | None = None
 
 
 def paper_session_id(owner, paper_id):
@@ -229,6 +233,7 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         ):
             raise HTTPException(409, "请先停止正在运行的任务")
         d.execute(delete(AgentRun).where(AgentRun.session_id == id))
+        d.execute(delete(AgentSessionEntry).where(AgentSessionEntry.session_id == id))
         d.delete(s)
         d.commit()
         return {"ok": True}
@@ -393,9 +398,17 @@ def install_agent_routes(app, settings, db, auth, human, owned):
             model=cfg["model"],
             lane=lane,
             **body.model_dump(
-                exclude={"resume_run_id", "reader_context", "model_options"}
+                exclude={"resume_run_id", "reader_context", "model_options", "command"}
             ),
             runtime={
+                **(
+                    {
+                        "command": "compact",
+                        "instructions": body.prompt.removeprefix("/compact").strip(),
+                    }
+                    if body.command == "compact"
+                    else {}
+                ),
                 **({"resume_from": source.id} if source else {}),
                 "model_options": run_options,
                 **({"direct": True} if direct else {}),
@@ -407,8 +420,10 @@ def install_agent_routes(app, settings, db, auth, human, owned):
                 **({"reader_context": reader_context} if reader_context else {}),
             },
         )
-        if s.title == "新会话":
+        if s.title == "新会话" and not body.command:
             s.title = body.prompt[:40]
+        # The model the conversation goes on with: the one this message chose.
+        s.model_config_id = body.model_config_id
         s.updated_at = now()
         d.add(r)
         d.flush()

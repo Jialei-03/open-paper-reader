@@ -4,6 +4,8 @@
 from pathlib import Path
 
 from fastapi import Depends, HTTPException, Response, UploadFile
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, update
 
@@ -93,9 +95,15 @@ class MessageInput(BaseModel):
     text: str = Field(min_length=1, max_length=8000)
 
 
+class ModelInput(BaseModel):
+    model_config_id: str = Field(min_length=1, max_length=64)
+
+
 class ChatInput(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     model_config_id: str = Field(default="", max_length=64)
+    # "/compact": summarize the conversation so far (Pi's compaction).
+    command: Literal["compact"] | None = None
 
 
 class PrepareInput(BaseModel):
@@ -353,6 +361,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "id": session.id,
             "title": session.title,
             "workspace_id": session.workspace_id,
+            "model_config_id": session.model_config_id,
             "created_at": session.created_at,
             "updated_at": session.updated_at,
         }
@@ -398,7 +407,14 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(404, "Not found")
         try:
             research_chat.ask(
-                settings, d, a["id"], session, w, body.message, body.model_config_id
+                settings,
+                d,
+                a["id"],
+                session,
+                w,
+                body.message,
+                body.model_config_id,
+                body.command,
             )
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
@@ -634,6 +650,33 @@ def install_research_routes(app, settings, db, auth, human, owned):
             if p.plan and not p.plan.get("approved_at"):
                 # The person's latest choice is what approving the plan starts on.
                 p.plan = {**p.plan, "compute_id": body.compute_id}
+            p.updated_at = now()
+        d.commit()
+        return project_out(p)
+
+    @app.post("/api/v1/research/projects/{id}/model")
+    def move_model(id: str, body: ModelInput, a=Depends(auth), d=Depends(db)):
+        """The model the next rounds run on (advisor and executor alike); a round
+        already running finishes on the one it started with."""
+        p = project_of(d, id, a)
+        chosen = read_config(settings, a["id"], body.model_config_id)
+        if not chosen.get("model"):
+            raise HTTPException(422, "这个模型不可用，先在设置里检查它")
+        if body.model_config_id != p.model_config_id:
+            research_map.event(
+                d,
+                p,
+                None,
+                "human",
+                "model_changed",
+                {
+                    "from": p.model_config_id,
+                    "to": body.model_config_id,
+                    # Said in the research thread as it was then.
+                    "name": chosen.get("name") or chosen["model"],
+                },
+            )
+            p.model_config_id = body.model_config_id
             p.updated_at = now()
         d.commit()
         return project_out(p)

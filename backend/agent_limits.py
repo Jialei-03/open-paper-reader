@@ -34,6 +34,10 @@ def output_tokens(config):
     return LARGE_OUTPUT_TOKENS if large else OUTPUT_TOKENS
 
 
+# Overridable (tests make Pi compact a short conversation).
+COMPACTION = {}
+
+
 def runtime_limits(config):
     """The numbers the agent runtime is handed with each task."""
     return {
@@ -41,6 +45,8 @@ def runtime_limits(config):
         "tool_calls": TOOL_CALLS,
         "model_turns": MODEL_TURNS,
         "context_chars": CONTEXT_CHARS,
+        # Pi's compaction settings; empty: Pi's own defaults.
+        "compaction": dict(COMPACTION),
     }
 
 

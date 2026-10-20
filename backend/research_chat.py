@@ -141,9 +141,10 @@ def context(d, workspace, settings=None):
     )
 
 
-def _model(settings, owner, workspace, model_config_id):
+def _model(settings, owner, workspace, model_config_id, session=None):
     chosen = (
         model_config_id
+        or (session.model_config_id if session is not None else "")
         or workspace.model_config_id
         or read_store(settings, owner).get("active_id")
         or ""
@@ -154,8 +155,9 @@ def _model(settings, owner, workspace, model_config_id):
     return chosen, config["model"]
 
 
-def ask(settings, d, owner, session, workspace, text, model_config_id=""):
-    """One message of the researcher's, answered by a run that reads the project."""
+def ask(settings, d, owner, session, workspace, text, model_config_id="", command=None):
+    """One message of the researcher's, answered by a run that reads the project
+    ("/compact": Pi summarizes the conversation so far instead)."""
     text = (text or "").strip()
     if not text:
         raise ValueError("说点什么吧")
@@ -167,7 +169,9 @@ def ask(settings, d, owner, session, workspace, text, model_config_id=""):
     )
     if busy is not None:
         raise ValueError("上一个问题还在回答")
-    config_id, model = _model(settings, owner, workspace, model_config_id)
+    config_id, model = _model(settings, owner, workspace, model_config_id, session)
+    # The conversation goes on with the model this message chose.
+    session.model_config_id = config_id
     run = AgentRun(
         owner=owner,
         session_id=session.id,
@@ -176,7 +180,17 @@ def ask(settings, d, owner, session, workspace, text, model_config_id=""):
         prompt=text[:8000],
         context=context(d, workspace, settings),
         writable=False,
-        runtime={"research": {"role": "chat", "workspace_id": workspace.id}},
+        runtime={
+            "research": {"role": "chat", "workspace_id": workspace.id},
+            **(
+                {
+                    "command": "compact",
+                    "instructions": text.removeprefix("/compact").strip(),
+                }
+                if command == "compact"
+                else {}
+            ),
+        },
     )
     d.add(run)
     session.updated_at = now()

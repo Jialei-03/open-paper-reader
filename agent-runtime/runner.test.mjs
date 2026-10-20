@@ -159,3 +159,143 @@ test('a model that falls silent, before or during its answer, still times out', 
     if (started) assert.equal(message.content.find(c => c.type === 'text').text, '一半');
   }
 });
+
+// The runner as the backend drives it: Pi's AgentSession against a local model server.
+import {spawn} from 'node:child_process';
+async function fakeModel(reply) {
+  const seen = [];
+  const server = http.createServer(async (request, response) => {
+    let body = '';
+    for await (const chunk of request) body += chunk;
+    const payload = JSON.parse(body);
+    seen.push(payload);
+    response.writeHead(200, {'content-type':'text/event-stream'});
+    for (const delta of reply(payload, seen.length)) response.write(frame(delta));
+    response.write(frame({}, reply.finish?.(payload, seen.length) || 'stop'));
+    // Like a real service: how many tokens the request took (about one per three characters here).
+    const prompt = Math.round(body.length / 3);
+    response.write(`data: ${JSON.stringify({id:'x', object:'chat.completion.chunk', created:1, model:'m', choices:[], usage:{prompt_tokens:prompt, completion_tokens:50, total_tokens:prompt + 50}})}\n\n`);
+    response.end('data: [DONE]\n\n');
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  return {seen, base:`http://127.0.0.1:${server.address().port}/v1`, close:() => { server.closeAllConnections(); server.close(); }};
+}
+function runRunner(payload, onTool = () => ({result:{ok:true}})) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [new URL('./runner.mjs', import.meta.url).pathname], {env:{...process.env, NODE_ENV:'test'}});
+    const out = [];
+    let buffer = '';
+    child.stdout.on('data', chunk => {
+      buffer += chunk;
+      let at;
+      while ((at = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, at); buffer = buffer.slice(at + 1);
+        if (!line) continue;
+        const event = JSON.parse(line);
+        out.push(event);
+        if (event.type === 'tool') child.stdin.write(JSON.stringify({id:event.id, ...onTool(event)}) + '\n');
+        // The backend reserves each model request against the budget.
+        if (event.type === 'model_request') { if (payload.deny) child.kill(); else child.stdin.write(JSON.stringify({id:event.id}) + '\n'); }
+      }
+    });
+    let err = '';
+    child.stderr.on('data', c => { err += c; });
+    child.on('exit', code => code === 0 ? resolve(out) : reject(Error(`exit ${code}: ${err}\n${JSON.stringify(out)}`)));
+    child.stdin.write(JSON.stringify(payload) + '\n');
+  });
+}
+const config = base => ({base_url:base, api_key:'k', model:'m', protocol:'openai'});
+
+test('a conversation continues from the entries the backend kept', async () => {
+  const model = await fakeModel((payload, n) => [{content:`第 ${n} 次回答`}]);
+  try {
+    const first = await runRunner({config:config(model.base), prompt:'你好', tools:[]});
+    const entries = first.filter(e => e.type === 'entry').map(e => e.entry);
+    assert.ok(entries.some(e => e.type === 'message' && e.message.role === 'user'));
+    assert.equal(first.find(e => e.type === 'answer').text, '第 1 次回答');
+    const done = first.find(e => e.type === 'done');
+    assert.ok(done.session_id);
+    assert.ok(first.find(e => e.type === 'context'));
+    const second = await runRunner({config:config(model.base), session:{id:done.session_id, entries}, prompt:'再说一次', tools:[]});
+    assert.equal(second.find(e => e.type === 'answer').text, '第 2 次回答');
+    // The second request carried the first exchange.
+    const said = model.seen[1].messages.map(m => typeof m.content === 'string' ? m.content : JSON.stringify(m.content)).join('\n');
+    assert.match(said, /你好/);
+    assert.match(said, /第 1 次回答/);
+  } finally { model.close(); }
+});
+
+test('our tools run in the parent process and their results reach the model', async () => {
+  const reply = (payload, n) => n === 1
+    ? [{tool_calls:[{index:0, id:'call_1', type:'function', function:{name:'lookup', arguments:'{"q":"x"}'}}]}]
+    : [{content:'查到了'}];
+  reply.finish = (payload, n) => n === 1 ? 'tool_calls' : 'stop';
+  const model = await fakeModel(reply);
+  try {
+    const out = await runRunner({config:config(model.base), prompt:'查一下', tools:[{name:'lookup', description:'d', parameters:{type:'object', properties:{q:{type:'string'}}}}]},
+      event => ({result:{found:event.args.q}}));
+    assert.deepEqual(out.find(e => e.type === 'tool').args, {q:'x'});
+    assert.equal(out.filter(e => e.type === 'answer').at(-1).text, '查到了');
+    assert.match(JSON.stringify(model.seen[1].messages), /found/);
+  } finally { model.close(); }
+});
+
+test('a long conversation is compacted by Pi, on its own and when asked', async () => {
+  const model = await fakeModel((payload, n) => [{content:`回答 ${n}：` + '很长的内容。'.repeat(200)}]);
+  try {
+    const small = {...config(model.base), context_window:3000};
+    const limits = {output_tokens:500, compaction:{reserveTokens:600, keepRecentTokens:300}};
+    let entries = [], id;
+    let compacted = [];
+    for (let i = 0; i < 6; i++) {
+      const out = await runRunner({config:small, limits, session:{id, entries}, prompt:`第 ${i} 个问题 ` + '背景。'.repeat(150), tools:[]});
+      entries = entries.concat(out.filter(e => e.type === 'entry').map(e => e.entry));
+      id = out.find(e => e.type === 'done').session_id;
+      compacted = compacted.concat(out.filter(e => e.type === 'compaction'));
+    }
+    assert.ok(compacted.some(e => e.phase === 'end' && !e.aborted), JSON.stringify(compacted));
+    assert.ok(entries.some(e => e.type === 'compaction'));
+    // Asked for: /compact with instructions.
+    const asked = await runRunner({config:small, limits, session:{id, entries}, command:'compact', instructions:'只留结论', tools:[]});
+    const end = asked.find(e => e.type === 'compaction' && e.phase === 'end');
+    assert.equal(end.reason, 'manual');
+    assert.ok(asked.some(e => e.type === 'entry' && e.entry.type === 'compaction'));
+  } finally { model.close(); }
+});
+
+test('changing the model is written into the conversation', async () => {
+  const model = await fakeModel(() => [{content:'好'}]);
+  try {
+    const first = await runRunner({config:config(model.base), prompt:'一', tools:[]});
+    const entries = first.filter(e => e.type === 'entry').map(e => e.entry);
+    const id = first.find(e => e.type === 'done').session_id;
+    const second = await runRunner({config:{...config(model.base), model:'m2'}, session:{id, entries}, prompt:'二', tools:[]});
+    const change = second.find(e => e.type === 'entry' && e.entry.type === 'model_change');
+    assert.equal(change.entry.modelId, 'm2');
+    assert.equal(model.seen[1].model, 'm2');
+    // The same model again adds no change.
+    const all = entries.concat(second.filter(e => e.type === 'entry').map(e => e.entry));
+    const third = await runRunner({config:{...config(model.base), model:'m2'}, session:{id, entries:all}, prompt:'三', tools:[]});
+    assert.ok(!third.some(e => e.type === 'entry' && e.entry.type === 'model_change'));
+  } finally { model.close(); }
+});
+
+test('a conversation from before starts from the history the backend rebuilt', async () => {
+  const model = await fakeModel(() => [{content:'接着说'}]);
+  try {
+    const history = [{role:'user', content:'以前的问题', timestamp:0}];
+    const out = await runRunner({config:config(model.base), history, prompt:'现在的问题', tools:[]});
+    assert.match(JSON.stringify(model.seen[0].messages), /以前的问题/);
+    const kept = out.filter(e => e.type === 'entry').map(e => e.entry);
+    assert.ok(kept.some(e => e.type === 'message' && JSON.stringify(e.message.content).includes('以前的问题')));
+  } finally { model.close(); }
+});
+
+test('a model request the backend refuses is never sent', async () => {
+  const model = await fakeModel(() => [{content:'不该出现'}]);
+  try {
+    // The backend, finding the budget spent, stops the runner rather than answer.
+    await assert.rejects(runRunner({config:config(model.base), prompt:'你好', tools:[], deny:true}));
+    assert.equal(model.seen.length, 0);
+  } finally { model.close(); }
+});

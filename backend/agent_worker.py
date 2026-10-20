@@ -27,7 +27,7 @@ from .artifact_preview import store_preview
 from .filelock import lock_nowait
 from .local.paths import agent_runtime_dir
 from .model_options import request_options
-from .models import AgentRun, now
+from .models import AgentRun, AgentSessionEntry, now
 from .parent_watch import watch_parent
 from .platform_model import ModelSlotBusy, model_slot
 from .reader_context import evidence_text
@@ -152,10 +152,25 @@ def _process(app, job_id, cfg):
             raise ValueError("模型配置已变更，请重新发送任务")
         history = []
         # A conversation in a project remembers its turns; a round does not.
+        keeps = not (r.runtime or {}).get("reading_artifact_id") and not (
+            research and research.get("role") != "chat"
+        )
+        # What Pi kept of this conversation; while there is none, its history is rebuilt below.
+        entries = (
+            [
+                row.entry
+                for row in d.scalars(
+                    select(AgentSessionEntry)
+                    .where(AgentSessionEntry.session_id == session_id)
+                    .order_by(AgentSessionEntry.seq)
+                )
+            ]
+            if keeps
+            else []
+        )
         previous = (
             []
-            if (r.runtime or {}).get("reading_artifact_id")
-            or (research and research.get("role") != "chat")
+            if not keeps or entries
             else list(
                 d.scalars(
                     select(AgentRun)
@@ -297,6 +312,16 @@ def _process(app, job_id, cfg):
         payload = {
             "config": cfg,
             "history": history,
+            **({"session": {"id": session_id, "entries": entries}} if keeps else {}),
+            # "/compact": Pi summarizes the conversation instead of answering.
+            **(
+                {
+                    "command": "compact",
+                    "instructions": (r.runtime or {}).get("instructions", ""),
+                }
+                if (r.runtime or {}).get("command") == "compact"
+                else {}
+            ),
             "prompt": r.prompt,
             "context": r.context
             + evidence_text(snapshot, region_text)
@@ -360,6 +385,8 @@ def _process(app, job_id, cfg):
     said_shown = False
     final_answer = None
     steps = []
+    # Entries Pi added to the conversation in this run.
+    added = []
     failed = ""
     done = False
     calls = 0
@@ -443,7 +470,8 @@ def _process(app, job_id, cfg):
                 if not chunk:
                     break
                 buffer += chunk
-                if len(buffer) > 500000:
+                # Pi's session entries carry tool results: room for a large one.
+                if len(buffer) > 8_000_000:
                     raise ValueError("模型响应超过大小限制")
                 while b"\n" in buffer:
                     line, buffer = buffer.split(b"\n", 1)
@@ -459,6 +487,17 @@ def _process(app, job_id, cfg):
                         else:
                             budget.release()
                             phase("preparing")
+                        child.stdin.write(
+                            (json.dumps({"id": event["id"]}) + "\n").encode()
+                        )
+                        child.stdin.flush()
+                    elif event["type"] == "model_request":
+                        # Pi is about to call the model: the request is reserved
+                        # against the account's budget first (raises when spent).
+                        usage_id = model_usage.start(
+                            maker, owner, "agent", job_id, cfg, app.state.settings
+                        )
+                        phase("model")
                         child.stdin.write(
                             (json.dumps({"id": event["id"]}) + "\n").encode()
                         )
@@ -479,6 +518,7 @@ def _process(app, job_id, cfg):
                                 "pi",
                                 "failed" if event.get("failed") else "completed",
                             )
+                            usage_id = None
                     elif event["type"] == "delta":
                         response += event["text"]
                         if len(response) > agent_limits.REPLY_CHARS:
@@ -653,6 +693,20 @@ def _process(app, job_id, cfg):
                         phase("preparing")
                         child.stdin.write((json.dumps(reply) + "\n").encode())
                         child.stdin.flush()
+                    elif event["type"] == "entry":
+                        added.append(event["entry"])
+                    elif event["type"] in {"compaction", "context"}:
+                        # Shown by the composer: how full the context is, a compaction in progress.
+                        with maker() as d:
+                            current = d.get(AgentRun, job_id)
+                            if current:
+                                current.runtime = {
+                                    **(current.runtime or {}),
+                                    event["type"]: {
+                                        k: v for k, v in event.items() if k != "type"
+                                    },
+                                }
+                                d.commit()
                     elif event["type"] == "answer":
                         final_answer = str(event.get("text", ""))[:131072]
                     elif event["type"] == "error":
@@ -691,6 +745,8 @@ def _process(app, job_id, cfg):
                 sandbox_call(job_id, "close")
             except (ValueError, OSError):
                 pass
+    if keeps and added:
+        keep_entries(maker, session_id, added)
     with maker() as d:
         d.execute(
             update(AgentRun)
@@ -712,6 +768,23 @@ def _process(app, job_id, cfg):
                 for k, v in (current.runtime or {}).items()
                 if k != "artifact_preview"
             }
+        d.commit()
+
+
+def keep_entries(maker, session_id, added):
+    """What a run added to the conversation's Pi session, after what was there."""
+    with maker() as d:
+        last = d.scalar(
+            select(func.max(AgentSessionEntry.seq)).where(
+                AgentSessionEntry.session_id == session_id
+            )
+        )
+        for offset, entry in enumerate(added, 1):
+            d.add(
+                AgentSessionEntry(
+                    session_id=session_id, seq=(last or 0) + offset, entry=entry
+                )
+            )
         d.commit()
 
 

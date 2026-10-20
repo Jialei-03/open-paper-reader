@@ -707,3 +707,68 @@ def test_resuming_after_a_failed_download_tries_it_again(env):
     with app.state.maker() as d:
         row = d.scalars(select(ResearchDataset)).one()
         assert (row.status, row.note) == ("pending", "")
+
+
+def test_the_next_rounds_run_on_the_model_chosen_for_them(env):
+    from backend.models import ResearchEvent
+    from backend.translation_settings import write_config
+
+    app, a, _b, settings = env
+    owner, model = configure(app, a, settings)
+    project = create(a, model).json()
+    saved = write_config(
+        settings,
+        owner,
+        {
+            "base_url": "https://api.minimax.cn/v1",
+            "model": "MiniMax-M3.1-Flash",
+            "api_key": "test-private-key",
+            "protocol": "openai",
+        },
+        create=True,
+    )
+    other = next(m["id"] for m in saved["models"] if m["model"] == "MiniMax-M3.1-Flash")
+    r = a.post(f"{BASE}/{project['id']}/model", json={"model_config_id": other})
+    assert r.status_code == 200 and r.json()["model_config_id"] == other
+    missing = a.post(f"{BASE}/{project['id']}/model", json={"model_config_id": "nope"})
+    assert missing.status_code == 422
+    with app.state.maker() as d:
+        changed = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "model_changed")
+        ).one()
+        assert changed.detail == {
+            "from": model,
+            "to": other,
+            "name": "MiniMax-M3.1-Flash",
+        }
+
+
+def test_a_project_chat_goes_on_with_its_model_and_can_be_compacted(env):
+    app, a, _b, settings = env
+    _owner, model = configure(app, a, settings)
+    project = create(a, model).json()
+    workspace = project["workspace_id"]
+    chat = a.post(
+        f"/api/v1/research/workspaces/{workspace}/chats",
+        json={"message": "进展如何", "model_config_id": model},
+    ).json()
+    assert chat["model_config_id"] == model
+    with app.state.maker() as d:
+        for run in d.scalars(select(AgentRun).where(AgentRun.session_id == chat["id"])):
+            run.status = "completed"
+        d.commit()
+    r = a.post(
+        f"/api/v1/research/chats/{chat['id']}/messages",
+        json={"message": "/compact 只留结论", "command": "compact"},
+    )
+    assert r.status_code == 200
+    with app.state.maker() as d:
+        last = d.scalars(
+            select(AgentRun)
+            .where(AgentRun.session_id == chat["id"])
+            .order_by(AgentRun.created_at.desc())
+        ).first()
+        assert last.runtime["command"] == "compact"
+        assert last.runtime["instructions"] == "只留结论"
+        # No model named: the one the conversation was on.
+        assert last.model_config_id == model

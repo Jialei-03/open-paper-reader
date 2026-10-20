@@ -26,6 +26,7 @@ def test_the_runtime_is_told_its_limits():
         "tool_calls": agent_limits.TOOL_CALLS,
         "model_turns": agent_limits.MODEL_TURNS,
         "context_chars": agent_limits.CONTEXT_CHARS,
+        "compaction": {},
     }
 
 
