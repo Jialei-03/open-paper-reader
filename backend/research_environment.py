@@ -184,6 +184,15 @@ def progress(settings, d, env_id):
                 args = {}
         result = step.get("result") or {}
         output = result.get("summary", "") if isinstance(result, dict) else str(result)
+        try:
+            # A tool's reply, kept as JSON text: show what it printed.
+            parsed = json.loads(output)
+            if isinstance(parsed, dict) and "content" in parsed:
+                output = "\n".join(
+                    c.get("text", "") for c in parsed["content"] if isinstance(c, dict)
+                )
+        except (ValueError, TypeError):
+            pass
         steps.append(
             {
                 "name": step.get("name"),

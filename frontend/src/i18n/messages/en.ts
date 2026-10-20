@@ -1330,7 +1330,7 @@ export const en = {
   "settings.research.default": "Default",
   "settings.research.noGpu": "none",
   "settings.research.localMeta":
-    "Docker on this machine · {cpus} CPU · {memory} GB · runs without network",
+    "{cpus} CPU · {memory} GB · runs without network",
   "settings.research.test": "Check",
   "settings.research.testing": "Checking…",
   "settings.research.makeDefault": "Make default",

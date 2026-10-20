@@ -1238,8 +1238,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.research.computes": "研究环境",
   "settings.research.default": "默认",
   "settings.research.noGpu": "无",
-  "settings.research.localMeta":
-    "本机 Docker · {cpus} CPU · {memory} GB 内存 · 无网络隔离运行",
+  "settings.research.localMeta": "{cpus} CPU · {memory} GB 内存 · 运行时不联网",
   "settings.research.test": "检测",
   "settings.research.testing": "正在检测…",
   "settings.research.makeDefault": "设为默认",

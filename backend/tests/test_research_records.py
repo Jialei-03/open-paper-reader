@@ -667,3 +667,29 @@ def test_setup_commands_get_a_longer_limit(tmp_path):
 
 def test_preparing_spends_no_project_budget(world):
     rw.charge(world.maker, {"role": "envsetup", "env_id": "wsl"}, 500)
+
+
+def test_preparation_steps_read_as_plain_output(world, monkeypatch):
+    from backend import research_environment as re_
+
+    _wsl(world)
+    monkeypatch.setattr(re_, "read_config", lambda *a: {"model": "m"})
+    with world.maker() as d:
+        user = d.scalars(select(User)).first()
+        run = re_.start(world.settings, d, user.id, "wsl", "m")
+        result = {
+            "content": [{"type": "text", "text": "Ubuntu 24.04\nok"}],
+            "isError": False,
+        }
+        run.steps = [
+            {
+                "name": "bash",
+                "status": "completed",
+                "arguments": json.dumps({"command": "uname -a"}),
+                "result": {"summary": json.dumps(result)},
+            }
+        ]
+        d.commit()
+        step = re_.progress(world.settings, d, "wsl")["steps"][0]
+    assert step["command"] == "uname -a"
+    assert step["output"] == "Ubuntu 24.04\nok"
