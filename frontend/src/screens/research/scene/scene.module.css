@@ -81,6 +81,8 @@
 }
 
 .screen {
+  /* Written on furniture that is its own layer: above it. */
+  z-index: 300;
   position: absolute;
   display: -webkit-box;
   overflow: hidden;
@@ -96,6 +98,8 @@
 }
 
 .deskNote {
+  /* Written on furniture that is its own layer: above it. */
+  z-index: 300;
   position: absolute;
   display: grid;
   overflow: hidden;
@@ -134,8 +138,33 @@
   transform: translate(-50%, -100%);
 }
 
+.agent,
+.label {
+  transition:
+    left 600ms var(--ui-ease-out),
+    top 600ms var(--ui-ease-out);
+}
+
 .figure {
   transform-origin: 50% 100%;
+}
+
+/* Sitting on a stool or an armchair: the legs are tucked out of sight. */
+.agent[data-perched] .figure {
+  margin-bottom: -19%;
+  clip-path: inset(0 0 19% 0);
+}
+
+/* A name, and the words of whoever is speaking, above each head. */
+.label {
+  position: absolute;
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4cqw;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
 }
 
 .figure > svg,
@@ -154,21 +183,16 @@
 }
 
 .name {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  margin-top: 0.2cqw;
   padding: 0 0.6cqw;
   border-radius: var(--ui-r-pill);
-  background: rgb(255 255 255 / 75%);
+  background: rgb(255 255 255 / 80%);
   color: #2b2a33;
   font-size: max(9px, 0.95cqw);
   font-weight: var(--ui-weight-strong);
   white-space: nowrap;
-  transform: translateX(-50%);
 }
 
-.agent[data-active] .name {
+.label[data-active] .name {
   background: #2b2a33;
   color: #fff;
 }
@@ -200,10 +224,6 @@
 }
 
 .bubble {
-  position: absolute;
-  z-index: 1;
-  bottom: calc(100% + 0.6cqw);
-  left: 50%;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -217,28 +237,7 @@
     0 3px 0 rgb(0 0 0 / 15%);
   color: #2b2a33;
   font-size: max(11px, 1.05cqw);
-  transform: translateX(-50%);
   animation: pop var(--ui-dur-2) var(--ui-ease-out);
-}
-
-/* The squirrel sits at the top of the room: its words go to its left. */
-.agent[data-agent="distiller"] .bubble {
-  top: 20%;
-  right: calc(100% + 0.6cqw);
-  bottom: auto;
-  left: auto;
-  transform: none;
-}
-
-.agent[data-agent="advisor"] .bubble {
-  left: auto;
-  right: 0;
-  transform: none;
-}
-
-.agent[data-agent="executor"] .bubble {
-  left: 0;
-  transform: none;
 }
 
 .bubble[data-tone="warn"] strong {
@@ -264,7 +263,7 @@
 /* What travels: a handoff note, a verdict stamp, a result. */
 .token {
   position: absolute;
-  z-index: 400;
+  z-index: 700;
   width: 1.6cqw;
   height: 2cqw;
   margin: -1cqw 0 0 -0.8cqw;

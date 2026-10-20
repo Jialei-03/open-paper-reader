@@ -16,25 +16,51 @@ export const project = (x: number, y: number, z = 0) => ({
   y: OY + (x + y) / 2 - z,
 });
 
-/** Where each agent stands (the point under its feet), on the floor or the shelf. */
-const STAND_AT: Record<Agent, [number, number, number]> = {
-  executor: [32, 84, 0],
-  system: [50, 58, 0],
-  advisor: [98, 80, 0],
-  distiller: [104, 6, 56],
+/**
+ * Where each agent sits, and where it goes when it gets up. The beaver and the owl
+ * sit on office chairs behind their desks, facing the room; the shiba keeps a stool
+ * beside the gate and steps in front of it to stop someone; the squirrel reads in an
+ * armchair by the bookshelf. `perched` figures sit on top of something low (a stool,
+ * an armchair), so their legs are hidden; a desk hides the others' by itself.
+ */
+interface Seat {
+  at: [number, number, number];
+  perched: boolean;
+}
+const SEATS: Record<Agent, Seat> = {
+  executor: { at: [33, 47, 4], perched: false },
+  advisor: { at: [97, 43, 4], perched: false },
+  system: { at: [72, 86, 8], perched: true },
+  distiller: { at: [107, 26, 8], perched: true },
 };
-export const STAND = Object.fromEntries(
-  Object.entries(STAND_AT).map(([agent, [x, y, z]]) => [
-    agent,
-    project(x, y, z),
-  ]),
-) as Record<Agent, { x: number; y: number }>;
+/** The shiba on duty: in front of the gate. */
+const GATE_DUTY: [number, number, number] = [58, 92, 0];
+
+export interface Figure {
+  /** The point under the visible figure, on the screen. */
+  x: number;
+  y: number;
+  /** Its distance from the back corner: larger is nearer, drawn in front. */
+  depth: number;
+  perched: boolean;
+}
+
+/** Where `agent` is: sitting, unless it is on its feet. */
+export function figure(agent: Agent, standing: boolean): Figure {
+  const seat = SEATS[agent];
+  const [x, y, z] = standing && agent === "system" ? GATE_DUTY : seat.at;
+  return {
+    ...project(x, y, z),
+    depth: project(x, y, 0).y,
+    perched: seat.perched && !(standing && agent === "system"),
+  };
+}
 
 /** Where work lands. */
 export const SPOT: Record<Place, { x: number; y: number }> = {
   board: project(45, 0, 45),
-  bench: project(28, 64, 22),
-  desk: project(93, 59, 15),
+  bench: project(18, 62, 22),
+  desk: project(90, 58, 15),
   gate: project(59, 66, 12),
   shelf: project(104, 12, 30),
   person: project(0, 81, 25),
@@ -66,8 +92,8 @@ const along = (
 
 export const AREA = {
   board: along(20, 0, 64, 50, 38, 1),
-  screen: along(21, 64, 29, 14, 12, 1),
-  note: along(82, 66, 22, 18, 6, 1),
+  screen: along(18, 67, 27, 10, 10, -1),
+  note: along(98, 66, 20, 16, 6, 1),
   door: along(0, 90, 59, 17, 5, -1),
 } as const;
 
@@ -145,8 +171,8 @@ function box(
   paint(flat(x0, x1, y0, y1, z1), top);
 }
 
-function paintRoom(data: Uint8ClampedArray) {
-  const paint = filler(data);
+/** The walls, floor and everything that stands behind the agents. */
+function paintBack(paint: Paint) {
   // Walls: the left one in shade, the right one in light, with a skirting board.
   paint(onX(0, 0, 120, 0, 75), "#e3d6c0");
   paint(onY(0, 0, 120, 0, 75), "#efe4d2");
@@ -219,34 +245,94 @@ function paintRoom(data: Uint8ClampedArray) {
     }
   paint(onY(12, 94, 116, 18, 20), "#7a5a40");
   paint(onY(12, 94, 116, 35, 37), "#7a5a40");
-  // The executor's bench: a desk with a monitor facing the room.
-  box(paint, [12, 44, 56, 74, 0, 14], ["#b5835b", "#a8754f", "#8d5f3d"]);
-  box(paint, [26, 30, 62, 64, 14, 16], ["#3a3a40", "#2b2b30", "#202024"]);
-  box(paint, [19, 37, 62, 64, 16, 31], ["#3a3a40", "#2b2b30", "#202024"]);
-  paint(onY(64, 20, 36, 17, 30), "#1d2b24");
-  box(paint, [16, 30, 66, 71, 14, 15], ["#6a6a72", "#5a5a60", "#4a4a50"]);
-  // The gate: two posts and a red bar.
+  // Office chairs behind the two desks, facing the room.
+  for (const [x0, y0] of [
+    [26, 40],
+    [90, 36],
+  ]) {
+    box(
+      paint,
+      [x0 + 6, x0 + 8, y0 + 4, y0 + 6, 0, 6],
+      ["#4a4a50", "#3a3a40", "#2a2a30"],
+    );
+    box(
+      paint,
+      [x0 + 1, x0 + 13, y0 + 1, y0 + 9, 6, 8],
+      ["#3f5f8a", "#2f4f7a", "#24406a"],
+    );
+    box(
+      paint,
+      [x0 + 1, x0 + 13, y0, y0 + 2, 8, 25],
+      ["#3f5f8a", "#2f4f7a", "#24406a"],
+    );
+  }
+  // The squirrel's armchair by the bookshelf.
+  box(paint, [100, 114, 18, 21, 0, 20], ["#7a9a6a", "#6a8a5a", "#5a7a4a"]);
+  box(paint, [100, 114, 21, 30, 0, 8], ["#8aaa7a", "#7a9a6a", "#6a8a5a"]);
+  box(paint, [100, 102, 21, 30, 8, 13], ["#8aaa7a", "#7a9a6a", "#6a8a5a"]);
+  box(paint, [112, 114, 21, 30, 8, 13], ["#8aaa7a", "#7a9a6a", "#6a8a5a"]);
+}
+
+/** The executor's desk, its monitor turned sideways so the beaver can be seen. */
+function paintBench(paint: Paint) {
+  box(paint, [14, 48, 54, 70, 0, 14], ["#b5835b", "#a8754f", "#8d5f3d"]);
+  box(paint, [15, 20, 60, 64, 14, 16], ["#3a3a40", "#2b2b30", "#202024"]);
+  box(paint, [16, 18, 56, 68, 16, 29], ["#3a3a40", "#2b2b30", "#202024"]);
+  paint(onX(18, 57, 67, 17, 28), "#1d2b24");
+  box(paint, [28, 40, 56, 60, 14, 15], ["#6a6a72", "#5a5a60", "#4a4a50"]);
+}
+
+/** The shiba's stool, in front of the gate on the rug. */
+function paintStool(paint: Paint) {
+  box(paint, [71, 73, 85, 87, 0, 6], ["#6b7078", "#5b6068", "#4b5058"]);
+  box(paint, [68, 76, 82, 90, 6, 8], ["#d64541", "#b5362f", "#9a2e28"]);
+}
+
+/** The gate: a base, two posts and a red bar. */
+function paintGate(paint: Paint) {
   box(paint, [56, 62, 52, 80, 0, 1], ["#7d828a", "#6b7078", "#5b6068"]);
   box(paint, [58, 61, 54, 57, 1, 22], ["#a4a9b1", "#8a8f98", "#747982"]);
   box(paint, [58, 61, 75, 78, 1, 22], ["#a4a9b1", "#8a8f98", "#747982"]);
   box(paint, [58.5, 60.5, 57, 75, 12, 14], ["#e8665f", "#d64541", "#b5362f"]);
-  // The advisor's desk: papers and a lamp.
-  box(paint, [78, 110, 50, 68, 0, 14], ["#b5835b", "#a8754f", "#8d5f3d"]);
-  box(paint, [84, 94, 55, 62, 14, 15], ["#ffffff", "#e9e4da", "#dcd6ca"]);
-  box(paint, [102, 104, 56, 58, 14, 26], ["#4a4a4a", "#3a3a3a", "#2a2a2a"]);
-  box(paint, [98, 106, 53, 60, 26, 30], ["#3f8a7a", "#2f6b5e", "#24564b"]);
 }
 
-/** The room itself; the page lays the agents and the text over it. */
-export function IsoRoomArt() {
+/** The advisor's desk: a lamp at the far end, papers at the front, the owl's face clear. */
+function paintDesk(paint: Paint) {
+  box(paint, [80, 112, 50, 66, 0, 14], ["#b5835b", "#a8754f", "#8d5f3d"]);
+  box(paint, [100, 110, 58, 65, 14, 15], ["#ffffff", "#e9e4da", "#dcd6ca"]);
+  box(paint, [82, 84, 52, 54, 14, 26], ["#4a4a4a", "#3a3a3a", "#2a2a2a"]);
+  box(paint, [79, 87, 50, 56, 26, 30], ["#3f8a7a", "#2f6b5e", "#24564b"]);
+}
+
+/**
+ * The room in layers, back to front. Each piece of furniture is its own layer at its
+ * front corner's depth, so an agent sitting behind a desk is hidden by it.
+ */
+const LAYERS: { key: string; depth: number; paint: (paint: Paint) => void }[] =
+  [
+    { key: "back", depth: 0, paint: paintBack },
+    { key: "bench", depth: project(48, 70).y, paint: paintBench },
+    { key: "gate", depth: project(62, 80).y, paint: paintGate },
+    { key: "desk", depth: project(112, 66).y, paint: paintDesk },
+    // Under the shiba: just behind the point it sits on.
+    { key: "stool", depth: project(72, 86).y - 1, paint: paintStool },
+  ];
+
+function Layer({
+  depth,
+  paint,
+}: {
+  depth: number;
+  paint: (paint: Paint) => void;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const context = canvas.current?.getContext("2d");
     if (!context) return;
     const image = context.createImageData(LW, LH);
-    paintRoom(image.data);
+    paint(filler(image.data));
     context.putImageData(image, 0, 0);
-  }, []);
+  }, [paint]);
   return (
     <canvas
       ref={canvas}
@@ -256,10 +342,23 @@ export function IsoRoomArt() {
       style={{
         position: "absolute",
         inset: 0,
+        zIndex: depth ? 2 + Math.round(depth) : 0,
         width: "100%",
         height: "100%",
         imageRendering: "pixelated",
+        pointerEvents: "none",
       }}
     />
+  );
+}
+
+/** The room itself, in layers; the page lays the agents and the text among them. */
+export function IsoRoomArt() {
+  return (
+    <>
+      {LAYERS.map((layer) => (
+        <Layer key={layer.key} depth={layer.depth} paint={layer.paint} />
+      ))}
+    </>
   );
 }
