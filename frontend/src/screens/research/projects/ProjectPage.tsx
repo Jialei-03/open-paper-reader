@@ -7,7 +7,7 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import type { MessageKey } from "../../../i18n/i18n";
 import { followLink } from "../../../reader/route";
@@ -174,6 +174,32 @@ function Board({
   const { t } = useI18n();
   const [idea, setIdea] = useState("");
   const [over, setOver] = useState<Column | "">("");
+  const strip = useRef<HTMLDivElement>(null);
+
+  // A mouse wheel turns the board sideways, unless a column under the pointer
+  // still has its own cards to scroll that way.
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const wheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+      const list = (event.target as HTMLElement).closest<HTMLElement>(
+        "[data-cards]",
+      );
+      if (
+        list &&
+        ((event.deltaY > 0 &&
+          list.scrollTop + list.clientHeight < list.scrollHeight - 1) ||
+          (event.deltaY < 0 && list.scrollTop > 0))
+      )
+        return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      event.preventDefault();
+      el.scrollLeft += event.deltaY;
+    };
+    el.addEventListener("wheel", wheel, { passive: false });
+    return () => el.removeEventListener("wheel", wheel);
+  }, []);
   const hand: Column[] = ["triage", "todo", "dropped"];
 
   const drop = async (column: Column, cardId: string) => {
@@ -188,7 +214,7 @@ function Board({
   };
 
   return (
-    <div className={styles.board}>
+    <div className={styles.board} ref={strip}>
       {columns.map((column) => {
         const here = cards.filter((c) => c.column === column);
         return (
@@ -237,7 +263,7 @@ function Board({
                 />
               </form>
             )}
-            <div className={styles.cards}>
+            <div className={styles.cards} data-cards>
               {here.map((card) => (
                 <CardFace key={card.id} card={card} go={go} refresh={refresh} />
               ))}

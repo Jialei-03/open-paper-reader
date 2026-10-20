@@ -89,8 +89,11 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
     route: { screen: "home" },
     hash: "home",
   });
-  if (route.screen !== "settings")
-    under.current = { route, hash: location.hash.slice(1) || "home" };
+  // The address is read only when it still says what is drawn: a click on the
+  // settings link changes it a moment before this renders with the new route.
+  const here = location.hash.slice(1);
+  if (route.screen !== "settings" && !here.startsWith("settings"))
+    under.current = { route, hash: here || "home" };
   const [papers, setPapers] = useState<Paper[]>([]);
   const [tick, setTick] = useState(0);
   const [quickOpen, setQuickOpen] = useState(false);

@@ -187,7 +187,9 @@
 
 .board {
   display: grid;
-  grid-auto-columns: minmax(250px, 1fr);
+  grid-auto-columns: minmax(240px, 1fr);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-edge) transparent;
   grid-auto-flow: column;
   gap: var(--ui-space-12);
   height: 100%;
