@@ -108,3 +108,11 @@ def test_a_conversation_remembers_what_was_said_before():
     names = {t["name"] for t in research_tools("chat")}
     assert {"project_overview", "research_read", "job_logs"} <= names
     assert not names & {"bash", "run_job", "write", "add_node"}
+
+
+def test_what_a_conversation_uses_only_reads():
+    from backend.agent_tools import TOOL_MAP
+    from backend.research_tools import CHAT_TOOLS
+
+    # Its runs are not allowed to write, so every tool it has must be a read.
+    assert all(not TOOL_MAP[name]["write"] for name in CHAT_TOOLS)

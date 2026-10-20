@@ -1243,6 +1243,9 @@ export const en = {
   "research.home.starter.replicate":
     "Reproduce a paper's baseline and see whether the numbers match",
   "research.composer.label": "Message the advisor",
+  "research.composer.askInstead":
+    "The advisor answers what you say here next round. Just want to know how it is going?",
+  "research.composer.askLink": "Ask in the project chat",
   "research.composer.scoping":
     "Reply to the advisor, or say how the plan should change",
   "research.composer.experiments":
@@ -1517,6 +1520,19 @@ export const en = {
   "projects.back": "All projects",
   "projects.tabs": "Project",
   "projects.tab.board": "Board",
+  "projects.tab.chats": "Chats",
+  "projects.chats.lead":
+    "Ask about the project: how far the work has got, what the results mean, what comes next. Chats only read; they never disturb a research in progress.",
+  "projects.chats.ask": "Ask about this project",
+  "projects.chats.placeholder":
+    "For example: how is it going? Which epoch is ResNet-20 on?",
+  "projects.chats.none": "No chats yet.",
+  "projects.chats.back": "Back to chats",
+  "projects.chats.readOnly":
+    "Read-only: sees everything in the project, changes and interrupts nothing",
+  "projects.chats.assistant": "Project assistant",
+  "projects.chats.more": "Ask more",
+  "projects.chats.answering": "Answering…",
   "projects.tab.researches": "Researches",
   "projects.tab.files": "Project info",
   "projects.column.triage": "Ideas",

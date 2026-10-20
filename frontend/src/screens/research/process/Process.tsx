@@ -65,6 +65,7 @@ const AGENT: Record<string, Agent> = {
   scoping: "advisor",
   distiller: "distiller",
   envsetup: "executor",
+  chat: "advisor",
 };
 
 const OUTPUT_LINES = 40;

@@ -1161,6 +1161,9 @@ export const zh: { [K in keyof typeof en]: string } = {
     "弄清楚数据增强和模型深度，哪个对准确率贡献更大",
   "research.home.starter.replicate": "复现一篇论文里的基线，看看数字能不能对上",
   "research.composer.label": "给导师写消息",
+  "research.composer.askInstead":
+    "在这里说的话，导师下一轮会回应。只想问问进展？",
+  "research.composer.askLink": "去项目对话里问",
   "research.composer.scoping": "回复导师，或者告诉他你想怎么改计划",
   "research.composer.experiments": "随时插话，导师会在下一轮回应你",
   "research.composer.waiting": "有事等你拍板，也可以先说说你的想法",
@@ -1419,6 +1422,18 @@ export const zh: { [K in keyof typeof en]: string } = {
   "projects.back": "所有项目",
   "projects.tabs": "项目",
   "projects.tab.board": "看板",
+  "projects.tab.chats": "对话",
+  "projects.chats.lead":
+    "问问这个项目：进展到哪了、结果说明什么、接下来会怎样。这里的对话只读，不会打扰正在进行的研究。",
+  "projects.chats.ask": "问这个项目",
+  "projects.chats.placeholder":
+    "比如：现在进展怎么样？ResNet-20 跑到第几个 epoch 了？",
+  "projects.chats.none": "还没有对话。",
+  "projects.chats.back": "回到对话列表",
+  "projects.chats.readOnly": "只读：可以看项目里的一切，不会改动或打扰研究",
+  "projects.chats.assistant": "项目助手",
+  "projects.chats.more": "接着问",
+  "projects.chats.answering": "正在回答…",
   "projects.tab.researches": "研究",
   "projects.tab.files": "项目资料",
   "projects.column.triage": "想法",

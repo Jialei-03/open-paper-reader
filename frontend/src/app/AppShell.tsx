@@ -310,6 +310,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
                 key={shown.workspaceId}
                 id={shown.workspaceId}
                 tab={shown.tab}
+                item={shown.item}
                 go={go}
               />
             ) : (

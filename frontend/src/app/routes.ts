@@ -20,6 +20,8 @@ export type AppRoute =
       screen: "projects";
       workspaceId?: string;
       tab?: string;
+      /** One thing in the tab: a conversation. */
+      item?: string;
       redirect?: string;
     }
   | { screen: "open"; url: string; redirect?: string }
@@ -53,9 +55,14 @@ export function parseAppRoute(hash: string): AppRoute {
   if (path === "research") return { screen: "projects", redirect: "projects" };
   if (path === "projects") return { screen: "projects" };
   if (path.startsWith("projects/")) {
-    const [workspaceId, tab] = path.slice("projects/".length).split("/");
+    const [workspaceId, tab, item] = path.slice("projects/".length).split("/");
     return /^[0-9a-f-]{36}$/.test(workspaceId)
-      ? { screen: "projects", workspaceId, ...(tab ? { tab } : {}) }
+      ? {
+          screen: "projects",
+          workspaceId,
+          ...(tab ? { tab } : {}),
+          ...(item && /^[0-9a-f-]{36}$/.test(item) ? { item } : {}),
+        }
       : { screen: "projects", redirect: "projects" };
   }
   if (path.startsWith("research/")) {

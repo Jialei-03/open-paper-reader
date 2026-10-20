@@ -51,8 +51,18 @@ FOCUS_FREE = {
 }
 
 
+# Research tools that only look; a read-only run (a project conversation) may use them.
+READS = {
+    "research_map_read",
+    "project_overview",
+    "research_read",
+    "job_status",
+    "job_logs",
+}
+
+
 def _research(name, description, properties=None, required=None):
-    spec = tool(name, description, properties, required, write=True)
+    spec = tool(name, description, properties, required, write=name not in READS)
     spec["research"] = True
     return spec
 

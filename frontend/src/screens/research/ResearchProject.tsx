@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { followLink } from "../../reader/route";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
 import {
@@ -470,6 +471,17 @@ export function ResearchProject({
               )}
               sendLabel={t("research.home.send")}
             />
+            {p.workspace_id && !finished && (
+              <p className={styles.dockNote}>
+                {t("research.composer.askInstead")}{" "}
+                <a
+                  href={`#projects/${p.workspace_id}/chats`}
+                  onClick={followLink(go, `projects/${p.workspace_id}/chats`)}
+                >
+                  {t("research.composer.askLink")}
+                </a>
+              </p>
+            )}
           </div>
         </div>
         {record && (

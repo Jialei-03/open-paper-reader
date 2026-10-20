@@ -1,4 +1,5 @@
 import { api, send } from "../../api";
+import type { RunStep } from "./process/model";
 
 /** A research project as the service lists it (backend research_routes.py). */
 export interface ResearchProject {
@@ -536,3 +537,36 @@ export const startCard = (cardId: string, model_config_id = "") =>
   send(`/research/cards/${cardId}/start`, {
     model_config_id,
   }) as Promise<ResearchProject>;
+
+/** A conversation inside a project (backend research_chat.py). */
+export interface ProjectChat {
+  id: string;
+  title: string;
+  workspace_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One question and its answer, as the agent session stores it. */
+export interface ChatTurn {
+  id: string;
+  prompt: string;
+  status: string;
+  response: string;
+  error: string;
+  steps: RunStep[];
+  runtime: { phase?: string; execution_seconds?: number };
+  created_at: string;
+  updated_at: string;
+}
+
+export const listChats = (workspaceId: string) =>
+  api<ProjectChat[]>(`${WS}/${workspaceId}/chats`);
+export const startChat = (workspaceId: string, message: string) =>
+  send(`${WS}/${workspaceId}/chats`, { message }) as Promise<ProjectChat>;
+export const askChat = (chatId: string, message: string) =>
+  send(`/research/chats/${chatId}/messages`, {
+    message,
+  }) as Promise<ProjectChat>;
+export const chatTurns = (chatId: string) =>
+  api<ChatTurn[]>(`/agent/sessions/${chatId}/runs`);

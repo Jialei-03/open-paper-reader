@@ -104,5 +104,16 @@ describe("parseAppRoute: #research", () => {
       workspaceId: id,
       tab: "board",
     });
+    expect(parseAppRoute(`projects/${id}/chats/${id}`)).toEqual({
+      screen: "projects",
+      workspaceId: id,
+      tab: "chats",
+      item: id,
+    });
+    expect(parseAppRoute(`projects/${id}/chats/x;y`)).toEqual({
+      screen: "projects",
+      workspaceId: id,
+      tab: "chats",
+    });
   });
 });

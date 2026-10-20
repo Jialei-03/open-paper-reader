@@ -634,3 +634,38 @@
   color: var(--ui-fg-2);
   line-height: 1.6;
 }
+
+/* ---------- Conversations in a project ---------- */
+
+.chatLead {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-14);
+  line-height: 1.6;
+}
+
+/* One conversation fills the panel: the thread scrolls, the composer stays. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.chatBar {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  box-sizing: border-box;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--ui-space-8) var(--ui-space-16) 0;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+.chatTurn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-16);
+}

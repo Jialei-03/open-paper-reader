@@ -41,10 +41,11 @@ import {
 import { Mascot } from "../scene/Mascot";
 import { Composer } from "../talk/Composer";
 import { ComputePicker, ModelPicker } from "../talk/Pickers";
+import { ProjectChat, ProjectChats } from "./ProjectChats";
 import styles from "./Projects.module.css";
 
-type Tab = "board" | "researches" | "files";
-const TABS: Tab[] = ["board", "researches", "files"];
+type Tab = "board" | "chats" | "researches" | "files";
+const TABS: Tab[] = ["board", "chats", "researches", "files"];
 const POLL = 4000;
 
 const KIND_ICON = {
@@ -59,10 +60,13 @@ const KIND_ICON = {
 export function ProjectPage({
   id,
   tab,
+  item,
   go,
 }: {
   id: string;
   tab?: string;
+  /** A conversation open in the chats tab. */
+  item?: string;
   go(hash: string): void;
 }) {
   const { t } = useI18n();
@@ -153,6 +157,12 @@ export function ProjectPage({
               refresh={refresh}
             />
           )}
+        {current === "chats" &&
+          (item ? (
+            <ProjectChat key={item} workspace={w} chatId={item} go={go} />
+          ) : (
+            <ProjectChats workspace={w} go={go} />
+          ))}
         {current === "researches" && <Researches workspace={w} go={go} />}
         {current === "files" && <Files workspace={w} onSaved={refresh} />}
       </div>
