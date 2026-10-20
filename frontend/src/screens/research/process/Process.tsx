@@ -194,15 +194,18 @@ function StepRow({ row }: { row: Row }) {
   );
 }
 
-/** Words and tool rows in the order they happened; the newest words still flowing if live. */
-export function Trail({ steps, live }: { steps: RunStep[]; live: boolean }) {
+/**
+ * Words and tool rows in the order they happened. Words before a step are
+ * complete once the step exists: only the words still being written (the
+ * run's response, shown after the trail) flow in.
+ */
+export function Trail({ steps }: { steps: RunStep[]; live?: boolean }) {
   const segments = segment(steps);
-  const lastSaid = segments.map((s) => s.kind).lastIndexOf("said");
   return (
     <div className={styles.trail}>
       {segments.map((s, i) =>
         s.kind === "said" ? (
-          <Words key={i} text={s.text} live={live && i === lastSaid} />
+          <Words key={i} text={s.text} live={false} />
         ) : (
           <ol key={i} className={styles.rows}>
             {s.rows.map((row, j) => (

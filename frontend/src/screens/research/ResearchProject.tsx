@@ -49,6 +49,7 @@ import {
 } from "./research-api";
 import type { ResearchRun } from "./process/model";
 import { LiveCard } from "./process/Process";
+import { JumpToLatest } from "../../reader/JumpToLatest";
 import { Composer } from "./talk/Composer";
 import { RecordPanel, type RecordTab } from "./talk/RecordPanel";
 import { buildThread, working } from "./talk/thread";
@@ -166,7 +167,7 @@ export function ResearchProject({
   useLayoutEffect(() => {
     const el = scroller.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [items.length, pending, detail?.sprints]);
+  }, [items.length, pending, detail?.sprints, runs]);
 
   const fail = (error: unknown) =>
     toast.show({
@@ -403,35 +404,38 @@ export function ResearchProject({
       </header>
       <div className={styles.body}>
         <div className={styles.talk}>
-          <div
-            className={styles.scroll}
-            ref={scroller}
-            onScroll={(event) => {
-              const el = event.currentTarget;
-              pinned.current =
-                el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-            }}
-          >
-            <div className={styles.thread}>
-              <ThreadView
-                items={items}
-                project={p}
-                computes={computes}
-                actions={actions}
-                runs={runsBySprint}
-              />
-              {pending && <div className={styles.mine}>{pending}</div>}
-              {waitingData && p.stage === "experiments" && (
-                <p className={styles.systemLine}>
-                  {t("research.thread.fetching")}
-                </p>
-              )}
-              {p.status === "paused" && (
-                <p className={styles.systemLine}>
-                  {t("research.thread.paused")}
-                </p>
-              )}
+          <div className={styles.scrollArea}>
+            <div
+              className={styles.scroll}
+              ref={scroller}
+              onScroll={(event) => {
+                const el = event.currentTarget;
+                pinned.current =
+                  el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              }}
+            >
+              <div className={styles.thread}>
+                <ThreadView
+                  items={items}
+                  project={p}
+                  computes={computes}
+                  actions={actions}
+                  runs={runsBySprint}
+                />
+                {pending && <div className={styles.mine}>{pending}</div>}
+                {waitingData && p.stage === "experiments" && (
+                  <p className={styles.systemLine}>
+                    {t("research.thread.fetching")}
+                  </p>
+                )}
+                {p.status === "paused" && (
+                  <p className={styles.systemLine}>
+                    {t("research.thread.paused")}
+                  </p>
+                )}
+              </div>
             </div>
+            <JumpToLatest scroller={scroller} streaming={!!busyNow} />
           </div>
           <div className={styles.dock}>
             {liveRun && busyNow && (

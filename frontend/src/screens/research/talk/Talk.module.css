@@ -421,10 +421,19 @@
   min-width: 0;
 }
 
+/* The thread's scroller and what floats over its foot (the jump to the latest). */
+.scrollArea {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .scroll {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
-  scroll-behavior: smooth;
 }
 
 /* Nothing in the column may be wider than the column: long commands are cut, not spread. */
