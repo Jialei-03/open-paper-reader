@@ -9,7 +9,7 @@ import type { ResearchNode } from "../research-api";
 import { buildFrames, type Agent, type Frame } from "./frames";
 import { Mascot } from "./Mascot";
 import { poseFor } from "./pose";
-import { AREA, areaStyle, pct, RoomArt, SPOT, STAND } from "./Room";
+import { AREA, areaStyle, IsoRoomArt, pct, SPOT, STAND } from "./IsoRoom";
 import { MascotDialog } from "./MascotDialog";
 import { loadLooks, type Look } from "./mascots";
 import styles from "./scene.module.css";
@@ -109,7 +109,7 @@ export function ResearchScene({
   const flight =
     frame.to && !still
       ? {
-          from: { x: STAND[frame.who].x, y: STAND[frame.who].y - 22 },
+          from: { x: STAND[frame.who].x, y: STAND[frame.who].y - 24 },
           to: SPOT[frame.to],
         }
       : null;
@@ -117,7 +117,7 @@ export function ResearchScene({
   return (
     <div className={styles.scene}>
       <div className={styles.stage} aria-hidden="true">
-        <RoomArt />
+        <IsoRoomArt />
         <span
           className={styles.doorSign}
           style={areaStyle(AREA.door)}
@@ -150,7 +150,13 @@ export function ResearchScene({
               data-agent={agent}
               data-active={active || undefined}
               data-pose={pose}
-              style={pct(STAND[agent].x, STAND[agent].y) as CSSProperties}
+              style={
+                {
+                  ...pct(STAND[agent].x, STAND[agent].y),
+                  // Nearer the viewer (lower on the screen) stands in front; the one speaking, above all.
+                  zIndex: active ? 300 : 2 + Math.round(STAND[agent].y),
+                } as CSSProperties
+              }
             >
               {active && (
                 <div
