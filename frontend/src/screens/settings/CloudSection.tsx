@@ -23,7 +23,13 @@ type Link = {
   username?: string;
   expires?: string;
   last_sync?: SyncResult | null;
-  sync: { running?: boolean; done?: number; total?: number; error?: string };
+  sync: {
+    running?: boolean;
+    phase?: "listing" | "copying" | "done";
+    done?: number;
+    total?: number;
+    error?: string;
+  };
 };
 
 /**
@@ -140,7 +146,8 @@ export function CloudSection() {
           </p>
           <div className={styles.cloudActions}>
             <Button
-              disabled={busy || running}
+              disabled={busy}
+              loading={running}
               onClick={() =>
                 void act(() =>
                   api<Link>("/cloud-link/sync", { method: "POST" }),
@@ -148,10 +155,7 @@ export function CloudSection() {
               }
             >
               {running
-                ? t("settings.cloud.syncing", {
-                    done: link.sync.done ?? 0,
-                    total: link.sync.total ?? 0,
-                  })
+                ? t("settings.cloud.syncingButton")
                 : t("settings.cloud.sync")}
             </Button>
             <Button
@@ -164,6 +168,7 @@ export function CloudSection() {
               {t("settings.cloud.disconnect")}
             </Button>
           </div>
+          {running && <SyncProgress sync={link.sync} />}
           {link.sync.error && (
             <p role="alert" className={styles.error}>
               {link.sync.error}
@@ -191,5 +196,39 @@ export function CloudSection() {
         </>
       )}
     </Section>
+  );
+}
+
+/** How far a running sync got: reading both libraries first, then copying. */
+function SyncProgress({ sync }: { sync: Link["sync"] }) {
+  const { t } = useI18n();
+  const total = sync.total ?? 0;
+  const done = sync.done ?? 0;
+  const copying = sync.phase === "copying" && total > 0;
+  return (
+    <div className={styles.cloudProgress} aria-live="polite">
+      <div
+        className={styles.meter}
+        role="progressbar"
+        aria-label={t("settings.cloud.sync")}
+        aria-valuemin={0}
+        aria-valuemax={copying ? total : undefined}
+        aria-valuenow={copying ? done : undefined}
+      >
+        {copying ? (
+          <div
+            className={styles.meterFill}
+            style={{ transform: `scaleX(${done / total})` }}
+          />
+        ) : (
+          <div className={styles.meterBusy} />
+        )}
+      </div>
+      <p className={styles.muted}>
+        {copying
+          ? t("settings.cloud.syncing", { done, total })
+          : t("settings.cloud.listing")}
+      </p>
+    </div>
   );
 }

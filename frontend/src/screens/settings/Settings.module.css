@@ -172,6 +172,39 @@
   margin: var(--ui-space-12) 0;
 }
 
+.cloudProgress {
+  display: grid;
+  gap: var(--ui-space-8);
+  max-width: 420px;
+  margin-bottom: var(--ui-space-12);
+}
+
+/* Before the count is known: a short bar that keeps crossing the track. */
+.meterBusy {
+  width: 30%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-accent);
+  animation: meter-busy 1.2s ease-in-out infinite;
+}
+
+@keyframes meter-busy {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(340%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meterBusy {
+    width: 100%;
+    animation: none;
+    opacity: 0.4;
+  }
+}
+
 /* How much of the storage is used: a thin bar. */
 .meter {
   height: var(--ui-space-6);

@@ -678,7 +678,9 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.cloud.connected":
     "已连接 {origin} 上的账号 {username}，访问令牌 {date} 到期。",
   "settings.cloud.sync": "同步论文",
-  "settings.cloud.syncing": "正在同步 {done}/{total}…",
+  "settings.cloud.syncing": "正在复制论文：{done}/{total}",
+  "settings.cloud.syncingButton": "同步中",
+  "settings.cloud.listing": "正在读取线上和本机的论文…",
   "settings.cloud.disconnect": "断开",
   "settings.cloud.result":
     "{date} 同步：从线上下载 {downloaded} 篇，上传到线上 {uploaded} 篇。",

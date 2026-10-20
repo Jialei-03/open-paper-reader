@@ -44,7 +44,10 @@ def titles(c):
 
 
 def synced(c):
-    assert c.post("/api/v1/cloud-link/sync").status_code == 200
+    r = c.post("/api/v1/cloud-link/sync")
+    assert r.status_code == 200
+    # The answer already says it is running, so the page follows it from the start.
+    assert r.json()["sync"]["running"] is True
     end = time.time() + 20
     while time.time() < end:
         state = c.get("/api/v1/cloud-link").json()

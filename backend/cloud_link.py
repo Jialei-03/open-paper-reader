@@ -164,6 +164,7 @@ def disconnect(settings):
 # One sync at a time, in the background; its progress is read by the settings page.
 _lock = threading.Lock()
 _state = {}
+STARTING = {"running": True, "phase": "listing", "done": 0, "total": 0}
 
 
 def _progress(settings):
@@ -289,7 +290,7 @@ def sync(settings, maker, owner, actor, snapshot):
     if not link.get("token"):
         raise ValueError("还没有连接线上账号")
     key = str(_path(settings))
-    state = {"running": True, "phase": "listing", "done": 0, "total": 0}
+    state = {**STARTING}
     _state[key] = state
     result = {"downloaded": 0, "uploaded": 0, "without_pdf": 0, "errors": []}
     try:
@@ -344,6 +345,8 @@ def install_cloud_link_routes(app, settings, maker, auth, human, snapshot):
     def start(a):
         if not _lock.acquire(blocking=False):
             raise HTTPException(409, "已经在同步了")
+        # Running from the answer on, so the page follows it from the first moment.
+        _state[str(_path(settings))] = {**STARTING}
 
         def work():
             try:
@@ -357,7 +360,9 @@ def install_cloud_link_routes(app, settings, maker, auth, human, snapshot):
             finally:
                 _lock.release()
 
+        answer = public(settings)
         threading.Thread(target=work, name="cloud-sync", daemon=True).start()
+        return answer
 
     @app.get("/api/v1/cloud-link")
     def link_status(a=Depends(auth)):
@@ -382,6 +387,5 @@ def install_cloud_link_routes(app, settings, maker, auth, human, snapshot):
         human(a)
         if not read(settings).get("token"):
             raise HTTPException(409, "还没有连接线上账号")
-        start(a)
-        return public(settings)
+        return start(a)
 

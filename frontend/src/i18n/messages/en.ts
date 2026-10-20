@@ -728,7 +728,10 @@ export const en = {
   "settings.cloud.connected":
     "Connected to {username} on {origin}; the access token expires {date}.",
   "settings.cloud.sync": "Sync papers",
-  "settings.cloud.syncing": "Syncing {done}/{total}…",
+  "settings.cloud.syncing": "Copying papers: {done}/{total}",
+  "settings.cloud.syncingButton": "Syncing",
+  "settings.cloud.listing":
+    "Reading the papers on the site and on this computer…",
   "settings.cloud.disconnect": "Disconnect",
   "settings.cloud.result":
     "Synced {date}: {downloaded} downloaded from the site, {uploaded} uploaded to it.",
