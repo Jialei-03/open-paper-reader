@@ -762,6 +762,13 @@
   mask-image: linear-gradient(to bottom, #000 60%, transparent);
 }
 
+.facts[data-clamped] dd {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 .more {
   align-self: flex-start;
   margin-top: calc(-1 * var(--ui-space-8));

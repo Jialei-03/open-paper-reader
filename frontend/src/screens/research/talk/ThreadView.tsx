@@ -171,7 +171,9 @@ function PlanCard({
   const { t } = useI18n();
   const compute = computes.find((c) => c.id === plan.compute_id);
   const [whole, setWhole] = useState(false);
-  const long = (plan.summary ?? "").length > 240;
+  const long =
+    (plan.summary ?? "").length > 240 ||
+    [plan.metric, plan.baseline, plan.goal].some((x) => (x ?? "").length > 90);
   // Experiments need the environment ready; say so before the person agrees.
   const unready = !!compute && compute.ready === false;
   return (
@@ -208,17 +210,10 @@ function PlanCard({
               <Prose text={plan.summary} />
             </div>
           )}
-          {long && (
-            <button
-              type="button"
-              className={styles.more}
-              aria-expanded={whole}
-              onClick={() => setWhole(!whole)}
-            >
-              {t(whole ? "research.plan.less" : "research.plan.more")}
-            </button>
-          )}
-          <dl className={styles.facts}>
+          <dl
+            className={styles.facts}
+            data-clamped={(long && !whole) || undefined}
+          >
             {plan.metric && (
               <>
                 <dt>{t("research.plan.metric")}</dt>
@@ -238,6 +233,16 @@ function PlanCard({
               </>
             )}
           </dl>
+          {long && (
+            <button
+              type="button"
+              className={styles.more}
+              aria-expanded={whole}
+              onClick={() => setWhole(!whole)}
+            >
+              {t(whole ? "research.plan.less" : "research.plan.more")}
+            </button>
+          )}
           <ol className={styles.hyps}>
             {plan.hypotheses.map((h, i) => (
               <li key={h.title} className={styles.hyp}>

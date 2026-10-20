@@ -57,6 +57,8 @@ export function buildThread(
   jobs: ResearchJob[],
   nodes: ResearchNode[],
   stage: string,
+  /** The plan as it stands now (an environment change updates it). */
+  live?: ResearchPlan | Record<string, never> | null,
 ): ThreadItem[] {
   const bySprint = new Map(sprints.map((s) => [s.id, s]));
   const titles = new Map(nodes.map((n) => [n.id, n.title]));
@@ -87,7 +89,11 @@ export function buildThread(
       items.push({
         kind: "plan",
         id: event.id,
-        plan: event.detail.plan as ResearchPlan,
+        plan:
+          event.id === lastPlan &&
+          live?.version === (event.detail.plan as ResearchPlan).version
+            ? (live as ResearchPlan)
+            : (event.detail.plan as ResearchPlan),
         current: event.id === lastPlan,
         at,
       });

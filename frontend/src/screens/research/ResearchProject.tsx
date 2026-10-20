@@ -158,6 +158,7 @@ export function ResearchProject({
             detail.jobs,
             detail.nodes,
             detail.project.stage,
+            detail.project.plan,
           )
         : [],
     [events, detail],

@@ -80,6 +80,21 @@ describe("buildThread", () => {
     ]);
   });
 
+  it("shows the plan on the table as it stands now, not as first written", () => {
+    const events = [ev("plan_proposed", "advisor", { plan: plan(1) }, "s1")];
+    const moved = { ...plan(1), compute_id: "host" };
+    const items = buildThread(
+      events,
+      [sprint("s1", "scoping")],
+      [],
+      [],
+      "scoping",
+      moved,
+    );
+    const card = items.find((i) => i.kind === "plan");
+    expect(card?.kind === "plan" && card.plan.compute_id).toBe("host");
+  });
+
   it("folds a sprint's steps and jobs into one block, and marks answered decisions", () => {
     const job = { id: "j1", sprint_id: "s3" } as ResearchJob;
     const ask = ev("decision_requested", "advisor", { kind: "conclusion" });
