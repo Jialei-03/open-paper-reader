@@ -3,6 +3,7 @@ import { Card, CardHeader } from "../ui";
 import { AccessSection } from "./settings/AccessSection";
 import { DataSection } from "./settings/DataSection";
 import { ModelsSection } from "./settings/ModelsSection";
+import { ResearchSection } from "./settings/ResearchSection";
 import {
   AppearanceSection,
   KeypointsSection,
@@ -27,6 +28,7 @@ export function SettingsScreen({ go }: { go(hash: string): void }) {
       <div className={styles.body}>
         <div className={styles.column}>
           <ModelsSection />
+          <ResearchSection />
           <AppearanceSection />
           <LanguageSection />
           <KeypointsSection />

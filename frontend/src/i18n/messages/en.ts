@@ -1322,4 +1322,46 @@ export const en = {
   "research.answer.reportZh": "Chinese",
   "research.answer.reportEn": "English",
   "research.home.all": "Show all {n}",
+  "settings.research.title": "Research: compute and experiment tracking",
+  "settings.research.lead":
+    "Where research experiments run and where their numbers go. SSH machines log in with the keys in your own ~/.ssh/config; no password is stored here.",
+  "settings.research.addSsh": "Add an SSH machine",
+  "settings.research.computes": "Compute",
+  "settings.research.default": "Default",
+  "settings.research.noGpu": "none",
+  "settings.research.localMeta":
+    "Docker on this machine · {cpus} CPU · {memory} GB · runs without network",
+  "settings.research.test": "Check",
+  "settings.research.testing": "Checking…",
+  "settings.research.makeDefault": "Make default",
+  "settings.research.remove": "Remove",
+  "settings.research.tracker": "Experiment tracking",
+  "settings.research.trackerLead":
+    "When an experiment ends, its settings, metric curves and final numbers are mirrored there; the key stays on this machine and never enters an experiment's container.",
+  "settings.research.none": "Off",
+  "settings.research.mode": "Where to",
+  "settings.research.local": "This machine only",
+  "settings.research.cloud": "Upload to the cloud",
+  "settings.research.project": "Tracker project",
+  "settings.research.key": "API key",
+  "settings.research.keySaved": "Saved; typing a new one replaces it",
+  "settings.research.keyHint":
+    "Kept only in this machine's research settings file and never shown.",
+  "settings.research.sshLead":
+    "The workspace is copied to this machine for each experiment and copied back when it ends.",
+  "settings.research.add": "Add",
+  "settings.research.name": "Name",
+  "settings.research.namePlaceholder": "Lab 4-GPU box",
+  "settings.research.host": "SSH host",
+  "settings.research.hostHint":
+    "A Host from ~/.ssh/config, or user@host; it must log in without a password.",
+  "settings.research.remoteDir": "Remote folder",
+  "settings.research.runner": "How to run",
+  "settings.research.shell": "Directly",
+  "settings.research.python": "Python",
+  "settings.research.pythonHint":
+    "The Python with PyTorch on that machine, e.g. a conda environment's path.",
+  "settings.research.gpuHint":
+    "all for every GPU, or numbers like 0,1; empty for none.",
+  "settings.research.save": "Save",
 } as const;

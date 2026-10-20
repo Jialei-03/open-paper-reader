@@ -1231,4 +1231,45 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.answer.reportZh": "中文版",
   "research.answer.reportEn": "英文版",
   "research.home.all": "查看全部 {n} 项",
+  "settings.research.title": "研究：算力与实验追踪",
+  "settings.research.lead":
+    "研究实验在哪里跑，指标同步到哪里。SSH 机器用你自己 ~/.ssh/config 里的密钥登录，这里不保存密码。",
+  "settings.research.addSsh": "添加 SSH 机器",
+  "settings.research.computes": "算力",
+  "settings.research.default": "默认",
+  "settings.research.noGpu": "无",
+  "settings.research.localMeta":
+    "本机 Docker · {cpus} CPU · {memory} GB 内存 · 无网络隔离运行",
+  "settings.research.test": "检测",
+  "settings.research.testing": "正在检测…",
+  "settings.research.makeDefault": "设为默认",
+  "settings.research.remove": "移除",
+  "settings.research.tracker": "实验追踪",
+  "settings.research.trackerLead":
+    "每次实验结束后，系统把它的超参数、指标曲线和最终结果同步过去；密钥只留在本机，不进实验容器。",
+  "settings.research.none": "不同步",
+  "settings.research.mode": "同步方式",
+  "settings.research.local": "只记在本机",
+  "settings.research.cloud": "上传到云端",
+  "settings.research.project": "追踪项目名",
+  "settings.research.key": "API 密钥",
+  "settings.research.keySaved": "已保存，输入新的会替换",
+  "settings.research.keyHint": "只存在本机的研究设置文件里，不会显示出来。",
+  "settings.research.sshLead":
+    "实验会把工作区同步到这台机器上运行，结束后再同步回来。",
+  "settings.research.add": "添加",
+  "settings.research.name": "名称",
+  "settings.research.namePlaceholder": "实验室 4 卡机",
+  "settings.research.host": "SSH 主机",
+  "settings.research.hostHint":
+    "~/.ssh/config 里的 Host 名，或 user@host；需要能免密登录。",
+  "settings.research.remoteDir": "远程目录",
+  "settings.research.runner": "运行方式",
+  "settings.research.shell": "直接运行",
+  "settings.research.python": "Python",
+  "settings.research.pythonHint":
+    "远程机器上装好 PyTorch 的 Python，比如 conda 环境里的路径。",
+  "settings.research.gpuHint":
+    "all 表示全部；也可以填编号，如 0,1；留空表示不用 GPU。",
+  "settings.research.save": "保存",
 };
