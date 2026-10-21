@@ -7,11 +7,12 @@ the same app as the hosted site, for one person, with everything on this
 computer.
 
 ```bash
-uvx open-research              # run it without installing
-# or
-uv tool install open-research
+curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh
 ora                            # also: open-research
 ```
+
+The installer gets uv if it is missing and installs the latest package from
+the GitHub releases (`sh install.sh v0.3.0` for a given one).
 
 Earlier releases were called open-paper-reader; that command still works, and
 the data folder keeps its name.

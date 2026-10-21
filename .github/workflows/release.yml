@@ -1,7 +1,8 @@
-name: Release to PyPI
-# A tag like v0.3.0 builds the package (with the web app inside) and publishes
-# it as "open-research" on PyPI, so that `uvx open-research` runs it.
-# PyPI trusts this workflow (trusted publishing): no token is stored here.
+name: Release
+# A tag like v0.3.0 builds the package (with the web app inside), attaches it
+# to a GitHub release (what install.sh installs), and, once the repository
+# variable PUBLISH_PYPI is "true", publishes it as "open-research" on PyPI
+# (`uvx open-research`). PyPI trusts this workflow: no token is stored here.
 on:
   push:
     tags: ["v*"]
@@ -32,8 +33,30 @@ jobs:
         with:
           name: dist
           path: dist/
-  publish:
+  github:
     needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: The release, with the package and the installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(awk '/^## \[/{n++} n==1' CHANGELOG.md)
+          gh release create "$GITHUB_REF_NAME" dist/* install.sh \
+            --title "$GITHUB_REF_NAME" \
+            --notes "安装：curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
+
+          $notes"
+  pypi:
+    needs: build
+    if: vars.PUBLISH_PYPI == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

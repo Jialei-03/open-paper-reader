@@ -31,7 +31,7 @@ make start          # 缺什么装什么（.venv、前端和 Agent 运行时的�
 
 ### 发布
 
-用户用 `uvx open-research`（或 `uv tool install open-research` 后用 `ora`）运行的是 PyPI 上的 `open-research` 包，里面带着构建好的前端；Agent 运行时的 npm 依赖在第一次启动时安装。发布一个版本：把 `pyproject.toml` 的 `version` 和 `CHANGELOG.md` 改好、提交，再推一个同名标签（`git tag v0.3.0 && git push origin v0.3.0`）。`.github/workflows/release.yml` 会构建、检查能启动，再发布。PyPI 那边用「可信发布」认这个工作流，不存任何令牌。本地试安装包：`sh scripts/build-local.sh`，然后 `uvx --from dist/<wheel> ora`。
+用户用 `install.sh`（`curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh`）装的是 GitHub Release 里的 `open-research` 安装包，里面带着构建好的前端；Agent 运行时的 npm 依赖在第一次启动时安装。发布一个版本：把 `pyproject.toml` 的 `version` 和 `CHANGELOG.md` 改好、提交，再推一个同名标签（`git tag v0.3.0 && git push origin v0.3.0`）。`.github/workflows/release.yml` 会构建、检查能启动，再建 GitHub Release、附上安装包和 `install.sh`。同时发到 PyPI（`uvx open-research`）要先在 PyPI 上把这个工作流登记为可信发布者（项目 `open-research`、环境 `pypi`），再把仓库变量 `PUBLISH_PYPI` 设为 `true`；不存任何令牌。本地试安装包：`sh scripts/build-local.sh`，然后 `uvx --from dist/<wheel> ora`。
 
 ### Git 与提交
 

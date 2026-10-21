@@ -65,13 +65,13 @@ Open Research Agent 主攻的就是这些：**研究判断力**、**持续不偏
 
 ## 在自己电脑上运行
 
-一条命令（需要 [uv](https://docs.astral.sh/uv/) 和 Node.js 20+）：
+一条命令安装（macOS / Linux；需要 Node.js 20+，没有 [uv](https://docs.astral.sh/uv/) 会自动装上）：
 
 ```bash
-uvx open-research          # 直接运行；或者 uv tool install open-research，以后输入 ora
+curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh
 ```
 
-浏览器会打开 http://127.0.0.1:8765，免登录，`Ctrl+C` 停止。还没装 uv 的话：`curl -LsSf https://astral.sh/uv/install.sh | sh`。
+装好后输入 `ora`，浏览器会打开 http://127.0.0.1:8765，免登录，`Ctrl+C` 停止。安装包来自本仓库的 [Releases](https://github.com/Jialei-03/open-research-agent/releases)；以后更新，重新运行这条命令。
 
 从源码运行（也用于开发）：
 

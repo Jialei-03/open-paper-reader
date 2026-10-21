@@ -65,13 +65,13 @@ The other half of the agent is reading papers. That part also works on its own, 
 
 ## Run it on your computer
 
-One command (needs [uv](https://docs.astral.sh/uv/) and Node.js 20+):
+One command to install (macOS / Linux; needs Node.js 20+; [uv](https://docs.astral.sh/uv/) is installed if missing):
 
 ```bash
-uvx open-research          # run it; or uv tool install open-research, then ora
+curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh
 ```
 
-The browser opens at http://127.0.0.1:8765, with no sign-in; Ctrl+C stops it. To get uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+Then run `ora`: the browser opens at http://127.0.0.1:8765, with no sign-in; Ctrl+C stops it. The package comes from this repository's [Releases](https://github.com/Jialei-03/open-research-agent/releases); to update, run the same command again.
 
 From the source (also for development):
 
