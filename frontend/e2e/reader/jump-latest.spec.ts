@@ -71,6 +71,8 @@ test("the button shows when scrolled away from the bottom, and takes you back", 
 test("a dot says an answer is being written below", async ({ page }) => {
   const runs = { value: [makeRun("a", "running", 60)] };
   await setup(page, runs);
+  // Scrolled up once the answer is there: before, the thread follows it down as it comes in.
+  await expect(page.getByText("第 60 段回答的内容。")).toBeVisible();
   await scroller(page).evaluate((el) => (el.scrollTop = 0));
   await expect(button(page)).toBeVisible();
   await expect(page.getByTestId("latest-dot")).toBeVisible();
@@ -84,6 +86,7 @@ test.describe("reduced motion", () => {
   test.use({ reducedMotion: "reduce" });
   test("jumps at once, with no bobbing", async ({ page }) => {
     await setup(page, { value: [makeRun("a", "completed", 60)] });
+    await expect(page.getByText("第 60 段回答的内容。")).toBeVisible();
     await scroller(page).evaluate((el) => (el.scrollTop = 0));
     await expect(button(page)).toBeVisible();
     const animated = await button(page).evaluate(

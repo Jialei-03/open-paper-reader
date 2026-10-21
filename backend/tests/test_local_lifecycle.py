@@ -80,8 +80,9 @@ def environment(pid):
 
 
 def worker_pids(data_marker):
-    # -A, not -ax: on Linux -a leaves out session leaders, and every worker is one (start_new_session).
-    out = subprocess.run(["ps", "-A", "-o", "pid=,command="], capture_output=True, text=True).stdout
+    # -ww: without a terminal Linux's ps cuts each line at 80 columns, and the
+    # interpreter's path on CI is long enough to push "-m backend.…" off the end.
+    out = subprocess.run(["ps", "-A", "-ww", "-o", "pid=,command="], capture_output=True, text=True).stdout
     pids = []
     for line in out.splitlines():
         pid, _, cmd = line.strip().partition(" ")
@@ -89,6 +90,18 @@ def worker_pids(data_marker):
         if worker and pid.isdigit() and data_marker in environment(pid):
             pids.append(int(pid))
     return pids
+
+
+def found_workers(process, data, want=2):
+    """The workers' pids; failing that, what was running and what the CLI said."""
+    pids = worker_pids(str(data))
+    if len(pids) >= want:
+        return pids
+    listing = subprocess.run(["ps", "-A", "-ww", "-o", "pid=,ppid=,command="], capture_output=True, text=True).stdout
+    python = "\n".join(line for line in listing.splitlines() if "backend" in line)
+    process.kill()
+    output, _ = process.communicate(timeout=30)
+    raise AssertionError(f"{len(pids)} workers found\n--- processes ---\n{python}\n--- the CLI said ---\n{output}")
 
 
 def alive(pid):
@@ -109,8 +122,7 @@ def test_signal_stops_the_cli_and_every_worker(tmp_path, sig):
     process = spawn(tmp_path, port, data)
     try:
         wait_workers(process, port)
-        pids = worker_pids(str(data))
-        assert len(pids) >= 2
+        pids = found_workers(process, data)
         process.send_signal(sig)
         output, _ = process.communicate(timeout=30)
         assert "Stopped." in output
@@ -161,7 +173,7 @@ def test_a_killed_worker_is_restarted_and_health_says_so(tmp_path):
     process = spawn(tmp_path, port, data)
     try:
         wait_workers(process, port)
-        victim = worker_pids(str(data))[0]
+        victim = found_workers(process, data, want=1)[0]
         os.kill(victim, signal.SIGKILL)
         seen = set()
         for _ in range(400):
