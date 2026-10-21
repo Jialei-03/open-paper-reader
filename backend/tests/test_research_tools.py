@@ -426,3 +426,133 @@ def test_executor_cannot_close_root_or_touch_dead_nodes(world):
             "update_node",
             {"node_id": hyp, "status": "active", "reason": "retry"},
         )
+
+
+HEREDOC_WAIT = """python - <<'EOF'
+import time, glob
+t0 = time.time()
+while time.time() - t0 < 105:
+    a = len(glob.glob("results/h3_A_s*.json"))
+    if a >= 3:
+        print(f"READY h3_A_files={a}")
+        break
+    time.sleep(3)
+EOF
+python summarize.py "results/h3_A_s*.json" h3_A_aug_bn_cosine"""
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "sleep 90; echo waited_for_cpu_job",
+        "sleep 300",
+        "date && sleep 2m && echo done",
+        HEREDOC_WAIT,
+        "while [ ! -f results/final_s5.json ]; do sleep 10; done; python compare.py",
+        "until test -f out.json; do sleep 5; done",
+    ],
+)
+def test_waiting_commands_are_recognised(command):
+    assert rt.waits_only(command)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "python train.py --device mps --seed 0 --epochs 2 --tag smoke 2>&1",
+        "for s in 0 1 2; do python train.py --seed $s --out results/s$s.json; done 2>&1",
+        "sleep 5; python train.py --seed 0",
+        "python summarize.py 'results/h1_base_s*.json' h1_base",
+        "echo start; python bench.py; echo end",
+        # It starts its own server and waits for it: that is the experiment itself.
+        "python server.py & while [ ! -f ready ]; do sleep 1; done; python client.py",
+        "python - <<'EOF'\nimport time\nfor i in range(3):\n    time.sleep(1)\n    print(i)\nEOF",
+        "sleep 1; echo $(python train.py)",
+    ],
+)
+def test_real_experiments_are_not_taken_for_waiting(command):
+    assert not rt.waits_only(command)
+
+
+def _fake_job(started, status="running"):
+    def fake_start(settings, d, project, node, sprint, command, timeout):
+        started.append(command)
+        job = ResearchJob(
+            project_id=project.id,
+            node_id=node.id,
+            sprint_id=sprint.id,
+            command=command,
+            status=status,
+        )
+        d.add(job)
+        d.flush()
+        return job
+
+    return fake_start
+
+
+def test_run_job_refuses_a_job_that_only_waits_and_names_the_handover(
+    world, monkeypatch
+):
+    app, _maker, research, ids, _calls = world
+    hyp = add_hypothesis(app, ids, research)
+    call(app, ids, research, "focus", {"node_id": hyp, "intent": "train"})
+    started = []
+    monkeypatch.setattr(rs, "start_job", _fake_job(started))
+    long = call(app, ids, research, "run_job", {"command": "python train.py"})
+    with pytest.raises(ValueError, match="end_sprint") as refused:
+        call(
+            app,
+            ids,
+            research,
+            "run_job",
+            {"command": "sleep 90; echo waited_for_cpu_job"},
+        )
+    assert long["job_id"] in str(refused.value)
+    with pytest.raises(ValueError, match="end_sprint"):
+        call(app, ids, research, "run_job", {"command": HEREDOC_WAIT})
+    assert started == ["python train.py"]
+
+
+@pytest.mark.parametrize("status", ["running", "queued"])
+def test_polling_an_unfinished_job_turns_into_a_handover(world, monkeypatch, status):
+    app, _maker, research, ids, _calls = world
+    hyp = add_hypothesis(app, ids, research)
+    call(app, ids, research, "focus", {"node_id": hyp, "intent": "train"})
+    monkeypatch.setattr(rs, "start_job", _fake_job([], status=status))
+    job_id = call(app, ids, research, "run_job", {"command": "python train.py"})[
+        "job_id"
+    ]
+    seen = [
+        call(app, ids, research, "job_status", {"job_id": job_id})
+        for _ in range(rt.POLL_MAX)
+    ]
+    early = seen[: rt.POLL_HINT - 1]
+    assert all("end_sprint" not in s.get("hint", "") for s in early)
+    assert all(
+        f"end_sprint(waiting_on=['{job_id}'])" in s["hint"]
+        for s in seen[rt.POLL_HINT - 1 :]
+    )
+    with pytest.raises(ValueError, match="end_sprint"):
+        call(app, ids, research, "job_status", {"job_id": job_id})
+    call(
+        app,
+        ids,
+        research,
+        "end_sprint",
+        {"summary": "started training", "waiting_on": [job_id]},
+    )
+    assert not [k for k in rt._polls if k[0] == ids.sprint]
+
+
+def test_a_finished_job_can_be_looked_at_freely(world, monkeypatch):
+    app, _maker, research, ids, _calls = world
+    hyp = add_hypothesis(app, ids, research)
+    call(app, ids, research, "focus", {"node_id": hyp, "intent": "train"})
+    monkeypatch.setattr(rs, "start_job", _fake_job([], status="succeeded"))
+    job_id = call(app, ids, research, "run_job", {"command": "python train.py"})[
+        "job_id"
+    ]
+    for _ in range(rt.POLL_MAX + 2):
+        out = call(app, ids, research, "job_status", {"job_id": job_id})
+        assert out["status"] == "succeeded" and "hint" not in out

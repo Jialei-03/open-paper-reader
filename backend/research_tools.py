@@ -8,6 +8,7 @@ both stopped and measured.
 """
 
 import asyncio
+import re
 import time
 
 from sqlalchemy import select
@@ -29,6 +30,11 @@ NODE = {"type": "string", "minLength": 8, "maxLength": 36}
 WAIT_MAX = 120
 WAIT_POLL = 2.0
 WAIT_LINES = 200
+# job_status on a job that is still queued or running, in one sprint: past HINT calls the result
+# says to hand over; past MAX it is refused.
+POLL_HINT = 3
+POLL_MAX = 5
+_polls = {}
 REASON = {"type": "string", "minLength": 1, "maxLength": 1000}
 LEVEL = {"type": "string", "enum": ["high", "medium", "low"]}
 
@@ -155,7 +161,7 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "run_job",
-        "在研究工作区（当前目录）运行一条命令；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。几分钟内能跑完的，设 wait_seconds 等它结束，直接拿到日志行，本轮就能 record_result；更长的实验不等，用 end_sprint(waiting_on) 结束本轮。在本机环境上实验依次运行：已有作业在跑时，新作业排队（status=queued），前一个结束后自动开始，wait_seconds 从它真正开始运行算起。",
+        "在研究工作区（当前目录）运行一条命令；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。几分钟内能跑完的，设 wait_seconds 等它结束，直接拿到日志行，本轮就能 record_result；更长的实验不等，用 end_sprint(waiting_on) 结束本轮。在本机环境上实验依次运行：已有作业在跑时，新作业排队（status=queued），前一个结束后自动开始，wait_seconds 从它真正开始运行算起。只是等待的命令（sleep、循环查看别的作业的结果文件）会被拒绝。",
         {
             "command": {"type": "string", "minLength": 1, "maxLength": 4000},
             "timeout_seconds": {"type": "integer", "minimum": 1},
@@ -165,7 +171,8 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "job_status",
-        "查看后台作业的状态、退出码和日志行数；运行中的作业还给出它用 ora.log 记下的最新指标和点数。",
+        "查看后台作业的状态、退出码和日志行数；运行中的作业还给出它用 ora.log 记下的最新指标和点数。"
+        f"不要用它在本轮里等作业跑完：同一个还没结束的作业本轮查看超过 {POLL_MAX} 次会被拒绝。",
         {"job_id": ID},
         ["job_id"],
     ),
@@ -668,6 +675,76 @@ def _supported_by_record(d, project, node):
     return False
 
 
+# A command that only waits: sleeps and prints, nothing else.
+_IDLE = re.compile(r"(sleep\s+[\d.]+[smh]?|(echo|printf|date)\b[^`$]*|true|:|wait)")
+_STATEMENTS = re.compile(r"\s*(?:&&|\|\||;|\n)\s*")
+# A loop that sleeps until files appear (or time passes): waiting on another job's output.
+_LOOP = re.compile(r"\b(while|until)\b")
+_NAP = re.compile(r"time\.sleep\(|\bsleep\s+[\d.$]")
+_LOOKS = re.compile(
+    r"\bglob\b|os\.path\.(exists|isfile|getsize)|\.exists\(\)|os\.listdir"
+    r"|\[\[?\s+!?\s*-[efs]\s|\btest\s+-[efs]\s"
+)
+# It starts something of its own in the background: then waiting for it is its own work.
+_STARTS = re.compile(r"(?<![&>])&(?![&>])|\bnohup\b|subprocess|Popen|os\.system")
+
+
+def waits_only(command):
+    """Whether a job command just waits for time to pass or for other jobs' files.
+
+    Kept narrow on purpose: only the command line itself is read, so a script
+    that sleeps inside (`python train.py`) is never in question.
+    """
+    text = command.strip()
+    parts = [p for p in _STATEMENTS.split(text) if p]
+    if parts and all(_IDLE.fullmatch(p) for p in parts):
+        return any(p.startswith("sleep") for p in parts)
+    return bool(
+        _LOOP.search(text)
+        and _NAP.search(text)
+        and _LOOKS.search(text)
+        and not _STARTS.search(text)
+    )
+
+
+def _running(d, project):
+    return list(
+        d.scalars(
+            select(ResearchJob.id).where(
+                ResearchJob.project_id == project.id,
+                ResearchJob.status.in_(research_sandbox.ACTIVE),
+            )
+        )
+    )
+
+
+def _handover(ids):
+    return f"end_sprint(waiting_on={ids[:5] or ['作业编号']})"
+
+
+def _status(d, project, sprint, job_id):
+    """A job's status; polling the same unfinished job again and again is turned to a handover."""
+    job = _job(d, project, job_id)
+    out = research_sandbox.job_status(job, d)
+    if job.status not in research_sandbox.ACTIVE:
+        return out
+    key = (sprint.id, job.id)
+    _polls[key] = _polls.get(key, 0) + 1
+    if _polls[key] > POLL_MAX:
+        raise ValueError(
+            f"这个作业还没结束，本轮已经查看了 {POLL_MAX} 次。"
+            f"不要在本轮里等它：现在用 {_handover([job.id])} 结束本轮，"
+            "作业结束后系统会开始下一轮"
+        )
+    if _polls[key] >= POLL_HINT:
+        out["hint"] = out.get("hint", "") + (
+            f"作业还没结束，本轮已查看 {_polls[key]} 次。现在应该用 "
+            f"{_handover([job.id])} 结束本轮，作业结束后系统会开始下一轮；"
+            f"本轮查看它超过 {POLL_MAX} 次会被拒绝。"
+        )
+    return out
+
+
 def _wait(settings, d, job, seconds):
     """Waits up to `seconds` of the job's running time for the sweeper to
     collect it, then reports it.
@@ -811,6 +888,8 @@ def _run(app, owner, research, name, args):
             sprint.next_focus = args.get("next_focus", "")
             sprint.waiting_on = waiting
             sprint.status = "ended"
+            for key in [k for k in _polls if k[0] == sprint.id]:
+                del _polls[key]
             sprint.updated_at = now()
             research_map.event(
                 d,
@@ -829,6 +908,12 @@ def _run(app, owner, research, name, args):
         elif name == "run_job":
             if project.stage != "experiments":
                 raise ValueError("只有实验阶段才能运行作业")
+            if waits_only(args["command"]):
+                raise ValueError(
+                    "这个作业只是在等待（sleep，或循环查看文件、时间），会白白占用本轮的时间。"
+                    f"要等别的作业，用 {_handover(_running(d, project))} 结束本轮，"
+                    "作业结束后系统会开始下一轮，那时再汇总结果"
+                )
             node = d.get(ResearchNode, sprint.focus_node_id)
             job = research_sandbox.start_job(
                 settings,
@@ -897,7 +982,7 @@ def _run(app, owner, research, name, args):
             sprint.updated_at = now()
             result = {**counts, "version": book["version"]}
         elif name == "job_status":
-            return research_sandbox.job_status(_job(d, project, args["job_id"]), d)
+            return _status(d, project, sprint, args["job_id"])
         elif name == "stop_job":
             job = _job(d, project, args["job_id"])
             research_sandbox.stop_job(settings, d, job)
