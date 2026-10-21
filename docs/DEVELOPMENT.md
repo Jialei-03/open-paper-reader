@@ -101,7 +101,9 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 
 ### Agent 运行时（`agent-runtime`）
 
-`runner.mjs` 跑一次 Agent；`skills/` 是写给模型的说明，每个研究角色一份：`research-scoping`（定题的导师）、`research-executor`（执行者）、`research-advisor`（导师）、`research-distiller`（提炼者）、`research-envsetup`（准备环境）、`research-chat`（项目对话）。改 Agent 的行为，先看对应的 skill。
+`runner.mjs` 跑一次 Agent，用的是 Pi 的会话层（`pi-coding-agent` 的 `AgentSession`）：对话的条目由后端存在 `agent_session_entries`，每次交回给 Pi 恢复会话；上下文满了由 Pi 自动压缩，`/compact` 手动压缩；换模型时 Pi 在会话里记一条 `model_change`。我们的工具仍由后端执行（`noTools: "builtin"` 加 `customTools`），不读机器上的 `~/.pi`；模型按 Pi 的标准方式注册成一个 provider，应用里选的思考强度经 `before_provider_request` 写进请求，每次请求前先向后端预留额度。研究的每一轮仍然从简报开始、不带历史，但一轮之内同样会自动压缩。还没搬过来的：平台模型的排队（`model-lease.mjs`）和 MiniMax 的 `reasoning_split`。
+
+`skills/` 是写给模型的说明，每个研究角色一份：`research-scoping`（定题的导师）、`research-executor`（执行者）、`research-advisor`（导师）、`research-distiller`（提炼者）、`research-envsetup`（准备环境）、`research-chat`（项目对话）。改 Agent 的行为，先看对应的 skill。
 
 ## 4. 研究系统
 
@@ -153,11 +155,13 @@ npm --prefix frontend run build
 
 ## 7. 现状与接下来
 
-已经跑通（2026-10-21）：项目、看板与项目对话；对话式定题和计划卡片；本机（Apple MPS）、Docker、SSH 三种由 Agent 准备的研究环境；实验记录、指标自动入地图；导师提问；暂停会停下正在进行的一轮和实验。用真实模型在本机 MPS 上跑过 CIFAR-10 的研究。
+已经跑通（2026-10-21）：项目、看板与项目对话；对话式定题和计划卡片；本机（Apple MPS）和 SSH 两种由 Agent 准备的研究环境（不再提供本机 Docker）；本机的实验依次运行；实验记录、指标自动入地图，运行中就能看到曲线；导师提问；暂停会停下正在进行的一轮和实验；研究页的文件栏；输入框的斜杠命令和换模型（参考 pi-web）；对话由 Pi 的会话层保存和压缩；本机版连接线上账号、同步论文；在线版不提供研究。用真实模型在本机 MPS 上跑过 CIFAR-10 和 MNIST 的研究。
 
 已知的问题和下一步：
 
 - **调度还是按轮轮询**：一轮里等作业、作业结束再开下一轮。应该改成由事件驱动（作业结束、你说话、数据就绪时才唤醒相应的角色）。
 - **假设的排序**：计划卡片按导师写的顺序排，还没有按价值和代价自动排序。
 - **CI 暂停中**：恢复前先在本机跑完整的浏览器测试。
+- **模型调用的排队**：改用 Pi 的会话层后，平台模型的并发名额（`platform_model.model_slot`）还没接回去；每次请求前的额度预留仍在。
+- **MiniMax 的思考内容**：没有发 `reasoning_split`，目前实测回答是干净的；如果思考内容混进正文，用 `before_provider_request` 加回来。
 - 研究功能只在本机版里提供，在线版只读论文。
