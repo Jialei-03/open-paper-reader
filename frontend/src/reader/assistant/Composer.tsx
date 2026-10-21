@@ -153,6 +153,58 @@ export function Composer({
     };
   }, [floating, shown, place]);
 
+  // Before the early return: a hook is called on every render.
+  const used = contextStatus(
+    t,
+    [...assistant.runs].reverse().find((run) => run.runtime?.context)?.runtime
+      ?.context,
+  );
+  // What "/" offers: compacting the paper's conversation, its model, the last answer.
+  const commands: SlashCommand[] = [
+    {
+      name: "compact",
+      description: t("commands.compact"),
+      takesArgument: true,
+      run: (words) =>
+        void assistant.send({
+          prompt: `/compact ${words}`.trim(),
+          command: "compact",
+        }),
+    },
+    {
+      name: "session",
+      description: t("commands.session"),
+      run: () =>
+        void toast.show({
+          message: t("commands.sessionInfo", {
+            turns: conversation(assistant.runs).filter(
+              (run) => run.runtime?.command !== "compact",
+            ).length,
+            model:
+              assistant.models.find((m) => m.id === assistant.modelId)?.name ||
+              assistant.models.find((m) => m.id === assistant.modelId)?.model ||
+              "—",
+            context: used || "—",
+          }),
+        }),
+    },
+    copyCommand(
+      t,
+      () =>
+        conversation(assistant.runs)
+          .filter((run) => run.runtime?.command !== "compact")
+          .at(-1)?.response ?? "",
+    ),
+    ...modelCommands(t, assistant.models, assistant.modelId, (id) =>
+      assistant.chooseModel(id),
+    ),
+  ];
+  const slash = useSlashCommands({
+    value: draft,
+    onChange: setDraft,
+    commands: unavailable ? undefined : commands,
+  });
+
   if (!shown) return null;
 
   const sees =
@@ -262,57 +314,6 @@ export function Composer({
   // What the error is about, again: the question in the box if it was this box's, else the hook's.
   const recover = assistant.recover;
   const again = recover && (() => (unsent ? void submit() : recover()));
-
-  const used = contextStatus(
-    t,
-    [...assistant.runs].reverse().find((run) => run.runtime?.context)?.runtime
-      ?.context,
-  );
-  // What "/" offers: compacting the paper's conversation, its model, the last answer.
-  const commands: SlashCommand[] = [
-    {
-      name: "compact",
-      description: t("commands.compact"),
-      takesArgument: true,
-      run: (words) =>
-        void assistant.send({
-          prompt: `/compact ${words}`.trim(),
-          command: "compact",
-        }),
-    },
-    {
-      name: "session",
-      description: t("commands.session"),
-      run: () =>
-        void toast.show({
-          message: t("commands.sessionInfo", {
-            turns: conversation(assistant.runs).filter(
-              (run) => run.runtime?.command !== "compact",
-            ).length,
-            model:
-              assistant.models.find((m) => m.id === assistant.modelId)?.name ||
-              assistant.models.find((m) => m.id === assistant.modelId)?.model ||
-              "—",
-            context: used || "—",
-          }),
-        }),
-    },
-    copyCommand(
-      t,
-      () =>
-        conversation(assistant.runs)
-          .filter((run) => run.runtime?.command !== "compact")
-          .at(-1)?.response ?? "",
-    ),
-    ...modelCommands(t, assistant.models, assistant.modelId, (id) =>
-      assistant.chooseModel(id),
-    ),
-  ];
-  const slash = useSlashCommands({
-    value: draft,
-    onChange: setDraft,
-    commands: unavailable ? undefined : commands,
-  });
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (slash.onKeyDown(event)) return;
