@@ -164,3 +164,24 @@ def test_compacting_a_short_conversation_only_says_so(env, model):
     assert done["status"] == "completed"
     assert "没有需要压缩" in done["runtime"]["compaction"]["error"]
     assert not any(e["type"] == "compaction" for e in kept(app, session))
+
+
+def test_the_desktop_apps_electron_runs_the_runtime_as_node(env, model, monkeypatch):
+    import subprocess
+
+    import backend.agent_worker as worker
+
+    seen = []
+    real = subprocess.Popen
+
+    def popen(args, **kwargs):
+        seen.append(kwargs.get("env", {}))
+        return real(args, **kwargs)
+
+    monkeypatch.setenv("ELECTRON_RUN_AS_NODE", "1")
+    monkeypatch.setattr(worker.subprocess, "Popen", popen)
+    app, a, _b, settings = env
+    _owner, model_id = configure(app, a, settings)
+    session = a.post("/api/v1/agent/sessions", json={}).json()["id"]
+    assert ask(app, a, session, model_id, "问题")["status"] == "completed"
+    assert seen and seen[0].get("ELECTRON_RUN_AS_NODE") == "1"

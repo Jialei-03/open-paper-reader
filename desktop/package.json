@@ -1,0 +1,18 @@
+{
+  "name": "open-research-agent-desktop",
+  "productName": "Open Research Agent",
+  "version": "0.3.0",
+  "description": "Open Research Agent as a desktop app: the local build in its own window",
+  "main": "main.js",
+  "private": true,
+  "license": "MIT",
+  "author": "The Open Research Agent Authors",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "45.0.0",
+    "electron-builder": "26.15.3"
+  }
+}

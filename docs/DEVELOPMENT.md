@@ -29,9 +29,18 @@ make start          # 缺什么装什么（.venv、前端和 Agent 运行时的�
 - 重启会中断正在进行的一轮（这一轮的预算会退还），运行中的实验会被标为丢失；重启尽量攒在一起做，或者先暂停研究。
 - 要前端热更新：`cd frontend && DEV_API=http://127.0.0.1:8800 npx vite --port 5181`。注意写操作要从实例自己的地址发（跨源会被拒绝），在热更新页面上只适合看界面。
 
+### 桌面版（`desktop/`）
+
+macOS 桌面版是一个 Electron 外壳，界面和网页版是同一套前端。`desktop/main.js` 用 App 里自带的 Python 运行 `python -m backend.local --desktop`，后端就绪时打印 `ORA_READY <url>`（数据目录已经被终端里的 `ora` 占着时打印 `ORA_SHARED <url>`，窗口就连过去），窗口再加载这个地址。Electron 自己当 Agent 运行器的 Node（`AGENT_NODE` 指向它，`ELECTRON_RUN_AS_NODE=1`），所以用户不用装 Node.js。没有系统标题栏：`desktop/preload.js` 给页面打上 `data-desktop`，`frontend/src/desktop.css` 在顶部留 32px 放窗口按钮、可拖动窗口；占满窗口高度的地方用 `var(--app-height, 100dvh)`。
+
+- `make desktop-dev`：从源码打开桌面版（用 `.venv` 和当前代码，不打包）。
+- `make desktop`：打出本机芯片的 `.dmg`（`desktop/dist/`）。`desktop/scripts/bundle-python.sh` 先把独立的 Python 3.12、本项目的安装包和 Agent 运行器（含依赖）放进 `desktop/bundle/`；运行器由 `desktop/scripts/after-pack.js` 拷进 App（electron-builder 会把 `node_modules` 从额外资源里漏掉）。
+- 日志在数据目录的 `desktop.log`。关窗口不退出（研究继续跑），`⌘Q` 才会停后端。
+- 签名：配了仓库密钥 `MAC_CERTIFICATE_P12_BASE64`、`MAC_CERTIFICATE_PASSWORD`、`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`、`APPLE_TEAM_ID` 后，发布时自动签名并公证；没配就是未签名版本（macOS 上不能自动更新，菜单「帮助」里会提示新版本）。Windows 还没有：后端有几处只适合 macOS/Linux（`fcntl` 文件锁、实验用 bash、按进程组结束进程）。
+
 ### 发布
 
-用户用 `install.sh`（`curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh`）装的是 GitHub Release 里的 `open-research` 安装包，里面带着构建好的前端；Agent 运行时的 npm 依赖在第一次启动时安装。发布一个版本：把 `pyproject.toml` 的 `version` 和 `CHANGELOG.md` 改好、提交，再推一个同名标签（`git tag v0.3.0 && git push origin v0.3.0`）。`.github/workflows/release.yml` 会构建、检查能启动，再建 GitHub Release、附上安装包和 `install.sh`。同时发到 PyPI（`uvx open-research`）要先在 PyPI 上把这个工作流登记为可信发布者（项目 `open-research`、环境 `pypi`），再把仓库变量 `PUBLISH_PYPI` 设为 `true`；不存任何令牌。本地试安装包：`sh scripts/build-local.sh`，然后 `uvx --from dist/<wheel> ora`。
+用户用 `install.sh`（`curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh`）装的是 GitHub Release 里的 `open-research` 安装包，里面带着构建好的前端；Agent 运行时的 npm 依赖在第一次启动时安装。发布一个版本：把 `pyproject.toml` 的 `version` 和 `CHANGELOG.md` 改好、提交，再推一个同名标签（`git tag v0.3.0 && git push origin v0.3.0`）。`.github/workflows/release.yml` 会构建、检查能启动，在 Apple 芯片和 Intel 的 Mac 上各打一个桌面版 `.dmg`，再建 GitHub Release、附上 `.dmg`、安装包和 `install.sh`。同时发到 PyPI（`uvx open-research`）要先在 PyPI 上把这个工作流登记为可信发布者（项目 `open-research`、环境 `pypi`），再把仓库变量 `PUBLISH_PYPI` 设为 `true`；不存任何令牌。本地试安装包：`sh scripts/build-local.sh`，然后 `uvx --from dist/<wheel> ora`。
 
 ### Git 与提交
 

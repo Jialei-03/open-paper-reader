@@ -3,7 +3,7 @@
   gap: var(--ui-space-8);
   padding: var(--ui-space-8);
   /* The window's height, not the page's: the cards scroll, the page does not. */
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
   background: var(--ui-bg-1);
 }
 

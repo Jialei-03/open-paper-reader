@@ -1,6 +1,7 @@
 name: Release
-# A tag like v0.3.0 builds the package (with the web app inside), attaches it
-# to a GitHub release (what install.sh installs), and, once the repository
+# A tag like v0.3.0 builds the package (with the web app inside) and the
+# desktop app for Apple silicon and Intel Macs, attaches them to a GitHub
+# release (install.sh installs the package), and, once the repository
 # variable PUBLISH_PYPI is "true", publishes it as "open-research" on PyPI
 # (`uvx open-research`). PyPI trusts this workflow: no token is stored here.
 on:
@@ -33,8 +34,50 @@ jobs:
         with:
           name: dist
           path: dist/
+  desktop:
+    strategy:
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    env:
+      # Signed and notarized once these secrets exist; an unsigned app otherwise.
+      CSC_LINK: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            agent-runtime/package-lock.json
+            desktop/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+      - run: npm --prefix frontend ci --ignore-scripts
+      - run: npm --prefix desktop ci
+      - run: npm --prefix desktop version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+      - run: bash desktop/scripts/bundle-python.sh
+      - name: The app
+        working-directory: desktop
+        run: |
+          if [ -z "$CSC_LINK" ]; then export CSC_IDENTITY_AUTO_DISCOVERY=false; fi
+          notarize=false; if [ -n "$APPLE_ID" ]; then notarize=true; fi
+          npx electron-builder --mac dmg --${{ matrix.arch }} --publish never -c.mac.notarize=$notarize
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.arch }}
+          path: desktop/dist/*.dmg
   github:
-    needs: build
+    needs: [build, desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -44,14 +87,21 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: The release, with the package and the installer
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: dist/
+          merge-multiple: true
+      - name: The release, with the desktop app, the package and the installer
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           notes=$(awk '/^## \[/{n++} n==1' CHANGELOG.md)
           gh release create "$GITHUB_REF_NAME" dist/* install.sh \
             --title "$GITHUB_REF_NAME" \
-            --notes "安装：curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
+            --notes "桌面版（macOS）：下载对应芯片的 .dmg（arm64 是 Apple 芯片，x64 是 Intel），打开后把 Open Research Agent 拖进「应用程序」。还没签名的版本第一次打开时，macOS 会说无法验证开发者：到「系统设置 → 隐私与安全性」里点「仍要打开」。
+
+          命令行：curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sh
 
           $notes"
   pypi:

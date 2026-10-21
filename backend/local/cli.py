@@ -196,14 +196,24 @@ class Server(uvicorn.Server):
                     signal.signal(number, handler)
 
 
-def open_when_ready(url, stop_event):
+def open_when_ready(url, stop_event, desktop=False):
     for _ in range(200):
         if stop_event.is_set():
             return
         if running(url):
-            webbrowser.open(url)
+            if desktop:
+                ready(url)
+            else:
+                webbrowser.open(url)
             return
         time.sleep(0.1)
+
+
+def ready(url, shared=False):
+    """The line the desktop app waits for before it opens its window:
+    ORA_READY when this process serves it, ORA_SHARED when another one does
+    (and this one is about to leave)."""
+    print(f"{'ORA_SHARED' if shared else 'ORA_READY'} {url}", flush=True)
 
 
 def parse(argv):
@@ -221,6 +231,11 @@ def parse(argv):
     parser.add_argument(
         "--no-browser", action="store_true", help="Do not open a browser"
     )
+    parser.add_argument(
+        "--desktop",
+        action="store_true",
+        help="Started by the desktop app: say `ORA_READY <url>` when ready, open no browser",
+    )
     parser.add_argument("--version", action="version", version=version())
     args = parser.parse_args(argv)
     from ..config import is_loopback
@@ -237,6 +252,10 @@ def main(argv=None):
     data = (args.data or data_dir()).expanduser().resolve()
     url = f"http://{args.host}:{args.port}"
     instance, other = claim_instance(data, url)
+    if instance is None and args.desktop and other and running(other):
+        # `ora` in a terminal already serves this folder: the window shows it.
+        ready(other, shared=True)
+        return 0
     if instance is None:
         say(
             f"Open Research Agent is already running at {other or 'another address'} "
@@ -246,7 +265,9 @@ def main(argv=None):
     if running(url):
         instance.close()
         say(f"Open Research Agent is already running at {url}")
-        if not args.no_browser:
+        if args.desktop:
+            ready(url, shared=True)
+        elif not args.no_browser:
             webbrowser.open(url)
         return 0
     configure(data, args.host, args.port)
@@ -279,9 +300,9 @@ def main(argv=None):
     )
     workers.start()
     stopping = threading.Event()
-    if not args.no_browser:
+    if args.desktop or not args.no_browser:
         threading.Thread(
-            target=open_when_ready, args=(url, stopping), daemon=True
+            target=open_when_ready, args=(url, stopping, args.desktop), daemon=True
         ).start()
     say(f"Open Research Agent is running at {url} as “{reader}”. Press Ctrl+C to stop.")
     server = Server(

@@ -65,7 +65,9 @@ Open Research Agent 主攻的就是这些：**研究判断力**、**持续不偏
 
 ## 在自己电脑上运行
 
-一条命令安装（macOS / Linux；需要 Node.js 20+，没有 [uv](https://docs.astral.sh/uv/) 会自动装上）：
+**桌面版（macOS）**：在 [Releases](https://github.com/Jialei-03/open-research-agent/releases) 下载对应芯片的 `.dmg`（arm64 是 Apple 芯片，x64 是 Intel），把 Open Research Agent 拖进「应用程序」，双击打开。不用装 Python 或 Node.js。目前还没签名，第一次打开时 macOS 会说无法验证开发者：到「系统设置 → 隐私与安全性」点「仍要打开」。
+
+**命令行**，一条命令安装（macOS / Linux；需要 Node.js 20+，没有 [uv](https://docs.astral.sh/uv/) 会自动装上）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh

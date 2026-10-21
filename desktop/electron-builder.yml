@@ -1,0 +1,34 @@
+# How the desktop app is packaged (see desktop/README.md). The Python, the
+# backend and the assistant runtime come from desktop/bundle/, built by
+# scripts/bundle-python.sh; the window and its frame are main.js.
+appId: online.dougao.ora
+productName: Open Research Agent
+copyright: The Open Research Agent Authors
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.js
+  - preload.js
+  - package.json
+extraResources:
+  - from: bundle/python
+    to: python
+# The assistant runtime goes in by scripts/after-pack.js: extra resources
+# would leave its node_modules out.
+afterPack: scripts/after-pack.js
+# The interface is Chinese and English.
+electronLanguages: [en, zh_CN, zh_TW]
+mac:
+  target: dmg
+  category: public.app-category.productivity
+  icon: build/icon.icns
+  # Signed and notarized when CSC_LINK / APPLE_* are set (release.yml);
+  # otherwise an unsigned build that macOS asks about on first open.
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false
+dmg:
+  title: Open Research Agent
+artifactName: Open-Research-Agent-${version}-${arch}.${ext}

@@ -137,9 +137,11 @@
 /* The sheet: a card at the right edge of the window, 8px in from it like the cards of the shell. */
 .side {
   --dialog-width: 460px;
-  height: calc(100dvh - 2 * var(--ui-space-8));
+  /* Below the desktop app's window buttons (--app-top, 0 in a browser). */
+  height: calc(100dvh - var(--app-top, 0px) - 2 * var(--ui-space-8));
   max-height: none;
-  margin: var(--ui-space-8) var(--ui-space-8) var(--ui-space-8) auto;
+  margin: calc(var(--app-top, 0px) + var(--ui-space-8)) var(--ui-space-8)
+    var(--ui-space-8) auto;
   max-width: calc(100vw - 2 * var(--ui-space-8));
   border-radius: var(--ui-r-16);
   transform: translateX(var(--ui-space-24));

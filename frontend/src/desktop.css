@@ -1,0 +1,26 @@
+/*
+ * The desktop app (desktop/, Electron) has no title bar of its own: the page
+ * reaches the top of the window and the window buttons sit over it, as in
+ * other Mac apps. Its preload marks the page with data-desktop; nothing here
+ * applies in a browser. The top strip keeps the buttons clear of the page,
+ * looks like the page's own background, and moves the window when dragged.
+ */
+html[data-desktop] {
+  --app-top: 32px;
+  --app-height: calc(100dvh - var(--app-top));
+}
+
+html[data-desktop] body {
+  padding-top: var(--app-top);
+  background: var(--ui-bg-1);
+}
+
+html[data-desktop] body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: var(--app-top);
+  z-index: 2147483646;
+  -webkit-app-region: drag;
+  app-region: drag;
+}

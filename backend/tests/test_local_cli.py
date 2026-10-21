@@ -97,3 +97,44 @@ def test_a_container_with_only_the_built_frontend_serves_it(tmp_path, monkeypatc
     assert paths.frontend_dir() == tmp_path / "bundle" / "frontend"
     (tmp_path / "frontend" / "dist" / "index.html").write_text("<div id=\"root\"></div>")
     assert paths.frontend_dir() == tmp_path / "frontend"
+
+
+def test_the_desktop_app_is_told_where_to_look(tmp_path):
+    """--desktop says `ORA_READY <url>` once it answers; a second start on the
+    same data folder says where the first one is, and leaves it running."""
+    data = tmp_path / "data"
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("APP_", "DATABASE_", "STORAGE_", "OPR_", "LAYOUT_"))
+    }
+    env = {**env, "PYTHONPATH": str(ROOT)}
+
+    def start(port):
+        return subprocess.Popen(
+            [sys.executable, "-m", "backend.local", "--desktop", "--port", str(port), "--data", str(data)],
+            cwd=tmp_path,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+    first_port = free_port()
+    first = start(first_port)
+    try:
+        url = f"http://127.0.0.1:{first_port}"
+        for line in first.stdout:
+            if line.startswith("ORA_READY"):
+                assert line.split() == ["ORA_READY", url]
+                break
+        else:
+            raise AssertionError("no ORA_READY line")
+        second = start(free_port())
+        output, _ = second.communicate(timeout=60)
+        assert second.returncode == 0, output
+        assert f"ORA_SHARED {url}" in output
+        assert first.poll() is None
+    finally:
+        first.send_signal(signal.SIGINT)
+        first.communicate(timeout=30)

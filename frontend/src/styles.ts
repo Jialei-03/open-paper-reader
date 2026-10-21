@@ -28,4 +28,5 @@ import "./components/reader-controls.css";
 import "./notes.css";
 import "./workspace-design.css";
 import "./components/streaming.css";
+import "./desktop.css";
 import "./design-system.css";

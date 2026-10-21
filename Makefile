@@ -3,7 +3,7 @@ PY ?= .venv/bin/python
 PIP ?= .venv/bin/pip
 
 .DEFAULT_GOAL := help
-.PHONY: help start install env db run web worker research-image test check build e2e docker-up docker-down
+.PHONY: help start desktop-dev desktop install env db run web worker research-image test check build e2e docker-up docker-down
 
 help: ## Show this list
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
@@ -27,6 +27,17 @@ agent-runtime/node_modules/.installed: agent-runtime/package-lock.json
 
 frontend/dist/index.html: frontend/node_modules/.installed frontend/index.html frontend/vite.config.ts $(shell find frontend/src frontend/public -type f 2>/dev/null)
 	npm --prefix frontend run build
+
+desktop-dev: .venv/.installed frontend/node_modules/.installed agent-runtime/node_modules/.installed frontend/dist/index.html desktop/node_modules/.installed ## Open the desktop app from the source tree (no packaging)
+	cd desktop && npx electron .
+
+desktop: desktop/node_modules/.installed ## Build the desktop app for this Mac: desktop/dist/*.dmg
+	bash desktop/scripts/bundle-python.sh
+	cd desktop && npx electron-builder --mac dmg
+
+desktop/node_modules/.installed: desktop/package-lock.json
+	npm --prefix desktop ci
+	touch $@
 
 install: ## Create .venv and install backend and frontend dependencies
 	python3 -m venv .venv

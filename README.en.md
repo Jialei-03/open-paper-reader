@@ -65,7 +65,9 @@ The other half of the agent is reading papers. That part also works on its own, 
 
 ## Run it on your computer
 
-One command to install (macOS / Linux; needs Node.js 20+; [uv](https://docs.astral.sh/uv/) is installed if missing):
+**Desktop app (macOS)**: download the `.dmg` for your chip from [Releases](https://github.com/Jialei-03/open-research-agent/releases) (arm64 for Apple silicon, x64 for Intel), drag Open Research Agent into Applications and open it. No Python or Node.js needed. It is not signed yet: the first time, macOS says it cannot verify the developer; open it from System Settings → Privacy & Security → Open Anyway.
+
+**Command line**, one command to install (macOS / Linux; needs Node.js 20+; [uv](https://docs.astral.sh/uv/) is installed if missing):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Jialei-03/open-research-agent/main/install.sh | sh

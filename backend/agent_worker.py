@@ -438,6 +438,9 @@ def _process(app, job_id, cfg):
         if app.state.settings.mode == "local":
             # The local build may talk to a model server on this machine.
             env["OPR_LOCAL_MODELS"] = "1"
+        if os.getenv("ELECTRON_RUN_AS_NODE"):
+            # The desktop app's own Electron is AGENT_NODE: it runs as Node only so.
+            env["ELECTRON_RUN_AS_NODE"] = os.environ["ELECTRON_RUN_AS_NODE"]
         child = subprocess.Popen(
             [os.getenv("AGENT_NODE", "node"), str(agent_runtime_dir() / "runner.mjs")],
             stdin=subprocess.PIPE,

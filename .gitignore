@@ -39,3 +39,6 @@ secrets/
 *.age
 *.agekey
 /dist/
+# The desktop app's build: the bundled Python and runtime, and the .dmg.
+desktop/bundle/
+desktop/dist/
