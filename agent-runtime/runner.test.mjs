@@ -259,6 +259,10 @@ test('a long conversation is compacted by Pi, on its own and when asked', async 
     const asked = await runRunner({config:small, limits, session:{id, entries}, command:'compact', instructions:'只留结论', tools:[]});
     const end = asked.find(e => e.type === 'compaction' && e.phase === 'end');
     assert.equal(end.reason, 'manual');
+    // The summary call asked the backend first and reported its usage after.
+    const kinds = asked.map(e => e.type);
+    assert.ok(kinds.indexOf('model_request') < kinds.indexOf('usage'), kinds.join(','));
+    assert.ok(asked.find(e => e.type === 'usage').usage);
     assert.ok(asked.some(e => e.type === 'entry' && e.entry.type === 'compaction'));
   } finally { model.close(); }
 });

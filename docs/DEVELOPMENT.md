@@ -101,7 +101,7 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 
 ### Agent 运行时（`agent-runtime`）
 
-`runner.mjs` 跑一次 Agent，用的是 Pi 的会话层（`pi-coding-agent` 的 `AgentSession`）：对话的条目由后端存在 `agent_session_entries`，每次交回给 Pi 恢复会话；上下文满了由 Pi 自动压缩，`/compact` 手动压缩；换模型时 Pi 在会话里记一条 `model_change`。我们的工具仍由后端执行（`noTools: "builtin"` 加 `customTools`），不读机器上的 `~/.pi`；模型按 Pi 的标准方式注册成一个 provider，应用里选的思考强度经 `before_provider_request` 写进请求，每次请求前先向后端要一个模型名额（共享模型的并发有限）并预留额度，回答结束就释放名额。研究的每一轮仍然从简报开始、不带历史，但一轮之内同样会自动压缩。还没搬过来的：MiniMax 的 `reasoning_split`；Pi 压缩时的总结请求不经过名额和额度。
+`runner.mjs` 跑一次 Agent，用的是 Pi 的会话层（`pi-coding-agent` 的 `AgentSession`）：对话的条目由后端存在 `agent_session_entries`，每次交回给 Pi 恢复会话；上下文满了由 Pi 自动压缩，`/compact` 手动压缩；换模型时 Pi 在会话里记一条 `model_change`。我们的工具仍由后端执行（`noTools: "builtin"` 加 `customTools`），不读机器上的 `~/.pi`；模型按 Pi 的标准方式注册成一个 provider，应用里选的思考强度经 `before_provider_request` 写进请求，每次请求前先向后端要一个模型名额（共享模型的并发有限）并预留额度，回答结束就释放名额。研究的每一轮仍然从简报开始、不带历史，但一轮之内同样会自动压缩。压缩时的总结请求同样先要名额和额度（`session_before_compact`），一次压缩记一笔用量。还没搬过来的：MiniMax 的 `reasoning_split`。
 
 `skills/` 是写给模型的说明，每个研究角色一份：`research-scoping`（定题的导师）、`research-executor`（执行者）、`research-advisor`（导师）、`research-distiller`（提炼者）、`research-envsetup`（准备环境）、`research-chat`（项目对话）。改 Agent 的行为，先看对应的 skill。
 
@@ -161,6 +161,5 @@ npm --prefix frontend run build
 
 - **调度还是按轮轮询**：一轮里等作业、作业结束再开下一轮。应该改成由事件驱动（作业结束、你说话、数据就绪时才唤醒相应的角色）。
 - **CI 暂停中**：恢复前先在本机跑完整的浏览器测试。
-- **压缩的总结请求**：Pi 压缩上下文时自己调用模型做总结，这次调用不占名额、不记用量。
 - **MiniMax 的思考内容**：没有发 `reasoning_split`，目前实测回答是干净的；如果思考内容混进正文，用 `before_provider_request` 加回来。
 - 研究功能只在本机版里提供，在线版只读论文。

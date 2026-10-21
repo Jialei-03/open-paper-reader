@@ -71,9 +71,17 @@ function workspaceProvider(config, outputTokens) {
         delete payload.reasoning_effort;
         return Object.assign(payload, config._request_options || {});
       });
+      // Summarizing for a compaction is a model call too: the same slot and budget first.
+      pi.on('session_before_compact', async () => {
+        await askBackend('model_request');
+        compacting = true;
+      });
     },
   };
 }
+
+// Whether a compaction's summary call was reserved, so its usage is reported once.
+let compacting = false;
 
 /** The model the conversation last ran on, as its own record says. */
 const lastModel = entries => entries.filter(e => e.type === 'model_change').at(-1);
@@ -141,6 +149,10 @@ async function run({config, session: saved = {}, history = [], command = 'prompt
     if (e.type === 'compaction_end') emit({type:'compaction', phase:'end', reason:e.reason, aborted:e.aborted,
       error:e.errorMessage ? why(e.errorMessage) : undefined,
       tokens_before:e.result?.tokensBefore, summary:e.result?.summary});
+    if (e.type === 'compaction_end' && compacting) {
+      compacting = false;
+      emit({type:'usage', usage:e.result?.usage, failed:!e.result});
+    }
     if (e.type === 'message_start' && e.message.role === 'assistant') emit({type:'reset'});
     if (e.type === 'message_update' && e.assistantMessageEvent.type === 'text_delta') emit({type:'delta', text:e.assistantMessageEvent.delta});
     if (e.type === 'message_end' && e.message.role === 'assistant') {

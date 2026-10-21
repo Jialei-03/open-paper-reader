@@ -134,6 +134,11 @@ def test_compact_summarizes_the_conversation_and_it_goes_on_from_there(
     assert a.get("/api/v1/agent/sessions").json()[0]["title"] == title
     # The summary request asked the model to keep the conclusions.
     assert "只留结论" in json.dumps(model, ensure_ascii=False)
+    # Every model call is on the record: each answer, and the compaction as one
+    # (Pi may summarize in two calls; their tokens are counted together).
+    answers = [c for c in model if "Open Research Agent" in json.dumps(c, ensure_ascii=False)]
+    assert len(model) > len(answers)
+    assert a.get("/api/v1/model-usage").json()["requests"] == len(answers) + 1
     after = ask(app, a, session, model_id, "然后呢")
     # The next question goes to the model with the summary in place of the old turns.
     assert "第一个问题" not in json.dumps(model[-1]["messages"][-1], ensure_ascii=False)
