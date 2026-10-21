@@ -80,7 +80,8 @@ def environment(pid):
 
 
 def worker_pids(data_marker):
-    out = subprocess.run(["ps", "-axo", "pid=,command="], capture_output=True, text=True).stdout
+    # -A, not -ax: on Linux -a leaves out session leaders, and every worker is one (start_new_session).
+    out = subprocess.run(["ps", "-A", "-o", "pid=,command="], capture_output=True, text=True).stdout
     pids = []
     for line in out.splitlines():
         pid, _, cmd = line.strip().partition(" ")

@@ -364,10 +364,14 @@ test("pages of different sizes each fit their own pane, and zoom in proportion",
     (await geometry("original")).width,
     (await geometry("translated")).width,
   ];
-  await main(page)
-    .getByRole("button", { name: /^缩放 / })
-    .click();
-  await page.getByRole("menuitem", { name: "放大", exact: true }).click();
+  // A step goes up to the next tenth (a fit at 98% steps to 100%): two steps
+  // are at least ten points over the fit, whatever the window made it.
+  for (let i = 0; i < 2; i++) {
+    await main(page)
+      .getByRole("button", { name: /^缩放 / })
+      .click();
+    await page.getByRole("menuitem", { name: "放大", exact: true }).click();
+  }
   await expect
     .poll(async () => (await geometry("original")).width / before[0])
     .toBeGreaterThan(1.05);
