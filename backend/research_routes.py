@@ -106,12 +106,6 @@ class ChatInput(BaseModel):
     command: Literal["compact"] | None = None
 
 
-class PrepareInput(BaseModel):
-    model_config_id: str = Field(default="", max_length=64)
-    needs: str = Field(default="", max_length=2000)
-    allow_sudo: bool = False
-
-
 class LimitsInput(BaseModel):
     note: str = Field(default="", max_length=2000)
 
@@ -324,6 +318,16 @@ def install_research_routes(app, settings, db, auth, human, owned):
 
         allowed(a, d)
         out = research_workspaces.overview(d, a["id"])
+        d.commit()
+        return out
+
+    @app.get("/api/v1/research/recent")
+    def recent_researches(limit: int = 6, a=Depends(auth), d=Depends(db)):
+        """The researches touched last, with how far each has come (home)."""
+        from . import research_workspaces
+
+        allowed(a, d)
+        out = research_workspaces.recent(d, a["id"], max(1, min(limit, 20)))
         d.commit()
         return out
 
@@ -806,50 +810,42 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(404, "Not found")
         return run_out(run)
 
-    @app.post("/api/v1/research/environments/{env_id}/prepare")
-    def prepare_environment(
-        env_id: str, body: PrepareInput, a=Depends(auth), d=Depends(db)
-    ):
-        """An agent logs in to the machine and prepares it; see research_environment."""
+    @app.post("/api/v1/research/environments/{env_id}/check")
+    def check_environment(env_id: str, a=Depends(auth), d=Depends(db)):
+        """Can the environment be reached, and what does it offer? Kept in its state."""
         from . import research_environment
-        from .translation_settings import read_store
 
         allowed(a, d)
-        model = body.model_config_id or read_store(settings, a["id"]).get(
-            "active_id", ""
-        )
         try:
-            run = research_environment.start(
-                settings, d, a["id"], env_id, model, body.needs, body.allow_sudo
-            )
+            return research_environment.check(settings, env_id)
         except ValueError as e:
-            raise HTTPException(409, str(e)) from None
-        d.commit()
-        return research_environment.progress(settings, d, env_id) | {"run_id": run.id}
+            raise HTTPException(404, str(e)) from None
 
-    @app.get("/api/v1/research/environments/{env_id}/progress")
-    def environment_progress(env_id: str, a=Depends(auth), d=Depends(db)):
+    @app.get("/api/v1/research/ssh-hosts")
+    def ssh_hosts(a=Depends(auth), d=Depends(db)):
+        """The SSH connections of this machine (~/.ssh/config), for the settings list."""
         from . import research_environment
 
         allowed(a, d)
-        return research_environment.progress(settings, d, env_id)
+        return research_environment.ssh_hosts()
 
     @app.post("/api/v1/research/computes/{compute_id}/test")
     def test_compute(compute_id: str, a=Depends(auth), d=Depends(db)):
         """Reaches the compute and reports what it offers (Python, packages, GPUs)."""
         import subprocess
 
-        from . import research_remote, research_sandbox, research_settings
+        from . import research_sandbox, research_settings
 
         allowed(a, d)
         try:
             item = research_settings.compute(settings, compute_id)
-            if item["kind"] == "ssh":
-                return research_remote.probe(item)
-            if item["kind"] == "host":
-                from . import research_host
+            if item["kind"] in ("ssh", "host"):
+                from . import research_environment
 
-                return research_host.probe(settings, item)
+                st = research_environment.check(settings, compute_id)
+                if st["status"] != "connected":
+                    raise ValueError(st["error"])
+                return st["probe"]
             status = research_sandbox.docker_status()
             if not status["available"]:
                 raise ValueError(status["reason"])

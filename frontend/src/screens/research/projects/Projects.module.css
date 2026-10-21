@@ -689,3 +689,70 @@
   flex-direction: column;
   gap: var(--ui-space-16);
 }
+
+/* A project's front page: its conversations, and beside them what it shares. */
+
+.overview {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--ui-space-32);
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: var(--ui-space-32) var(--ui-space-24);
+}
+
+@media (width <= 860px) {
+  .overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.conversations {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-20);
+  min-width: 0;
+}
+
+.rowLine {
+  flex-basis: 100%;
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge[data-column="review"] {
+  background: var(--ui-fg);
+  color: var(--ui-bg);
+}
+
+.badge[data-column="done"] {
+  color: var(--ui-success-text);
+}
+
+.badge[data-column="dropped"] {
+  color: var(--ui-fg-3);
+}
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-20);
+  min-width: 0;
+}
+
+.about h2 {
+  margin: 0 0 var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+}
+
+.aboutActions {
+  display: flex;
+  gap: var(--ui-space-4);
+  margin-left: calc(-1 * var(--ui-space-8));
+}

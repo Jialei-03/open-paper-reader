@@ -69,6 +69,34 @@ def test_the_overview_counts_what_needs_the_person(world):
         )
 
 
+def test_home_lists_researches_with_how_far_they_came(world):
+    maker, uid = world
+    with maker() as d:
+        w = rw.create(d, uid, "MNIST", "")
+        done = rm.create_project(d, uid, "能到 99% 吗", "", "m")
+        done.workspace_id = w.id
+        root = rm.root(d, done)
+        for status in ("supported", "refuted", "open"):
+            h = rm.add_node(d, done, root.id, "hypothesis", "h", kill_if="k", actor="advisor")
+            h.status = status
+        done.conclusion = {"summary": "能，99.3%"}
+        asking = rm.create_project(d, uid, "Q2", "", "m")
+        asking.workspace_id, asking.status = w.id, "waiting"
+        evaluation = rm.create_project(d, uid, "Q eval", "", "m", {"auto_decide": True})
+        d.flush()
+        rows = rw.recent(d, uid)
+        assert [r["question"] for r in rows] == ["Q2", "能到 99% 吗"]
+        assert evaluation.id not in {r["id"] for r in rows}
+        mine = rows[1]
+        assert mine["hypotheses"] == {
+            "supported": 1,
+            "refuted": 1,
+            "abandoned": 0,
+            "open": 1,
+        }
+        assert mine["conclusion"] == "能，99.3%" and mine["workspace"] == "MNIST"
+
+
 def test_the_board_shows_researches_their_nodes_and_ideas(world):
     maker, uid = world
     with maker() as d:

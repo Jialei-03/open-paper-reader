@@ -2,7 +2,6 @@ import { ArrowLeft } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SlashCommand } from "../../../lib/slash";
 import { useI18n } from "../../../i18n/I18nProvider";
-import { followLink } from "../../../reader/route";
 import { IconButton, Spinner, toast } from "../../../ui";
 import { RunTurn } from "../process/Process";
 import { isLive } from "../process/model";
@@ -11,9 +10,7 @@ import {
   askChat,
   chatTurns,
   cloneChat,
-  listChats,
   renameChat,
-  startChat,
   type ChatTurn,
   type ProjectChat,
   type Workspace,
@@ -35,83 +32,6 @@ function fail(error: unknown) {
     message: error instanceof Error ? error.message : String(error),
     tone: "error",
   });
-}
-
-/**
- * Where the researcher asks about the project: how far the work has got,
- * what a result means. Asking here never touches a research in progress.
- */
-export function ProjectChats({
-  workspace,
-  go,
-}: {
-  workspace: Workspace;
-  go(hash: string): void;
-}) {
-  const { t, locale } = useI18n();
-  const [chats, setChats] = useState<ProjectChat[] | null>(null);
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    listChats(workspace.id).then(setChats, () => setChats([]));
-  }, [workspace.id]);
-
-  const when = (stamp: string) =>
-    new Intl.DateTimeFormat(locale, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(stamp));
-
-  return (
-    <div className={styles.researches}>
-      <p className={styles.chatLead}>{t("projects.chats.lead")}</p>
-      <Composer
-        value={text}
-        onChange={setText}
-        busy={busy}
-        autoFocus
-        label={t("projects.chats.ask")}
-        placeholder={t("projects.chats.placeholder")}
-        sendLabel={t("research.home.send")}
-        onSend={async () => {
-          setBusy(true);
-          try {
-            const chat = await startChat(workspace.id, text.trim());
-            go(`projects/${workspace.id}/chats/${chat.id}`);
-          } catch (error) {
-            fail(error);
-            setBusy(false);
-          }
-        }}
-      />
-      {chats === null ? null : chats.length === 0 ? (
-        <p className={styles.empty}>{t("projects.chats.none")}</p>
-      ) : (
-        <ul className={styles.rows}>
-          {chats.map((chat) => (
-            <li key={chat.id}>
-              <a
-                href={`#projects/${workspace.id}/chats/${chat.id}`}
-                className={styles.row}
-                onClick={followLink(
-                  go,
-                  `projects/${workspace.id}/chats/${chat.id}`,
-                )}
-              >
-                <span className={styles.rowQuestion}>{chat.title}</span>
-                <span className={styles.rowFacts}>
-                  <span>{when(chat.updated_at)}</span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 /** One conversation: the researcher's questions and the answers, as they come. */
@@ -160,7 +80,7 @@ export function ProjectChat({
     if (el) el.scrollTop = el.scrollHeight;
   }, [turns?.length, turns?.at(-1)?.response]);
 
-  const back = `projects/${workspace.id}/chats`;
+  const back = `projects/${workspace.id}`;
   const ask = async (message: string, command?: "compact") => {
     setSending(true);
     try {
@@ -285,7 +205,7 @@ export function ProjectChat({
           onChange={setText}
           busy={sending}
           disabled={live}
-          label={t("projects.chats.ask")}
+          label={t("projects.chats.more")}
           placeholder={t(
             live ? "projects.chats.answering" : "projects.chats.more",
           )}

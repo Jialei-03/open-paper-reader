@@ -69,7 +69,7 @@ def bash(args, cap=BASH_MAX):
             cwd=ROOT,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True,
+            universal_newlines=True,  # not text=: lab servers still run Python 3.6
             timeout=timeout,
             errors="replace",
         )

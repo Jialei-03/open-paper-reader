@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from . import research_map
 from .models import (
     ResearchCard,
+    ResearchNode,
     ResearchEvent,
     ResearchJob,
     ResearchProject,
@@ -220,7 +221,60 @@ def summary(d, project):
         "waiting": len(_open_requests(d, project)),
         "compute_id": project.compute_id,
         "updated_at": project.updated_at,
+        "hypotheses": hypotheses(d, project),
+        "experiments": d.scalar(
+            select(func.count(ResearchJob.id)).where(
+                ResearchJob.project_id == project.id
+            )
+        ),
+        "tokens": project.spent.get("tokens", 0),
+        "conclusion": (project.conclusion or {}).get("summary", "")[:400],
+        "said": _last_said(d, project)[:200],
     }
+
+
+def hypotheses(d, project):
+    """How the research's hypotheses stand: {supported, refuted, abandoned, open}."""
+    out = {"supported": 0, "refuted": 0, "abandoned": 0, "open": 0}
+    for status in d.scalars(
+        select(ResearchNode.status).where(
+            ResearchNode.project_id == project.id,
+            ResearchNode.kind == "hypothesis",
+        )
+    ):
+        out[status if status in out else "open"] += 1
+    return out
+
+
+def recent(d, owner, limit=6):
+    """The researches touched last, across projects, waiting ones first."""
+    ensure(d, owner)
+    names = {
+        w.id: (w.name, w.kind)
+        for w in d.scalars(
+            select(ResearchWorkspace).where(ResearchWorkspace.owner == owner)
+        )
+    }
+    rows = [
+        p
+        for p in d.scalars(
+            select(ResearchProject)
+            .where(ResearchProject.owner == owner)
+            .order_by(ResearchProject.updated_at.desc())
+            .limit(limit * 3)
+        )
+        if names.get(p.workspace_id, ("", "research"))[1] == "research"
+    ][:limit]
+    out = [
+        summary(d, p)
+        | {
+            "workspace_id": p.workspace_id,
+            "workspace": names.get(p.workspace_id, ("", ""))[0],
+        }
+        for p in rows
+    ]
+    out.sort(key=lambda r: r["column"] != "review")
+    return out
 
 
 def board(d, workspace):

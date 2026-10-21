@@ -143,37 +143,6 @@ def _run_input(args, request, timeout=75):
     )
 
 
-SETUP_CAP = 120
-
-
-def setup_call(item, name, args):
-    """A tool call of the agent preparing this machine: in ~/ora-setup, online,
-    with a longer limit per command (longer installs go to the background)."""
-    root = item["remote_dir"]
-    ssh(item["host"], f"mkdir -p ~/ora-setup {root}")
-    _push_ora(item)
-    script = f"cd ~/ora-setup && python3 {root}/ora/tools.py"
-    try:
-        done = _run_input(
-            [*SSH, item["host"], script],
-            {"name": name, "args": args, "cap": SETUP_CAP},
-            timeout=SETUP_CAP + 20,
-        )
-    except subprocess.TimeoutExpired:
-        raise ValueError(
-            f"命令超过 {SETUP_CAP} 秒：长的安装请放到后台（nohup ... > log 2>&1 &），再查看日志"
-        ) from None
-    if done.returncode == 255:
-        raise ValueError(f"连不上 {item['host']}：" + (done.stderr or "")[-300:])
-    lines = (done.stdout or "").strip().splitlines()
-    if not lines:
-        raise ValueError("远程没有返回结果：" + (done.stderr or "")[-300:])
-    reply = json.loads(lines[-1])
-    if reply.get("error"):
-        raise ValueError(reply["error"])
-    return reply["result"]
-
-
 def start(settings, d, item, project, job):
     host, root = item["host"], item["remote_dir"]
     base = prepare(settings, d, item, project)

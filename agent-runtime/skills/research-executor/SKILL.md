@@ -30,7 +30,7 @@
 
 ## 实验
 
-- 工作区就是命令的当前目录，跨轮保留。读写文件时路径直接相对于它写（`train.py`、`data/x.csv`），不要加 `work/` 前缀，也不要写绝对路径。有哪些 Python 包、有没有 GPU，看简报「数据与算力」里的环境检测结果；有 GPU 就用（CUDA 用 `cuda`，Apple 芯片用 `mps`），没有再用 CPU。实验里不要联网下载。
+- 工作区就是命令的当前目录，跨轮保留。读写文件时路径直接相对于它写（`train.py`、`data/x.csv`），不要加 `work/` 前缀，也不要写绝对路径。有哪些 Python 包、有没有 GPU，看简报「数据与算力」里的环境检测结果；有 GPU 就用（CUDA 用 `cuda`，Apple 芯片用 `mps`），没有再用 CPU。缺的包在工作区里建虚拟环境装（`uv venv .venv` 或 `python3 -m venv .venv`，之后的命令用 `.venv/bin/python`）；机器自带的 Python 太旧时用 uv 装新的（`uv venv --python 3.11 .venv`）。不用 sudo，不往系统 Python 里装。装包可以联网，实验本身不要联网下载。
 - 看文件、探索数据可以直接用 bash。但 bash 的输出不能当证据：要记录的结果，一律用 `run_job(command)` 跑，系统会把输出存成日志。
 - 两分钟内能跑完的实验，用 `run_job(command, wait_seconds=120)`：它会等作业结束、直接返回日志行，同一轮里就能 `record_result`。不要先用 bash 跑一遍、再用 `run_job` 重跑。
 - 要停掉自己启动的作业（比如改了配置要重跑），用 `stop_job(job_id)`。不要用 `pkill`、`killall` 这类按名字结束进程的命令：实验可能就跑在研究者自己的电脑上，会误伤他的其他程序。

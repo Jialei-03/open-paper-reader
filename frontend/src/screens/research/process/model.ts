@@ -100,7 +100,6 @@ export const KIND: Record<string, Kind> = {
   propose_plan: "record",
   focus: "record",
   end_sprint: "record",
-  finish_setup: "record",
 };
 
 /** How many of each kind of work, in a fixed order, leaving out the kinds not done. */

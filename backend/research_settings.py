@@ -62,7 +62,7 @@ def load(settings):
         "computes": computes,
         "default_compute": chosen if chosen in ids else "host",
         "tracker": {**base["tracker"], **(data.get("tracker") or {})},
-        # What preparing each environment produced (research_environment).
+        # What checking each environment found (research_environment).
         "states": data.get("states") or {},
     }
 

@@ -113,30 +113,43 @@ def test_file_tools_work_in_the_workspace(world):
         assert (rs.workdir(settings, pid) / "a.txt").read_text() == "x"
 
 
-def test_this_machine_is_prepared_by_an_agent_in_its_own_folder(world, monkeypatch):
+def test_an_environment_is_checked_not_prepared(world, monkeypatch):
     from backend import research_environment as re_
 
-    settings, maker, _ = world
-    monkeypatch.setattr(re_, "read_config", lambda *a: {"model": "m"})
-    with maker() as d:
-        user = d.scalars(__import__("sqlalchemy").select(User)).first()
-        run = re_.start(settings, d, user.id, "host", "m")
-        d.commit()
-        assert "虚拟环境" in run.prompt and str(rh.setup_dir(settings)) in run.prompt
-        assert "不要" in run.prompt and "系统" in run.prompt
-    out = rh.setup_call(
-        settings, rset.compute(settings, "host"), "bash", {"command": "pwd"}
+    settings, _, _ = world
+    monkeypatch.setattr(rh, "probe", lambda s, item: {"packages": {"numpy": "2"}})
+    st = re_.check(settings, "host")
+    assert st["status"] == "connected" and st["probe"]["packages"] == {"numpy": "2"}
+
+    def down(s, item):
+        raise ValueError("no route")
+
+    monkeypatch.setattr(rh, "probe", down)
+    st = re_.check(settings, "host")
+    assert st["status"] == "disconnected" and "no route" in st["error"]
+    # What the last good check found is kept.
+    assert st["probe"]["packages"] == {"numpy": "2"}
+
+
+def test_the_ssh_connections_come_from_the_ssh_config(tmp_path):
+    from backend import research_environment as re_
+
+    (tmp_path / "more").write_text("Host lab2\n  HostName 10.0.0.2\n")
+    config = tmp_path / "config"
+    config.write_text(
+        "Host *\n  ServerAliveInterval 30\n"
+        "Host han5 han5-alias\n  HostName han5.example.edu\n  User leslie\n"
+        "Include more\n"
+        "Host gpu-?\n  User x\n"
     )
-    assert out["content"][0]["text"].strip() == str(rh.setup_dir(settings).resolve())
-    probes = iter(
-        [{"packages": {"numpy": "2"}}, {"packages": {"torch": "2.11"}, "mps": True}]
-    )
-    monkeypatch.setattr(rh, "probe", lambda s, item: next(probes))
-    args = {"python": str(rh.setup_dir(settings) / "venv/bin/python"), "recipe": "r"}
-    with pytest.raises(ValueError, match="PyTorch"):
-        re_.finish(settings, "host", args)
-    assert re_.finish(settings, "host", args)["version"] == 1
-    assert rset.compute(settings, "host")["python"] == args["python"]
+    hosts = re_.ssh_hosts(config)
+    assert [h["name"] for h in hosts] == ["han5", "han5-alias", "lab2"]
+    assert hosts[0] == {
+        "name": "han5",
+        "hostname": "han5.example.edu",
+        "user": "leslie",
+    }
+    assert re_.ssh_hosts(tmp_path / "missing") == []
 
 
 def test_the_executor_is_told_this_machine_has_an_apple_gpu(world):

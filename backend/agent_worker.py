@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 RESEARCH_SKILLS = {
     role: agent_runtime_dir() / "skills" / f"research-{role}" / "SKILL.md"
-    for role in ("executor", "advisor", "distiller", "scoping", "envsetup", "chat")
+    for role in ("executor", "advisor", "distiller", "scoping", "chat")
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
 RESEARCH_BASE = {
@@ -55,9 +55,9 @@ RESEARCH_BASE = {
 }
 
 
-# Preparing a machine downloads gigabytes; an executor round writes code and
-# checks short runs. Both get more than an ordinary run's ten minutes.
-TIME_FACTOR = {"envsetup": 4, "executor": 2}
+# An executor round writes code and checks short runs: it gets more than an
+# ordinary run's ten minutes.
+TIME_FACTOR = {"executor": 2}
 
 
 def research_tools(role="executor"):
@@ -66,7 +66,6 @@ def research_tools(role="executor"):
         ADVISOR_TOOLS,
         CHAT_TOOLS,
         DISTILLER_TOOLS,
-        ENVSETUP_TOOLS,
         SCOPING_TOOLS,
     )
 
@@ -77,8 +76,6 @@ def research_tools(role="executor"):
             if (t.get("research") and t["name"] in CHAT_TOOLS)
             or t["name"] in RESEARCH_BASE
         ]
-    if role == "envsetup":
-        return [t for t in TOOLS if t["name"] in ENVSETUP_TOOLS]
     if role == "scoping":
         return [
             t
@@ -105,7 +102,6 @@ def research_tools(role="executor"):
                 "advise",
                 "distill",
                 "propose_plan",
-                "finish_setup",
                 "project_overview",
                 "research_read",
             }

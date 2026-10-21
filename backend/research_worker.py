@@ -16,7 +16,6 @@ from sqlalchemy import select
 
 from . import (
     research_datasets,
-    research_environment,
     research_sandbox,
     research_stages,
     research_tracker,
@@ -621,7 +620,6 @@ def tick(app):
         ("sweep", research_sandbox.sweep),
         ("datasets", research_datasets.start_fetching),
         ("tracker", research_tracker.sync_pending),
-        ("environments", research_environment.settle),
     ):
         try:
             step(app.state.settings, app.state.maker)

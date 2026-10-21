@@ -10,7 +10,14 @@ import sys
 
 def _run(args):
     try:
-        done = subprocess.run(args, capture_output=True, text=True, timeout=20)
+        # Python 3.6 (still on lab servers) has neither capture_output nor text.
+        done = subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            timeout=20,
+        )
         return done.stdout.strip() if done.returncode == 0 else ""
     except (OSError, subprocess.TimeoutExpired):
         return ""

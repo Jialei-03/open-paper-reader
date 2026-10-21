@@ -25,7 +25,6 @@ from . import research_datasets, research_sandbox
 from .research_sandbox import GONE, ORA_DIR
 
 LOG_BYTES = 8 * 1024 * 1024
-SETUP_CAP = 120
 # Ending processes by name reaches the researcher's own programs on this machine.
 BY_NAME = re.compile(r"\b(pkill|killall)\b|\bkill\b[^\n;|&]*\$\(\s*pgrep")
 BY_NAME_REFUSED = (
@@ -40,13 +39,6 @@ def _check(name, args):
 
 
 KEEP = ("HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TMPDIR", "SHELL", "TERM")
-
-
-def setup_dir(settings):
-    """Where the agent preparing this machine works (and may keep a venv)."""
-    path = Path(settings.storage).parent / "research" / "host-setup"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 def _python(item):
@@ -102,21 +94,6 @@ def tool_call(settings, d, item, project, name, args):
     _check(name, args)
     work = research_sandbox.workdir(settings, project.id)
     return _tools(settings, item, work, {"name": name, "args": args}, 75)
-
-
-def setup_call(settings, item, name, args):
-    """A tool call of the agent preparing this machine, in host-setup, with a
-    longer limit per command (longer installs go to the background)."""
-    _check(name, args)
-    request = {"name": name, "args": args, "cap": SETUP_CAP}
-    try:
-        return _tools(settings, item, setup_dir(settings), request, SETUP_CAP + 20)
-    except ValueError as e:
-        if "超时" in str(e):
-            raise ValueError(
-                f"命令超过 {SETUP_CAP} 秒：长的安装请放到后台（nohup ... > log 2>&1 &），再查看日志"
-            ) from None
-        raise
 
 
 def start(settings, d, item, project, job):

@@ -406,30 +406,6 @@ RESEARCH_TOOLS.append(
         ["hypotheses", "metric", "summary"],
     )
 )
-RESEARCH_TOOLS.append(
-    _research(
-        "finish_setup",
-        "（仅环境准备）环境装好并亲自验证后调用。系统会用你给的 python 自己检测一遍：能导入 PyTorch（配置了 GPU 时还要能用 CUDA）才算就绪，否则返回原因让你继续修。",
-        {
-            "python": {
-                "type": "string",
-                "maxLength": 200,
-                "description": "实验要用的 Python 解释器路径，如 ~/ora-venv/bin/python",
-            },
-            "recipe": {
-                "type": "string",
-                "maxLength": 20000,
-                "description": "能在一台同样的新机器上重做这次准备的 shell 脚本",
-            },
-            "summary": {
-                "type": "string",
-                "maxLength": 4000,
-                "description": "给研究者看：装了什么、为什么这样装、要注意什么",
-            },
-        },
-        ["python", "recipe", "summary"],
-    )
-)
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
 # What the advisor may use: it looks and judges; it does not do.
 ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
@@ -446,18 +422,6 @@ LITERATURE = {
     "read_region",
     "list_figures",
     "web_read",
-}
-# What the agent preparing an environment may use: that machine's shell and files.
-ENVSETUP_TOOLS = {
-    "read",
-    "bash",
-    "write",
-    "edit",
-    "grep",
-    "find",
-    "ls",
-    "web_read",
-    "finish_setup",
 }
 # What the distiller may use: the project's record, and the playbook.
 DISTILLER_TOOLS = {"research_map_read", "job_status", "job_logs", "distill"}
@@ -496,20 +460,12 @@ def _blocked(d, project, sprint, tool_name, reason, message, node=None):
 def gate(app, research, name):
     """Refuses a step that does something before saying which live node it advances."""
     role = research.get("role", "executor")
-    if role == "envsetup":
-        if name not in ENVSETUP_TOOLS:
-            raise ValueError(
-                "准备环境时只能在这台机器上读写文件、执行命令，最后用 finish_setup"
-            )
-        return
     if role == "chat":
         if name not in CHAT_TOOLS | LITERATURE:
             raise ValueError(CHAT_REFUSED)
         return
     if name in {"project_overview", "research_read"}:
         raise ValueError("只有项目对话能用这个工具")
-    if name == "finish_setup":
-        raise ValueError("只有准备环境时才能调用 finish_setup")
     if role == "scoping":
         if name not in SCOPING_TOOLS | LITERATURE:
             raise ValueError(
@@ -815,10 +771,6 @@ def _chat(app, research, name, args):
 
 def _run(app, owner, research, name, args):
     settings = app.state.settings
-    if research.get("role") == "envsetup":
-        from . import research_environment
-
-        return research_environment.finish(settings, research["env_id"], args)
     if research.get("role") == "chat":
         return _chat(app, research, name, args)
     with app.state.maker() as d:
@@ -1007,25 +959,6 @@ async def run_research_tool(app, owner, research, name, args):
 
 async def run_pi(app, research, name, args):
     """A file or shell tool, in the project's own workspace."""
-
-    if research.get("role") == "envsetup":
-        from . import research_host, research_remote, research_settings
-
-        settings = app.state.settings
-        item = research_settings.compute(settings, research["env_id"])
-        if item["kind"] == "host":
-            result = await asyncio.to_thread(
-                research_host.setup_call, settings, item, name, args
-            )
-        else:
-            result = await asyncio.to_thread(
-                research_remote.setup_call, item, name, args
-            )
-        return {
-            "content": result.get("content", []),
-            "_image_content": [],
-            "isError": result.get("isError", False),
-        }
 
     def call():
         with app.state.maker() as d:

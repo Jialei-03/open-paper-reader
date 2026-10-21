@@ -63,6 +63,12 @@ def _setting_out(settings, project):
         )
         if machine:
             lines.append(f"- 机器：{machine}")
+        lines.append(
+            "- 缺包：在工作区里建虚拟环境自己装（`uv venv .venv` 或 `python3 -m venv .venv`，"
+            "再用 `.venv/bin/pip install`）；机器自带的 Python 太旧（低于 3.9）时，"
+            "用 uv 装一个新的（`uv venv --python 3.11 .venv`，没有 uv 先 "
+            "`curl -LsSf https://astral.sh/uv/install.sh | sh`）。不用 sudo，不往系统里装"
+        )
         if env:
             lines.append(f"- 芯片：{env.get('chip') or '未知'}")
         if item["kind"] == "host":

@@ -1,5 +1,4 @@
 import {
-  Check,
   ChevronRight,
   ClipboardCheck,
   Crosshair,
@@ -61,7 +60,6 @@ const ICONS: Record<string, LucideIcon> = {
   record_result: ClipboardCheck,
   advise: Stamp,
   propose_plan: FileText,
-  finish_setup: Check,
 };
 
 const AGENT: Record<string, Agent> = {
@@ -69,7 +67,6 @@ const AGENT: Record<string, Agent> = {
   advisor: "advisor",
   scoping: "advisor",
   distiller: "distiller",
-  envsetup: "executor",
   chat: "advisor",
 };
 

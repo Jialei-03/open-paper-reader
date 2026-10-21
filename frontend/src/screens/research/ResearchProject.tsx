@@ -579,17 +579,6 @@ export function ResearchProject({
                 )
               }
             />
-            {p.workspace_id && !finished && (
-              <p className={styles.dockNote}>
-                {t("research.composer.askInstead")}{" "}
-                <a
-                  href={`#projects/${p.workspace_id}/chats`}
-                  onClick={followLink(go, `projects/${p.workspace_id}/chats`)}
-                >
-                  {t("research.composer.askLink")}
-                </a>
-              </p>
-            )}
           </div>
         </div>
         {record && (

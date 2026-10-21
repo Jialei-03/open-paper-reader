@@ -15,6 +15,7 @@ import type { MessageKey } from "../../../i18n/i18n";
 import { followLink } from "../../../reader/route";
 import {
   Button,
+  Dialog,
   IconButton,
   SegmentedControl,
   Spinner,
@@ -27,6 +28,7 @@ import {
   addCard,
   getBoard,
   getWorkspace,
+  listChats,
   moveCard,
   readResearchSettings,
   startCard,
@@ -35,17 +37,18 @@ import {
   type BoardCard,
   type Column,
   type Compute,
+  type ProjectChat as ProjectChatRow,
   type ResearchSummary,
   type Workspace,
 } from "../research-api";
 import { Mascot } from "../scene/Mascot";
 import { Composer } from "../talk/Composer";
 import { ComputePicker, ModelPicker } from "../talk/Pickers";
-import { ProjectChat, ProjectChats } from "./ProjectChats";
+import { ProjectChat } from "./ProjectChats";
 import styles from "./Projects.module.css";
 
-type Tab = "board" | "chats" | "researches" | "files";
-const TABS: Tab[] = ["board", "chats", "researches", "files"];
+/** The board is a second view; chats/<id> opens an earlier conversation. */
+type View = "overview" | "board" | "chats";
 const POLL = 4000;
 
 const KIND_ICON = {
@@ -77,7 +80,8 @@ export function ProjectPage({
   const [columns, setColumns] = useState<Column[]>([]);
   const [reads, setReads] = useState(0);
   const [failed, setFailed] = useState("");
-  const current: Tab = TABS.includes(tab as Tab) ? (tab as Tab) : "board";
+  const current: View =
+    tab === "board" ? "board" : tab === "chats" && item ? "chats" : "overview";
 
   useEffect(() => {
     Promise.all([getWorkspace(id), getBoard(id)]).then(
@@ -122,33 +126,22 @@ export function ProjectPage({
           {w.description && <p>{w.description}</p>}
         </div>
         <SegmentedControl
-          kind="tabs"
+          kind="radio"
           size="sm"
-          label={t("projects.tabs")}
-          value={current}
-          onChange={(next) => go(`projects/${id}/${next}`)}
-          options={TABS.map((value) => ({
-            value,
-            label: t(`projects.tab.${value}` as MessageKey),
-            panelId: `project-${value}`,
-          }))}
+          label={t("projects.view")}
+          value={current === "board" ? "board" : "overview"}
+          onChange={(next) =>
+            go(next === "board" ? `projects/${id}/board` : `projects/${id}`)
+          }
+          options={[
+            { value: "overview", label: t("projects.view.list") },
+            { value: "board", label: t("projects.view.board") },
+          ]}
         />
       </header>
-      <div
-        className={styles.panel}
-        id={`project-${current}`}
-        role="tabpanel"
-        aria-labelledby={`project-${current}-tab`}
-      >
-        {current === "board" && w.researches.length === 0 && (
-          <section className={styles.start}>
-            <h2>{t("projects.startTitle")}</h2>
-            <p>{t("projects.startLead")}</p>
-            <NewResearch workspace={w} go={go} />
-          </section>
-        )}
+      <div className={styles.panel}>
         {current === "board" &&
-          (w.researches.length > 0 || cards.length > 0) && (
+          (w.researches.length > 0 || cards.length > 0 ? (
             <Board
               workspace={w}
               columns={columns}
@@ -156,15 +149,18 @@ export function ProjectPage({
               go={go}
               refresh={refresh}
             />
-          )}
-        {current === "chats" &&
-          (item ? (
-            <ProjectChat key={item} workspace={w} chatId={item} go={go} />
           ) : (
-            <ProjectChats workspace={w} go={go} />
+            <p className={styles.empty}>{t("projects.noResearch")}</p>
           ))}
-        {current === "researches" && <Researches workspace={w} go={go} />}
-        {current === "files" && <Files workspace={w} onSaved={refresh} />}
+        {current === "chats" && item && (
+          <ProjectChat key={item} workspace={w} chatId={item} go={go} />
+        )}
+        {current === "overview" && (
+          <div className={styles.overview}>
+            <Conversations workspace={w} go={go} />
+            <About workspace={w} onSaved={refresh} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -582,8 +578,8 @@ function NewResearch({
   );
 }
 
-/** The researches of the project, and where a new one begins. */
-function Researches({
+/** Everything said in the project, latest first: researches and conversations. */
+function Conversations({
   workspace,
   go,
 }: {
@@ -591,6 +587,10 @@ function Researches({
   go(hash: string): void;
 }) {
   const { t, locale } = useI18n();
+  const [chats, setChats] = useState<ProjectChatRow[]>([]);
+  useEffect(() => {
+    listChats(workspace.id).then(setChats, () => setChats([]));
+  }, [workspace.id]);
   const when = (stamp: string) =>
     new Intl.DateTimeFormat(locale, {
       month: "short",
@@ -598,37 +598,50 @@ function Researches({
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(stamp));
+  const rows = [
+    ...workspace.researches.map((r) => ({
+      key: r.id,
+      hash: `research/${r.id}`,
+      title: r.question,
+      at: r.updated_at,
+      column: r.column as string,
+      status:
+        r.column === "running" || r.column === "todo"
+          ? t(STAGE_KEY(r.stage))
+          : t(`projects.column.${r.column}` as MessageKey),
+      line: r.column === "done" ? r.conclusion || r.said : r.said,
+    })),
+    ...chats.map((c) => ({
+      key: c.id,
+      hash: `projects/${workspace.id}/chats/${c.id}`,
+      title: c.title,
+      at: c.updated_at,
+      column: "chat",
+      status: t("projects.kind.chat"),
+      line: "",
+    })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
 
   return (
-    <div className={styles.researches}>
+    <div className={styles.conversations}>
       <NewResearch workspace={workspace} go={go} />
-      {workspace.researches.length === 0 ? (
-        <p className={styles.empty}>{t("projects.noResearch")}</p>
-      ) : (
+      {rows.length > 0 && (
         <ul className={styles.rows}>
-          {workspace.researches.map((r) => (
-            <li key={r.id}>
+          {rows.map((r) => (
+            <li key={r.key}>
               <a
-                href={`#research/${r.id}`}
+                href={`#${r.hash}`}
                 className={styles.row}
-                onClick={followLink(go, `research/${r.id}`)}
+                onClick={followLink(go, r.hash)}
               >
-                <span className={styles.columnDot} data-column={r.column} />
-                <span className={styles.rowQuestion}>{r.question}</span>
+                <span className={styles.rowQuestion}>{r.title}</span>
                 <span className={styles.rowFacts}>
-                  <span>{t(STAGE_KEY(r.stage))}</span>
-                  {r.best && (
-                    <span className={styles.cardMetric}>
-                      {r.best.name} {r.best.value.toPrecision(4)}
-                    </span>
-                  )}
-                  {r.waiting > 0 && (
-                    <span className={styles.badge} data-tone="you">
-                      {t("projects.waiting", { n: r.waiting })}
-                    </span>
-                  )}
-                  <span>{when(r.updated_at)}</span>
+                  <span className={styles.badge} data-column={r.column}>
+                    {r.status}
+                  </span>
+                  <span>{when(r.at)}</span>
                 </span>
+                {r.line && <span className={styles.rowLine}>{r.line}</span>}
               </a>
             </li>
           ))}
@@ -638,8 +651,8 @@ function Researches({
   );
 }
 
-/** What the researches of the project share. */
-function Files({
+/** Beside the conversations: what every agent in the project is told, and its defaults. */
+function About({
   workspace,
   onSaved,
 }: {
@@ -648,7 +661,7 @@ function Files({
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState(workspace);
-  const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [models, setModels] = useState<ModelRow[]>([]);
   const [computes, setComputes] = useState<Compute[]>([]);
   useEffect(() => {
@@ -662,79 +675,100 @@ function Files({
     );
   }, []);
   const save = async (body: Partial<Workspace>) => {
-    setBusy(true);
     try {
       setDraft({ ...draft, ...(await updateWorkspace(workspace.id, body)) });
       onSaved();
-      toast.show({ message: t("projects.saved") });
     } catch (error) {
       fail(error);
-    } finally {
-      setBusy(false);
     }
   };
   return (
-    <div className={styles.files}>
-      <TextField
-        label={t("projects.name")}
-        value={draft.name}
-        onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-      />
-      <TextArea
-        label={t("projects.about")}
-        rows={2}
-        value={draft.description}
-        onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-      />
-      <TextArea
-        label={t("projects.instructions")}
-        description={t("projects.instructionsHint")}
-        rows={8}
-        value={draft.instructions}
-        placeholder={t("projects.instructionsPlaceholder")}
-        onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
-      />
-      <div className={styles.defaults}>
-        <span className={styles.defaultsLabel}>{t("projects.defaults")}</span>
-        <ModelPicker
-          models={models}
-          value={draft.model_config_id}
-          onChange={(model_config_id) =>
-            setDraft({ ...draft, model_config_id })
+    <aside className={styles.about}>
+      <section>
+        <h2>{t("projects.instructions")}</h2>
+        <TextArea
+          label={t("projects.instructions")}
+          hideLabel
+          rows={6}
+          value={draft.instructions}
+          placeholder={t("projects.instructionsPlaceholder")}
+          onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
+          onBlur={() =>
+            draft.instructions !== workspace.instructions &&
+            save({ instructions: draft.instructions })
           }
-          label={t("research.home.model")}
         />
-        <ComputePicker
-          computes={computes}
-          value={draft.compute_id}
-          onChange={(compute_id) => setDraft({ ...draft, compute_id })}
-          label={t("research.home.compute")}
-        />
-      </div>
-      <div className={styles.actions}>
+      </section>
+      <section>
+        <h2>{t("projects.defaults")}</h2>
+        <div className={styles.defaults}>
+          <ModelPicker
+            models={models}
+            value={draft.model_config_id}
+            onChange={(model_config_id) => save({ model_config_id })}
+            label={t("research.home.model")}
+          />
+          <ComputePicker
+            computes={computes}
+            value={draft.compute_id}
+            onChange={(compute_id) => save({ compute_id })}
+            label={t("research.home.compute")}
+          />
+        </div>
+      </section>
+      <section className={styles.aboutActions}>
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+          {t("projects.edit")}
+        </Button>
         <Button
+          size="sm"
           variant="ghost"
-          disabled={busy}
           onClick={() => save({ archived: !draft.archived })}
         >
           {t(draft.archived ? "projects.unarchive" : "projects.archive")}
         </Button>
-        <Button
-          variant="primary"
-          loading={busy}
-          onClick={() =>
-            save({
-              name: draft.name,
-              description: draft.description,
-              instructions: draft.instructions,
-              model_config_id: draft.model_config_id,
-              compute_id: draft.compute_id,
-            })
-          }
-        >
-          {t("projects.save")}
-        </Button>
-      </div>
-    </div>
+      </section>
+      <Dialog
+        open={editing}
+        onClose={() => setEditing(false)}
+        title={t("projects.edit")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!draft.name.trim()}
+              onClick={async () => {
+                await save({
+                  name: draft.name,
+                  description: draft.description,
+                });
+                setEditing(false);
+              }}
+            >
+              {t("projects.save")}
+            </Button>
+          </>
+        }
+      >
+        <div className={styles.files}>
+          <TextField
+            label={t("projects.name")}
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          />
+          <TextArea
+            label={t("projects.about")}
+            rows={2}
+            value={draft.description}
+            onChange={(e) =>
+              setDraft({ ...draft, description: e.target.value })
+            }
+          />
+        </div>
+      </Dialog>
+    </aside>
   );
 }
