@@ -153,8 +153,12 @@ def test_pi_worker_tool_loop_and_followup(env, monkeypatch, protocol, vision):
 
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            # Pi calls the model itself: queueing model calls on the platform's
-            # slots is left for later, so no slot is held here yet.
+            # The call holds one of the model's three slots: two more are free, a third is not.
+            with ExitStack() as held:
+                for _ in range(2):
+                    held.enter_context(model_slot(slot_config, timeout=0))
+                with pytest.raises(ModelSlotBusy), model_slot(slot_config, timeout=0):
+                    pass
             calls.append(body)
             assert body.get("thinking") == {"type": "disabled"}
             n = len(calls)

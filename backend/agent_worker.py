@@ -492,8 +492,12 @@ def _process(app, job_id, cfg):
                         )
                         child.stdin.flush()
                     elif event["type"] == "model_request":
-                        # Pi is about to call the model: the request is reserved
-                        # against the account's budget first (raises when spent).
+                        # Pi is about to call the model: it waits for one of the
+                        # model's slots (shared models have few), and the request
+                        # is reserved against the account's budget (raises when spent).
+                        budget.release()
+                        phase("waiting_model")
+                        budget.acquire(cfg, cancelled)
                         usage_id = model_usage.start(
                             maker, owner, "agent", job_id, cfg, app.state.settings
                         )
@@ -503,6 +507,9 @@ def _process(app, job_id, cfg):
                         )
                         child.stdin.flush()
                     elif event["type"] == "usage":
+                        # The answer is in: its slot is free while tools run.
+                        budget.release()
+                        phase("preparing")
                         if research and not event.get("failed"):
                             used = event.get("usage") or {}
                             charge(
