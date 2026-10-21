@@ -166,16 +166,17 @@ test("text layer stays aligned with the canvas after zooming", async ({
   await expectAligned(first);
 });
 
-test("dark theme dims the paper", async ({ page }) => {
+test("the paper looks the same in light and dark", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "light" });
   await openLongPaper(page);
   const filter = () =>
     pdfPage(page, 1).evaluate((element) => getComputedStyle(element).filter);
   expect(await filter()).toBe("none");
 
+  // The interface around it turns dark; the pages are not dimmed or tinted.
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-  expect(await filter()).not.toBe("none");
+  expect(await filter()).toBe("none");
 
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -215,7 +216,9 @@ test("the side panel floats above the paper's layers", async ({ page }) => {
   await expect(panel.getByRole("tablist")).toBeVisible();
   await page.evaluate(() =>
     Promise.all(
-      document.getAnimations().map((animation) => animation.finished),
+      document
+        .getAnimations()
+        .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
 

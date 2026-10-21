@@ -33,7 +33,7 @@ python -m backend.local --port 8765          # 本机版：免登录，浏览器
 ### Git 与提交
 
 - 提交身份用仓库作者自己的（`git config user.name` / `user.email` 设在本仓库，不要用机器上别的全局身份），提交说明写清改了什么、为什么，不加自动生成的署名行。
-- 目前直接在 `main` 上提交并推送；CI 工作流「Verify workspace」暂时停用（`gh workflow enable "Verify workspace"` 可恢复）。推送前在本机跑完下面「验证」里的检查。
+- 目前直接在 `main` 上提交并推送；每次推送都会跑 CI 工作流「Verify workspace」（后端验收、浏览器测试分两片、PostgreSQL 恢复、Docker 镜像）。推送前在本机跑完下面「验证」里的检查，推送后看一眼这次运行的结果（`gh run list --workflow "Verify workspace" --limit 1`）。
 - 不提交数据目录、`.env`、模型密钥、实验产物；`.gitignore` 已经排除了 `data/`、`.venv/`、`frontend/dist/` 等。
 
 ## 2. 进程
@@ -160,6 +160,5 @@ npm --prefix frontend run build
 已知的问题和下一步：
 
 - **调度还是按轮轮询**：一轮里等作业、作业结束再开下一轮。应该改成由事件驱动（作业结束、你说话、数据就绪时才唤醒相应的角色）。
-- **CI 暂停中**：恢复前先在本机跑完整的浏览器测试。
 - **MiniMax 的思考内容**：没有发 `reasoning_split`，目前实测回答是干净的；如果思考内容混进正文，用 `before_provider_request` 加回来。
 - 研究功能只在本机版里提供，在线版只读论文。

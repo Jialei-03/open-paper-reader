@@ -31,7 +31,7 @@ const settled = (page: Page) =>
       document
         .getAnimations()
         .filter((animation) => animation instanceof CSSTransition)
-        .map((animation) => animation.finished),
+        .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
 
@@ -237,7 +237,7 @@ test("a floating sidebar lies over the card instead of pushing it", async ({
     Promise.all(
       element
         .getAnimations({ subtree: true })
-        .map((animation) => animation.finished),
+        .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
   const over = await boxOf(middle(page));

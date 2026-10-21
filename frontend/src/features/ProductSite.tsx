@@ -123,7 +123,7 @@ export function ProductSite({ path }: { path: string }) {
             src="/assets/icons/opr-mark.svg"
             alt=""
           />
-          Open Research Agent
+          <span className={styles.brandName}>Open Research Agent</span>
         </a>
         <nav aria-label={t("site.nav")} className={styles.nav}>
           <a href="#research" className={styles.navLink}>

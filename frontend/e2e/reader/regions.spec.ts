@@ -320,7 +320,13 @@ test("a failed run says why and can be tried again; asking carries the box to th
 
   await result(page).getByRole("button", { name: "问助手" }).click();
   await expect(result(page)).toBeHidden();
-  await expect(page.getByText("第 1 页的框选区域")).toBeVisible();
+  // The question box holds the box as its picture, to be asked about.
+  const composer = page.locator('[class*="composer"]').filter({
+    has: page.getByRole("textbox", { name: "向助手提问", exact: true }),
+  });
+  await expect(
+    composer.getByRole("img", { name: "第 1 页的框选区域", exact: true }),
+  ).toBeVisible();
 });
 
 test("copying the box as an image gives the picture or saves it as a file", async ({

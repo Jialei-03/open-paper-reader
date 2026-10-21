@@ -27,7 +27,7 @@ for (const [locale, words] of [
   test.describe(`public site in ${locale}`, () => {
     test.use({ locale });
 
-    test("the first screen says what it does, with the real reader", async ({
+    test("the first screen says what it does, with the real research page", async ({
       page,
     }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
@@ -49,7 +49,7 @@ for (const [locale, words] of [
       const shot = page.getByRole("img", { name: words["site.shot.alt"] });
       await expect(shot).toHaveAttribute(
         "src",
-        /^\/assets\/site\/reader-light(-en)?\.png$/,
+        /^\/assets\/site\/research-light(-en)?\.png$/,
       );
       await expect
         .poll(() =>
@@ -177,11 +177,11 @@ for (const [locale, words] of [
   });
 }
 
-test("the dark reader picture follows the theme", async ({ page }) => {
+test("the dark research picture follows the theme", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
   await page.goto("/");
   const shot = page.getByRole("img", { name: zh["site.shot.alt"] });
-  await expect(shot).toHaveAttribute("src", "/assets/site/reader-dark.png");
+  await expect(shot).toHaveAttribute("src", "/assets/site/research-dark.png");
   await expect.poll(() => loaded(page, "main figure img")).toBeTruthy();
 });
 

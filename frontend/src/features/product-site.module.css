@@ -40,9 +40,17 @@
   text-decoration: none;
   border-radius: var(--ui-r-6);
   white-space: nowrap;
+  min-width: 0;
+}
+
+/* On the narrowest phones the name gives way before the nav does. */
+.brandName {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mark {
+  flex: none;
   width: 24px;
   height: 24px;
 }
@@ -53,6 +61,7 @@
 
 .nav {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--ui-space-12);
 }
@@ -403,6 +412,9 @@
 }
 
 @media (max-width: 860px) {
+  .navLink {
+    display: none;
+  }
   .step {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--ui-space-16);
@@ -419,9 +431,6 @@
   }
   .nav {
     gap: var(--ui-space-6);
-  }
-  .navLink {
-    display: none;
   }
   .hero {
     padding-top: 48px;

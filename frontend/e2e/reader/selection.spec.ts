@@ -119,6 +119,7 @@ test("selecting text shows the actions beside it and keeps the selection", async
     "解释E",
     "翻译T",
     "高亮H",
+    "批注C",
     "记到笔记N",
     "问助手↵",
   ]);
@@ -126,6 +127,7 @@ test("selecting text shows the actions beside it and keeps the selection", async
     ["解释", "e"],
     ["翻译", "t"],
     ["高亮", "h"],
+    ["批注", "c"],
     ["记到笔记", "n"],
     ["问助手", "Enter"],
   ])

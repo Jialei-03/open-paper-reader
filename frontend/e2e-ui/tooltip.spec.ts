@@ -17,7 +17,7 @@ const settled = (page: Page) =>
       document
         .getAnimations()
         .filter((animation) => animation instanceof CSSTransition)
-        .map((animation) => animation.finished),
+        .map((animation) => animation.finished.catch(() => undefined)),
     ),
   );
 

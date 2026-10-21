@@ -84,7 +84,7 @@ test("a provider's models are fetched, several are added in one go, and the key 
 }) => {
   await signIn(page);
   const { added, tested } = await mockService(page);
-  await page.goto("/#settings");
+  await page.goto("/#settings/models");
   const section = page.getByRole("region", { name: "模型" });
   await expect(section.getByText("还没有模型。")).toBeVisible();
 
@@ -154,7 +154,7 @@ test("a first model that does not answer leaves nothing behind", async ({
   await page.route("**/api/v1/translation-settings/configs/*/test", (route) =>
     route.fulfill({ status: 502, json: { detail: "bad" } }),
   );
-  await page.goto("/#settings");
+  await page.goto("/#settings/models");
   const section = page.getByRole("region", { name: "模型" });
   await section.getByRole("button", { name: "导入", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "导入模型" });

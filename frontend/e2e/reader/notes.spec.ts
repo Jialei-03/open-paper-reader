@@ -196,8 +196,13 @@ test("the highlights of the PDF are listed, and each leads back to its place", a
   await expect(
     panel(page).getByRole("heading", { name: "高亮与批注 · 2" }),
   ).toBeVisible();
-  const items = panel(page).getByRole("list").getByRole("button");
+  const items = panel(page).getByRole("list").getByRole("listitem");
   await expect(items).toHaveCount(2);
+  // Each row's own actions sit beside the button that leads to its place.
+  for (const name of ["加入笔记", "删除"])
+    await expect(
+      items.nth(0).getByRole("button", { name, exact: true }),
+    ).toBeVisible();
   // In the order of the paper; each with its quote, its comment if it has one, and its page.
   await expect(items.nth(0)).toContainText("A plain highlight.");
   await expect(items.nth(0)).toContainText("第 2 页");
@@ -218,7 +223,10 @@ test("the highlights of the PDF are listed, and each leads back to its place", a
   expect(lines.lines).toBeLessThanOrEqual(2.05);
 
   await expect(pageInput(page)).toHaveValue("1");
-  await items.nth(1).click();
+  await items
+    .nth(1)
+    .getByRole("button", { name: /第 3 页/ })
+    .click();
   await expect(pageInput(page)).toHaveValue("3");
   await expect(page).toHaveURL(new RegExp(`#read/${paperId}\\?.*page=3`));
   await expect

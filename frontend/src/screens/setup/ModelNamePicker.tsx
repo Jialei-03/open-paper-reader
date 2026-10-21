@@ -1,4 +1,11 @@
-import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { TextField } from "../../ui";
 import styles from "./ModelForm.module.css";
 
@@ -38,6 +45,37 @@ export function ModelNamePicker({
     return all.filter((name) => name.toLowerCase().includes(query));
   }, [all, value]);
   const expanded = open && shown.length > 0;
+  const root = useRef<HTMLDivElement>(null);
+  // A press outside while the list is open: it closes once the press is over.
+  const pressed = useRef(false);
+
+  // The list is in the flow of the form, so closing it moves what follows up.
+  // Closed on a press's blur, the button under the pointer would move away
+  // before the press ends, and the click would be lost.
+  useEffect(() => {
+    if (!expanded) return;
+    const down = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) pressed.current = true;
+    };
+    document.addEventListener("pointerdown", down, true);
+    return () => document.removeEventListener("pointerdown", down, true);
+  }, [expanded]);
+
+  const close = () => {
+    if (!pressed.current) {
+      setOpen(false);
+      return;
+    }
+    pressed.current = false;
+    // After the click that follows the release, in the same task.
+    const release = () => {
+      window.removeEventListener("pointerup", release, true);
+      window.removeEventListener("pointercancel", release, true);
+      setTimeout(() => setOpen(false));
+    };
+    window.addEventListener("pointerup", release, true);
+    window.addEventListener("pointercancel", release, true);
+  };
 
   // Keeps the name the arrow keys reached in view inside the scrolled list.
   useEffect(() => {
@@ -71,7 +109,7 @@ export function ModelNamePicker({
   };
 
   return (
-    <div className={styles.picker}>
+    <div className={styles.picker} ref={root}>
       <TextField
         label={label}
         role="combobox"
@@ -89,7 +127,7 @@ export function ModelNamePicker({
         onFocus={() => setOpen(true)}
         // A field focused before the list arrived opens it with a click.
         onClick={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onBlur={close}
         onKeyDown={onKeyDown}
         onChange={(event) => {
           onChange(event.target.value);

@@ -137,7 +137,7 @@ test("an Agent credential only does what its scope says, and none once it is rev
   ).toBeFalsy();
 
   // Revoking it from the settings ends it.
-  await page.goto("/#settings");
+  await page.goto("/#settings/access");
   const row = page
     .getByRole("region", { name: "分享链接和凭据" })
     .getByRole("list", { name: "Agent 凭据" })

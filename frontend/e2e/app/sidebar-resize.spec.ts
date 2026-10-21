@@ -81,6 +81,11 @@ test("the width is kept across a reload and screens, and a double click resets i
     await expect(handle(page)).toBeVisible();
     await expect.poll(() => widthOf(page)).toBeCloseTo(300, 0);
   }
+  // The settings are a window over the page: closed, the handle is in reach again.
+  const settings = page.getByRole("dialog", { name: "设置" });
+  await expect(settings).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
 
   await handle(page).dblclick();
   await expect.poll(() => widthOf(page)).toBeCloseTo(220, 0);
