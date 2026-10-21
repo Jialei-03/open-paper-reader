@@ -28,7 +28,7 @@ jobs:
       - run: sh scripts/build-local.sh
       - name: The package starts
         run: |
-          uvx --from dist/*.whl ora --version
+          uvx --python 3.12 --from dist/*.whl ora --version
       - uses: actions/upload-artifact@v4
         with:
           name: dist

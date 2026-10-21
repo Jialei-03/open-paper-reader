@@ -13,7 +13,9 @@ name = "open-research"
 version = "0.3.0"
 description = "An open research agent on your own computer: it keeps its direction, runs real experiments, and every conclusion can be checked. Also reads papers with cited guides."
 readme = "docs/LOCAL.md"
-requires-python = ">=3.11"
+# Below 3.14: pinned native dependencies (pydantic-core) have no 3.14 wheels yet,
+# and uv would otherwise pick the newest Python and try to compile them.
+requires-python = ">=3.11,<3.14"
 license = "MIT"
 license-files = ["LICENSE", "NOTICE.md"]
 keywords = ["research", "agent", "experiments", "papers", "pdf", "reader"]
