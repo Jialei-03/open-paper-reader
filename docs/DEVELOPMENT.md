@@ -9,9 +9,8 @@
 ```bash
 git clone https://github.com/Jialei-03/open-research-agent.git
 cd open-research-agent
-make install        # 建 .venv，装后端（含测试依赖）、前端和 Agent 运行时的依赖
-make build          # 构建前端（frontend/dist），后端直接提供它
-python -m backend.local --port 8765          # 本机版：免登录，浏览器打开 http://127.0.0.1:8765
+make start          # 缺什么装什么（.venv、前端和 Agent 运行时的依赖），前端有改动就重新构建，然后打开本机版
+                    # 免登录，http://127.0.0.1:8765；换端口：make start PORT=8800
 ```
 
 - 本机版的数据默认在 `~/.open-paper-reader/`（Windows：`%APPDATA%\open-paper-reader`）：SQLite 数据库 `workspace.db`、上传的文件、`research/`（研究的工作区、日志、数据集缓存、`settings.json`、`playbook.json`）。启动时自动应用数据库迁移。
@@ -29,6 +28,10 @@ python -m backend.local --port 8765          # 本机版：免登录，浏览器
 - 这个实例提供的是 `frontend/dist`，**而且 `index.html` 只在启动时读一次**。改了前端，要 `npm --prefix frontend run build`，再重启实例，刷新页面才看得到。改了后端同样要重启。
 - 重启会中断正在进行的一轮（这一轮的预算会退还），运行中的实验会被标为丢失；重启尽量攒在一起做，或者先暂停研究。
 - 要前端热更新：`cd frontend && DEV_API=http://127.0.0.1:8800 npx vite --port 5181`。注意写操作要从实例自己的地址发（跨源会被拒绝），在热更新页面上只适合看界面。
+
+### 发布
+
+用户用 `uvx open-research`（或 `uv tool install open-research` 后用 `ora`）运行的是 PyPI 上的 `open-research` 包，里面带着构建好的前端；Agent 运行时的 npm 依赖在第一次启动时安装。发布一个版本：把 `pyproject.toml` 的 `version` 和 `CHANGELOG.md` 改好、提交，再推一个同名标签（`git tag v0.3.0 && git push origin v0.3.0`）。`.github/workflows/release.yml` 会构建、检查能启动，再发布。PyPI 那边用「可信发布」认这个工作流，不存任何令牌。本地试安装包：`sh scripts/build-local.sh`，然后 `uvx --from dist/<wheel> ora`。
 
 ### Git 与提交
 

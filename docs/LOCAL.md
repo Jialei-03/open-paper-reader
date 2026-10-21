@@ -1,4 +1,4 @@
-# Open Paper Reader on your own computer
+# Open Research Agent on your own computer
 
 Read papers with an AI assistant: import a PDF or an arXiv link, get a guide,
 select a sentence to have it explained or translated, ask the assistant, and
@@ -7,11 +7,14 @@ the same app as the hosted site, for one person, with everything on this
 computer.
 
 ```bash
-uvx open-paper-reader          # run it without installing
+uvx open-research              # run it without installing
 # or
-pipx install open-paper-reader
-open-paper-reader              # short name: opr
+uv tool install open-research
+ora                            # also: open-research
 ```
+
+Earlier releases were called open-paper-reader; that command still works, and
+the data folder keeps its name.
 
 The browser opens at <http://127.0.0.1:8765>. There is no account and no
 password. Stop it with Ctrl+C.

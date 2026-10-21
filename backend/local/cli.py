@@ -1,8 +1,9 @@
-"""open-paper-reader: run the whole app on this computer with one command.
+"""Open Research Agent: run the whole app on this computer with one command.
 
-    uvx open-paper-reader          # or: pipx install open-paper-reader; opr
+    uvx open-research              # or: uv tool install open-research; ora
 
-Data lives in ~/.open-paper-reader (Windows: %APPDATA%\\open-paper-reader). The
+Data lives in ~/.open-paper-reader (Windows: %APPDATA%\\open-paper-reader), the
+folder of earlier releases, kept so that nothing moves. The
 server listens on 127.0.0.1 only and signs its one reader in by itself.
 """
 
@@ -47,9 +48,12 @@ def version():
     from importlib.metadata import PackageNotFoundError, version as installed
 
     try:
-        return installed("open-paper-reader")
+        return installed("open-research")
     except PackageNotFoundError:
-        return "dev"
+        try:
+            return installed("open-paper-reader")  # an earlier release's name
+        except PackageNotFoundError:
+            return "dev"
 
 
 def say(message):
@@ -204,8 +208,8 @@ def open_when_ready(url, stop_event):
 
 def parse(argv):
     parser = argparse.ArgumentParser(
-        prog="open-paper-reader",
-        description="Read papers with an AI assistant, on this computer.",
+        prog="ora",
+        description="Open Research Agent: research and read papers, on this computer.",
     )
     parser.add_argument("--port", type=int, default=int(os.getenv("OPR_PORT", "8765")))
     parser.add_argument(

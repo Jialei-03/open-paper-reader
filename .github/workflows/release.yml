@@ -1,0 +1,46 @@
+name: Release to PyPI
+# A tag like v0.3.0 builds the package (with the web app inside) and publishes
+# it as "open-research" on PyPI, so that `uvx open-research` runs it.
+# PyPI trusts this workflow (trusted publishing): no token is stored here.
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag is the version in pyproject.toml
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' pyproject.toml)
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, pyproject $version"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+      - run: npm --prefix frontend ci --ignore-scripts
+      - run: sh scripts/build-local.sh
+      - name: The package starts
+        run: |
+          uvx --from dist/*.whl ora --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

@@ -65,12 +65,20 @@ Open Research Agent 主攻的就是这些：**研究判断力**、**持续不偏
 
 ## 在自己电脑上运行
 
+一条命令（需要 [uv](https://docs.astral.sh/uv/) 和 Node.js 20+）：
+
+```bash
+uvx open-research          # 直接运行；或者 uv tool install open-research，以后输入 ora
+```
+
+浏览器会打开 http://127.0.0.1:8765，免登录，`Ctrl+C` 停止。还没装 uv 的话：`curl -LsSf https://astral.sh/uv/install.sh | sh`。
+
+从源码运行（也用于开发）：
+
 ```bash
 git clone https://github.com/Jialei-03/open-research-agent
 cd open-research-agent
-make install   # .venv + 后端、前端、Agent 运行时的依赖
-make build     # 构建前端
-python -m backend.local --port 8765   # 本机版，免登录，打开 http://127.0.0.1:8765
+make start     # 缺什么装什么、前端有改动就重新构建，然后打开
 ```
 
 第一次打开时先在「设置 → 模型」里添加模型（API 密钥或本机模型），再在「设置 → 研究环境」里准备一个环境：默认的「本机」点「让 Agent 准备」即可，Agent 会在数据目录里建一个独立的 Python 环境。数据目录默认在 `~/.open-paper-reader/`。详见 [本机版](docs/LOCAL.md) 和 [研究](docs/RESEARCH.md)。

@@ -1,4 +1,5 @@
-# The local, one-command build: `uvx open-paper-reader` or `pipx install open-paper-reader`.
+# The local, one-command build: `uvx open-research`, or `uv tool install open-research` and then `ora`.
+# ("open-research-agent" on PyPI is someone else's project.)
 # The hosted site keeps installing from backend/requirements.txt; this file only
 # describes the package. Build it with scripts/build-local.sh, which builds the
 # web app first (frontend/dist is bundled into the wheel). See docs/LOCAL.md.
@@ -8,14 +9,14 @@ requires = ["hatchling>=1.25"]
 build-backend = "hatchling.build"
 
 [project]
-name = "open-paper-reader"
-version = "0.2.0"
-description = "Read papers with an AI assistant on your own computer: guides, explanations and citations that lead back to the sentence."
+name = "open-research"
+version = "0.3.0"
+description = "An open research agent on your own computer: it keeps its direction, runs real experiments, and every conclusion can be checked. Also reads papers with cited guides."
 readme = "docs/LOCAL.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE", "NOTICE.md"]
-keywords = ["papers", "pdf", "reader", "research", "assistant"]
+keywords = ["research", "agent", "experiments", "papers", "pdf", "reader"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: MacOS",
@@ -50,6 +51,9 @@ postgres = ["psycopg[binary]==3.2.10"]
 tracking = ["swanlab>=0.10", "wandb>=0.21"]
 
 [project.scripts]
+ora = "backend.local.cli:main"
+open-research = "backend.local.cli:main"
+# The names of earlier releases, kept working.
 open-paper-reader = "backend.local.cli:main"
 opr = "backend.local.cli:main"
 

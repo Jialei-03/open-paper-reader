@@ -65,12 +65,20 @@ The other half of the agent is reading papers. That part also works on its own, 
 
 ## Run it on your computer
 
+One command (needs [uv](https://docs.astral.sh/uv/) and Node.js 20+):
+
+```bash
+uvx open-research          # run it; or uv tool install open-research, then ora
+```
+
+The browser opens at http://127.0.0.1:8765, with no sign-in; Ctrl+C stops it. To get uv: `curl -LsSf https://astral.sh/uv/install.sh | sh`.
+
+From the source (also for development):
+
 ```bash
 git clone https://github.com/Jialei-03/open-research-agent
 cd open-research-agent
-make install   # .venv plus backend, frontend and agent runtime dependencies
-make build     # build the frontend
-python -m backend.local --port 8765   # local build, no sign-in, open http://127.0.0.1:8765
+make start     # installs what is missing, rebuilds what changed, opens the app
 ```
 
 On first open, add a model in Settings → Models (an API key or a local model), then prepare an environment in Settings → Research environments: for the default one (this computer, listed as “本机”), press “Let an agent prepare it” and an agent sets up a separate Python environment in the data folder. Data lives in `~/.open-paper-reader/` by default. See [Local build](docs/LOCAL.md) and [Research](docs/RESEARCH.md).
