@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createPaperWithPdf, signIn } from "../reader/fixtures";
 
-const SETTINGS = "/#settings";
+// The settings are a window over the page, one kind of settings at a time.
+const SETTINGS = (category: string) => `/#settings/${category}`;
 
 // Not a real key: the service is never reached, its answers are mocked.
 const FAKE_KEY = "sk-test-not-a-real-key";
@@ -59,8 +60,8 @@ test.afterEach(async ({ page }) => {
 });
 
 test("models are added, chosen, tested and removed", async ({ page }) => {
-  await page.goto(SETTINGS);
-  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
+  await page.goto(SETTINGS("models"));
+  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
   const section = page.getByRole("region", { name: "模型" });
   await expect(section.getByText("还没有模型。")).toBeVisible();
 
@@ -105,7 +106,7 @@ test("models are added, chosen, tested and removed", async ({ page }) => {
 });
 
 test("the theme and the language change at once", async ({ page }) => {
-  await page.goto(SETTINGS);
+  await page.goto(SETTINGS("general"));
   await page.getByRole("radio", { name: "深色" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("radio", { name: "浅色" }).click();
@@ -116,26 +117,30 @@ test("the theme and the language change at once", async ({ page }) => {
   ).toBe("system");
 
   await page.getByRole("radio", { name: "English" }).click();
-  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  const window = page.getByRole("dialog", { name: "Settings" });
+  await expect(window).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page.getByRole("region", { name: "Usage" })).toBeVisible();
   // Only the name of the other language is in Chinese.
-  const text = await page.locator("main").innerText();
+  const text = await window.innerText();
   expect(text.replace("中文", "")).not.toMatch(/[一-鿿]/);
+  await page.goto(SETTINGS("usage"));
+  await expect(page.getByRole("region", { name: "Usage" })).toBeVisible();
+  await page.goto(SETTINGS("general"));
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await expect(window).toBeVisible();
   await page.getByRole("radio", { name: "中文" }).click();
-  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
 });
 
 test("the data, its use and the export are shown", async ({ page }) => {
   await createPaperWithPdf(page);
-  await page.goto(SETTINGS);
+  await page.goto(SETTINGS("data"));
   const data = page.getByRole("region", { name: "数据" });
   await expect(data.getByText(/^已用 .+ \/ .+$/)).toBeVisible();
   await expect(data.getByRole("meter", { name: "存储用量" })).toBeVisible();
   await expect(data.getByText("论文", { exact: true })).toBeVisible();
   await expect(data.getByRole("button", { name: "下载 ZIP" })).toBeVisible();
+  await page.goto(SETTINGS("usage"));
   const usage = page.getByRole("region", { name: "用量" });
   await expect(usage.getByText("请求", { exact: true })).toBeVisible();
   await expect(usage.getByText("Tokens", { exact: true })).toBeVisible();
@@ -158,7 +163,7 @@ test("share links and credentials can only be revoked", async ({ page }) => {
   });
   expect(token.ok()).toBeTruthy();
 
-  await page.goto(SETTINGS);
+  await page.goto(SETTINGS("access"));
   const access = page.getByRole("region", { name: "分享链接和凭据" });
   const shares = access.getByRole("list", { name: "分享链接" });
   const shareRow = shares

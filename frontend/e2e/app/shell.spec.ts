@@ -35,6 +35,12 @@ test("without a model the app sets one up first, and the rest stays reachable", 
   await expect(screen(page)).toHaveAttribute("data-app-screen", "library");
   await page.goto("/#home");
   await expect(screen(page)).toHaveAttribute("data-app-screen", "setup");
+  // The settings open as a window over home, the setup not in their way.
+  await page.goto("/#settings");
+  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/#home$/);
+  await expect(screen(page)).toHaveAttribute("data-app-screen", "setup");
 
   await expect(page.getByRole("button", { name: "继续" })).toBeDisabled();
 });
@@ -49,7 +55,6 @@ test("the sidebar goes to each screen and marks where it is", async ({
   for (const [name, hash] of [
     ["文库", "library"],
     ["发现", "discover"],
-    ["设置", "settings"],
     ["首页", "home"],
   ]) {
     await sidebar(page).getByRole("link", { name, exact: true }).click();
@@ -59,6 +64,13 @@ test("the sidebar goes to each screen and marks where it is", async ({
       sidebar(page).getByRole("link", { name, exact: true }),
     ).toHaveAttribute("aria-current", "page");
   }
+  // The settings are a window over the page, which stays as it was under them.
+  await sidebar(page).getByRole("link", { name: "设置", exact: true }).click();
+  await expect(page).toHaveURL(/#settings$/);
+  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
+  await expect(screen(page)).toHaveAttribute("data-app-screen", "home");
+  await page.keyboard.press("Escape");
+  await expect(page).toHaveURL(/#home$/);
 });
 
 test("the addresses of what was taken out go home", async ({ page }) => {

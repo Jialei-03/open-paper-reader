@@ -321,7 +321,10 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
       {settings}
     </AppActions.Provider>
   );
-  return shown.screen === "home" && !setupDone ? (
+  // The settings stay reachable: open over home, they are not held back by its setup.
+  return shown.screen === "home" &&
+    route.screen !== "settings" &&
+    !setupDone ? (
     <SetupGate onDone={() => setSetupDone(true)}>{screen}</SetupGate>
   ) : (
     screen
