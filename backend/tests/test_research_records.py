@@ -426,10 +426,17 @@ def test_scoping_may_read_literature_but_not_run_anything(world):
         d.add(sprint)
         d.commit()
         research = {"project_id": p.id, "sprint_id": sprint.id, "role": "scoping"}
-    for name in ("search_papers", "read_paper", "web_read", "propose_plan"):
+    for name in (
+        "search_papers",
+        "read_paper",
+        "web_read",
+        "propose_plan",
+        "project_overview",
+        "job_logs",
+    ):
         gate(world.app, research, name)
     for name in ("run_job", "bash", "advise", "add_node"):
-        with pytest.raises(ValueError, match="定题"):
+        with pytest.raises(ValueError, match="实验开始前"):
             gate(world.app, research, name)
 
 

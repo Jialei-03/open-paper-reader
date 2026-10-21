@@ -409,9 +409,6 @@ RESEARCH_TOOLS.append(
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
 # What the advisor may use: it looks and judges; it does not do.
 ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
-# What the advisor may use while the plan is talked through: the map, the
-# literature, and the plan card.
-SCOPING_TOOLS = {"research_map_read", "propose_plan"}
 LITERATURE = {
     "read_skill",
     "search_papers",
@@ -427,6 +424,9 @@ LITERATURE = {
 DISTILLER_TOOLS = {"research_map_read", "job_status", "job_logs", "distill"}
 # A conversation in a project reads; it changes nothing and starts nothing.
 CHAT_TOOLS = {"project_overview", "research_read", "job_status", "job_logs"}
+# What the advisor may use while a conversation has no approved plan: the
+# map, the literature, the plan card, and reading the project like a chat.
+SCOPING_TOOLS = {"research_map_read", "propose_plan"} | CHAT_TOOLS
 CHAT_REFUSED = (
     "项目对话是只读的：可以查看项目里的研究、实验和日志，但不能做实验或改动研究。"
     "要推进研究，请研究者在研究页面里说"
@@ -464,16 +464,16 @@ def gate(app, research, name):
         if name not in CHAT_TOOLS | LITERATURE:
             raise ValueError(CHAT_REFUSED)
         return
-    if name in {"project_overview", "research_read"}:
-        raise ValueError("只有项目对话能用这个工具")
     if role == "scoping":
         if name not in SCOPING_TOOLS | LITERATURE:
             raise ValueError(
-                "定题阶段只聊计划：读地图、查文献，用 propose_plan 写计划卡片"
+                "实验开始前只能读项目和文献，用 propose_plan 写计划卡片"
             )
         with app.state.maker() as d:
             _context(d, research)
         return
+    if name in {"project_overview", "research_read"}:
+        raise ValueError("只有对话中能用这个工具")
     if name == "propose_plan":
         raise ValueError("计划只在定题阶段提出")
     if role == "distiller":
@@ -752,6 +752,8 @@ def _chat(app, research, name, args):
 
     settings = app.state.settings
     with app.state.maker() as d:
+        if not research.get("workspace_id"):
+            raise ValueError("这个研究不在任何项目里")
         if name == "project_overview":
             workspace = d.get(ResearchWorkspace, research["workspace_id"])
             return {"text": research_chat.overview(d, workspace, settings)}
@@ -771,7 +773,9 @@ def _chat(app, research, name, args):
 
 def _run(app, owner, research, name, args):
     settings = app.state.settings
-    if research.get("role") == "chat":
+    if research.get("role") == "chat" or (
+        research.get("role") == "scoping" and name in CHAT_TOOLS
+    ):
         return _chat(app, research, name, args)
     with app.state.maker() as d:
         project, sprint = _context(d, research)

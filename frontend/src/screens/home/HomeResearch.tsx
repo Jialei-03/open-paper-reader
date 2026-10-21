@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
-import type { MessageKey } from "../../i18n/i18n";
 import { followLink } from "../../reader/route";
 import {
   recentResearches,
   type RecentResearch,
 } from "../research/research-api";
+import { statusOf } from "../research/status";
 import styles from "./HomeResearch.module.css";
 
 const COUNT = 6;
@@ -55,10 +55,7 @@ function Card({ r, go }: { r: RecentResearch; go(hash: string): void }) {
   const h = r.hypotheses ?? { supported: 0, refuted: 0, abandoned: 0, open: 0 };
   const total = PARTS.reduce((n, k) => n + h[k], 0);
   const settled = total - h.open;
-  const status =
-    r.column === "running" || r.column === "todo"
-      ? t(`research.stage.${r.stage}` as MessageKey)
-      : t(`projects.column.${r.column}` as MessageKey);
+  const { key, tone } = statusOf(r);
   const line = r.column === "done" ? r.conclusion || r.said : r.said;
   const hash = `research/${r.id}`;
   return (
@@ -69,8 +66,8 @@ function Card({ r, go }: { r: RecentResearch; go(hash: string): void }) {
       data-column={r.column}
     >
       <span className={styles.top}>
-        <span className={styles.status} data-column={r.column}>
-          {status}
+        <span className={styles.status} data-column={tone}>
+          {t(key)}
           {r.waiting > 1 && ` · ${r.waiting}`}
         </span>
         <span className={styles.project}>{r.workspace}</span>

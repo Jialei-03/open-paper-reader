@@ -123,3 +123,28 @@ def test_what_a_conversation_uses_only_reads():
 
     # Its runs are not allowed to write, so every tool it has must be a read.
     assert all(not TOOL_MAP[name]["write"] for name in CHAT_TOOLS)
+
+
+def test_a_new_conversation_reads_the_project_before_it_has_a_plan(env):
+    from backend.research_brief import scoping_brief
+    from backend.research_tools import _run
+
+    app, a, _b, settings = env
+    owner, _ = configure(app, a, settings)
+    wid, pid = _project_with_a_running_job(app, owner)
+    with app.state.maker() as d:
+        talk = rm.create_project(d, owner, "ResNet 那轮结果怎样？", "", "m")
+        talk.workspace_id = wid
+        sprint = ResearchSprint(project_id=talk.id, number=1, run_id="r", role="scoping")
+        d.add(sprint)
+        d.commit()
+        brief = scoping_brief(d, talk, 1, settings)
+        assert "小 CNN 到 90%" in brief and "直接回答" in brief
+        research = {
+            "role": "scoping",
+            "project_id": talk.id,
+            "sprint_id": sprint.id,
+            "workspace_id": wid,
+        }
+    text = _run(app, owner, research, "research_read", {"research_id": pid})["text"]
+    assert "baseline-s0" in text

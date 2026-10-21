@@ -54,15 +54,22 @@ def test_the_overview_counts_what_needs_the_person(world):
         w = rw.create(d, uid, "MNIST", "手写数字")
         talking = rm.create_project(d, uid, "Q1", "", "m")
         talking.workspace_id, talking.stage = w.id, "scoping"
+        talking.plan = {"question": "Q1"}
         st.say(d, talking, "human", "想提高准确率")
         st.say(d, talking, "advisor", "基线多少？")
+        # A conversation without a plan waits on nobody.
+        asking = rm.create_project(d, uid, "进展如何？", "", "m")
+        asking.workspace_id, asking.stage = w.id, "scoping"
+        st.say(d, asking, "human", "进展如何？")
+        st.say(d, asking, "advisor", "第三轮了。")
         running = rm.create_project(d, uid, "Q2", "", "m")
         running.workspace_id = w.id
         rw.add_card(d, w, "试试 EMA")
         d.flush()
         row = next(x for x in rw.overview(d, uid) if x["id"] == w.id)
+        assert rw.research_column(d, asking) == "triage"
         assert (row["researches"], row["waiting"], row["running"], row["ideas"]) == (
-            2,
+            3,
             1,
             1,
             1,

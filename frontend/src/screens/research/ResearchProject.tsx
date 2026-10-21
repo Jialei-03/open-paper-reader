@@ -189,6 +189,15 @@ export function ResearchProject({
     [events, detail],
   );
 
+  // Before a plan it is a conversation: the record stays closed until there
+  // is one, and opens (where there is room) once there is.
+  const loaded = !!detail;
+  const talking =
+    !!detail && detail.project.stage === "scoping" && !detail.project.plan;
+  useEffect(() => {
+    if (loaded) setRecord(!talking && !window.matchMedia?.(NARROW).matches);
+  }, [loaded, talking]);
+
   // Follow the conversation down, unless the reader scrolled up to look back.
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -423,28 +432,30 @@ export function ResearchProject({
             {p.question}
           </button>
         </h1>
-        <ol className={styles.stages} aria-label={t("research.stages")}>
-          {STEPS.map((step, i) => (
-            <li key={step} style={{ display: "contents" }}>
-              {i > 0 && <span className={styles.stageLine} aria-hidden />}
-              <span
-                className={styles.stageStep}
-                data-state={
-                  finished || i < stageIndex
-                    ? "done"
-                    : i === stageIndex
-                      ? "now"
-                      : "ahead"
-                }
-                aria-current={
-                  i === stageIndex && !finished ? "step" : undefined
-                }
-              >
-                {t(`research.stage.${step}` as MessageKey)}
-              </span>
-            </li>
-          ))}
-        </ol>
+        {!talking && (
+          <ol className={styles.stages} aria-label={t("research.stages")}>
+            {STEPS.map((step, i) => (
+              <li key={step} style={{ display: "contents" }}>
+                {i > 0 && <span className={styles.stageLine} aria-hidden />}
+                <span
+                  className={styles.stageStep}
+                  data-state={
+                    finished || i < stageIndex
+                      ? "done"
+                      : i === stageIndex
+                        ? "now"
+                        : "ahead"
+                  }
+                  aria-current={
+                    i === stageIndex && !finished ? "step" : undefined
+                  }
+                >
+                  {t(`research.stage.${step}` as MessageKey)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
         {p.stage !== "scoping" && !p.budget.max_sprints && (
           <span className={styles.budget}>
             {t("research.budget.rounds", { sprints: p.spent.sprints })}

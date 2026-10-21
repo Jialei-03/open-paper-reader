@@ -501,7 +501,7 @@ export const en = {
   "home.research.all": "All projects",
   "home.research.decide": "Decide",
   "home.research.hypotheses": "Hypotheses {done}/{total}",
-  "home.research.start": "Start a research project",
+  "home.research.start": "New conversation",
   "home.continue.page": "Page {page}",
   "home.recent": "Recently imported",
   "home.allPapers": "All papers",
@@ -1160,8 +1160,7 @@ export const en = {
   "research.home.model": "Choose a model",
   "research.home.compute": "Choose an environment",
   "research.composer.label": "Message the advisor",
-  "research.composer.scoping":
-    "Reply to the advisor, or say how the plan should change",
+  "research.composer.scoping": "Reply",
   "research.composer.experiments":
     "Chime in any time; the advisor answers in the next round",
   "research.composer.waiting":
@@ -1472,11 +1471,12 @@ export const en = {
   "projects.kind.idea": "Idea",
   "projects.ideaPlaceholder": "Note an idea, press Enter",
   "projects.startResearch": "Start research",
-  "projects.newResearch": "Start a new research in this project",
+  "projects.newResearch": "New conversation",
   "projects.view": "View",
   "projects.view.list": "Conversations",
   "projects.view.board": "Board",
   "projects.kind.chat": "Chat",
+  "projects.status.scoping": "Scoping",
   "projects.edit": "Edit project",
   "projects.newResearchPlaceholder":
     "Ask something, or say what you want to find out",

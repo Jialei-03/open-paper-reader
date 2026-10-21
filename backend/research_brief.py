@@ -213,9 +213,22 @@ def scoping_brief(d, project, sprint_number, settings=None):
                 for c in config["computes"]
             )
         )
+    from . import research_workspaces
+    from .models import ResearchWorkspace
+
+    workspace = (
+        d.get(ResearchWorkspace, project.workspace_id) if project.workspace_id else None
+    )
+    if workspace is not None and any(
+        p.id != project.id for p in research_workspaces.researches(d, workspace)
+    ):
+        from . import research_chat
+
+        parts.append(research_chat.context(d, workspace, settings))
     parts.append(
-        "## 这一轮\n回复研究者最新的话。信息够了就用 propose_plan 写或改计划卡片；"
-        "你的最终回复（纯文本）就是对他说的话。"
+        "## 这一轮\n回复研究者最新的话。他只是在问问题（项目进展、某个结果、某篇论文）"
+        "就直接回答，不提计划；要做实验才能回答的问题，信息够了再用 propose_plan "
+        "写或改计划卡片。你的最终回复（纯文本）就是对他说的话。"
     )
     return "\n\n".join(parts)
 

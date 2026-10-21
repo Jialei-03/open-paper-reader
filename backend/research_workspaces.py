@@ -170,6 +170,9 @@ def research_column(d, project):
         return "review"
     if project.status == "paused":
         return "todo"
+    if project.stage == "scoping" and not project.plan:
+        # A conversation, not yet a research: it waits on nobody.
+        return "triage"
     if project.stage == "scoping" and _waits_for_reply(d, project):
         return "review"
     return "running"
@@ -215,6 +218,8 @@ def summary(d, project):
         "status": project.status,
         "end_reason": project.end_reason,
         "column": research_column(d, project),
+        # No plan yet: still a conversation.
+        "planned": bool(project.plan),
         "rounds": project.spent.get("sprints", 0),
         "best": best(d, project),
         "working": sprint.role if sprint else "",

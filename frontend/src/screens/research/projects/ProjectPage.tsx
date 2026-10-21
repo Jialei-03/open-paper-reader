@@ -42,6 +42,7 @@ import {
   type Workspace,
 } from "../research-api";
 import { Mascot } from "../scene/Mascot";
+import { statusOf } from "../status";
 import { Composer } from "../talk/Composer";
 import { ComputePicker, ModelPicker } from "../talk/Pickers";
 import { ProjectChat } from "./ProjectChats";
@@ -498,8 +499,6 @@ function CardFace({
   );
 }
 
-const STAGE_KEY = (s: string) => `research.stage.${s}` as MessageKey;
-
 /** Where a new research begins: one sentence, then a talk with the advisor. */
 function NewResearch({
   workspace,
@@ -599,18 +598,18 @@ function Conversations({
       minute: "2-digit",
     }).format(new Date(stamp));
   const rows = [
-    ...workspace.researches.map((r) => ({
-      key: r.id,
-      hash: `research/${r.id}`,
-      title: r.question,
-      at: r.updated_at,
-      column: r.column as string,
-      status:
-        r.column === "running" || r.column === "todo"
-          ? t(STAGE_KEY(r.stage))
-          : t(`projects.column.${r.column}` as MessageKey),
-      line: r.column === "done" ? r.conclusion || r.said : r.said,
-    })),
+    ...workspace.researches.map((r) => {
+      const status = statusOf(r);
+      return {
+        key: r.id,
+        hash: `research/${r.id}`,
+        title: r.question,
+        at: r.updated_at,
+        column: status.tone,
+        status: t(status.key),
+        line: r.column === "done" ? r.conclusion || r.said : r.said,
+      };
+    }),
     ...chats.map((c) => ({
       key: c.id,
       hash: `projects/${workspace.id}/chats/${c.id}`,

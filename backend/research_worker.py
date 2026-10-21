@@ -502,6 +502,12 @@ def _start(app, d, project, latest, role, config):
                 "project_id": project.id,
                 "sprint_id": sprint.id,
                 "role": role,
+                # Before experiments the advisor reads the project like a chat.
+                **(
+                    {"workspace_id": project.workspace_id}
+                    if role == "scoping" and project.workspace_id
+                    else {}
+                ),
             }
         },
     )

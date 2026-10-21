@@ -497,6 +497,8 @@ export interface ResearchSummary {
   waiting: number;
   compute_id: string;
   updated_at: string;
+  /** False while it is a conversation with no plan yet. */
+  planned?: boolean;
   hypotheses?: Record<"supported" | "refuted" | "abandoned" | "open", number>;
   experiments?: number;
   tokens?: number;
