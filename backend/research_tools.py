@@ -622,7 +622,8 @@ def _record(app, d, owner, project, sprint, args):
     status = (
         "refuted"
         if args["kill_triggered"] == "yes" and node.kind == "hypothesis"
-        else None
+        # A node with a result is under way, as focusing on it would make it.
+        else "active" if node.status == "open" else None
     )
     doubts = None
     if args["kill_triggered"] == "unsure":

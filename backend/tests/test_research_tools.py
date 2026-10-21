@@ -188,6 +188,34 @@ def test_record_result_kill_triggered_refutes_hypothesis(world, monkeypatch):
     assert events(maker, "record_result")
 
 
+def test_a_result_on_a_node_not_yet_started_puts_it_under_way(world, monkeypatch):
+    # The executor may record on a node it never focused on (a sibling run in
+    # the same job); the map should not go on calling it "not started".
+    app, maker, research, ids, _calls = world
+    hyp = add_hypothesis(app, ids, research)
+    with maker() as d:
+        assert d.get(ResearchNode, hyp).status == "open"
+    monkeypatch.setattr(rt.research_evidence, "check", lambda *a: [])
+    call(
+        app,
+        ids,
+        research,
+        "record_result",
+        {
+            "node_id": hyp,
+            "summary": "acc rose by 0.8%",
+            "evidence": [],
+            "kill_triggered": "no",
+            "confidence": 0.7,
+        },
+    )
+    with maker() as d:
+        node = d.get(ResearchNode, hyp)
+        assert node.status == "active" and node.evidence_for
+    # Supported stays a decision of its own, not something a result implies.
+    assert events(maker, "update_node")[-1].detail["after"]["status"] == "active"
+
+
 def test_record_result_rejects_bad_evidence_without_changes(world, monkeypatch):
     app, maker, research, ids, _calls = world
     hyp = add_hypothesis(app, ids, research)

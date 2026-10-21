@@ -63,6 +63,8 @@ def _setting_out(settings, project):
         )
         if machine:
             lines.append(f"- 机器：{machine}")
+        if env:
+            lines.append(f"- 芯片：{env.get('chip') or '未知'}")
         if item["kind"] == "host":
             from .research_sandbox import SERIAL
 
@@ -79,10 +81,25 @@ def _datasets(d, project):
     if not rows:
         return ""
     state = {"ready": "就绪", "pending": "下载中", "failed": "下载失败"}
-    return "\n".join(
-        f"- {r.name}：{r.path}（{state.get(r.status, r.status)}{'，' + r.note if r.status == 'failed' else ''}）"
-        for r in rows
-    )
+    lines = []
+    for r in rows:
+        lines.append(
+            f"- {r.name}：{r.path}（{state.get(r.status, r.status)}{'，' + r.note if r.status == 'failed' else ''}）"
+        )
+        if r.status == "ready" and r.source == "registry":
+            # The system checked these bytes when it fetched them; an executor
+            # checking again from memory has got the "official" hashes wrong.
+            source = (
+                "本机缓存（之前下载时已核对）"
+                if r.note == "本机缓存"
+                else f"下载源 {r.note}"
+            )
+            lines.append(
+                f"  系统已按发布方 md5 逐个核对通过，来自{source}："
+                + "；".join(f"{f['name']} md5 {f['md5']}" for f in r.files or [])
+                + "。不必凭记忆再校验；要校验，以这里的值为准。"
+            )
+    return "\n".join(lines)
 
 
 def _talk(d, project):

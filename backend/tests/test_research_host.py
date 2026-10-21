@@ -168,6 +168,7 @@ def test_before_its_first_job_the_brief_uses_what_preparing_found(world):
             "platform": "macOS-15.5-arm64",
             "cpus": 8,
             "memory_gb": 16.0,
+            "chip": "Apple M5 Pro",
         },
     )
     with maker() as d:
@@ -176,6 +177,34 @@ def test_before_its_first_job_the_brief_uses_what_preparing_found(world):
         text = _setting_out(settings, p)
         assert "mps" in text and "torch 2.14" in text
         assert "macOS-15.5-arm64" in text and "8 核" in text and "16 GB" in text
+        assert "芯片：Apple M5 Pro" in text
+
+
+def test_a_chip_the_probe_could_not_name_is_unknown(world):
+    from backend.research_brief import _setting_out
+
+    settings, maker, pid = world
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        p.environment = {"host": {"python": "3.12", "cpus": 4}}
+        assert "芯片：未知" in _setting_out(settings, p)
+
+
+def test_the_probe_names_this_machines_chip():
+    import json
+    import subprocess
+    import sys
+
+    out = subprocess.run(
+        [sys.executable, str(rh.ORA_DIR / "probe.py")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    info = json.loads(out.stdout.strip().splitlines()[-1])
+    assert "chip" in info
+    if sys.platform == "darwin":
+        assert info["chip"]
 
 
 def test_an_agent_stops_its_own_job_and_cannot_kill_by_name(world):

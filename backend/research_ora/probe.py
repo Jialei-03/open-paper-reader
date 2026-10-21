@@ -24,6 +24,21 @@ info = {
     "packages": {},
     "gpus": [],
 }
+if sys.platform == "darwin":
+    info["chip"] = _run(["sysctl", "-n", "machdep.cpu.brand_string"])
+else:
+    try:
+        with open("/proc/cpuinfo") as f:
+            info["chip"] = next(
+                (
+                    line.split(":", 1)[1].strip()
+                    for line in f
+                    if line.lower().startswith(("model name", "hardware"))
+                ),
+                "",
+            )
+    except OSError:
+        pass
 try:
     pages = os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
     info["memory_gb"] = round(pages / 1024**3, 1)

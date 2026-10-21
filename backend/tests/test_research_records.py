@@ -170,6 +170,36 @@ def test_dataset_files_are_checked_against_their_published_hash(world, monkeypat
         assert row.status == "failed" and "校验不符" in row.note
 
 
+def test_the_brief_gives_the_checksums_a_dataset_was_verified_against(world):
+    # An executor once "checked" MNIST against md5s it remembered and wrongly
+    # concluded the labels had been recompressed: it is told what was checked.
+    from backend.research_brief import _datasets
+
+    files = [
+        {"name": name, "md5": md5, "bytes": 1, "sha256": "s"}
+        for name, _url, md5 in rd.REGISTRY["mnist"]["files"]
+    ]
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        d.add(
+            ResearchDataset(
+                project_id=p.id,
+                name="mnist",
+                source="registry",
+                path="/data/mnist",
+                status="ready",
+                files=files,
+                note="ossci-datasets.s3.amazonaws.com",
+            )
+        )
+        d.flush()
+        text = _datasets(d, p)
+    assert "发布方 md5" in text and "ossci-datasets.s3.amazonaws.com" in text
+    assert "train-labels-idx1-ubyte.gz md5 d53e105ee54ea40749a09fcbcd1e9432" in text
+    assert "t10k-labels-idx1-ubyte.gz md5 ec29112dd5afa0611ce80d1b7f02629c" in text
+    assert "以这里的值为准" in text
+
+
 def test_a_slow_download_does_not_hold_up_the_scheduler(world, monkeypatch):
     import threading
 
