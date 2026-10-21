@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createPaperWithPdf, signIn } from "../reader/fixtures";
+import { createPaperWithPdf, signIn, who } from "../reader/fixtures";
 
 test.use({ locale: "zh-CN" });
 
@@ -82,7 +82,7 @@ test("signed out, #open asks for the sign-in and then goes on", async ({
   await page.context().clearCookies();
   await page.goto("/#open?url=" + encodeURIComponent(ADDRESS));
   await page.reload();
-  await page.getByLabel(/^(用户名|Username)$/).fill("alice");
+  await page.getByLabel(/^(用户名|Username)$/).fill(who("alice"));
   await page
     .getByLabel(/^(密码|Password)$/)
     .fill(process.env.E2E_TEST_PASSWORD!);

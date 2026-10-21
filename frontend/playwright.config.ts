@@ -5,10 +5,13 @@ process.env.E2E_TEST_PASSWORD ||= randomBytes(30).toString("base64url");
 const port = process.env.E2E_PORT || "8766";
 export default defineConfig({
   testDir: "./e2e",
+  // Files run side by side, each worker on its own accounts (see who() in
+  // e2e/reader/fixtures.ts); the tests of one file run in order.
   fullyParallel: false,
-  workers: 1,
-  timeout: 120000,
-  expect: { timeout: 15000 },
+  workers: process.env.CI ? 2 : 4,
+  // The slowest passing test takes under 20 s: a failure is reported, not waited out.
+  timeout: 30000,
+  expect: { timeout: 10000 },
   reporter: [
     ["list"],
     [

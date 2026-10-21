@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { who } from "./reader/fixtures";
 import { en } from "../src/i18n/messages/en";
 import { zh } from "../src/i18n/messages/zh";
 
@@ -18,7 +19,7 @@ for (const [locale, words] of [
       ).toBeVisible();
       await page
         .getByLabel(words["login.username"], { exact: true })
-        .fill("alice");
+        .fill(who("alice"));
       await page
         .getByLabel(words["login.password"], { exact: true })
         .fill("not-the-password");

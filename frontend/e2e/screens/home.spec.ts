@@ -4,6 +4,7 @@ import {
   openReader,
   pdfWithPages,
   signIn,
+  who,
 } from "../reader/fixtures";
 
 // The screens follow the browser's language; these specs read them in Chinese.
@@ -60,7 +61,7 @@ test("with no papers, a dropped PDF is imported and opened", async ({
   page,
 }) => {
   // bob has nothing yet: the screen is the large drop zone.
-  await signInAs(page, "bob");
+  await signInAs(page, who("bob"));
   await page.goto(HOME);
   const home = page.getByRole("main");
   await expect(home.getByRole("heading", { name: "首页" })).toBeVisible();

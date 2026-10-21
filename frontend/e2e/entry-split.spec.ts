@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { who } from "./reader/fixtures";
 
 test("The public site and the sign-in page load without the workspace", async ({
   page,
@@ -30,7 +31,7 @@ test("The public site and the sign-in page load without the workspace", async ({
   expect(bytes()).toBeLessThan(500_000);
 
   // Signing in is what brings the workspace.
-  await page.getByLabel("用户名", { exact: true }).fill("alice");
+  await page.getByLabel("用户名", { exact: true }).fill(who("alice"));
   await page
     .getByLabel("密码", { exact: true })
     .fill(process.env.E2E_TEST_PASSWORD!);
@@ -48,7 +49,7 @@ test("A tab from before an update reloads once, then says so instead of going bl
     return route.abort();
   });
   await page.goto("/#dashboard");
-  await page.getByLabel("用户名", { exact: true }).fill("alice");
+  await page.getByLabel("用户名", { exact: true }).fill(who("alice"));
   await page
     .getByLabel("密码", { exact: true })
     .fill(process.env.E2E_TEST_PASSWORD!);

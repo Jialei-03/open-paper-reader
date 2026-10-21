@@ -128,16 +128,17 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 ## 5. 验证
 
 ```bash
-.venv/bin/python -m pytest -q            # 后端
+.venv/bin/python -m pytest -q            # 后端（默认 4 个进程并行，约 1 分钟）
 npm --prefix agent-runtime test          # Agent 运行时（对接本地模拟的模型）
 npm --prefix frontend run check          # 文案目录、类型检查、格式
 npm --prefix frontend run test:unit      # 前端纯逻辑（Vitest）
 npm --prefix frontend run build
 ```
 
-- 按改动先跑相关的测试，比如 `.venv/bin/python -m pytest -q backend/tests/test_research_host.py`。研究相关的测试在 `backend/tests/test_research_*.py`。
+- 按改动先跑相关的测试，比如 `.venv/bin/python -m pytest -q -n 0 backend/tests/test_research_host.py`（只跑一个文件时 `-n 0` 更快）。研究相关的测试在 `backend/tests/test_research_*.py`。
 - 改了界面：构建、重启开发实例，在浏览器里实际点一遍，深色和浅色、中文和英文都看一下。
-- 浏览器测试：`make build` 后 `cd frontend && npx playwright test`。它们自己起一个临时数据库（`scripts/e2e_server.py`），读的是 `frontend/dist`。同一个账户同一时间只允许一个排队或运行中的助手任务，创建了任务的用例必须取消它。
+- 浏览器测试：`make build` 后 `cd frontend && npx playwright test`。它们自己起一个临时数据库（`scripts/e2e_server.py`），读的是 `frontend/dist`。本机 4 个进程并行（CI 每个分片 2 个），每个进程用自己的账号（`alice`/`bob`、`alice1`/`bob1`……，用例里用 `who("alice")`，不要写死账号名）。同一个账户同一时间只允许一个排队或运行中的助手任务，创建了任务的用例必须取消它。单个用例 30 秒超时：正常的用例都在 20 秒内。
+- 测试检查行为，不扣细节：用户能不能做成这件事、数据对不对、出错时说没说清楚。不断言像素、动画时长、精确百分比或整句文案（除非文案本身就是要检查的东西）；性能测试的门槛留足余量（机器上同时还跑着别的测试）。写一个新测试前先想它在什么情况下会误报。
 - 用真实模型验证会产生费用。记录用的模型、材料、结果和限制；不要把模拟模型的测试说成真实验证。`backend/devtools/fake_model.py` 是可以注入故障的假模型。
 - 官网截图要来自真实界面：在开发实例里打开一个真实的研究，用 1440×900 截浅色、深色和中英文四张，放进 `frontend/public/assets/site/`。
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createPaperWithPdf, signIn } from "../reader/fixtures";
+import { createPaperWithPdf, signIn, who } from "../reader/fixtures";
 
 // What the service guarantees whatever the screens show: who can see what, what a
 // credential may do, what a link gives away, and what is asked before something goes.
@@ -67,7 +67,7 @@ test("another user can neither open nor read a paper, and a new account starts e
   const other = await browser.newContext({ locale: "zh-CN" });
   try {
     const bob = await other.newPage();
-    await signInAs(bob, "bob", process.env.E2E_TEST_PASSWORD!);
+    await signInAs(bob, who("bob"), process.env.E2E_TEST_PASSWORD!);
     await bob.goto(`/#read/${paperId}`);
     await expect(bob.getByRole("main")).toContainText("找不到这篇论文");
     for (const path of [

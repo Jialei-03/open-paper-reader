@@ -2,11 +2,21 @@ import { expect, type Page } from "@playwright/test";
 import { readerHash, type ReaderRoute } from "../../src/reader/route";
 import { testPdf } from "../fixtures/pdf";
 
+/**
+ * This worker's own account: alice for the first, alice1, alice2, ... for the
+ * others (scripts/e2e_server.py makes one pair per worker), so tests running
+ * in parallel never share papers, notes or the one task an account may run.
+ */
+export function who(name: "alice" | "bob") {
+  const index = Number(process.env.TEST_PARALLEL_INDEX ?? 0);
+  return index ? `${name}${index}` : name;
+}
+
 /** Sign in as alice through the sign-in form, in whichever language the browser asks for. */
 export async function signIn(page: Page) {
   await page.goto("/#dashboard");
   const username = page.getByLabel(/^(用户名|Username)$/);
-  await username.fill("alice");
+  await username.fill(who("alice"));
   await page
     .getByLabel(/^(密码|Password)$/)
     .fill(process.env.E2E_TEST_PASSWORD!);

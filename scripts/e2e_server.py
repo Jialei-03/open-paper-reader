@@ -28,16 +28,21 @@ with tempfile.TemporaryDirectory(prefix="paper-platform-e2e-") as directory:
     from backend.models import User
 
     _, maker = database(Settings.env())
+    # One pair of accounts per parallel Playwright worker (alice/bob, alice1/bob1,
+    # ...): a worker's tests never share an account, its papers or its task slot.
     with maker() as d:
-        for name in ("alice", "bob"):
-            d.add(
-                User(
-                    username=name,
-                    email=name + "@browser.example",
-                    password=PASSWORD.hash(os.environ["E2E_TEST_PASSWORD"]),
-                    admin=name == "alice",
+        hashed = PASSWORD.hash(os.environ["E2E_TEST_PASSWORD"])
+        for index in range(int(os.getenv("E2E_ACCOUNTS", "8"))):
+            for base in ("alice", "bob"):
+                name = base + (str(index) if index else "")
+                d.add(
+                    User(
+                        username=name,
+                        email=name + "@browser.example",
+                        password=hashed,
+                        admin=base == "alice",
+                    )
                 )
-            )
         d.commit()
     import re
 
