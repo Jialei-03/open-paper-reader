@@ -75,6 +75,8 @@ exclude = ["backend/tests", "backend/devtools", "**/__pycache__", "**/*.pyc"]
 "deploy/translation/patch_layout_quality.py" = "backend/_bundle/layout/patch_layout_quality.py"
 
 [tool.hatch.build.targets.sdist]
+# frontend/dist is built, not committed: .gitignore must not keep it out.
+ignore-vcs = true
 include = [
   "backend",
   "agent-runtime/*.mjs",

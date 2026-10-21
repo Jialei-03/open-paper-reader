@@ -3,10 +3,30 @@ PY ?= .venv/bin/python
 PIP ?= .venv/bin/pip
 
 .DEFAULT_GOAL := help
-.PHONY: help install env db run web worker research-image test check build e2e docker-up docker-down
+.PHONY: help start install env db run web worker research-image test check build e2e docker-up docker-down
 
 help: ## Show this list
 	@grep -E '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
+
+start: .venv/.installed frontend/node_modules/.installed agent-runtime/node_modules/.installed frontend/dist/index.html ## Install what is missing, build what changed, and open the app (PORT=8765)
+	$(PY) -m backend.local --port $(or $(PORT),8765)
+
+# What `start` needs, each redone only when what it comes from has changed.
+.venv/.installed: backend/requirements.txt backend/requirements-dev.txt
+	test -x $(PY) || python3 -m venv .venv
+	$(PIP) install -q -r backend/requirements-dev.txt
+	touch $@
+
+frontend/node_modules/.installed: frontend/package-lock.json
+	npm --prefix frontend ci --ignore-scripts
+	touch $@
+
+agent-runtime/node_modules/.installed: agent-runtime/package-lock.json
+	npm --prefix agent-runtime ci --ignore-scripts
+	touch $@
+
+frontend/dist/index.html: frontend/node_modules/.installed frontend/index.html frontend/vite.config.ts $(shell find frontend/src frontend/public -type f 2>/dev/null)
+	npm --prefix frontend run build
 
 install: ## Create .venv and install backend and frontend dependencies
 	python3 -m venv .venv
