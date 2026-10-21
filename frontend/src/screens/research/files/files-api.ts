@@ -151,6 +151,8 @@ export function settledKey(
   jobs: { id: string; status: string }[],
 ) {
   const ended = sprints.filter((s) => s.status !== "running").length;
-  const done = jobs.filter((j) => j.status !== "running").length;
+  const done = jobs.filter(
+    (j) => j.status !== "running" && j.status !== "queued",
+  ).length;
   return `${ended}:${done}`;
 }

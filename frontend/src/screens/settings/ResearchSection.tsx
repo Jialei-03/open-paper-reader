@@ -253,6 +253,38 @@ export function ResearchSection({
           })}
         </div>
       )}
+      {part !== "tracker" &&
+        data.computes
+          .filter((c) => c.kind === "host")
+          .map((c) => (
+            <div key={`${c.id}-at-once`}>
+              <h3 className={styles.subTitle}>
+                {t("settings.research.concurrency", { name: c.name })}
+              </h3>
+              <p className={styles.settingHint}>
+                {t("settings.research.concurrencyHint")}
+              </p>
+              <div className={styles.setting}>
+                <SegmentedControl
+                  kind="radio"
+                  size="sm"
+                  label={t("settings.research.concurrency", { name: c.name })}
+                  value={String(c.concurrency ?? 1)}
+                  onChange={(n) =>
+                    save({
+                      computes: data.computes.map((x) =>
+                        x.id === c.id ? { ...x, concurrency: Number(n) } : x,
+                      ),
+                    })
+                  }
+                  options={["1", "2", "3", "4"].map((n) => ({
+                    value: n,
+                    label: n,
+                  }))}
+                />
+              </div>
+            </div>
+          ))}
 
       {part !== "environments" && (
         <>

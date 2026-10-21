@@ -75,7 +75,7 @@ def check(app, d, owner, project, summary, evidence, stated=""):
             job = _job(d, project, item.get("job_id", ""))
             if job is None or job.project_id != project.id:
                 raise ValueError(f"第 {n} 条证据：作业不属于这个研究项目")
-            if job.status == "running":
+            if job.status in ("queued", "running"):
                 raise ValueError(f"第 {n} 条证据：作业还没有结束，等它结束再引用结果")
             start, end = item.get("from_line", 0), item.get("to_line", 0)
             if not (1 <= start <= end <= job.log_lines) or end - start >= MAX_LINES:

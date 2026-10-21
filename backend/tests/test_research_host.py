@@ -225,3 +225,148 @@ def test_a_running_job_shows_its_numbers_before_it_ends(world):
         (rs.workdir(settings, p.id) / "go").write_text("")
         _wait_done(settings, d, job)
         assert job.status == "succeeded" and job.metrics["loss"] == 0.25
+
+
+def _sprint(d, p):
+    sprint = ResearchSprint(project_id=p.id, number=1, run_id="r")
+    d.add(sprint)
+    d.flush()
+    return rm.root(d, p), sprint
+
+
+def _until(maker, settings, job_id, status, seconds=10):
+    """Sweeps as the scheduler does until the job reaches `status`."""
+    from backend.models import ResearchJob
+
+    end = time.time() + seconds
+    while time.time() < end:
+        rs.sweep(settings, maker)
+        with maker() as d:
+            if d.get(ResearchJob, job_id).status == status:
+                return
+        time.sleep(0.1)
+    raise AssertionError(f"{job_id} never became {status}")
+
+
+def test_jobs_on_this_machine_run_one_at_a_time(world):
+    from backend.models import ResearchJob
+
+    settings, maker, pid = world
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        node, sprint = _sprint(d, p)
+        work = rs.workdir(settings, p.id)
+        hold = "while [ ! -e go ]; do sleep 0.05; done"
+        first = rs.start_job(settings, d, p, node, sprint, hold, 60)
+        second = rs.start_job(settings, d, p, node, sprint, "echo second", 60)
+        third = rs.start_job(settings, d, p, node, sprint, "echo third", 60)
+        assert first.status == "running"
+        assert second.status == "queued" and not second.remote
+        assert third.status == "queued"
+        status = rs.job_status(third, d)
+        assert status["queue_position"] == 2 and "依次运行" in status["hint"]
+        assert rs.read_log(settings, second, 0, 10) == {"lines": [], "total": 0}
+        d.commit()
+        ids = first.id, second.id, third.id
+    # Still waiting: the first holds the machine.
+    rs.sweep(settings, maker)
+    with maker() as d:
+        assert d.get(ResearchJob, ids[1]).status == "queued"
+    (work / "go").write_text("")
+    _until(maker, settings, ids[1], "succeeded")
+    _until(maker, settings, ids[2], "succeeded")
+    with maker() as d:
+        jobs = [d.get(ResearchJob, i) for i in ids]
+        assert jobs[0].status == "succeeded"
+        # Each started after the one before it ended, and its time counts from then.
+        assert jobs[1].started_at >= jobs[0].finished_at
+        assert jobs[2].started_at >= jobs[1].finished_at
+        assert rs.read_log(settings, jobs[2], 0, 10)["lines"][-1]["text"] == "third"
+
+
+def test_stopping_the_research_cancels_its_queued_jobs(world):
+    settings, maker, pid = world
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        node, sprint = _sprint(d, p)
+        running = rs.start_job(settings, d, p, node, sprint, "sleep 30", 60)
+        queued = rs.start_job(settings, d, p, node, sprint, "echo never", 60)
+        dropped = rs.start_job(settings, d, p, node, sprint, "echo never", 60)
+        # stop_job takes one out of the queue.
+        rs.stop_job(settings, d, dropped)
+        assert dropped.status == "cancelled"
+        assert rs.job_status(queued, d)["queue_position"] == 1
+        rs.stop_jobs(settings, d, p.id, rs.PAUSED_NOTE)
+        assert running.status == "failed"
+        assert queued.status == "cancelled" and not queued.remote
+        assert rs.read_log(settings, queued, 0, 10)["lines"][-1]["text"] == rs.QUEUED_NOTE
+        d.commit()
+    # Nothing is left to start.
+    rs.sweep(settings, maker)
+    with maker() as d:
+        from backend.models import ResearchJob
+
+        assert d.get(ResearchJob, queued.id).status == "cancelled"
+
+
+def test_this_machine_may_be_set_to_run_two_at_once(world):
+    settings, maker, pid = world
+    data = rset.load(settings)
+    data["computes"][0]["concurrency"] = 2
+    rset.update(settings, {"computes": data["computes"]})
+    assert rset.compute(settings, "host")["concurrency"] == 2
+    with pytest.raises(ValueError, match="同时运行"):
+        rset.update(settings, {"computes": [{**data["computes"][0], "concurrency": 99}]})
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        node, sprint = _sprint(d, p)
+        a = rs.start_job(settings, d, p, node, sprint, "sleep 30", 60)
+        b = rs.start_job(settings, d, p, node, sprint, "sleep 30", 60)
+        c = rs.start_job(settings, d, p, node, sprint, "sleep 30", 60)
+        assert [j.status for j in (a, b, c)] == ["running", "running", "queued"]
+        rs.stop_jobs(settings, d, p.id)
+
+
+def test_run_job_waits_from_when_a_queued_job_starts(world, monkeypatch):
+    from backend import research_tools as rt
+    from backend.models import ResearchJob
+
+    settings, maker, pid = world
+    monkeypatch.setattr(rt, "WAIT_POLL", 0.05)
+    with maker() as d:
+        p = d.get(ResearchProject, pid)
+        node, sprint = _sprint(d, p)
+        busy = rs.start_job(settings, d, p, node, sprint, "sleep 30", 60)
+        job = rs.start_job(settings, d, p, node, sprint, "echo done", 60)
+        d.commit()
+        # Nothing starts it: it is still queued when the wait ends, and says so.
+        monkeypatch.setattr(rt, "WAIT_MAX", 0.3)
+        out = rt._wait(settings, d, job, 5)
+        assert out["status"] == "queued" and out["queue_position"] == 1
+        assert "排队" in out["hint"]
+        with maker() as other:
+            rs.stop_job(settings, other, other.get(ResearchJob, busy.id))
+            other.commit()
+        rs.sweep(settings, maker)
+        monkeypatch.setattr(rt, "WAIT_MAX", 10)
+        # The sweeper picks it up; the wait then covers its own running time.
+        import threading
+
+        def sweeping():
+            for _ in range(40):
+                rs.sweep(settings, maker)
+                time.sleep(0.05)
+
+        t = threading.Thread(target=sweeping)
+        t.start()
+        out = rt._wait(settings, d, job, 5)
+        t.join()
+        assert out["status"] == "succeeded" and out["lines"][-1]["text"] == "done"
+
+
+def test_the_executor_is_told_experiments_here_run_in_turn(world):
+    from backend.research_brief import _setting_out
+
+    settings, maker, pid = world
+    with maker() as d:
+        assert "依次运行" in _setting_out(settings, d.get(ResearchProject, pid))

@@ -70,6 +70,13 @@ QUOTA_NOTE = "[系统] 工作区超过配额，作业被终止"
 STOPPED_NOTE = "[系统] 研究已停止，作业被终止"
 PAUSED_NOTE = "[系统] 研究已暂停，作业被终止"
 CANCELLED_NOTE = "[系统] 执行者停止了这个作业"
+QUEUED_NOTE = "[系统] 作业在排队时被取消，没有运行"
+# Still to end: waiting its turn on this machine, or running.
+ACTIVE = ("queued", "running")
+SERIAL = (
+    "本机的实验依次运行（同时最多 {n} 个）：再启动的作业会排队，"
+    "前一个结束后由系统自动开始，耗时从真正开始运行算起。排队不是卡住，不要重复启动。"
+)
 
 # The CLI, through one name so tests can stand in for it.
 run = subprocess.run
@@ -316,6 +323,12 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
     job.container = "ora-job-" + job.id.replace("-", "")[:12]
     if item["id"] not in (project.environment or {}):
         probe(settings, d, project, item)
+    # Its time counts from here, not from before the probe.
+    job.started_at = now()
+    if item["kind"] == "host" and _busy(d, item, job):
+        # This machine's GPU is shared: the job waits its turn (sweep starts it).
+        job.status = "queued"
+        return job
     if item["kind"] in {"ssh", "host"}:
         _away(item["kind"]).start(settings, d, item, project, job)
         return job
@@ -354,6 +367,87 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
     if started.returncode != 0:
         raise ValueError("作业没有启动：" + (started.stderr or "")[-300:])
     return job
+
+
+def _busy(d, item, job=None):
+    """Whether this machine already runs as many jobs as it may at once."""
+    other = job.id if job is not None else ""
+    running = d.scalars(
+        select(ResearchJob.id).where(
+            ResearchJob.compute_id == item["id"],
+            ResearchJob.status == "running",
+            ResearchJob.id != other,
+        )
+    ).all()
+    ahead = []
+    if job is not None:
+        # Jobs already waiting go first.
+        ahead = d.scalars(
+            select(ResearchJob.id).where(
+                ResearchJob.compute_id == item["id"],
+                ResearchJob.status == "queued",
+                ResearchJob.id != job.id,
+            )
+        ).all()
+    return len(running) + len(ahead) >= research_settings.concurrency(item)
+
+
+def queue_position(d, job):
+    """1 for the next job to start on its machine, and so on."""
+    ahead = d.scalars(
+        select(ResearchJob.id).where(
+            ResearchJob.compute_id == job.compute_id,
+            ResearchJob.status == "queued",
+            ResearchJob.started_at <= job.started_at,
+            ResearchJob.id != job.id,
+        )
+    ).all()
+    return len(ahead) + 1
+
+
+def _start_queued(settings, d, job):
+    """A queued job's turn: it starts now, and its time counts from now."""
+    project = d.get(ResearchProject, job.project_id)
+    item = research_settings.compute(settings, job.compute_id)
+    job.status = "running"
+    job.started_at = now()
+    _away(item["kind"]).start(settings, d, item, project, job)
+
+
+def start_waiting(settings, maker):
+    """Starts queued jobs, oldest first, as their machine has room for them."""
+    with maker() as d:
+        ids = list(
+            d.scalars(
+                select(ResearchJob.id)
+                .where(ResearchJob.status == "queued")
+                .order_by(ResearchJob.started_at, ResearchJob.id)
+            )
+        )
+    for job_id in ids:
+        with maker() as d:
+            job = d.get(ResearchJob, job_id)
+            if job is None or job.status != "queued":
+                continue
+            try:
+                item = research_settings.compute(settings, job.compute_id)
+                if _busy(d, item):
+                    continue
+                _start_queued(settings, d, job)
+                d.commit()
+            except (ValueError, OSError) as e:
+                d.rollback()
+                job = d.get(ResearchJob, job_id)
+                _end_queued(settings, job, "failed", f"[系统] 作业没有启动：{e}")
+                d.commit()
+
+
+def _end_queued(settings, job, status, note):
+    """A job that never ran: its log says why."""
+    (logdir(settings, job.project_id) / f"{job.id}.log").write_text(note + "\n")
+    job.log_lines = 1
+    job.status = status
+    job.finished_at = now()
 
 
 def probe(settings, d, project, item):
@@ -635,10 +729,20 @@ def sweep(settings, maker):
                 d.commit()
             except (ValueError, OSError, subprocess.TimeoutExpired):
                 d.rollback()
+    start_waiting(settings, maker)
 
 
 def stop_jobs(settings, d, project_id, note=STOPPED_NOTE):
-    """Stops a project's running experiments (the project was stopped or paused)."""
+    """Stops a project's running experiments and drops its queued ones
+    (the project was stopped or paused)."""
+    for job in list(
+        d.scalars(
+            select(ResearchJob).where(
+                ResearchJob.project_id == project_id, ResearchJob.status == "queued"
+            )
+        )
+    ):
+        _end_queued(settings, job, "cancelled", QUEUED_NOTE)
     for job in list(
         d.scalars(
             select(ResearchJob).where(
@@ -656,7 +760,11 @@ def stop_jobs(settings, d, project_id, note=STOPPED_NOTE):
 
 
 def stop_job(settings, d, job):
-    """Stops one running job of the project, and only that one."""
+    """Stops one running job of the project, and only that one; a queued
+    one is taken out of the queue."""
+    if job.status == "queued":
+        _end_queued(settings, job, "cancelled", QUEUED_NOTE)
+        return
     if job.status != "running":
         raise ValueError(f"作业已经结束（{job.status}）")
     _kill(job)
@@ -664,7 +772,15 @@ def stop_job(settings, d, job):
     _finish(settings, d, job, "cancelled", None, note=CANCELLED_NOTE)
 
 
-def job_status(job):
+def job_status(job, d=None):
+    out = {}
+    if job.status == "queued" and d is not None:
+        position = queue_position(d, job)
+        out = {
+            "queue_position": position,
+            "hint": f"本机实验依次运行：这个作业在排队（第 {position} 位），"
+            "前面的作业结束后系统会自动开始它。",
+        }
     return {
         "status": job.status,
         "exit_code": job.exit_code,
@@ -674,7 +790,7 @@ def job_status(job):
         # While it runs: the latest values it logged through `ora`, and how many.
         "metrics": job.metrics or {},
         "points": job.points or 0,
-    }
+    } | out
 
 
 LOG_BYTES = 8 * 1024 * 1024
@@ -682,6 +798,8 @@ LOG_BYTES = 8 * 1024 * 1024
 
 def read_log(settings, job, offset, limit):
     """Lines of a job's output, numbered from 1; a running job's, up to now."""
+    if job.status == "queued":
+        return {"lines": [], "total": 0}
     if job.status == "running":
         text = _logs(job.container, job)[-LOG_BYTES:]
     else:

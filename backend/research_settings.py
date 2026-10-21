@@ -12,7 +12,10 @@ import os
 import re
 from pathlib import Path
 
-THIS = {"id": "host", "name": "本机", "kind": "host", "gpus": ""}
+THIS = {"id": "host", "name": "本机", "kind": "host", "gpus": "", "concurrency": 1}
+# How many experiments one machine runs at once; more wait their turn, so
+# their timings are not skewed by sharing its GPU.
+CONCURRENCY_MAX = 8
 # This machine's Docker. No longer offered by default: kept so the projects
 # and jobs that ran in it still find it.
 LOCAL = {
@@ -95,6 +98,14 @@ def compute(settings, compute_id):
     raise ValueError(f"找不到算力配置：{compute_id}")
 
 
+def concurrency(item):
+    """How many of this environment's jobs may run at once (this machine: 1 unless set)."""
+    try:
+        return max(1, min(CONCURRENCY_MAX, int(item.get("concurrency") or 1)))
+    except (TypeError, ValueError):
+        return 1
+
+
 def public(data):
     """The settings as the browser sees them: the key's presence, not the key."""
     tracker = {k: v for k, v in data["tracker"].items() if k != "api_key"}
@@ -112,7 +123,19 @@ def check_compute(item):
     if not GPUS.match(gpus):
         raise ValueError("GPU 只能填 all、留空，或用逗号分隔的编号")
     if kind == "host":
-        return {"id": item["id"], "name": name, "kind": "host", "gpus": gpus}
+        try:
+            at_once = int(item.get("concurrency") or 1)
+        except (TypeError, ValueError):
+            at_once = 0
+        if not 1 <= at_once <= CONCURRENCY_MAX:
+            raise ValueError(f"同时运行的实验数须在 1 到 {CONCURRENCY_MAX} 之间")
+        return {
+            "id": item["id"],
+            "name": name,
+            "kind": "host",
+            "gpus": gpus,
+            "concurrency": at_once,
+        }
     if kind == "docker":
         cpus = float(item.get("cpus") or 2)
         memory = int(item.get("memory_gb") or 4)

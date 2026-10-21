@@ -348,7 +348,8 @@ def _plan(app, d, project):
     if latest is not None and latest.waiting_on:
         waiting = d.scalars(
             select(ResearchJob).where(
-                ResearchJob.id.in_(latest.waiting_on), ResearchJob.status == "running"
+                ResearchJob.id.in_(latest.waiting_on),
+                ResearchJob.status.in_(research_sandbox.ACTIVE),
             )
         ).first()
         if waiting is not None:

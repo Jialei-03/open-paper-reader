@@ -1,6 +1,7 @@
 import {
   Check,
   ChevronRight,
+  Clock,
   Cpu,
   Database,
   FileText,
@@ -504,6 +505,7 @@ export function trackerLink(url: string) {
 }
 
 function duration(job: ResearchJob) {
+  if (job.status === "queued") return "";
   const end = job.finished_at ? new Date(job.finished_at) : new Date();
   const s = Math.max(0, Math.round((+end - +new Date(job.started_at)) / 1000));
   return s >= 3600
@@ -511,6 +513,14 @@ function duration(job: ResearchJob) {
     : s >= 60
       ? `${Math.floor(s / 60)}m${s % 60}s`
       : `${s}s`;
+}
+
+/** How a job stands, in words; a queued one with its place in the queue. */
+export function JobState({ job }: { job: ResearchJob }) {
+  const { t } = useI18n();
+  return job.status === "queued" && job.queue_position
+    ? t("research.job.queuedAt", { n: job.queue_position })
+    : t(`research.job.${job.status}` as MessageKey);
 }
 
 /** One experiment, as one line: how it went, what it is, its number, how long. */
@@ -536,6 +546,8 @@ export function RunCard({
       <span className={styles.status} data-status={job.status}>
         {job.status === "running" ? (
           <Spinner size={14} />
+        ) : job.status === "queued" ? (
+          <Clock size={13} aria-hidden />
         ) : job.status === "succeeded" ? (
           <Check size={13} aria-hidden />
         ) : (
@@ -550,7 +562,7 @@ export function RunCard({
         </span>
       ) : job.status !== "running" && job.status !== "succeeded" ? (
         <span className={styles.runMain}>
-          {t(`research.job.${job.status}` as MessageKey)}
+          <JobState job={job} />
         </span>
       ) : null}
       <span className={styles.workMeta}>{duration(job)}</span>

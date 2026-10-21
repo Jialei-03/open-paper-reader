@@ -140,7 +140,9 @@ function useStepText() {
     const report = jobReport(raw);
     if (!report) return raw;
     const head: string[] = [];
-    if (report.status)
+    if (report.status === "queued" && report.queuePosition)
+      head.push(t("research.job.queuedAt", { n: report.queuePosition }));
+    else if (report.status)
       head.push(
         t(`research.job.${report.status}` as MessageKey) || report.status,
       );
@@ -160,7 +162,8 @@ function useStepText() {
       !report.lines.length &&
       report.total !== undefined &&
       report.status &&
-      report.status !== "running"
+      report.status !== "running" &&
+      report.status !== "queued"
     )
       head.push(t("research.process.logLines", { n: report.total }));
     return [head.join(" · "), logText(report)].filter(Boolean).join("\n");

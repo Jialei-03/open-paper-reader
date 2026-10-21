@@ -17,7 +17,7 @@ import { FilesPanel } from "../files/FilesPanel";
 import { settledKey } from "../files/files-api";
 import { ResearchScene } from "../scene/ResearchScene";
 import { mainMetric, plainCommand } from "../process/model";
-import { Prose, trackerLink, type ThreadActions } from "./ThreadView";
+import { JobState, Prose, trackerLink, type ThreadActions } from "./ThreadView";
 import { ComputePicker } from "./Pickers";
 import styles from "./Talk.module.css";
 
@@ -205,7 +205,7 @@ function RunsTab({
           >
             <span className={styles.runHead}>
               <span className={styles.status} data-status={job.status}>
-                {t(`research.job.${job.status}` as MessageKey)}
+                <JobState job={job} />
               </span>
               <span className={styles.command}>
                 {(typeof job.config?.tag === "string" && job.config.tag) ||

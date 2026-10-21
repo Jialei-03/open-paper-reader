@@ -204,8 +204,15 @@ def sprint_out(s):
     }
 
 
-def job_out(j):
-    return {
+def job_out(j, d=None):
+    from .research_sandbox import queue_position
+
+    extra = (
+        {"queue_position": queue_position(d, j)}
+        if j.status == "queued" and d is not None
+        else {}
+    )
+    return extra | {
         k: getattr(j, k)
         for k in (
             "id",
@@ -899,7 +906,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "project": project_out(p),
             "nodes": [node_out(n) for n in research_map.nodes(d, p)],
             "sprints": [sprint_out(s) for s in sprints],
-            "jobs": [job_out(j) for j in jobs],
+            "jobs": [job_out(j, d) for j in jobs],
             "docker": docker_state(),
             "input_needed": input_needed(d, p),
             "datasets": [

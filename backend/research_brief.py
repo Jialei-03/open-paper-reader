@@ -63,6 +63,10 @@ def _setting_out(settings, project):
         )
         if machine:
             lines.append(f"- 机器：{machine}")
+        if item["kind"] == "host":
+            from .research_sandbox import SERIAL
+
+            lines.append("- " + SERIAL.format(n=research_settings.concurrency(item)))
     except ValueError:
         pass
     return "\n".join(lines)
@@ -522,7 +526,8 @@ def executor_brief(d, project, sprint_number, settings=None):
         for j in d.scalars(
             select(ResearchJob)
             .where(
-                ResearchJob.project_id == project.id, ResearchJob.status != "running"
+                ResearchJob.project_id == project.id,
+                ResearchJob.status.not_in(("queued", "running")),
             )
             .order_by(ResearchJob.finished_at.desc())
         )

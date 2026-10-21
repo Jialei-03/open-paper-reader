@@ -155,7 +155,7 @@ RESEARCH_TOOLS = [
     ),
     _research(
         "run_job",
-        "在研究工作区（当前目录）运行一条命令；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。几分钟内能跑完的，设 wait_seconds 等它结束，直接拿到日志行，本轮就能 record_result；更长的实验不等，用 end_sprint(waiting_on) 结束本轮。",
+        "在研究工作区（当前目录）运行一条命令；输出由系统保存为日志，可作为证据。作业绑定到当前焦点节点。几分钟内能跑完的，设 wait_seconds 等它结束，直接拿到日志行，本轮就能 record_result；更长的实验不等，用 end_sprint(waiting_on) 结束本轮。在本机环境上实验依次运行：已有作业在跑时，新作业排队（status=queued），前一个结束后自动开始，wait_seconds 从它真正开始运行算起。",
         {
             "command": {"type": "string", "minLength": 1, "maxLength": 4000},
             "timeout_seconds": {"type": "integer", "minimum": 1},
@@ -669,18 +669,34 @@ def _supported_by_record(d, project, node):
 
 
 def _wait(settings, d, job, seconds):
-    """Waits up to `seconds` for a job the sweeper collects, then reports it.
+    """Waits up to `seconds` of the job's running time for the sweeper to
+    collect it, then reports it.
 
-    Only the sweeper finishes jobs; this just watches the row, so the two never
-    race to collect the same container.
+    Only the sweeper finishes jobs (and starts queued ones); this just watches
+    the row, so the two never race to collect the same container. Time spent
+    queued does not count, but the whole wait stays within WAIT_MAX.
     """
     out = {"job_id": job.id}
     if seconds > 0:
         d.commit()
-        deadline = time.monotonic() + seconds
-        while job.status == "running" and time.monotonic() < deadline:
+        begun = time.monotonic()
+        deadline = begun + seconds if job.status == "running" else None
+        while job.status in research_sandbox.ACTIVE:
+            clock = time.monotonic()
+            if (deadline is not None and clock >= deadline) or clock - begun >= WAIT_MAX:
+                break
             time.sleep(WAIT_POLL)
             d.refresh(job)
+            if deadline is None and job.status != "queued":
+                deadline = time.monotonic() + seconds
+    if job.status == "queued":
+        position = research_sandbox.queue_position(d, job)
+        return out | {
+            "status": "queued",
+            "queue_position": position,
+            "hint": f"本机实验依次运行：这个作业在排队（第 {position} 位），前面的作业结束后系统会自动开始它，"
+            "不要重复启动。要等它时，用 end_sprint(waiting_on=[job_id]) 结束本轮。",
+        }
     if job.status == "running":
         return out | {
             "status": "running",
@@ -713,7 +729,7 @@ def _chat(app, research, name, args):
             }
         job = research_chat.job_of(d, research, args["job_id"])
         if name == "job_status":
-            return research_sandbox.job_status(job)
+            return research_sandbox.job_status(job, d)
         return research_sandbox.read_log(
             settings, job, args.get("offset", 0), args.get("limit", 200)
         )
@@ -881,11 +897,11 @@ def _run(app, owner, research, name, args):
             sprint.updated_at = now()
             result = {**counts, "version": book["version"]}
         elif name == "job_status":
-            return research_sandbox.job_status(_job(d, project, args["job_id"]))
+            return research_sandbox.job_status(_job(d, project, args["job_id"]), d)
         elif name == "stop_job":
             job = _job(d, project, args["job_id"])
             research_sandbox.stop_job(settings, d, job)
-            result = research_sandbox.job_status(job)
+            result = research_sandbox.job_status(job, d)
         elif name == "job_logs":
             return research_sandbox.read_log(
                 settings,

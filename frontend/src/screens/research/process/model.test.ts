@@ -189,6 +189,18 @@ describe("a job tool's result, read back", () => {
     expect(shortDuration(7500)).toBe("2h5m");
   });
 
+  it("reads a queued job: its place in this machine's queue", () => {
+    const report = jobReport(
+      JSON.stringify({
+        job_id: "j2",
+        status: "queued",
+        queue_position: 2,
+        hint: "本机实验依次运行",
+      }),
+    )!;
+    expect(report).toMatchObject({ status: "queued", queuePosition: 2 });
+  });
+
   it("reads a finished run_job wait, cut short, with its state", () => {
     const raw =
       '{"job_id": "j1", "status": "failed", "exit_code": 1, "log_lines": 300, "lines": [{"n": 1, "text": "Traceback"}, {"n": 2, "text": "  Fi';

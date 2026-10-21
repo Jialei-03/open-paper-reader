@@ -229,6 +229,8 @@ export interface JobReport {
   status?: string;
   exitCode?: number | null;
   elapsedSeconds?: number | null;
+  /** While queued: its place in this machine's queue. */
+  queuePosition?: number;
   metrics: Record<string, unknown>;
   lines: LogLine[];
   /** How many lines the log has in all, when the result says. */
@@ -294,6 +296,7 @@ export function jobReport(raw: string): JobReport | null {
   const status = pick("status");
   const exitCode = pick("exit_code");
   const elapsed = pick("elapsed_seconds");
+  const position = pick("queue_position");
   const total = pick("total") ?? pick("log_lines");
   let metrics: Record<string, unknown> = {};
   if (whole && whole.metrics && typeof whole.metrics === "object")
@@ -304,6 +307,7 @@ export function jobReport(raw: string): JobReport | null {
     status: typeof status === "string" ? status : undefined,
     exitCode: typeof exitCode === "number" ? exitCode : null,
     elapsedSeconds: typeof elapsed === "number" ? elapsed : null,
+    queuePosition: typeof position === "number" ? position : undefined,
     metrics,
     lines,
     total: typeof total === "number" ? total : undefined,

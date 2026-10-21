@@ -883,6 +883,8 @@ export const zh: { [K in keyof typeof en]: string } = {
   "research.pause": "暂停",
   "research.resume": "继续",
   "research.stop": "停止",
+  "research.job.queued": "排队中",
+  "research.job.queuedAt": "排队第 {n} 位",
   "research.job.running": "运行中",
   "research.job.succeeded": "已完成",
   "research.job.failed": "失败",
@@ -1240,6 +1242,9 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.research.addSsh": "添加机器",
   "settings.research.default": "默认",
   "settings.research.hostMeta": "直接在这台电脑上运行，不经过容器",
+  "settings.research.concurrency": "{name}同时运行的实验",
+  "settings.research.concurrencyHint":
+    "同时跑的实验会争用 GPU，耗时就不能比较。超出的实验排队，前一个结束后自动开始。",
   "settings.research.localMeta": "{cpus} CPU · {memory} GB 内存 · 运行时不联网",
   "settings.research.test": "检测",
   "settings.research.testing": "正在检测…",

@@ -117,7 +117,7 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 
 **人在哪里决定**：计划（`approve_plan`）、结论（接受或要求补做）、预算用完（追加或结束）、导师的提问和请你拍板。它们都是 `decision_requested` 事件，由 `research_stages.decide` 处理，在研究页的对话里显示成卡片。
 
-**实验**：`run_job` → `research_sandbox.start_job` 记一个 `ResearchJob`。作业在后台运行，退出码写在它的报告目录里，`sweep` 据此区分结束、超时和丢失；结束时收回日志、`ora` 报告的超参和指标，并在节点上记一个 `run_result` 事件。作业运行中，`sweep` 每次也读一遍它的 `metrics.jsonl`（SSH 机器上的每 30 秒拉回一次），研究页的曲线、`job_status` 和项目对话因此能看到进行到哪一步。
+**实验**：`run_job` → `research_sandbox.start_job` 记一个 `ResearchJob`。作业在后台运行，退出码写在它的报告目录里，`sweep` 据此区分结束、超时和丢失；结束时收回日志、`ora` 报告的超参和指标，并在节点上记一个 `run_result` 事件。作业运行中，`sweep` 每次也读一遍它的 `metrics.jsonl`（SSH 机器上的每 30 秒拉回一次），研究页的曲线、`job_status` 和项目对话因此能看到进行到哪一步。本机环境（`host`）同时只运行 `concurrency` 个作业（默认 1，`research_settings` 的 host 条目）：多出的记为 `queued`，`sweep` 在前一个结束后按排队顺序启动（`start_waiting`），`started_at` 从真正开始算；`stop_jobs`、`stop_job` 把排队的作业记为 `cancelled`。
 
 **环境**：环境的配置在 `research/settings.json` 的 `computes` 里，种类有 `host`、`docker`、`ssh`；准备的结果（用哪个 Python、检测结果、版本）在 `states` 里。本机环境的命令在研究工作区里以普通进程运行，环境变量只给最小的一组（不把服务器自己的环境、包括密钥，带进实验）。
 

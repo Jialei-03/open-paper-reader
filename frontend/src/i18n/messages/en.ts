@@ -946,6 +946,8 @@ export const en = {
   "research.pause": "Pause",
   "research.resume": "Resume",
   "research.stop": "Stop",
+  "research.job.queued": "queued",
+  "research.job.queuedAt": "queued · #{n}",
   "research.job.running": "running",
   "research.job.succeeded": "done",
   "research.job.failed": "failed",
@@ -1330,6 +1332,9 @@ export const en = {
   "settings.research.addSsh": "Add a machine",
   "settings.research.default": "Default",
   "settings.research.hostMeta": "Runs directly on this computer, no container",
+  "settings.research.concurrency": "Experiments at once on {name}",
+  "settings.research.concurrencyHint":
+    "Experiments running together share the GPU, so their timings cannot be compared. Extra ones wait in a queue and start when the one before ends.",
   "settings.research.localMeta":
     "{cpus} CPU · {memory} GB · runs without network",
   "settings.research.test": "Check",

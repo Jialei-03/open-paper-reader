@@ -179,7 +179,16 @@ export interface ResearchJob {
   node_id: string;
   sprint_id: string;
   command: string;
-  status: "running" | "succeeded" | "failed" | "timeout" | "lost";
+  status:
+    | "queued"
+    | "running"
+    | "succeeded"
+    | "failed"
+    | "timeout"
+    | "lost"
+    | "cancelled";
+  /** While queued: 1 for the next to start on its machine (this machine runs them in turn). */
+  queue_position?: number;
   exit_code: number | null;
   timeout_seconds: number;
   started_at: string;
@@ -272,6 +281,8 @@ export interface Compute {
   remote_dir?: string;
   runner?: "shell" | "docker";
   python?: string;
+  /** This machine: how many experiments run at once; more wait their turn (default 1). */
+  concurrency?: number;
 }
 
 export interface ResearchSettings {
