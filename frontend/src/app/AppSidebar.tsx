@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Clock3,
+  Plus,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -51,6 +52,7 @@ import {
   validSectionAddress,
 } from "./local-sections";
 import { SectionNavigation } from "./SectionNavigation";
+import { ScheduleNavigation } from "../screens/schedules/ScheduleCenter";
 import styles from "./AppSidebar.module.css";
 import { useLocal } from "./edition";
 import {
@@ -359,7 +361,7 @@ function AppResearchSidebar({
     {
       research: newResearchHash,
       materials: "library",
-      tasks: "scheduled",
+      tasks: "schedules",
       customize: "customize/playbook",
     }[key];
   const title = section === "research" ? "ORA" : t(`app.section.${section}`);
@@ -567,29 +569,51 @@ function AppResearchSidebar({
                 />
               )}
             </div>
-            <div className={styles.researchScroll}>
-              {section === "research" ? (
-                <>
-                  <div className={styles.researchActions}>
-                    <SidebarItem
-                      icon={SquarePen}
-                      label={t("projects.newResearch")}
-                      href={`#${newResearchHash}`}
-                      onClick={followLink(choose, newResearchHash)}
-                    />
-                  </div>
-                  <ResearchTree currentId={researchId} go={choose} />
-                </>
-              ) : (
-                <SectionNavigation
-                  section={section}
-                  route={route}
-                  hash={contextHash}
-                  reading={reading}
+            {section === "tasks" ? (
+              <div className={styles.taskNavigation}>
+                <div className={styles.taskNew}>
+                  <SidebarItem
+                    icon={Plus}
+                    label={t("schedules.new")}
+                    active={
+                      route.screen === "schedules" && route.scheduleId === "new"
+                    }
+                    href="#schedules/new"
+                    onClick={followLink(choose, "schedules/new")}
+                  />
+                </div>
+                <ScheduleNavigation
+                  currentId={
+                    route.screen === "schedules" ? route.scheduleId : undefined
+                  }
                   go={choose}
                 />
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className={styles.researchScroll}>
+                {section === "research" ? (
+                  <>
+                    <div className={styles.researchActions}>
+                      <SidebarItem
+                        icon={SquarePen}
+                        label={t("projects.newResearch")}
+                        href={`#${newResearchHash}`}
+                        onClick={followLink(choose, newResearchHash)}
+                      />
+                    </div>
+                    <ResearchTree currentId={researchId} go={choose} />
+                  </>
+                ) : (
+                  <SectionNavigation
+                    section={section}
+                    route={route}
+                    hash={contextHash}
+                    reading={reading}
+                    go={choose}
+                  />
+                )}
+              </div>
+            )}
           </div>
           {!floating && (
             <Resizer

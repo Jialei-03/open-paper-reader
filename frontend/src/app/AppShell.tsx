@@ -53,8 +53,7 @@ import {
 import { ResearchNavigationProvider } from "../screens/research/ResearchNavigation";
 import { LocalOnly } from "../screens/research/LocalOnly";
 import { ResearchProject } from "../screens/research/ResearchProject";
-import { Clock3 } from "lucide-react";
-import { Button } from "../ui";
+import { ScheduleCenter } from "../screens/schedules/ScheduleCenter";
 import { CustomizeScreen } from "../screens/customize/CustomizeScreen";
 
 // The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
@@ -297,9 +296,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
                 route.screen === "settings" ? under.current.hash : here
               }
               researchId={
-                shown.screen === "research" || shown.screen === "research-tasks"
-                  ? shown.projectId
-                  : undefined
+                shown.screen === "research" ? shown.projectId : undefined
               }
               papers={papers}
               visits={visits}
@@ -333,7 +330,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
             "research-board",
             "workspaces",
             "research-collections",
-            "research-tasks",
+            "schedules",
             "customize",
           ].includes(shown.screen) &&
             local === false &&
@@ -356,25 +353,13 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
               go={go}
             />
           )}
-          {shown.screen === "scheduled" && (
-            <main className={styles.scheduled}>
-              <Clock3 size={42} strokeWidth={1.25} aria-hidden />
-              <h1>{t("scheduled.title")}</h1>
-              <Button disabled>{t("scheduled.new")}</Button>
-            </main>
+          {local !== false && shown.screen === "schedules" && (
+            <ScheduleCenter
+              id={shown.scheduleId}
+              template={shown.template}
+              go={go}
+            />
           )}
-          {local !== false &&
-            shown.screen === "research-tasks" &&
-            (shown.projectId ? (
-              <ResearchProject
-                key={shown.projectId}
-                id={shown.projectId}
-                backHash={`tasks/${shown.filter}`}
-                go={go}
-              />
-            ) : (
-              <NewResearch go={go} />
-            ))}
           {shown.screen === "customize" &&
             (local !== false || shown.section === "models") && (
               <CustomizeScreen section={shown.section} />

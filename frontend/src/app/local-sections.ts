@@ -10,7 +10,7 @@ export function localSection(route: AppRoute): LocalSection {
     case "reader":
     case "open":
       return "materials";
-    case "scheduled":
+    case "schedules":
       return "tasks";
     case "customize":
       return "customize";
@@ -30,6 +30,7 @@ export function validSectionAddress(
   const route = parseAppRoute(hash);
   return (
     !route.redirect &&
+    route.screen !== "home" &&
     route.screen !== "settings" &&
     route.screen !== "open" &&
     !new URLSearchParams(hash.split("?")[1] || "").has("import") &&
