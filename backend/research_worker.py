@@ -712,7 +712,10 @@ def _schedulable(d, project, status):
 
 def tick(app):
     """One round of planning over every active project."""
+    from . import research_schedules
+
     for name, step in (
+        ("schedules", research_schedules.tick),
         ("conversations", research_dialogue.settle),
         ("sweep", research_sandbox.sweep),
         ("datasets", research_datasets.start_fetching),

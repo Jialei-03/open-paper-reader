@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Clock3,
+  Plus,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -52,7 +53,7 @@ import {
   validSectionAddress,
 } from "./local-sections";
 import { SectionNavigation } from "./SectionNavigation";
-import { TaskNavigation } from "../screens/tasks/TaskCenter";
+import { ScheduleNavigation } from "../screens/schedules/ScheduleCenter";
 import styles from "./AppSidebar.module.css";
 import { useLocal } from "./edition";
 import {
@@ -340,7 +341,7 @@ function AppResearchSidebar({
     {
       research: newResearchHash,
       materials: "library",
-      tasks: "tasks/active",
+      tasks: "schedules",
       customize: "customize/playbook",
       board: "board",
     }[key];
@@ -566,21 +567,18 @@ function AppResearchSidebar({
                 />
               )}
             </div>
-            {section === "tasks" && route.screen === "research-tasks" ? (
+            {section === "tasks" && route.screen === "schedules" ? (
               <div className={styles.taskNavigation}>
                 <div className={styles.taskNew}>
                   <SidebarItem
-                    icon={SquarePen}
-                    label={t("projects.newResearch")}
-                    href={`#${newResearchHash}`}
-                    onClick={followLink(choose, newResearchHash)}
+                    icon={Plus}
+                    label={t("schedules.new")}
+                    active={route.scheduleId === "new"}
+                    href="#schedules/new"
+                    onClick={followLink(choose, "schedules/new")}
                   />
                 </div>
-                <TaskNavigation
-                  filter={route.filter}
-                  currentId={route.projectId}
-                  go={choose}
-                />
+                <ScheduleNavigation currentId={route.scheduleId} go={choose} />
               </div>
             ) : (
               <div className={styles.researchScroll}>

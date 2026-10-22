@@ -3,7 +3,7 @@ import { localSection, validSectionAddress } from "./local-sections";
 import { parseAppRoute } from "./routes";
 
 describe("local app sections", () => {
-  it("keeps reading and discovery within materials and research tasks within tasks", () => {
+  it("keeps reading and discovery within materials and schedules within tasks", () => {
     for (const hash of [
       "library?view=reading",
       "discover",
@@ -11,7 +11,7 @@ describe("local app sections", () => {
       "read/p1?page=2",
     ])
       expect(localSection(parseAppRoute(hash))).toBe("materials");
-    expect(localSection(parseAppRoute("tasks/waiting"))).toBe("tasks");
+    expect(localSection(parseAppRoute("schedules"))).toBe("tasks");
     expect(localSection(parseAppRoute("customize/models"))).toBe("customize");
     expect(localSection(parseAppRoute("board"))).toBe("board");
     expect(localSection(parseAppRoute("new"))).toBe("research");
@@ -27,6 +27,8 @@ describe("local app sections", () => {
     expect(validSectionAddress("research", "settings/models")).toBe(false);
     expect(validSectionAddress("research", "nonsense")).toBe(false);
     expect(validSectionAddress("tasks", "new")).toBe(false);
+    expect(validSectionAddress("tasks", "tasks/active")).toBe(false);
+    expect(validSectionAddress("tasks", "schedules/new")).toBe(true);
     expect(validSectionAddress("tasks", { filter: "active" })).toBe(false);
   });
 });

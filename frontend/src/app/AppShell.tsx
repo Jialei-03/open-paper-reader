@@ -54,7 +54,7 @@ import {
 import { ResearchNavigationProvider } from "../screens/research/ResearchNavigation";
 import { LocalOnly } from "../screens/research/LocalOnly";
 import { ResearchProject } from "../screens/research/ResearchProject";
-import { TaskCenter } from "../screens/tasks/TaskCenter";
+import { ScheduleCenter } from "../screens/schedules/ScheduleCenter";
 import { CustomizeScreen } from "../screens/customize/CustomizeScreen";
 
 // The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
@@ -290,9 +290,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
                 route.screen === "settings" ? under.current.hash : here
               }
               researchId={
-                shown.screen === "research" || shown.screen === "research-tasks"
-                  ? shown.projectId
-                  : undefined
+                shown.screen === "research" ? shown.projectId : undefined
               }
               papers={papers}
               visits={visits}
@@ -326,7 +324,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
             "research-board",
             "workspaces",
             "research-collections",
-            "research-tasks",
+            "schedules",
             "customize",
           ].includes(shown.screen) &&
             local === false && <LocalOnly />}
@@ -346,18 +344,13 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
               go={go}
             />
           )}
-          {local !== false &&
-            shown.screen === "research-tasks" &&
-            (shown.projectId ? (
-              <ResearchProject
-                key={shown.projectId}
-                id={shown.projectId}
-                backHash={`tasks/${shown.filter}`}
-                go={go}
-              />
-            ) : (
-              <TaskCenter filter={shown.filter} go={go} />
-            ))}
+          {local !== false && shown.screen === "schedules" && (
+            <ScheduleCenter
+              id={shown.scheduleId}
+              template={shown.template}
+              go={go}
+            />
+          )}
           {local !== false && shown.screen === "customize" && (
             <CustomizeScreen section={shown.section} />
           )}

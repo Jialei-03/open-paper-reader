@@ -146,23 +146,34 @@ describe("research navigation", () => {
 
 describe("section navigation", () => {
   const id = "0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d";
-  it("keeps task filters and the selected research in the task section", () => {
-    for (const filter of ["active", "waiting", "paused", "history"]) {
-      expect(parseAppRoute(`tasks/${filter}?research=${id}`)).toEqual({
-        screen: "research-tasks",
-        filter,
-        projectId: id,
+  it("opens schedules and redirects the retired task center", () => {
+    expect(parseAppRoute("schedules")).toEqual({ screen: "schedules" });
+    expect(parseAppRoute(`schedules/${id}`)).toEqual({
+      screen: "schedules",
+      scheduleId: id,
+    });
+    expect(parseAppRoute("schedules/new?template=papers")).toEqual({
+      screen: "schedules",
+      scheduleId: "new",
+      template: "papers",
+    });
+    expect(parseAppRoute("schedules/new?template=unknown")).toEqual({
+      screen: "schedules",
+      scheduleId: "new",
+    });
+    expect(parseAppRoute("schedules/invalid")).toEqual({
+      screen: "schedules",
+      redirect: "schedules",
+    });
+    for (const path of [
+      "tasks",
+      "tasks/active",
+      `tasks/waiting?research=${id}`,
+    ])
+      expect(parseAppRoute(path)).toEqual({
+        screen: "schedules",
+        redirect: "schedules",
       });
-    }
-    expect(parseAppRoute("tasks/waiting?research=invalid")).toEqual({
-      screen: "research-tasks",
-      filter: "waiting",
-    });
-    expect(parseAppRoute("tasks/unknown")).toEqual({
-      screen: "research-tasks",
-      filter: "active",
-      redirect: "tasks/active",
-    });
   });
   it("opens real customization pages and normalizes unknown subsections", () => {
     expect(parseAppRoute("customize/models")).toEqual({

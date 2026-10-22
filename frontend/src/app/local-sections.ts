@@ -15,7 +15,7 @@ export function localSection(route: AppRoute): LocalSection {
     case "reader":
     case "open":
       return "materials";
-    case "research-tasks":
+    case "schedules":
       return "tasks";
     case "customize":
       return "customize";

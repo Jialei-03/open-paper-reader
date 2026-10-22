@@ -1,0 +1,299 @@
+.page {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--ui-bg-1);
+  color: var(--ui-fg);
+}
+
+.navigation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 10px;
+}
+
+.navigationHeading {
+  padding: 8px 10px 12px;
+  color: var(--ui-fg-3);
+  font-size: 12px;
+}
+
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.tasks a {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--ui-fg-1);
+  font-size: 13px;
+}
+
+.tasks a:hover {
+  background: var(--ui-hover);
+}
+.tasks a[aria-current="page"] {
+  background: var(--ui-selected);
+}
+.tasks span,
+.tasks small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tasks small {
+  color: var(--ui-fg-3);
+  font-size: 11px;
+}
+
+.landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(800px, 100%);
+  margin: 0 auto;
+  padding: clamp(70px, 18vh, 180px) 32px 48px;
+  box-sizing: border-box;
+}
+
+.landing > svg {
+  color: var(--ui-fg-3);
+}
+.landing h1 {
+  margin: 20px 0 24px;
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.suggestions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  gap: 18px;
+  margin-top: 48px;
+}
+
+.suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 26px 22px;
+  border: 1px dashed var(--ui-edge);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--ui-fg-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestions button:hover {
+  background: var(--ui-hover);
+  border-style: solid;
+}
+.suggestions button > svg {
+  flex: none;
+  color: var(--ui-fg-3);
+}
+.suggestions button > span {
+  flex: 1;
+  min-width: 0;
+}
+.suggestions strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 400;
+}
+.suggestions small {
+  display: block;
+  margin-top: 8px;
+  color: var(--ui-fg-3);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.suggestions button:focus-visible,
+.field select:focus-visible,
+.checkbox input:focus-visible,
+.tasks a:focus-visible {
+  outline: 2px solid var(--ui-fg-3);
+  outline-offset: 3px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 48px 40px;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px 20px;
+}
+.header h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.status {
+  color: var(--ui-fg-3);
+  font-size: 12px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.field > span {
+  color: var(--ui-fg-1);
+  font-size: 12px;
+  font-weight: 600;
+}
+.field select {
+  width: 100%;
+  min-width: 0;
+  height: var(--ui-control-lg);
+  padding: 0 12px;
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: 10px;
+  background: var(--ui-fill);
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 13px;
+}
+.field select:disabled {
+  opacity: 0.45;
+}
+.timing {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-fg-1);
+  font-size: 13px;
+}
+.checkbox input {
+  accent-color: var(--ui-primary);
+}
+.save {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+  padding-top: 28px;
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+.history h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--ui-edge-subtle);
+  font-size: 12px;
+}
+.run > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ui-fg-3);
+}
+.run [data-failed] {
+  color: var(--ui-danger-text);
+}
+.run a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  color: var(--ui-fg-1);
+  text-underline-offset: 3px;
+}
+.error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--ui-danger-text);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.skeleton,
+.formSkeleton div {
+  min-height: 48px;
+  border-radius: 10px;
+  background: var(--ui-fill);
+}
+.formSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.formSkeleton div:nth-child(2) {
+  height: 140px;
+}
+
+@media (max-width: 700px) {
+  .content {
+    padding: 32px 20px;
+  }
+  .landing {
+    padding: 70px 20px 32px;
+  }
+  .suggestions {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 32px;
+  }
+  .suggestions button {
+    padding: 22px;
+  }
+}

@@ -24,9 +24,9 @@ export type AppRoute =
     }
   | { screen: "research-board"; redirect?: string }
   | {
-      screen: "research-tasks";
-      filter: "active" | "waiting" | "paused" | "history";
-      projectId?: string;
+      screen: "schedules";
+      scheduleId?: string;
+      template?: string;
       redirect?: string;
     }
   | {
@@ -77,21 +77,28 @@ export function parseAppRoute(hash: string): AppRoute {
       : { screen: "settings", redirect: "settings" };
   }
   const uuid = (value = "") => /^[0-9a-f-]{36}$/.test(value);
-  if (path === "tasks" || path.startsWith("tasks/")) {
-    const filter = path.slice("tasks/".length);
-    const projectId =
-      new URLSearchParams(hash.split("?")[1] || "").get("research") || "";
-    if (["active", "waiting", "paused", "history"].includes(filter))
+  if (path === "tasks" || path.startsWith("tasks/"))
+    return { screen: "schedules", redirect: "schedules" };
+  if (path === "schedules") return { screen: "schedules" };
+  if (path.startsWith("schedules/")) {
+    const scheduleId = path.slice("schedules/".length);
+    if (scheduleId === "new") {
+      const template = new URLSearchParams(hash.split("?")[1] || "").get(
+        "template",
+      );
       return {
-        screen: "research-tasks",
-        filter: filter as "active" | "waiting" | "paused" | "history",
-        ...(uuid(projectId) ? { projectId } : {}),
+        screen: "schedules",
+        scheduleId,
+        ...(["papers", "weekly", "experiments", "night"].includes(
+          template || "",
+        )
+          ? { template: template! }
+          : {}),
       };
-    return {
-      screen: "research-tasks",
-      filter: "active",
-      redirect: "tasks/active",
-    };
+    }
+    return uuid(scheduleId)
+      ? { screen: "schedules", scheduleId }
+      : { screen: "schedules", redirect: "schedules" };
   }
   if (path === "customize" || path.startsWith("customize/")) {
     const section = path.slice("customize/".length);

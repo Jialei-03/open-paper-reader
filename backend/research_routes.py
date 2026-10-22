@@ -352,6 +352,12 @@ def install_research_routes(app, settings, db, auth, human, owned):
             raise HTTPException(404, "Not found")
         return w
 
+    from .research_schedules import install_schedule_routes
+
+    install_schedule_routes(
+        app, settings, db, auth, allowed, owned, workspace_of, project_of
+    )
+
     @app.get("/api/v1/research/workspaces")
     def workspaces(a=Depends(auth), d=Depends(db)):
         from . import research_workspaces
