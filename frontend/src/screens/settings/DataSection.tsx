@@ -41,13 +41,17 @@ export function DataSection() {
     : 0;
 
   return (
-    <Section title={t("settings.data.title")}>
+    <Section hideHeading title={t("settings.data.title")}>
       {error ? (
         <p role="alert" className={styles.error}>
           {error}
         </p>
       ) : !storage ? (
-        <p className={styles.muted}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : (
         <>
           <div className={styles.setting}>

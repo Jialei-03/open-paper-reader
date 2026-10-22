@@ -18,22 +18,13 @@ import { PreviewPanel } from "../../reader/citations/PreviewPanel";
 import { byline, type CitedWork } from "../../reader/citations/lookup";
 import { useLibraryAdd } from "../../reader/citations/useLibraryAdd";
 import { followLink, readerHash } from "../../reader/route";
-import {
-  Button,
-  Card,
-  SegmentedControl,
-  Spinner,
-  TextField,
-  toast,
-} from "../../ui";
+import { Button, Card, SegmentedControl, TextField, toast } from "../../ui";
 import { ImportJobs, useFileDrop } from "../home/ImportDrop";
 import { LibraryImport } from "../library/LibraryImport";
 import { usePreference } from "../library/usePreference";
 import layout from "../library/LibraryScreen.module.css";
 import styles from "./DiscoverScreen.module.css";
 import { useRecommendations, type Recommendation } from "./useRecommendations";
-
-const WHY_SHOWN = 3;
 
 const asCited = (item: Recommendation): CitedWork => ({
   title: item.title,
@@ -60,7 +51,7 @@ export interface DiscoverScreenProps {
  * is suggested (which of the person's papers it relates to), and what to do
  * about it: preview it, add it, or say it is not of interest.
  */
-export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
+export function DiscoverScreen({ go, reload }: DiscoverScreenProps) {
   const { t, locale } = useI18n();
   const recs = useRecommendations(30);
   const adding = useLibraryAdd();
@@ -77,7 +68,6 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
     if (only) go(readerHash({ paperId: paper.id }).slice(1));
   });
   const { over, handlers } = useFileDrop(imports.importFiles);
-  const known = new Set(papers.map((paper) => paper.id));
 
   const time = (stamp?: string) =>
     stamp
@@ -180,10 +170,11 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
   let body: React.ReactNode;
   if (recs.status === "loading") {
     body = (
-      <p className={styles.loading} role="status" aria-busy="true">
-        <Spinner size={14} />
-        {t("discover.loading")}
-      </p>
+      <div
+        className={styles.skeleton}
+        role="status"
+        aria-label={t("discover.loading")}
+      />
     );
   } else if (recs.status === "failed" || !data) {
     body = message(
@@ -263,31 +254,6 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
-                  {item.abstract && (
-                    <p className={styles.abstract}>{item.abstract}</p>
-                  )}
-                  {item.why.length > 0 && (
-                    <p className={styles.why}>
-                      <span>{t("discover.why")}</span>
-                      {item.why.slice(0, WHY_SHOWN).map((w) => {
-                        const hash = readerHash({ paperId: w.paper_id });
-                        return known.has(w.paper_id) ? (
-                          <a
-                            key={w.paper_id}
-                            href={hash}
-                            onClick={followLink(go, hash.slice(1))}
-                          >
-                            {w.title}
-                          </a>
-                        ) : (
-                          <span key={w.paper_id}>{w.title}</span>
-                        );
-                      })}
-                      {item.why.length > WHY_SHOWN && (
-                        <span>+{item.why.length - WHY_SHOWN}</span>
-                      )}
-                    </p>
-                  )}
                   <div className={styles.actions}>
                     <Button
                       size="sm"

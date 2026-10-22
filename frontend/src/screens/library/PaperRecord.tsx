@@ -146,7 +146,6 @@ export function PaperRecord({ paper }: { paper: Paper }) {
         <pre className={styles.cite} tabIndex={0} data-testid="citation-text">
           {text}
         </pre>
-        {!known && <p className={styles.status}>{t("details.cite.note")}</p>}
       </section>
     </>
   );

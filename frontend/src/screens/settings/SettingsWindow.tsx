@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
+import { IconButton } from "../../ui";
 import { AccessSection } from "./AccessSection";
 import { CloudSection } from "./CloudSection";
 import { DataSection } from "./DataSection";
@@ -178,7 +179,7 @@ export function SettingsWindow({
                     aria-current={entry.id === category ? "page" : undefined}
                     onClick={() => onCategory(entry.id)}
                   >
-                    <Icon size={17} aria-hidden />
+                    <Icon size={16} aria-hidden />
                     {label(entry.id)}
                   </button>
                 );
@@ -190,15 +191,11 @@ export function SettingsWindow({
           )}
         </nav>
         <main className={styles.main}>
-          <button
-            type="button"
-            className={styles.close}
-            aria-label={t("common.close")}
-            onClick={onClose}
-          >
-            <X size={18} aria-hidden />
-          </button>
+          <div className={styles.close}>
+            <IconButton icon={X} label={t("common.close")} onClick={onClose} />
+          </div>
           <div className={styles.content} key={category}>
+            <h1 className={styles.title}>{label(category)}</h1>
             <Body category={category} go={go} />
           </div>
         </main>

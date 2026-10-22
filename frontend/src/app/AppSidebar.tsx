@@ -241,7 +241,7 @@ export function AppSidebar({
                 if (floating) setOpened(false);
               }}
             >
-              <Search size={15} aria-hidden="true" />
+              <Search size={16} aria-hidden="true" />
               <span className={styles.placeholder}>
                 {t(local ? "app.quickOpen.short" : "app.quickOpen")}
               </span>
@@ -426,7 +426,7 @@ function AppResearchSidebar({
         aria-current={active ? "page" : undefined}
         onClick={followLink(choose, hash)}
       >
-        <Icon size={21} strokeWidth={1.7} aria-hidden />
+        <Icon size={16} aria-hidden />
       </a>
     </Tooltip>
   );

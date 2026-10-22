@@ -38,13 +38,17 @@ export function UsageSection() {
 
   const count = (value: number) => formatCount(value, locale);
   return (
-    <Section title={t("settings.usage.title")}>
+    <Section hideHeading title={t("settings.usage.title")}>
       {error ? (
         <p role="alert" className={styles.error}>
           {error}
         </p>
       ) : !usage ? (
-        <p className={styles.muted}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : (
         <>
           <dl className={styles.figures}>

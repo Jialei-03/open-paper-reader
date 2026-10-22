@@ -64,7 +64,7 @@ async function setup(page: Page) {
   return createPaperWithPdf(page, { pages: 1, title: "Memory for Agents" });
 }
 
-test("recommendations show why, and can be previewed, added or dismissed", async ({
+test("recommendations show names and can be previewed, added or dismissed", async ({
   page,
 }) => {
   const seed = await setup(page);
@@ -107,10 +107,7 @@ test("recommendations show why, and can be previewed, added or dismissed", async
     "Ada Lovelace, Alan Turing, Grace Hopper",
   );
   await expect(cards.first()).toContainText("被引 321 次");
-  await expect(cards.first()).toContainText("相关的文库论文");
-  await expect(
-    cards.first().getByRole("link", { name: "Memory for Agents" }),
-  ).toHaveAttribute("href", new RegExp(`#read/${seed.paperId}`));
+  await expect(cards.first()).not.toContainText("相关的文库论文");
   await expect(page.getByRole("main")).toContainText("来源：Semantic Scholar");
   expect(log.gets[0]).toContain("limit=30");
 
@@ -190,9 +187,9 @@ test("each state of the screen says what it is", async ({ page }) => {
   await expect(page).toHaveURL(/#library$/);
 
   await show("offline");
-  await expect(main).toContainText("离线模式");
+  await expect(main).toContainText("离线");
   await show("unavailable");
-  await expect(main).toContainText("连不上论文服务");
+  await expect(main).toContainText("推荐不可用");
   await show("ok");
   await expect(main).toContainText("暂无推荐");
   // Refresh asks the service to look again.

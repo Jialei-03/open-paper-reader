@@ -1,10 +1,24 @@
-import { ExternalLink, Pencil, Star, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  BookOpen,
+  ExternalLink,
+  MoreHorizontal,
+  Pencil,
+  Star,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { api, ApiError, send, type Paper, type SourceFile } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import { lastPage } from "../../reader/engine/page-memory";
 import { followLink, readerHash } from "../../reader/route";
-import { Button, Dialog, TextArea, TextField } from "../../ui";
+import {
+  Button,
+  Dialog,
+  IconButton,
+  Menu,
+  TextArea,
+  TextField,
+} from "../../ui";
 import { STATUS, useProgressText } from "./PaperItem";
 import { PaperRecord } from "./PaperRecord";
 import {
@@ -75,6 +89,7 @@ export function PaperDetails({
 }: PaperDetailsProps) {
   const { t, locale } = useI18n();
   const progressText = useProgressText();
+  const formId = useId();
   // The paper as last saved from here.
   const [saved, setSaved] = useState<Paper | null>(null);
   const [extras, setExtras] = useState<Extras | null>(null);
@@ -196,55 +211,71 @@ export function PaperDetails({
               variant="primary"
               loading={busy}
               disabled={!title.trim()}
-              onClick={() =>
-                void apply(
-                  { title: title.trim(), authors: authors.trim() },
-                  () => setEditing(false),
-                )
-              }
+              type="submit"
+              form={formId}
             >
               {t("details.save")}
             </Button>
           </>
         ) : (
           <>
-            {onDelete && (
-              <Button
-                variant="ghost"
-                icon={Trash2}
-                className={styles.delete}
-                onClick={() => {
-                  onClose();
-                  onDelete(paper);
-                }}
-              >
-                {t("details.delete")}
-              </Button>
-            )}
-            <Button
-              icon={Pencil}
-              onClick={() => {
-                setTitle(paper.title);
-                setAuthors(paper.authors);
-                setError("");
-                setEditing(true);
-              }}
-            >
-              {t("details.edit")}
-            </Button>
-            <Button
-              icon={Star}
-              aria-pressed={paper.favorite}
-              loading={busy}
-              onClick={() => void apply({ favorite: !paper.favorite })}
-            >
-              {t(paper.favorite ? "details.unstar" : "details.star")}
-            </Button>
-            {page && page > 1 && (
-              <Button onClick={() => open(page)}>
-                {t("details.openLast", { page })}
-              </Button>
-            )}
+            <Menu
+              label={t("reader.more.menu")}
+              placement={{ side: "top", align: "end" }}
+              items={[
+                {
+                  id: "edit",
+                  icon: Pencil,
+                  label: t("details.edit"),
+                  disabled: busy,
+                  onSelect: () => {
+                    setTitle(paper.title);
+                    setAuthors(paper.authors);
+                    setError("");
+                    setEditing(true);
+                  },
+                },
+                {
+                  id: "star",
+                  icon: Star,
+                  label: t(paper.favorite ? "details.unstar" : "details.star"),
+                  disabled: busy,
+                  onSelect: () => void apply({ favorite: !paper.favorite }),
+                },
+                ...(page && page > 1
+                  ? [
+                      {
+                        id: "open-last",
+                        icon: BookOpen,
+                        label: t("details.openLast", { page }),
+                        onSelect: () => open(page),
+                      },
+                    ]
+                  : []),
+                ...(onDelete
+                  ? [
+                      { kind: "separator" as const, id: "delete-divider" },
+                      {
+                        id: "delete",
+                        icon: Trash2,
+                        label: t("details.delete"),
+                        danger: true,
+                        onSelect: () => {
+                          onClose();
+                          onDelete(paper);
+                        },
+                      },
+                    ]
+                  : []),
+              ]}
+              trigger={(props) => (
+                <IconButton
+                  {...props}
+                  icon={MoreHorizontal}
+                  label={t("reader.more.menu")}
+                />
+              )}
+            />
             <Button variant="primary" onClick={() => open()}>
               {t("details.open")}
             </Button>
@@ -256,9 +287,15 @@ export function PaperDetails({
         <div className={styles.sheet} data-testid="paper-details">
           {editing ? (
             <form
+              id={formId}
               className={styles.form}
               onSubmit={(event) => {
                 event.preventDefault();
+                if (!busy && title.trim())
+                  void apply(
+                    { title: title.trim(), authors: authors.trim() },
+                    () => setEditing(false),
+                  );
               }}
             >
               <TextField

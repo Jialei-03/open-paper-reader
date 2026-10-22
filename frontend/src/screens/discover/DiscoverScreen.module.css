@@ -52,8 +52,8 @@
 
 .title {
   margin: 0;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-15);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-13);
   font-weight: var(--ui-weight-strong);
   line-height: var(--ui-leading-tight);
   overflow-wrap: anywhere;
@@ -62,42 +62,6 @@
 .meta {
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
-}
-
-.abstract {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  color: var(--ui-fg);
-}
-
-.why {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--ui-space-4) var(--ui-space-8);
-  color: var(--ui-fg-3);
-  font-size: var(--ui-text-12);
-}
-
-.why > span:first-child {
-  color: var(--ui-fg-2);
-}
-
-.why a,
-.why > span:not(:first-child) {
-  max-width: 28ch;
-  overflow: hidden;
-  color: var(--ui-fg-2);
-  text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.why a:hover {
-  color: var(--ui-fg);
-  text-decoration: underline;
 }
 
 .actions {
@@ -124,14 +88,17 @@
 
 .cards[data-view="grid"] {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--ui-card-min)), 1fr)
+  );
   gap: var(--ui-space-20);
 }
 
 .cards[data-view="grid"] .card {
   padding: var(--ui-space-12);
   border: 1px solid var(--ui-edge-subtle);
-  border-radius: var(--ui-r-16);
+  border-radius: var(--ui-r-12);
 }
 
 .cover {
@@ -144,12 +111,11 @@
   color: var(--ui-fg-3);
 }
 
-.cards[data-view="grid"] .abstract,
-.cards[data-view="grid"] .why {
-  display: none;
-}
-
 .cards[data-view="grid"] .actions {
   margin-top: auto;
   padding-top: var(--ui-space-12);
+}
+
+.skeleton {
+  composes: skeleton from "../Management.module.css";
 }

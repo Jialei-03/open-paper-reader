@@ -45,13 +45,13 @@
 }
 
 .list {
-  max-height: 16rem;
+  max-height: calc(var(--ui-space-32) * 8);
   margin: 0;
   padding: var(--ui-space-4);
   overflow-y: auto;
   list-style: none;
   border: 1px solid var(--ui-edge-subtle);
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
 }
 
 .item {
@@ -92,4 +92,9 @@
   margin-right: auto;
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
+}
+
+.item input:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
 }

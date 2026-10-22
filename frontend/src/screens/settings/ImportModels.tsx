@@ -178,7 +178,7 @@ export function ImportModels({
         latest = await readModels().catch(() => latest);
         onImported(latest!, added);
         if (!picked.length || added === picked.length) {
-          close();
+          finish();
         } else {
           setPicked([]);
           setNames((old) => old);
@@ -191,11 +191,13 @@ export function ImportModels({
     }
   };
 
-  const close = () => {
-    if (adding) return;
+  const finish = () => {
     setApiKey("");
     reset();
     onClose();
+  };
+  const close = () => {
+    if (!adding) finish();
   };
 
   const providerItems: MenuEntry[] = [
@@ -220,24 +222,29 @@ export function ImportModels({
       title={t("settings.import.title")}
       size="lg"
       footer={
-        names && (
-          <>
-            <span className={styles.count} role="status">
-              {tn("settings.import.selected", picked.length)}
-            </span>
-            <Button
-              variant="primary"
-              icon={Download}
-              loading={adding}
-              disabled={picked.length === 0}
-              onClick={() => void submit()}
-            >
-              {adding
-                ? t("settings.import.adding")
-                : tn("settings.import.add", picked.length)}
-            </Button>
-          </>
-        )
+        <>
+          <Button variant="ghost" disabled={adding} onClick={close}>
+            {t("common.cancel")}
+          </Button>
+          {names && (
+            <>
+              <span className={styles.count} role="status">
+                {tn("settings.import.selected", picked.length)}
+              </span>
+              <Button
+                variant="primary"
+                icon={Download}
+                loading={adding}
+                disabled={picked.length === 0}
+                onClick={() => void submit()}
+              >
+                {adding
+                  ? t("settings.import.adding")
+                  : tn("settings.import.add", picked.length)}
+              </Button>
+            </>
+          )}
+        </>
       }
     >
       <div className={styles.form}>
@@ -266,6 +273,7 @@ export function ImportModels({
               label={t("settings.import.protocol")}
               value={protocol}
               onChange={(next: Protocol) => {
+                if (adding) return;
                 setProtocol(next);
                 reset();
               }}

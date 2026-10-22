@@ -11,7 +11,7 @@ import {
 } from "react";
 import { api, send, type Paper } from "../api";
 import { clearPaperCovers } from "../features/PaperCover";
-import { I18nProvider, useI18n } from "../i18n/I18nProvider";
+import { useI18n } from "../i18n/I18nProvider";
 import { closeFileDownload } from "../lib/file-download";
 import {
   downloadUnsyncedNotes,
@@ -33,7 +33,6 @@ import {
 import { SetupScreen } from "../screens/SetupScreen";
 import {
   Shell,
-  Spinner,
   Toaster,
   currentPlatformIsMac,
   matchesShortcut,
@@ -84,11 +83,9 @@ function readRoute(): AppRoute {
  */
 export function AppShell(props: { user: User; setUser: (user: null) => void }) {
   return (
-    <I18nProvider>
-      <ResearchNavigationProvider key={props.user.id}>
-        <App {...props} />
-      </ResearchNavigationProvider>
-    </I18nProvider>
+    <ResearchNavigationProvider key={props.user.id}>
+      <App {...props} />
+    </ResearchNavigationProvider>
   );
 }
 
@@ -449,7 +446,8 @@ function Loading() {
       aria-label={t("common.loading")}
       className={styles.loading}
     >
-      <Spinner />
+      <div className={styles.loadingTitle} />
+      <div className={styles.loadingBody} />
     </div>
   );
 }

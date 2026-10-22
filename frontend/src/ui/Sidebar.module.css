@@ -4,10 +4,10 @@
  * unless the sidebar floats.
  */
 .slot {
-  --sidebar-width: 220px;
-  --sidebar-width-collapsed: 56px;
-  --sidebar-top-height: 52px;
-  /* From the edge to the items: a collapsed item (32px) is then a square, and its icon sits where it sat when open. */
+  --sidebar-width: var(--ui-reader-sidebar-width);
+  --sidebar-width-collapsed: var(--ui-sidebar-top);
+  --sidebar-top-height: var(--ui-rail-width);
+  /* From the edge to the items: a collapsed item (var(--ui-space-32)) is then a square, and its icon sits where it sat when open. */
   --sidebar-inset: var(--ui-space-12);
   /* The shell's own inset: where a floating sidebar lies, over the rail it came from. */
   --sidebar-edge: var(--ui-space-8);
@@ -54,7 +54,7 @@
   bottom: var(--sidebar-edge);
   left: var(--sidebar-edge);
   z-index: var(--sidebar-layer);
-  border-radius: var(--ui-r-16);
+  border-radius: var(--ui-r-12);
   background: var(--ui-bg);
   box-shadow: var(--ui-elev-2);
   animation: sidebar-in var(--ui-dur-2) var(--ui-ease-out);
@@ -101,7 +101,7 @@
   flex-direction: column;
   gap: var(--ui-space-2);
   min-height: 0;
-  /* Room for the focus ring (it reaches 4px out), which the scrolling would cut. */
+  /* Room for the focus ring (it reaches var(--ui-space-4) out), which the scrolling would cut. */
   padding: var(--ui-space-4) var(--sidebar-inset) var(--ui-space-8);
   overflow-x: hidden;
   overflow-y: auto;
@@ -204,8 +204,8 @@
 
 /* The paper being read: a dot with a ring of the same color, softer. */
 .dot {
-  --sidebar-dot-size: 6px;
-  --sidebar-dot-ring: 3px;
+  --sidebar-dot-size: var(--ui-space-6);
+  --sidebar-dot-ring: var(--ui-space-4);
   flex: none;
   width: var(--sidebar-dot-size);
   height: var(--sidebar-dot-size);

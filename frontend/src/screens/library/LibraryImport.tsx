@@ -1,5 +1,5 @@
-import { FileUp, Link, Plus } from "lucide-react";
-import { useRef, useState, type FormEvent } from "react";
+import { FileUp, Link } from "lucide-react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { Imports } from "../../import/useImports";
 import { Button, Dialog, Menu, TextField } from "../../ui";
@@ -17,6 +17,7 @@ export function LibraryImport({
   onClose(): void;
 }) {
   const { t } = useI18n();
+  const formId = useId();
   const input = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState("");
   const submit = (event: FormEvent) => {
@@ -33,7 +34,7 @@ export function LibraryImport({
         label={t("library.import")}
         placement={{ side: "bottom", align: "end" }}
         trigger={(props) => (
-          <Button {...props} variant="primary" size="sm" icon={Plus}>
+          <Button {...props} variant="primary" icon={FileUp}>
             {t("library.import")}
           </Button>
         )}
@@ -68,12 +69,32 @@ export function LibraryImport({
           }
         }}
       />
-      <Dialog open={open} onClose={onClose} title={t("library.import")}>
+      <Dialog
+        open={open}
+        onClose={onClose}
+        title={t("library.import")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              variant="primary"
+              icon={FileUp}
+              disabled={!url.trim()}
+            >
+              {t("library.import")}
+            </Button>
+          </>
+        }
+      >
         <div className={styles.importOptions}>
           <Button icon={FileUp} onClick={chooseFiles}>
             {t("library.import.pdf")}
           </Button>
-          <form className={styles.arxiv} onSubmit={submit}>
+          <form id={formId} className={styles.arxiv} onSubmit={submit}>
             <TextField
               label={t("import.arxiv.label")}
               value={url}
@@ -82,9 +103,6 @@ export function LibraryImport({
               autoComplete="off"
               data-autofocus
             />
-            <Button type="submit" disabled={!url.trim()}>
-              {t("library.import")}
-            </Button>
           </form>
         </div>
       </Dialog>
