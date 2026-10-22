@@ -5,8 +5,6 @@ import {
   Pencil,
   GitFork,
   Archive,
-  Monitor,
-  Server,
   MoreHorizontal,
   PanelRightClose,
   PanelRightOpen,
@@ -76,8 +74,6 @@ import { organizeResearch } from "./navigation-api";
 import { FilesPanel } from "./files/FilesPanel";
 import { settledKey } from "./files/files-api";
 import { refreshResearchNavigation } from "./navigation-api";
-import { useResearchNavigation } from "./ResearchNavigation";
-import { workspaceMachine } from "./workspace-machine";
 import styles from "./talk/Talk.module.css";
 
 const ACTIVE_POLL = 2500;
@@ -98,7 +94,6 @@ export function ResearchProject({
   backHash?: string;
 }) {
   const { t, locale } = useI18n();
-  const { data: navigation, connections } = useResearchNavigation();
   const { owner } = useContext(AppActions);
   const draftKey = `ora-research-draft:${owner || "local"}:${id}`;
   const [models, setModels] = useState<ModelRow[]>([]);
@@ -364,20 +359,6 @@ export function ResearchProject({
     );
 
   const p = detail.project;
-  const workspaceName =
-    navigation.workspaces.find((workspace) => workspace.id === p.workspace_id)
-      ?.name ||
-    p.location?.path
-      .replace(/[\\/]+$/, "")
-      .split(/[\\/]/)
-      .pop() ||
-    t("workspace.workspaces");
-  const machine = workspaceMachine(
-    p.location,
-    connections,
-    t("workspace.local"),
-    t("workspace.remote"),
-  );
   const busyNow = working(detail.sprints);
   const candidateRun = busyNow ? runsBySprint.get(busyNow.id) : undefined;
   const liveRun =
@@ -656,24 +637,6 @@ export function ResearchProject({
                     size="sm"
                     onClick={() => setFilesOpen(true)}
                   />
-                  <span
-                    className={styles.composerContext}
-                    title={p.location?.path}
-                  >
-                    <Folder size={14} aria-hidden />
-                    {workspaceName}
-                  </span>
-                  <span
-                    className={styles.composerContext}
-                    title={machine.title}
-                  >
-                    {p.location?.kind === "ssh" ? (
-                      <Server size={14} aria-hidden />
-                    ) : (
-                      <Monitor size={14} aria-hidden />
-                    )}
-                    {machine.label}
-                  </span>
                 </>
               }
               sendLabel={t("research.home.send")}

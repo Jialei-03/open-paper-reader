@@ -96,8 +96,8 @@ def snapshot_pull(settings, item, path, dest, timeout=60):
 def _gpu_env(item):
     """GPUs to use, and the configured Python's folder first on PATH, so a plain
     `python3` in a command is the environment that has the packages."""
-    gpus = item.get("gpus") or ""
-    out = f"CUDA_VISIBLE_DEVICES={gpus} " if gpus and gpus != "all" else ""
+    # Every GPU is visible: the executor picks the idle ones per command.
+    out = ""
     python = item.get("python") or "python3"
     if "/" in python:
         out += f"PATH={python.rsplit('/', 1)[0]}:$PATH "

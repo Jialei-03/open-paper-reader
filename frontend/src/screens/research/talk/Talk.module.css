@@ -1511,18 +1511,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.composerContext {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--ui-fg-2);
-}
 .message {
   display: flex;
   flex-direction: column;
@@ -1639,9 +1627,6 @@ section:hover > .messageActions,
   }
 }
 @media (max-width: 600px) {
-  .composerContext {
-    max-width: 80px;
-  }
   .checkpointActions {
     width: 100%;
   }

@@ -434,7 +434,7 @@ export function MachinesSection() {
                             ...c,
                             name,
                             host,
-                            gpus: draft.gpus.trim(),
+                            gpus: "",
                             remote_dir: dir || c.remote_dir,
                           }
                         : c,
@@ -446,8 +446,7 @@ export function MachinesSection() {
                   }
                   return;
                 }
-                if (await enabled(newSsh(host, name, draft.gpus.trim(), dir)))
-                  setDraft(null);
+                if (await enabled(newSsh(host, name, "", dir))) setDraft(null);
               }}
             >
               {t(
@@ -468,11 +467,6 @@ export function MachinesSection() {
               label={t("settings.research.name")}
               value={draft.name}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            />
-            <TextField
-              label="GPU"
-              value={draft.gpus}
-              onChange={(e) => setDraft({ ...draft, gpus: e.target.value })}
             />
             <TextField
               label={t("settings.research.remoteDir")}

@@ -1,11 +1,10 @@
-import { Laptop, Plus, X, Server } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppActions } from "../../app/AppSidebar";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, IconButton, toast } from "../../ui";
 import { readModels, type ModelRow } from "../setup/model-api";
 import { refreshResearchNavigation } from "./navigation-api";
-import { workspaceMachine } from "./workspace-machine";
 import { useResearchNavigation } from "./ResearchNavigation";
 import { resumeProject, startProject } from "./research-api";
 import { Composer } from "./talk/Composer";
@@ -33,8 +32,7 @@ export function NewResearch({
 }) {
   const { t } = useI18n();
   const { owner = "" } = useContext(AppActions);
-  const { data, connections, ready, loading, error, reload } =
-    useResearchNavigation();
+  const { data, ready, loading, error, reload } = useResearchNavigation();
   const [workspace, setWorkspace] = useState(
     workspaceId || stored(`research-workspace:${owner}`),
   );
@@ -97,12 +95,6 @@ export function NewResearch({
       }
     }
   }, [current, owner]);
-  const machine = workspaceMachine(
-    current?.location,
-    connections,
-    t("workspace.local"),
-    t("workspace.remote"),
-  );
   return (
     <main className={styles.newPage} data-testid="new-research">
       <div className={styles.newHeading}>
@@ -124,16 +116,6 @@ export function NewResearch({
                 value={workspace}
                 onChange={(next) => chooseContext(next, collection)}
               />
-              {current && (
-                <span className={styles.device} title={machine.title}>
-                  {current.location.kind === "ssh" ? (
-                    <Server size={14} aria-hidden />
-                  ) : (
-                    <Laptop size={14} aria-hidden />
-                  )}
-                  <span>{machine.label}</span>
-                </span>
-              )}
             </>
           }
         />

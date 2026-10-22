@@ -181,22 +181,8 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.device {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-space-6);
-  min-width: 0;
-  max-width: 170px;
-  color: var(--ui-fg-3);
-  font-size: var(--ui-text-13);
-  white-space: nowrap;
-}
 .device svg {
   flex: none;
-}
-.device span {
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .firstMessage {
   position: relative;

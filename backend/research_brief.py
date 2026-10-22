@@ -46,7 +46,6 @@ def _setting_out(settings, project):
         gpus = (
             ", ".join(env.get("gpus") or [])
             or (env.get("mps") and "Apple 芯片，PyTorch 用 torch.device('mps')")
-            or (item.get("gpus") and "已配置")
             or ("无" if env else "未检测")
         )
         lines.append(
@@ -208,6 +207,16 @@ def _context_parts(d, project, settings):
     return parts + _talk(d, project)
 
 
+def _gpu_word(probe):
+    """What a check found on a machine: its GPUs, an Apple chip, or none."""
+    if not probe:
+        return "，未检测"
+    gpus = probe.get("gpus") or []
+    if gpus:
+        return f"，{len(gpus)} 块 GPU：{gpus[0].split(',')[0]}"
+    return "，Apple 芯片（MPS）" if probe.get("mps") else "，无 GPU"
+
+
 def scoping_brief(d, project, sprint_number, settings=None):
     """The conversation so far, the plan card as it stands, and what can be used."""
     from . import research_datasets, research_settings, research_stages
@@ -242,7 +251,7 @@ def scoping_brief(d, project, sprint_number, settings=None):
             "## 可用算力\n"
             + "\n".join(
                 f"- {c['id']}：{c['name']}（{c['kind']}"
-                + (f"，GPU {c['gpus']}" if c.get("gpus") else "，无 GPU")
+                + _gpu_word(config["states"].get(c["id"], {}).get("probe"))
                 + ("，默认" if c["id"] == config["default_compute"] else "")
                 + "）"
                 for c in config["computes"]

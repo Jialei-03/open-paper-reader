@@ -349,10 +349,9 @@ def test_a_remote_job_runs_detached_and_reports_its_exit(world, monkeypatch):
         rr.start(world.settings, d, item, p, job)
         assert job.remote == {"host": "gpu-box", "base": f"~/ora/{p.id}", "pid": 4242}
         launch = fake.calls[-1][-1]
-        assert (
-            "CUDA_VISIBLE_DEVICES=1" in launch
-            and "'(\nset -o pipefail; python t.py\n)\necho $?" in launch
-        )
+        # The executor picks GPUs per command; the setting no longer hides any.
+        assert "CUDA_VISIBLE_DEVICES" not in launch
+        assert "'(\nset -o pipefail; python t.py\n)\necho $?" in launch
         assert rr.state(job) == {"Running": True}
         fake.state = "0"
         assert rr.state(job) == {"Running": False, "ExitCode": 0}

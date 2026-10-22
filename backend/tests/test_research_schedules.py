@@ -405,7 +405,7 @@ def test_migration_is_additive_idempotent_and_reversible(env, setup):
     migration = importlib.import_module(
         "backend.migrations.versions.0041_research_schedules"
     )
-    assert migration.down_revision == "0039"
+    assert migration.down_revision == "0040"
     with app.state.engine.begin() as conn:
         with Operations.context(MigrationContext.configure(conn)):
             migration.downgrade()

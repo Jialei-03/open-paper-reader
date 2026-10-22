@@ -59,9 +59,7 @@ def env(settings, item, extra=None):
         ORA_DATA=str(research_datasets.cache(settings)),
         PYTHONUNBUFFERED="1",
     )
-    gpus = item.get("gpus") or ""
-    if gpus and gpus != "all":
-        out["CUDA_VISIBLE_DEVICES"] = gpus
+    # Every GPU is visible: the executor picks the idle ones per command.
     return {**out, **(extra or {})}
 
 
