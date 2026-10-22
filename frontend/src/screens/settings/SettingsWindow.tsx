@@ -1,14 +1,10 @@
 import {
-  Cpu,
   Database,
   Gauge,
   KeyRound,
   RefreshCw,
-  BookOpen,
-  LineChart,
   Search,
   Settings2,
-  Sparkles,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -18,24 +14,17 @@ import type { MessageKey } from "../../i18n/i18n";
 import { AccessSection } from "./AccessSection";
 import { CloudSection } from "./CloudSection";
 import { DataSection } from "./DataSection";
-import { ModelsSection } from "./ModelsSection";
 import {
   AppearanceSection,
   KeypointsSection,
   LanguageSection,
 } from "./PreferencesSection";
-import { ResearchSection } from "./ResearchSection";
 import { UsageSection } from "./UsageSection";
-import { PlaybookPanel } from "../research/PlaybookPanel";
 import { useLocal } from "../../app/edition";
 import styles from "./SettingsWindow.module.css";
 
 export type SettingsCategory =
   | "general"
-  | "models"
-  | "environments"
-  | "tracking"
-  | "playbook"
   | "data"
   | "usage"
   | "access"
@@ -54,21 +43,6 @@ const GROUPS: { title: MessageKey; entries: Entry[] }[] = [
         id: "general",
         icon: Settings2,
       },
-      { id: "models", icon: Sparkles },
-    ],
-  },
-  {
-    title: "settings.group.research",
-    entries: [
-      {
-        id: "environments",
-        icon: Cpu,
-      },
-      {
-        id: "tracking",
-        icon: LineChart,
-      },
-      { id: "playbook", icon: BookOpen },
     ],
   },
   {
@@ -103,14 +77,6 @@ function Body({
           <KeypointsSection />
         </>
       );
-    case "models":
-      return <ModelsSection />;
-    case "environments":
-      return <ResearchSection part="environments" />;
-    case "tracking":
-      return <ResearchSection part="tracker" />;
-    case "playbook":
-      return <PlaybookPanel />;
     case "data":
       return <DataSection />;
     case "usage":
@@ -152,31 +118,21 @@ export function SettingsWindow({
   const label = (id: SettingsCategory) =>
     t(`settings.category.${id}` as MessageKey);
   const q = query.trim().toLowerCase();
-  // Research comes with the local edition; the hosted site has no settings for it.
   const local = useLocal();
-  const research = GROUPS.find((g) => g.title === "settings.group.research");
-  const category =
-    (local === false && research?.entries.some((e) => e.id === asked)) ||
-    (local !== true && asked === "cloud")
-      ? "general"
-      : asked;
-  const groups = GROUPS.filter(
-    (g) => local !== false || g.title !== "settings.group.research",
-  )
-    .map((g) => ({
-      ...g,
-      entries: g.entries.filter(
-        (e) =>
-          // Linking to a hosted account is the local edition's.
-          (e.id !== "cloud" || local === true) &&
-          (!q ||
-            label(e.id).toLowerCase().includes(q) ||
-            t(`settings.keywords.${e.id}` as MessageKey)
-              .toLowerCase()
-              .includes(q)),
-      ),
-    }))
-    .filter((g) => g.entries.length);
+  const category = local !== true && asked === "cloud" ? "general" : asked;
+  const groups = GROUPS.map((g) => ({
+    ...g,
+    entries: g.entries.filter(
+      (e) =>
+        // Linking to a hosted account is the local edition's.
+        (e.id !== "cloud" || local === true) &&
+        (!q ||
+          label(e.id).toLowerCase().includes(q) ||
+          t(`settings.keywords.${e.id}` as MessageKey)
+            .toLowerCase()
+            .includes(q)),
+    ),
+  })).filter((g) => g.entries.length);
 
   return (
     <dialog

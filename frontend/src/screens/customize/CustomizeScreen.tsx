@@ -1,9 +1,17 @@
 import { useI18n } from "../../i18n/I18nProvider";
 import { ModelsSection } from "../settings/ModelsSection";
 import { PlaybookPanel } from "../research/PlaybookPanel";
+import { MachinesSection } from "./MachinesSection";
+import { RolesSection } from "./RolesSection";
+import { TrackingSection } from "./TrackingSection";
 import styles from "./CustomizeScreen.module.css";
 
-export type CustomizeSection = "models" | "playbook";
+export type CustomizeSection =
+  | "models"
+  | "playbook"
+  | "roles"
+  | "machines"
+  | "tracking";
 
 /** Full-page access to the configuration ORA already saves and uses. */
 export function CustomizeScreen({
@@ -13,22 +21,20 @@ export function CustomizeScreen({
 }) {
   const { t } = useI18n();
   return (
-    <section className={styles.page} aria-label={t("customize.title")}>
+    <section className={styles.page} aria-label={t(`customize.${section}`)}>
       <div className={styles.content}>
         {section === "models" ? (
           <div className={styles.models}>
-            <ModelsSection page />
+            <ModelsSection />
           </div>
+        ) : section === "roles" ? (
+          <RolesSection />
+        ) : section === "machines" ? (
+          <MachinesSection />
+        ) : section === "tracking" ? (
+          <TrackingSection />
         ) : (
-          <>
-            <header className={styles.header}>
-              <h1 id="customize-title">{t("customize.playbook")}</h1>
-              <span>{t("customize.description")}</span>
-            </header>
-            <div className={styles.body}>
-              <PlaybookPanel />
-            </div>
-          </>
+          <PlaybookPanel />
         )}
       </div>
     </section>

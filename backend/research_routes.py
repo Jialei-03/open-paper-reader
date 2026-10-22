@@ -1237,6 +1237,23 @@ def install_research_routes(app, settings, db, auth, human, owned):
         d.commit()
         return {"path": f"data/{name}", "size": len(data)}
 
+    @app.get("/api/v1/research/roles")
+    def research_roles(a=Depends(auth), d=Depends(db)):
+        from .research_skills import list_roles
+
+        allowed(a, d)
+        return list_roles()
+
+    @app.get("/api/v1/research/roles/{role_id}")
+    def research_role(role_id: str, a=Depends(auth), d=Depends(db)):
+        from .research_skills import read_role
+
+        allowed(a, d)
+        try:
+            return read_role(role_id)
+        except (OSError, UnicodeError) as error:
+            raise HTTPException(404, "Not found") from error
+
     @app.get("/api/v1/research/playbook")
     def playbook(a=Depends(auth), d=Depends(db)):
         from . import research_playbook

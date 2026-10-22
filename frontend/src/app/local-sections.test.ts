@@ -12,7 +12,20 @@ describe("local app sections", () => {
     ])
       expect(localSection(parseAppRoute(hash))).toBe("materials");
     expect(localSection(parseAppRoute("tasks/waiting"))).toBe("tasks");
-    expect(localSection(parseAppRoute("customize/models"))).toBe("customize");
+    for (const section of [
+      "playbook",
+      "roles",
+      "machines",
+      "tracking",
+      "models",
+    ]) {
+      expect(localSection(parseAppRoute(`customize/${section}`))).toBe(
+        "customize",
+      );
+      expect(validSectionAddress("customize", `customize/${section}`)).toBe(
+        true,
+      );
+    }
     expect(localSection(parseAppRoute("board"))).toBe("board");
     expect(localSection(parseAppRoute("new"))).toBe("research");
   });
@@ -25,6 +38,9 @@ describe("local app sections", () => {
       validSectionAddress("materials", "open?url=https://arxiv.org/abs/1"),
     ).toBe(false);
     expect(validSectionAddress("research", "settings/models")).toBe(false);
+    expect(validSectionAddress("customize", "settings/environments")).toBe(
+      false,
+    );
     expect(validSectionAddress("research", "nonsense")).toBe(false);
     expect(validSectionAddress("tasks", "new")).toBe(false);
     expect(validSectionAddress("tasks", { filter: "active" })).toBe(false);

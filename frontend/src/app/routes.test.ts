@@ -8,8 +8,9 @@ describe("parseAppRoute", () => {
     expect(parseAppRoute("library?q=x")).toEqual({ screen: "library" });
     expect(parseAppRoute("settings")).toEqual({ screen: "settings" });
     expect(parseAppRoute("settings/environments")).toEqual({
-      screen: "settings",
-      category: "environments",
+      screen: "customize",
+      section: "machines",
+      redirect: "customize/machines",
     });
   });
 
@@ -177,6 +178,30 @@ describe("section navigation", () => {
       screen: "customize",
       section: "playbook",
       redirect: "customize/playbook",
+    });
+  });
+});
+
+describe("customize categories", () => {
+  it.each(["playbook", "roles", "machines", "tracking", "models"])(
+    "opens %s",
+    (section) => {
+      expect(parseAppRoute(`customize/${section}`)).toEqual({
+        screen: "customize",
+        section,
+      });
+    },
+  );
+  it.each([
+    ["environments", "machines"],
+    ["tracking", "tracking"],
+    ["models", "models"],
+    ["playbook", "playbook"],
+  ])("redirects settings/%s into customize", (category, section) => {
+    expect(parseAppRoute(`settings/${category}?q=old`)).toEqual({
+      screen: "customize",
+      section,
+      redirect: `customize/${section}`,
     });
   });
 });

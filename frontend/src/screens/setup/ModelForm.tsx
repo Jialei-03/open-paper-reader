@@ -29,6 +29,7 @@ export interface ModelFormProps {
   }): void;
   /** Once connected, the form stays filled in and stops taking changes. */
   connected?: boolean;
+  compact?: boolean;
 }
 
 /**
@@ -40,6 +41,7 @@ export function ModelForm({
   local,
   onConnected,
   connected = false,
+  compact = false,
 }: ModelFormProps) {
   const i18n = useI18n();
   const { t, tn } = i18n;
@@ -183,15 +185,17 @@ export function ModelForm({
               { value: "lmstudio", label: t("model.local.lmstudio") },
             ]}
           />
-          <p className={styles.hint}>
-            {t("model.local.hint", {
-              app: t(
-                app === "ollama"
-                  ? "model.local.ollama"
-                  : "model.local.lmstudio",
-              ),
-            })}
-          </p>
+          {!compact && (
+            <p className={styles.hint}>
+              {t("model.local.hint", {
+                app: t(
+                  app === "ollama"
+                    ? "model.local.ollama"
+                    : "model.local.lmstudio",
+                ),
+              })}
+            </p>
+          )}
         </div>
       )}
       <TextField
@@ -201,8 +205,12 @@ export function ModelForm({
         autoComplete="off"
         spellCheck={false}
         value={draft.base_url}
-        placeholder={kind === "local" ? LOCAL_APPS[app] : placeholder}
-        description={kind === "key" ? t("model.baseUrl.hint") : undefined}
+        placeholder={
+          compact ? undefined : kind === "local" ? LOCAL_APPS[app] : placeholder
+        }
+        description={
+          !compact && kind === "key" ? t("model.baseUrl.hint") : undefined
+        }
         disabled={locked}
         onChange={(event) => change({ base_url: event.target.value }, true)}
       />
@@ -213,8 +221,8 @@ export function ModelForm({
           autoComplete="new-password"
           spellCheck={false}
           value={draft.api_key}
-          placeholder={t("model.key.placeholder")}
-          description={t("model.key.hint")}
+          placeholder={compact ? undefined : t("model.key.placeholder")}
+          description={compact ? undefined : t("model.key.hint")}
           disabled={locked}
           onChange={(event) => change({ api_key: event.target.value }, true)}
         />
@@ -224,7 +232,7 @@ export function ModelForm({
           label={t("model.name")}
           models={models}
           value={draft.model}
-          placeholder={t("model.name.placeholder")}
+          placeholder={compact ? undefined : t("model.name.placeholder")}
           disabled={locked}
           error={listError || undefined}
           description={

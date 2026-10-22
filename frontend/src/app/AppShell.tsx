@@ -329,7 +329,10 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
             "research-tasks",
             "customize",
           ].includes(shown.screen) &&
-            local === false && <LocalOnly />}
+            local === false &&
+            !(shown.screen === "customize" && shown.section === "models") && (
+              <LocalOnly />
+            )}
           {shown.screen === "research" &&
             local !== false &&
             shown.projectId && (
@@ -358,9 +361,10 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
             ) : (
               <TaskCenter filter={shown.filter} go={go} />
             ))}
-          {local !== false && shown.screen === "customize" && (
-            <CustomizeScreen section={shown.section} />
-          )}
+          {shown.screen === "customize" &&
+            (local !== false || shown.section === "models") && (
+              <CustomizeScreen section={shown.section} />
+            )}
           {local !== false && shown.screen === "research-board" && (
             <ResearchBoard go={go} />
           )}
