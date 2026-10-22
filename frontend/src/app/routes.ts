@@ -32,7 +32,7 @@ export type AppRoute =
     }
   | {
       screen: "customize";
-      section: "playbook" | "models";
+      section: "playbook" | "roles" | "machines" | "tracking" | "models";
       redirect?: string;
     }
   | {
@@ -75,6 +75,16 @@ export function parseAppRoute(hash: string): AppRoute {
   if (path === "settings") return { screen: "settings" };
   if (path.startsWith("settings/")) {
     const category = path.slice("settings/".length);
+    const moved = {
+      models: "models",
+      environments: "machines",
+      tracking: "tracking",
+      playbook: "playbook",
+    } as const;
+    if (Object.hasOwn(moved, category)) {
+      const section = moved[category as keyof typeof moved];
+      return { screen: "customize", section, redirect: `customize/${section}` };
+    }
     return /^[a-z]{1,20}$/.test(category)
       ? { screen: "settings", category }
       : { screen: "settings", redirect: "settings" };
@@ -98,7 +108,11 @@ export function parseAppRoute(hash: string): AppRoute {
   }
   if (path === "customize" || path.startsWith("customize/")) {
     const section = path.slice("customize/".length);
-    return section === "models" || section === "playbook"
+    return section === "models" ||
+      section === "playbook" ||
+      section === "roles" ||
+      section === "machines" ||
+      section === "tracking"
       ? { screen: "customize", section }
       : {
           screen: "customize",

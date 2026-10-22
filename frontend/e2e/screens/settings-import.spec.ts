@@ -86,7 +86,7 @@ test("a provider's models are fetched, several are added in one go, and the key 
   const { added, tested } = await mockService(page);
   await page.goto("/#settings/models");
   const section = page.getByRole("region", { name: "模型" });
-  await expect(section.getByText("还没有模型。")).toBeVisible();
+  await expect(section.getByText("无条目")).toBeVisible();
 
   await section.getByRole("button", { name: "导入", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "导入模型" });
@@ -122,10 +122,10 @@ test("a provider's models are fetched, several are added in one go, and the key 
   // The first one was tested.
   expect(tested).toEqual(["imp-1"]);
 
-  // Grouped by provider; no key anywhere on the page.
-  await expect(
-    section.getByRole("heading", { name: "api.deepseek.com 的模型" }),
-  ).toBeVisible();
+  // Provider status stays in each row; no key anywhere on the page.
+  await expect(section.getByRole("listitem").first()).toContainText(
+    "api.deepseek.com",
+  );
   await expect(section.getByRole("listitem")).toHaveCount(3);
   expect(await page.content()).not.toContain(KEY);
   expect(await page.evaluate(() => document.body.innerText)).not.toContain(KEY);
@@ -135,12 +135,18 @@ test("a provider's models are fetched, several are added in one go, and the key 
   expect(values.join(" ")).not.toContain(KEY);
 
   // Rename and choose the default.
-  await section.getByRole("button", { name: "重命名 deepseek-chat" }).click();
+  await section
+    .getByRole("button", { name: "deepseek-chat 的更多操作" })
+    .click();
+  await page.getByRole("menuitem", { name: "重命名模型", exact: true }).click();
   const rename = page.getByRole("dialog", { name: "重命名模型" });
   await rename.getByLabel("显示名称").fill("日常模型");
   await rename.getByRole("button", { name: "保存" }).click();
   await expect(section.getByText("日常模型")).toBeVisible();
-  await section.getByRole("button", { name: "使用 deepseek-reasoner" }).click();
+  await section
+    .getByRole("button", { name: "deepseek-reasoner 的更多操作" })
+    .click();
+  await page.getByRole("menuitem", { name: "使用", exact: true }).click();
   await expect(
     section.getByRole("listitem").filter({ hasText: "deepseek-reasoner" }),
   ).toContainText("当前");
@@ -164,5 +170,5 @@ test("a first model that does not answer leaves nothing behind", async ({
   await dialog.getByRole("button", { name: "添加 1 个模型" }).click();
   await expect(dialog.getByRole("alert")).toContainText("第一个模型没有回应");
   await dialog.getByRole("button", { name: "关闭" }).click();
-  await expect(section.getByText("还没有模型。")).toBeVisible();
+  await expect(section.getByText("无条目")).toBeVisible();
 });

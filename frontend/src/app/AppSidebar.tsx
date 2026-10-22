@@ -193,6 +193,13 @@ export function AppSidebar({
       footer={
         <>
           <SidebarItem
+            icon={SlidersHorizontal}
+            label={t("customize.models")}
+            href="#customize/models"
+            active={screen === "customize"}
+            onClick={followLink(go, "customize/models")}
+          />
+          <SidebarItem
             icon={Settings}
             label={t("reader.sidebar.settings")}
             href="#settings"

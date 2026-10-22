@@ -15,6 +15,20 @@ describe("local app sections", () => {
     expect(localSection(parseAppRoute("tasks/waiting"))).toBe("research");
     expect(localSection(parseAppRoute("customize/models"))).toBe("customize");
     expect(localSection(parseAppRoute("board"))).toBe("research");
+    for (const section of [
+      "playbook",
+      "roles",
+      "machines",
+      "tracking",
+      "models",
+    ]) {
+      expect(localSection(parseAppRoute(`customize/${section}`))).toBe(
+        "customize",
+      );
+      expect(validSectionAddress("customize", `customize/${section}`)).toBe(
+        true,
+      );
+    }
     expect(localSection(parseAppRoute("new"))).toBe("research");
   });
   it("does not remember action URLs, settings overlays or redirects as section destinations", () => {
@@ -27,6 +41,9 @@ describe("local app sections", () => {
       validSectionAddress("materials", "open?url=https://arxiv.org/abs/1"),
     ).toBe(false);
     expect(validSectionAddress("research", "settings/models")).toBe(false);
+    expect(validSectionAddress("customize", "settings/environments")).toBe(
+      false,
+    );
     expect(validSectionAddress("research", "nonsense")).toBe(false);
     expect(validSectionAddress("tasks", "new")).toBe(false);
     expect(validSectionAddress("tasks", { filter: "active" })).toBe(false);

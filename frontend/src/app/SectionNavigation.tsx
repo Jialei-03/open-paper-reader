@@ -8,6 +8,9 @@ import {
   Plus,
   Settings2,
   Sparkles,
+  Users,
+  Monitor,
+  LineChart,
 } from "lucide-react";
 import { useI18n } from "../i18n/I18nProvider";
 import { followLink, readerHash } from "../reader/route";
@@ -113,18 +116,40 @@ export function SectionNavigation({
         className={styles.sectionLinks}
         aria-label={t("customize.navigation")}
       >
-        {item(
-          Settings2,
-          t("customize.playbook"),
-          "customize/playbook",
-          route.screen === "customize" && route.section === "playbook",
-        )}
-        {item(
-          Sparkles,
-          t("customize.models"),
-          "customize/models",
-          route.screen === "customize" && route.section === "models",
-        )}
+        <SidebarSection title={t("customize.skills")}>
+          {item(
+            Settings2,
+            t("customize.playbook"),
+            "customize/playbook",
+            route.screen === "customize" && route.section === "playbook",
+          )}
+          {item(
+            Users,
+            t("customize.roles"),
+            "customize/roles",
+            route.screen === "customize" && route.section === "roles",
+          )}
+        </SidebarSection>
+        <SidebarSection title={t("customize.connections")}>
+          {item(
+            Monitor,
+            t("customize.machines"),
+            "customize/machines",
+            route.screen === "customize" && route.section === "machines",
+          )}
+          {item(
+            LineChart,
+            t("customize.tracking"),
+            "customize/tracking",
+            route.screen === "customize" && route.section === "tracking",
+          )}
+          {item(
+            Sparkles,
+            t("customize.models"),
+            "customize/models",
+            route.screen === "customize" && route.section === "models",
+          )}
+        </SidebarSection>
       </div>
     );
   if (section === "tasks")

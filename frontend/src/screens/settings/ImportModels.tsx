@@ -283,7 +283,6 @@ export function ImportModels({
           autoComplete="off"
           spellCheck={false}
           value={baseUrl}
-          placeholder="https://api.example.com/v1"
           disabled={adding}
           onChange={(event) => {
             setBaseUrl(event.target.value);

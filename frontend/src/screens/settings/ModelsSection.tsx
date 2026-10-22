@@ -1,7 +1,7 @@
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { MoreHorizontal, Plus, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
-import { Button, Dialog, IconButton, TextField, toast } from "../../ui";
+import { Button, Dialog, IconButton, Menu, TextField, toast } from "../../ui";
 import { ModelForm } from "../setup/ModelForm";
 import {
   allowsLocal,
@@ -16,14 +16,15 @@ import {
   type ModelSettings,
 } from "../setup/model-api";
 import { ImportModels } from "./ImportModels";
-import { groupByHost, hostOf } from "./providers";
-import { ConfirmDialog, Section } from "./Section";
-import styles from "./Settings.module.css";
+import { hostOf } from "./providers";
+import { ConfirmDialog } from "./Section";
+import { CustomizeHeader } from "../customize/CustomizeHeader";
+import styles from "../customize/CustomizeScreen.module.css";
 
 const displayName = (row: ModelRow) => row.name || row.model;
 
 /** The models: the current one, the others (use, test, remove), and adding one with the setup's form. */
-export function ModelsSection({ page = false }: { page?: boolean } = {}) {
+export function ModelsSection() {
   const i18n = useI18n();
   const { t, tn } = i18n;
   const [settings, setSettings] = useState<ModelSettings | null>(null);
@@ -34,6 +35,7 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
   const [newName, setNewName] = useState("");
   const [removing, setRemoving] = useState<ModelRow | null>(null);
   const [busy, setBusy] = useState("");
+  const [query, setQuery] = useState("");
 
   const load = (signal?: AbortSignal) =>
     readModels(signal).then(
@@ -78,102 +80,89 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
     }
   }
 
-  const models = settings?.models ?? [];
+  const q = query.trim().toLowerCase();
+  const models = (settings?.models ?? []).filter((row) =>
+    `${displayName(row)} ${row.model} ${hostOf(row.base_url)}`
+      .toLowerCase()
+      .includes(q),
+  );
   return (
-    <Section
-      headingLevel={page ? 1 : 2}
-      title={t("settings.models.title")}
-      action={
-        <div className={styles.rowActions}>
-          <Button size="sm" onClick={() => setImporting(true)}>
-            {t("settings.models.import")}
-          </Button>
-          <Button size="sm" icon={Plus} onClick={() => setAdding(true)}>
-            {t("settings.models.add")}
-          </Button>
-        </div>
-      }
-    >
+    <>
+      <CustomizeHeader
+        title={t("customize.models")}
+        query={query}
+        onQuery={setQuery}
+        action={
+          <>
+            <Button size="sm" onClick={() => setImporting(true)}>
+              {t("settings.models.import")}
+            </Button>
+            <Button size="sm" icon={Plus} onClick={() => setAdding(true)}>
+              {t("settings.models.add")}
+            </Button>
+          </>
+        }
+      />
       {loadError ? (
-        <p role="alert" className={styles.error}>
-          {loadError}
-        </p>
+        <div role="alert">
+          <p>{loadError}</p>
+          <Button onClick={() => void load()}>{t("common.retry")}</Button>
+        </div>
       ) : !settings ? (
-        <p className={styles.muted}>{t("common.loading")}</p>
-      ) : models.length === 0 ? (
-        <p className={styles.muted}>{t("settings.models.empty")}</p>
+        <p className={styles.status}>{t("common.loading")}</p>
       ) : (
-        groupByHost(models).map((group) => (
-          <div key={group.host} className={styles.group}>
-            {group.host && (
-              <h3 className={styles.subTitle}>
-                {t("settings.models.group", { host: group.host })}
-              </h3>
-            )}
-            <ul
-              className={styles.list}
-              aria-label={[t("settings.models.title"), group.host]
-                .filter(Boolean)
-                .join(" · ")}
-            >
-              {group.rows.map((row) => {
-                const current = row.id === settings.active_id;
-                const name = displayName(row);
-                return (
-                  <li key={row.id} className={styles.row}>
-                    <div className={styles.rowText}>
-                      <span className={styles.rowTitle}>
-                        <span>{name}</span>
-                        {current && (
-                          <span className={`${styles.badge} ${styles.current}`}>
-                            {t("settings.models.current")}
-                          </span>
-                        )}
-                        {row.shared && (
-                          <span className={styles.badge}>
-                            {row.badge || t("settings.models.shared")}
-                          </span>
-                        )}
-                      </span>
-                      <span className={styles.rowMeta}>
-                        {[
-                          row.name && row.name !== row.model ? row.model : "",
-                          hostOf(row.base_url),
+        <ul className={styles.list} aria-label={t("customize.models")}>
+          {models.map((row) => {
+            const current = row.id === settings.active_id;
+            const name = displayName(row);
+            return (
+              <li key={row.id} className={styles.row}>
+                <Sparkles className={styles.icon} size={22} aria-hidden />
+                <div className={styles.rowText}>
+                  <span className={styles.name}>{name}</span>
+                  <span className={styles.status}>
+                    {[
+                      t(
+                        current
+                          ? "settings.models.current"
+                          : row.shared
+                            ? "settings.models.shared"
+                            : "customize.available",
+                      ),
+                      hostOf(row.base_url),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </div>
+                <Menu
+                  label={t("customize.more", { name })}
+                  placement={{ side: "bottom", align: "end" }}
+                  items={[
+                    ...(!current
+                      ? [
+                          {
+                            id: "use",
+                            label: t("settings.models.use"),
+                            disabled: !!busy,
+                            onSelect: () => {
+                              void act(
+                                row,
+                                () => selectModel(row.id),
+                                t("settings.models.selected", { name }),
+                                "settings.models.selectError",
+                              );
+                            },
+                          },
                         ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </div>
-                    <div className={styles.rowActions}>
-                      {!current && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={!!busy}
-                          onClick={() =>
-                            void act(
-                              row,
-                              () => selectModel(row.id),
-                              t("settings.models.selected", { name }),
-                              "settings.models.selectError",
-                            )
-                          }
-                          aria-label={t("settings.models.useNamed", { name })}
-                        >
-                          {t("settings.models.use")}
-                        </Button>
-                      )}
-                      {!row.shared && (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            loading={busy === row.id && !removing}
-                            disabled={!!busy}
-                            aria-label={t("settings.models.testNamed", {
-                              name,
-                            })}
-                            onClick={() =>
+                      : []),
+                    ...(!row.shared
+                      ? [
+                          {
+                            id: "test",
+                            label: t("settings.models.test"),
+                            disabled: !!busy,
+                            onSelect: () => {
                               void act(
                                 row,
                                 async () => {
@@ -181,37 +170,44 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
                                 },
                                 t("settings.models.testOk", { name }),
                                 "model.error.test",
-                              )
-                            }
-                          >
-                            {t("settings.models.test")}
-                          </Button>
-                          <IconButton
-                            size="sm"
-                            icon={Pencil}
-                            label={t("settings.models.rename", { name })}
-                            disabled={!!busy}
-                            onClick={() => {
+                              );
+                            },
+                          },
+                          {
+                            id: "rename",
+                            label: t("settings.models.renameTitle"),
+                            disabled: !!busy,
+                            onSelect: () => {
                               setNewName(name);
                               setRenaming(row);
-                            }}
-                          />
-                          <IconButton
-                            size="sm"
-                            icon={Trash2}
-                            label={t("settings.models.remove", { name })}
-                            disabled={!!busy}
-                            onClick={() => setRemoving(row)}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))
+                            },
+                          },
+                          {
+                            id: "remove",
+                            label: t("settings.models.removeConfirm"),
+                            danger: true,
+                            disabled: !!busy,
+                            onSelect: () => setRemoving(row),
+                          },
+                        ]
+                      : []),
+                  ]}
+                  trigger={(props) => (
+                    <IconButton
+                      {...props}
+                      icon={MoreHorizontal}
+                      disabled={!!busy}
+                      label={t("customize.more", { name })}
+                    />
+                  )}
+                />
+              </li>
+            );
+          })}
+          {!models.length && (
+            <li className={styles.empty}>{t("customize.empty")}</li>
+          )}
+        </ul>
       )}
       <ImportModels
         open={importing}
@@ -267,6 +263,7 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
       >
         {adding && (
           <ModelForm
+            compact
             local={allowsLocal(settings)}
             onConnected={({ settings: next, model }) => {
               setSettings(next);
@@ -282,9 +279,7 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
       <ConfirmDialog
         open={!!removing}
         title={t("settings.models.removeTitle")}
-        description={t("settings.models.removeBody", {
-          name: removing ? displayName(removing) : "",
-        })}
+        description={removing ? displayName(removing) : ""}
         confirm={t("settings.models.removeConfirm")}
         busy={!!removing && busy === removing.id}
         onClose={() => setRemoving(null)}
@@ -300,6 +295,6 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
           if (ok) setRemoving(null);
         }}
       />
-    </Section>
+    </>
   );
 }

@@ -29,6 +29,7 @@ export interface ModelFormProps {
   }): void;
   /** Once connected, the form stays filled in and stops taking changes. */
   connected?: boolean;
+  compact?: boolean;
 }
 
 /**
@@ -40,6 +41,7 @@ export function ModelForm({
   local,
   onConnected,
   connected = false,
+  compact = false,
 }: ModelFormProps) {
   const i18n = useI18n();
   const { t, tn } = i18n;
@@ -192,7 +194,9 @@ export function ModelForm({
         autoComplete="off"
         spellCheck={false}
         value={draft.base_url}
-        placeholder={kind === "local" ? LOCAL_APPS[app] : placeholder}
+        placeholder={
+          compact ? undefined : kind === "local" ? LOCAL_APPS[app] : placeholder
+        }
         disabled={locked}
         onChange={(event) => change({ base_url: event.target.value }, true)}
       />
@@ -203,7 +207,7 @@ export function ModelForm({
           autoComplete="new-password"
           spellCheck={false}
           value={draft.api_key}
-          placeholder={t("model.key.placeholder")}
+          placeholder={compact ? undefined : t("model.key.placeholder")}
           disabled={locked}
           onChange={(event) => change({ api_key: event.target.value }, true)}
         />
@@ -213,7 +217,7 @@ export function ModelForm({
           label={t("model.name")}
           models={models}
           value={draft.model}
-          placeholder={t("model.name.placeholder")}
+          placeholder={compact ? undefined : t("model.name.placeholder")}
           disabled={locked}
           error={listError || undefined}
           onChange={(model) => change({ model })}
