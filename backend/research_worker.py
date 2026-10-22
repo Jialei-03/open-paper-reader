@@ -49,15 +49,27 @@ DONE = {"completed", "failed", "cancelled"}
 
 
 def fallback_summary(run):
-    """What a sprint did, from its steps, when it ended without writing a handoff."""
-    lines = []
-    for step in (run.steps or [])[-10:]:
-        result = step.get("error") or (step.get("result") or {}).get("summary") or ""
-        lines.append(f"- {step.get('name')}: {step.get('status')} {str(result)[:160]}")
-    reason = run.error or run.status
-    return f"本轮在没有交接的情况下结束（{reason}）。最后的步骤：\n" + (
-        "\n".join(lines) or "- （没有调用任何工具）"
-    )
+    """What a sprint did, in a few plain lines, when it ended without a handoff:
+    read by the researcher in the thread and by the next round's brief."""
+    steps = run.steps or []
+    failed = [s for s in steps if s.get("status") == "failed"]
+    said = [str(s.get("said") or "").strip() for s in steps if s.get("said")]
+    names = []
+    for step in steps:
+        if step.get("name") and step["name"] not in names:
+            names.append(step["name"])
+    lines = [
+        f"本轮在没有交接的情况下结束（{run.error or run.status}）："
+        f"共 {len(steps)} 步，{len(failed)} 步失败。"
+    ]
+    if said:
+        lines.append("最后说的：" + said[-1][:300])
+    if names:
+        lines.append("用过的工具：" + "、".join(names[:12]))
+    for step in failed[-3:]:
+        reason = str(step.get("error") or "").strip().splitlines()
+        lines.append(f"- {step.get('name')} 失败：{(reason[0] if reason else '')[:160]}")
+    return "\n".join(lines)
 
 
 def charge(maker, research, tokens):

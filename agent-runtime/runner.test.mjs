@@ -418,3 +418,18 @@ test('a model request the backend refuses is never sent', async () => {
     assert.equal(model.seen.length, 0);
   } finally { model.close(); }
 });
+
+test('a model that stops without a word after a tool is asked to go on', async () => {
+  const model = await fakeModel(async function* (_payload, n) {
+    if (n === 1) yield {tool_calls:[{index:0, id:'c1', type:'function', function:{name:'read_file', arguments:'{}'}}]};
+    else if (n === 2) yield {content:''};
+    else yield {content:'做完了'};
+  });
+  model.finish = undefined;
+  try {
+    const out = await runRunner({config:config(model.base), prompt:'go', tools:[{name:'read_file', description:'read', parameters:{type:'object', properties:{}}}]});
+    assert.equal(model.seen.length, 3);
+    assert.match(JSON.stringify(model.seen[2].messages), /上一条回复是空的/);
+    assert.equal(out.filter(e => e.type === 'answer').at(-1).text, '做完了');
+  } finally { model.close(); }
+});
