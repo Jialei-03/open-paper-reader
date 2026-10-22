@@ -56,7 +56,7 @@ test("the library searches, filters by reading status and deletes", async ({
   await expect(link(first.title)).toBeVisible();
   await expect(link(second.title)).toHaveCount(0);
   await search.fill(`nothing-like-this ${stamp}`);
-  await expect(library.getByText("暂无论文")).toBeVisible();
+  await expect(library.getByText("没有匹配的论文")).toBeVisible();
   await search.fill(stamp);
 
   // Filter by reading status.

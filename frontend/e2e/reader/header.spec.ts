@@ -848,7 +848,7 @@ test("a paper opened from the sidebar takes the keyboard too, so the zoom keys w
   // until the next paper's PDF is in, and the paper must still take it from there.
   await page
     .getByRole("navigation")
-    .getByRole("group", { name: "正在读" })
+    .getByRole("group", { name: "最近阅读" })
     .getByRole("link", { name: first.title })
     .click();
   await expect(

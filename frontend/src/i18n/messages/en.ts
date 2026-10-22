@@ -1040,8 +1040,6 @@ export const en = {
   "discover.noSeeds.title": "No recommendations",
   "discover.noSeeds.action": "Go to library",
   "discover.none.title": "No recommendations",
-  "discover.none.body":
-    "Everything suggested is already in your library or hidden. Refresh later for more.",
   "discover.offline.title": "Offline mode",
   "discover.unavailable.title": "Could not reach the paper services",
   "discover.stale": "Could not refresh, so this is the list from {time}.",

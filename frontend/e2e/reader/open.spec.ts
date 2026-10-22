@@ -39,7 +39,7 @@ test("opens a paper in the new reader", async ({ page }) => {
   await expect(
     paper.getByRole("heading", { level: 1, name: title, exact: true }),
   ).toBeVisible();
-  await expect(sidebar(page).getByRole("link", { name: "文库" })).toBeVisible();
+  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
   // The paper being read is in the list of what is being read, and marked.
   await expect(
     sidebar(page).getByRole("link", { name: title, exact: true }),
@@ -81,7 +81,7 @@ test("the tabs of the side panel switch its text", async ({ page }) => {
   await expect(
     panelTabs(page).getByRole("tab", { name: "笔记" }),
   ).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tabpanel")).toContainText("笔记");
+  await expect(page.getByRole("tabpanel")).toContainText("高亮与批注");
   await panelTabs(page).getByRole("tab", { name: "笔记" }).press("ArrowLeft");
   await expect(
     panelTabs(page).getByRole("tab", { name: "助手" }),
@@ -98,7 +98,7 @@ test("an unknown paper explains and links back", async ({ page }) => {
   const back = paper.getByRole("link", { name: "回到文库" });
   await expect(back).toBeVisible();
   // The rest of the screen is there: this is a paper that is missing, not a screen that broke.
-  await expect(sidebar(page).getByRole("link", { name: "文库" })).toBeVisible();
+  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
   await expect(panelTabs(page)).toBeVisible();
 
   await back.click();
@@ -122,7 +122,7 @@ test("a failing region shows a retry instead of a blank screen", async ({
   await expect(alert).toContainText("论文出了问题");
   await expect(alert.getByRole("button", { name: "重试" })).toBeVisible();
   // The other regions carry on.
-  await expect(sidebar(page).getByRole("link", { name: "文库" })).toBeVisible();
+  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
   await expect(
     panelTabs(page).getByRole("tab", { name: "助手" }),
   ).toBeVisible();
@@ -210,7 +210,7 @@ test("the sidebar lists what was read last and goes there", async ({
   await openReader(page, { paperId: second.paperId });
   await expect(page.getByRole("main")).toContainText(second.title);
 
-  const reading = sidebar(page).getByRole("group", { name: "正在读" });
+  const reading = sidebar(page).getByRole("group", { name: "最近阅读" });
   await expect(
     reading.getByRole("link", { name: second.title }),
   ).toHaveAttribute("aria-current", "page");
@@ -232,7 +232,7 @@ test("the sidebar collapses to its icons", async ({ page }) => {
 
   await sidebar(page).getByRole("button", { name: "收起侧栏" }).click();
   // Collapsed, an item is named by its label although the label is not drawn.
-  await expect(sidebar(page).getByRole("link", { name: "文库" })).toBeVisible();
+  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
   await expect(
     sidebar(page).getByRole("button", { name: "展开侧栏" }),
   ).toBeVisible();
@@ -517,7 +517,7 @@ test.describe("in English", () => {
       page.getByRole("main").getByRole("heading", { level: 1, name: title }),
     ).toBeVisible();
     await expect(
-      sidebar(page).getByRole("link", { name: "Library" }),
+      sidebar(page).getByRole("link", { name: "All", exact: true }),
     ).toBeVisible();
     for (const name of ["Assistant", "Notes", "Related"])
       await expect(panelTabs(page).getByRole("tab", { name })).toBeVisible();

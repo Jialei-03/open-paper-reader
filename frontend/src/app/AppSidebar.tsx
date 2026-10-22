@@ -251,6 +251,7 @@ export function AppSidebar({
         {materials ? (
           <SectionNavigation
             section="materials"
+            home={!local}
             route={route}
             hash={contextHash ?? window.location.hash.slice(1)}
             reading={reading}

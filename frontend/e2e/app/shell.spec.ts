@@ -53,7 +53,7 @@ test("the sidebar goes to each screen and marks where it is", async ({
   await expect(screen(page)).toHaveAttribute("data-app-screen", "home");
 
   for (const [name, hash] of [
-    ["文库", "library"],
+    ["全部", "library"],
     ["发现", "discover"],
     ["首页", "home"],
   ]) {
@@ -104,7 +104,7 @@ test("a paper read is listed in the sidebar on every screen", async ({
   ).toBeVisible();
 
   await sidebar(page).getByRole("link", { name: "首页" }).click();
-  const reading = sidebar(page).getByRole("group", { name: "正在读" });
+  const reading = sidebar(page).getByRole("group", { name: "最近阅读" });
   await expect(reading.getByRole("link", { name: title })).toBeVisible();
   await reading.getByRole("link", { name: title }).click();
   await expect(page).toHaveURL(new RegExp(`#read/${paperId}$`));

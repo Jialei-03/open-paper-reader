@@ -1,4 +1,4 @@
-import { ChevronDown, FileUp, Link, Plus } from "lucide-react";
+import { FileUp, Link, Plus } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { Imports } from "../../import/useImports";
@@ -35,7 +35,6 @@ export function LibraryImport({
         trigger={(props) => (
           <Button {...props} variant="primary" size="sm" icon={Plus}>
             {t("library.import")}
-            <ChevronDown size={14} aria-hidden />
           </Button>
         )}
         items={[

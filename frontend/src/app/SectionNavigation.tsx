@@ -4,6 +4,7 @@ import {
   Circle,
   Compass,
   FileText,
+  History,
   Library,
   Plus,
   Settings2,
@@ -26,7 +27,10 @@ export function SectionNavigation({
   hash,
   reading,
   go,
+  home = false,
 }: {
+  /** The hosted site has no research: its landing page stays in the list. */
+  home?: boolean;
   section: LocalSection;
   route: AppRoute;
   hash: string;
@@ -92,6 +96,8 @@ export function SectionNavigation({
             "discover",
             route.screen === "discover",
           )}
+          {home &&
+            item(History, t("app.home"), "home", route.screen === "home")}
         </div>
         {!!reading.length && (
           <div className={styles.sectionGroup}>

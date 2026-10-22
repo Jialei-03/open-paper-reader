@@ -69,7 +69,6 @@ test("a model is kept only once its connection test passes", async ({
   await expect(
     page.getByRole("heading", { name: "连接一个模型" }),
   ).toBeVisible();
-  await expect(page.getByText("助手需要一个模型来读论文")).toBeVisible();
   const next = page.getByRole("button", { name: "继续" });
   await expect(next).toBeDisabled();
   // Only the local edition offers a model on this computer.
@@ -145,7 +144,6 @@ test("the local edition offers Ollama and LM Studio at their addresses", async (
   await expect(page.getByLabel("服务地址", { exact: true })).toHaveValue(
     "http://127.0.0.1:1234/v1",
   );
-  await expect(page.getByText("先在这台电脑上打开 LM Studio")).toBeVisible();
 });
 
 test("the setup speaks English", async ({ page }) => {

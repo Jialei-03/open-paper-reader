@@ -634,7 +634,7 @@ export const zh: { [K in keyof typeof en]: string } = {
   "settings.keypoints.on": "开",
   "settings.keypoints.off": "关",
   "settings.data.title": "数据",
-  "settings.data.used": "阅读资料 {used} / {limit}",
+  "settings.data.used": "已用 {used} / {limit}",
   "settings.data.meter": "阅读资料存储用量",
   "settings.data.papers": "论文",
   "settings.data.noteImages": "笔记图片",
@@ -986,8 +986,6 @@ export const zh: { [K in keyof typeof en]: string } = {
   "discover.noSeeds.title": "暂无推荐",
   "discover.noSeeds.action": "去文库",
   "discover.none.title": "暂无推荐",
-  "discover.none.body":
-    "推荐到的论文已经在文库里，或被你隐藏了。过些时候再刷新看看。",
   "discover.offline.title": "离线模式",
   "discover.unavailable.title": "连不上论文服务",
   "discover.stale": "没能刷新，下面是 {time} 的列表。",
