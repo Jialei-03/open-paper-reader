@@ -6,6 +6,7 @@ export interface ScheduleInput {
   workspace_id: string;
   destination: "new" | "existing";
   research_id: string | null;
+  workflow_id?: string;
   frequency: "daily" | "weekly" | "interval";
   local_time: string;
   weekday: number;

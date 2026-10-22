@@ -16,6 +16,8 @@ import {
 import { useResearchNavigation, ResearchState } from "../ResearchNavigation";
 import { ChangeNumbers, DiffDialog } from "../ChangeCards";
 import { MergeDialog } from "../ResearchChanges";
+import { WorkflowProgress } from "../../workflows/WorkflowProgress";
+import { FileView } from "../files/FileView";
 import { FilesPanel } from "../files/FilesPanel";
 import { settledKey } from "../files/files-api";
 import { plainCommand } from "../process/model";
@@ -24,6 +26,8 @@ import styles from "./Talk.module.css";
 
 export function RecordPanel({
   detail,
+  outputFile,
+  onOutputFile,
   computes,
   run,
   onRun,
@@ -31,6 +35,8 @@ export function RecordPanel({
   go,
 }: {
   detail: ProjectDetail;
+  outputFile: string;
+  onOutputFile(path: string): void;
   computes: Compute[];
   run: string;
   onRun(id: string): void;
@@ -71,112 +77,136 @@ export function RecordPanel({
             p.title}
         </h2>
       </div>
-      <div className={styles.recordBody}>
-        {(!!changes?.files.length || !!p.conclusion_record?.summary) && (
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>
-              {t("research.panel.changes")}
-              {!!changes?.files.length && <ChangeNumbers changes={changes} />}
-            </h3>
-            {!changes?.files.length && p.conclusion_record?.summary && (
-              <p>{p.conclusion_record.summary}</p>
-            )}
-            <div className={styles.tags}>
-              {!!changes?.files.length && (
-                <Button size="sm" variant="ghost" onClick={() => setDiff(true)}>
-                  {t("research.changes.compare")}
-                </Button>
+      {outputFile ? (
+        <FileView
+          projectId={p.id}
+          path={outputFile}
+          settled={p.updated_at}
+          onBack={() => onOutputFile("")}
+          actions={null}
+        />
+      ) : (
+        <div className={styles.recordBody}>
+          {p.workflow && (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>{t("workflows.title")}</h3>
+              <WorkflowProgress workflow={p.workflow} />
+            </section>
+          )}
+          {(!!changes?.files.length || !!p.conclusion_record?.summary) && (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>
+                {t("research.panel.changes")}
+                {!!changes?.files.length && <ChangeNumbers changes={changes} />}
+              </h3>
+              {!changes?.files.length && p.conclusion_record?.summary && (
+                <p>{p.conclusion_record.summary}</p>
               )}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setMerging(true)}
-              >
-                {t("research.merge.action")}
-              </Button>
-            </div>
-          </section>
-        )}
-        {!!children.length && (
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>
-              {t("research.panel.children")}
-              <span>
-                {t("research.panel.completed", {
-                  n: children.filter((r) => r.status === "finished").length,
-                })}
-              </span>
-            </h3>
-            {children.map((r) => (
-              <a
-                key={r.id}
-                className={styles.childResearch}
-                href={`#research/${r.id}`}
-                onClick={followLink(go, `research/${r.id}`)}
-              >
-                <span>{r.title || r.question}</span>
-                <ResearchState research={r} />
-              </a>
-            ))}
-          </section>
-        )}
-        {!!detail.jobs.length && (
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t("research.record.runs")}</h3>
-            {detail.jobs.slice(0, 10).map((job) => (
-              <RunCard
-                key={job.id}
-                job={job}
-                computes={computes}
-                actions={actions}
-              />
-            ))}
-          </section>
-        )}
-        {(!!p.plan?.hypotheses?.length || !!nodes.length) && (
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>{t("research.record.plan")}</h3>
-            {nodes.length
-              ? nodes.map((node) => (
-                  <div key={node.id} className={styles.nodeRow}>
-                    <span>{node.title}</span>
-                    <small>
-                      {t(`research.node.${node.status}` as MessageKey)}
-                    </small>
-                  </div>
-                ))
-              : p.plan.hypotheses.map((h) => (
-                  <div key={h.title} className={styles.nodeRow}>
-                    {h.title}
-                  </div>
-                ))}
-          </section>
-        )}
-        {!!detail.datasets.length && (
-          <section className={styles.section}>
-            <h3 className={styles.sectionTitle}>
-              {t("research.panel.sources")}
-              <IconButton
-                icon={Plus}
-                label={t("research.attach")}
-                size="sm"
-                onClick={() => setSources(true)}
-              />
-            </h3>
-            {detail.datasets.map((source) => (
-              <div key={source.id} className={styles.nodeRow}>
-                <span>{source.name}</span>
-                <small>
-                  {t(`research.data.${source.status}` as MessageKey)}
-                </small>
-                {source.files.map((file) => (
-                  <small key={file.name}>{file.name}</small>
-                ))}
+              <div className={styles.tags}>
+                {!!changes?.files.length && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setDiff(true)}
+                  >
+                    {t("research.changes.compare")}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setMerging(true)}
+                >
+                  {t("research.merge.action")}
+                </Button>
               </div>
-            ))}
-          </section>
-        )}
-      </div>
+            </section>
+          )}
+          {!!children.length && (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>
+                {t("research.panel.children")}
+                <span>
+                  {t("research.panel.completed", {
+                    n: children.filter((r) => r.status === "finished").length,
+                  })}
+                </span>
+              </h3>
+              {children.map((r) => (
+                <a
+                  key={r.id}
+                  className={styles.childResearch}
+                  href={`#research/${r.id}`}
+                  onClick={followLink(go, `research/${r.id}`)}
+                >
+                  <span>{r.title || r.question}</span>
+                  <ResearchState research={r} />
+                </a>
+              ))}
+            </section>
+          )}
+          {!!detail.jobs.length && (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>
+                {t("research.record.runs")}
+              </h3>
+              {detail.jobs.slice(0, 10).map((job) => (
+                <RunCard
+                  key={job.id}
+                  job={job}
+                  computes={computes}
+                  actions={actions}
+                />
+              ))}
+            </section>
+          )}
+          {(!!p.plan?.hypotheses?.length || !!nodes.length) && (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>
+                {t("research.record.plan")}
+              </h3>
+              {nodes.length
+                ? nodes.map((node) => (
+                    <div key={node.id} className={styles.nodeRow}>
+                      <span>{node.title}</span>
+                      <small>
+                        {t(`research.node.${node.status}` as MessageKey)}
+                      </small>
+                    </div>
+                  ))
+                : p.plan.hypotheses.map((h) => (
+                    <div key={h.title} className={styles.nodeRow}>
+                      {h.title}
+                    </div>
+                  ))}
+            </section>
+          )}
+          {!!detail.datasets.length && (
+            <section className={styles.section}>
+              <h3 className={styles.sectionTitle}>
+                {t("research.panel.sources")}
+                <IconButton
+                  icon={Plus}
+                  label={t("research.attach")}
+                  size="sm"
+                  onClick={() => setSources(true)}
+                />
+              </h3>
+              {detail.datasets.map((source) => (
+                <div key={source.id} className={styles.nodeRow}>
+                  <span>{source.name}</span>
+                  <small>
+                    {t(`research.data.${source.status}` as MessageKey)}
+                  </small>
+                  {source.files.map((file) => (
+                    <small key={file.name}>{file.name}</small>
+                  ))}
+                </div>
+              ))}
+            </section>
+          )}
+        </div>
+      )}
       {diff && changes && (
         <DiffDialog changes={changes} onClose={() => setDiff(false)} />
       )}{" "}

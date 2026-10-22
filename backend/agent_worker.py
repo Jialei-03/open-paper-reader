@@ -50,6 +50,8 @@ RESEARCH_SKILLS = {
         "discussion",
         "chat",
         "lead",
+        "workflow",
+        "review",
     )
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
@@ -80,8 +82,13 @@ def research_tools(role="executor"):
         LEAD_WRITES,
         DISTILLER_TOOLS,
         SCOPING_TOOLS,
+        WORKFLOW_TOOLS,
+        REVIEW_TOOLS,
     )
 
+    if role in {"workflow", "review"}:
+        names = WORKFLOW_TOOLS if role == "workflow" else REVIEW_TOOLS
+        return [t for t in TOOLS if t["name"] in names]
     if role in {"chat", "lead", "discussion"}:
         return [
             t
@@ -122,6 +129,8 @@ def research_tools(role="executor"):
                 "propose_plan",
                 "project_overview",
                 "research_read",
+                "finish_step",
+                "review_step",
                 *LEAD_WRITES,
             }
         )

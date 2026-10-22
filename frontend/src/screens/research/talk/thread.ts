@@ -13,6 +13,14 @@ import type {
  * block), the decisions waiting for the researcher, and where stages changed.
  */
 export type ThreadItem =
+  | {
+      kind: "workflow";
+      id: string;
+      index: number;
+      status: string;
+      outputs: string[];
+      at: string;
+    }
   | { kind: "message"; id: string; who: string; text: string; at: string }
   | {
       kind: "plan";
@@ -135,6 +143,28 @@ export function buildThread(
       });
       continue;
     }
+    if (
+      [
+        "workflow_step_started",
+        "workflow_step_finished",
+        "workflow_step_checkpoint",
+      ].includes(event.action)
+    ) {
+      items.push({
+        kind: "workflow",
+        id: event.id,
+        index: Number(event.detail.index),
+        status: str(event.detail.status) || "completed",
+        outputs: Array.isArray(event.detail.outputs)
+          ? event.detail.outputs.filter(
+              (path): path is string => typeof path === "string",
+            )
+          : [],
+        at,
+      });
+      continue;
+    }
+    if (event.action === "workflow_child_started") continue;
     if (sprint && !blocks.has(sprint.id)) {
       const block: Extract<ThreadItem, { kind: "work" }> = {
         kind: "work",

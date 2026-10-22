@@ -550,6 +550,9 @@ def start_research(
     project.spawned_by = "lead"
     project.stage = "scoping"
     research_stages.say(d, project, "lead", question)
+    from .research_workflows import snapshot
+
+    snapshot(d, project)
     return project
 
 

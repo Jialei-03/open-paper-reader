@@ -27,6 +27,7 @@ FIELDS = (
     "workspace_id",
     "destination",
     "research_id",
+    "workflow_id",
     *TIMING,
     "paused",
 )
@@ -38,6 +39,7 @@ class ScheduleInput(Strict):
     workspace_id: str = Field(min_length=1, max_length=36)
     destination: Literal["new", "existing"] = "new"
     research_id: str | None = Field(default=None, max_length=36)
+    workflow_id: str = Field(default="research", min_length=1, max_length=64)
     frequency: Literal["daily", "weekly", "interval"] = "daily"
     local_time: str = Field(default="09:00", pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
     weekday: int = Field(default=0, ge=0, le=6)
@@ -66,6 +68,7 @@ class SchedulePatch(Strict):
     workspace_id: str | None = None
     destination: Literal["new", "existing"] | None = None
     research_id: str | None = None
+    workflow_id: str | None = None
     frequency: Literal["daily", "weekly", "interval"] | None = None
     local_time: str | None = None
     weekday: int | None = None
@@ -198,6 +201,9 @@ def deliver(settings, d, item):
     d.get(AgentSession, project.session_id).workspace_id = workspace.id
     bind(settings, workspace, project)
     research_stages.say(d, project, "human", item.prompt)
+    from .research_workflows import snapshot
+
+    snapshot(d, project, item.workflow_id)
     # The worker's repository step adopts the conversation before planning it.
     return project.id
 
@@ -293,6 +299,9 @@ def install_schedule_routes(
                 raise HTTPException(422, "对话不属于这个项目")
         else:
             body.research_id = None
+            from .research_workflows import definition
+
+            definition(d, a["id"], body.workflow_id)
 
     @app.get("/api/v1/research/schedules")
     def schedules(a=Depends(auth), d=Depends(db)):

@@ -1,4 +1,5 @@
 import { api, send } from "../../api";
+import type { Workflow } from "../workflows/workflows-api";
 import type { RunStep } from "./process/model";
 
 /** A research project as the service lists it (backend research_routes.py). */
@@ -28,6 +29,7 @@ export interface ResearchProject {
   session_id: string;
   workspace_id: string;
   stage: Stage;
+  workflow?: Workflow;
   compute_id: string;
   plan: ResearchPlan | Record<string, never>;
   conclusion_record: ConclusionRecord | Record<string, never>;
@@ -68,7 +70,8 @@ export type Stage =
   | "experiments"
   | "conclusion"
   | "retrospective"
-  | "done";
+  | "done"
+  | "workflow";
 
 export const STAGES: Stage[] = [
   "scoping",
@@ -271,6 +274,7 @@ export const getProject = (id: string, signal?: AbortSignal) =>
 /** A project starts from what the researcher says; the plan is talked through. */
 export const startProject = (body: {
   defer_start?: boolean;
+  workflow_id?: string;
   message: string;
   model_config_id: string;
   compute_id?: string;

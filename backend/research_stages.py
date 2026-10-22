@@ -20,7 +20,7 @@ from sqlalchemy import select
 from . import research_map
 from .models import ResearchEvent, ResearchSprint, now
 
-STAGES = ("scoping", "experiments", "conclusion", "retrospective", "done")
+STAGES = ("scoping", "experiments", "conclusion", "retrospective", "done", "workflow")
 
 
 def set_stage(d, project, stage, actor="system", note=""):
@@ -39,6 +39,15 @@ def set_stage(d, project, stage, actor="system", note=""):
         "stage_changed",
         {"from": before, "to": stage, "note": note},
     )
+    from .research_workflows import sync_legacy
+
+    sync_legacy(d, project)
+    if stage == "done":
+        from .research_workflows import complete_action
+
+        complete_action(
+            d, project, "retrospective", project.conclusion.get("summary", "")
+        )
 
 
 def open_request(d, project, kind):
@@ -258,6 +267,9 @@ def approve_plan(settings, d, project, version, note=""):
     project.plan = {**plan, "approved_at": now()}
     project.status = "active"
     set_stage(d, project, "experiments", "human", note)
+    from .research_workflows import native_complete
+
+    native_complete(d, project, "plan", plan.get("summary", ""))
 
 
 def propose_conclusion(d, project, sprint, conclusion):
@@ -270,6 +282,10 @@ def propose_conclusion(d, project, sprint, conclusion):
         "accepted": None,
         "note": "",
     }
+    from .research_workflows import separate_conclusion
+
+    if separate_conclusion(d, project):
+        return
     set_stage(d, project, "conclusion", "advisor")
     research_map.event(
         d,
@@ -290,6 +306,12 @@ def propose_conclusion(d, project, sprint, conclusion):
 
 def finish(d, project, status, summary, actor, sprint_id=None):
     """The question is answered: the root node closes and the project ends."""
+    from .research_workflows import complete_action, native_complete
+
+    if native_complete(d, project, "experiment", summary) or complete_action(
+        d, project, "conclusion", summary
+    ):
+        return
     project.status = "finished"
     project.end_reason = status
     root = research_map.root(d, project)
@@ -397,6 +419,10 @@ def end_on_budget(d, project, actor="system"):
 
 def decide(d, project, request, approve, note):
     """A person's answer to a plan or a conclusion. True if it was one of those."""
+    from .research_workflows import decide as decide_step
+
+    if decide_step(d, project, request, approve, note):
+        return True
     kind = request.detail.get("kind")
     if kind == "question":
         # The answer is the person's word in the conversation.
@@ -442,6 +468,10 @@ def decide(d, project, request, approve, note):
                 "note": note,
                 "decided_at": now(),
             }
+            from .research_workflows import reject_conclusion
+
+            if reject_conclusion(d, project, note):
+                return True
             set_stage(d, project, "experiments", "human", note)
             project.status = "active"
         return True

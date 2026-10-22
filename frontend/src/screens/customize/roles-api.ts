@@ -7,6 +7,8 @@ export interface ResearchRole {
 }
 
 export const ROLE_NAMES: Record<string, MessageKey> = {
+  "research-workflow": "customize.role.workflow",
+  "research-review": "customize.role.review",
   "research-scoping": "customize.role.scoping",
   "research-executor": "customize.role.executor",
   "research-advisor": "customize.role.advisor",

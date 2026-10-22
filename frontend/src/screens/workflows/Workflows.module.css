@@ -1,0 +1,195 @@
+.manager {
+  max-width: calc(var(--ui-space-48) * 20);
+  margin: 0 auto;
+}
+.manager header {
+  margin-bottom: var(--ui-space-24);
+  gap: var(--ui-space-24);
+  flex-wrap: wrap;
+}
+.manager header h1 {
+  font-size: var(--ui-text-24);
+  font-weight: var(--ui-weight-strong);
+}
+.manager header input {
+  font-size: var(--ui-text-13);
+}
+.picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  padding: var(--ui-space-4) var(--ui-space-8);
+  min-width: 0;
+  border: 0;
+  border-radius: var(--ui-r-8);
+  background: transparent;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  cursor: pointer;
+}
+.picker span {
+  max-width: calc(var(--ui-space-48) * 3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker svg,
+.row > svg {
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
+  flex-shrink: 0;
+}
+.picker:hover,
+.row:hover {
+  background: var(--ui-hover);
+}
+.picker:focus-visible,
+.name:focus-visible,
+.field select:focus-visible,
+.checkbox input:focus-visible {
+  outline: 0;
+  box-shadow: var(--ui-focus-ring);
+}
+.list {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-12);
+  min-height: var(--ui-control-lg);
+  padding: var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  text-align: start;
+  border: 0;
+  background: none;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.status {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+.form,
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-16);
+  min-width: 0;
+}
+.step {
+  margin: 0;
+  padding: var(--ui-space-16);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-r-12);
+}
+.step legend {
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-strong);
+}
+.stepActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-space-4);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  font-size: var(--ui-text-13);
+}
+.field select {
+  min-height: var(--ui-control-lg);
+  padding: var(--ui-space-8);
+  background: var(--ui-bg);
+  color: var(--ui-fg);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-r-8);
+  font: inherit;
+}
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  font-size: var(--ui-text-13);
+}
+.skeleton {
+  height: calc(var(--ui-control-lg) * 5);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-2);
+}
+.output {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-12);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-r-12);
+}
+.output button {
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+.mark {
+  display: flex;
+  justify-content: center;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-16) 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+}
+.steps button {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ui-space-12);
+  min-height: var(--ui-control-md);
+  padding: var(--ui-space-8);
+  background: none;
+  border: 0;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  text-align: start;
+  border-radius: var(--ui-r-8);
+  cursor: pointer;
+}
+.steps button:disabled {
+  cursor: default;
+}
+.steps button:focus-visible {
+  box-shadow: var(--ui-focus-ring);
+  outline: 0;
+}
+.steps button span {
+  overflow-wrap: anywhere;
+}
+.steps small {
+  font-size: var(--ui-text-12);
+  color: var(--ui-fg-2);
+  flex-shrink: 0;
+}
+
+.row > button:last-child {
+  opacity: 0;
+}
+.row:hover > button:last-child,
+.row:focus-within > button:last-child {
+  opacity: 1;
+}
+.manager header label {
+  min-height: var(--ui-control-md);
+  padding: 0 var(--ui-space-12);
+  gap: var(--ui-space-8);
+}

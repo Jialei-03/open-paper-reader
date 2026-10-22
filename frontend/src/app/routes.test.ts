@@ -199,7 +199,7 @@ describe("section navigation", () => {
 });
 
 describe("customize categories", () => {
-  it.each(["playbook", "roles", "machines", "tracking", "models"])(
+  it.each(["playbook", "roles", "machines", "tracking", "models", "workflows"])(
     "opens %s",
     (section) => {
       expect(parseAppRoute(`customize/${section}`)).toEqual({

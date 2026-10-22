@@ -379,6 +379,9 @@ def fork(settings, d, source, body):
     )
     d.add(child)
     d.flush()
+    from .research_workflows import snapshot as workflow_snapshot
+
+    workflow_snapshot(d, child)
     ids = {row["id"]: uid() for row in snapshot["nodes"]}
     child.forked_from = {**origin, "node_ids": ids}
     for row in snapshot["nodes"]:

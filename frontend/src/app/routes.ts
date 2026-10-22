@@ -31,7 +31,13 @@ export type AppRoute =
     }
   | {
       screen: "customize";
-      section: "playbook" | "roles" | "machines" | "tracking" | "models";
+      section:
+        | "playbook"
+        | "roles"
+        | "machines"
+        | "tracking"
+        | "models"
+        | "workflows";
       redirect?: string;
     }
   | {
@@ -118,6 +124,7 @@ export function parseAppRoute(hash: string): AppRoute {
     return section === "models" ||
       section === "playbook" ||
       section === "roles" ||
+      section === "workflows" ||
       section === "machines" ||
       section === "tracking"
       ? { screen: "customize", section }

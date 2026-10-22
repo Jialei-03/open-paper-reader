@@ -301,7 +301,7 @@ async def execute(
         from .research_tools import gate, run_pi, run_research_tool
 
         # Doing anything needs a live node of the map to be in focus first.
-        await asyncio.to_thread(gate, app, research, name)
+        await asyncio.to_thread(gate, app, research, name, owner)
         if spec.get("research"):
             return await run_research_tool(app, owner, research, name, args)
         if name in PI_NAMES:

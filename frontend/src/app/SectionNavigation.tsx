@@ -135,6 +135,12 @@ export function SectionNavigation({
             "customize/roles",
             route.screen === "customize" && route.section === "roles",
           )}
+          {item(
+            Settings2,
+            t("workflows.title"),
+            "customize/workflows",
+            route.screen === "customize" && route.section === "workflows",
+          )}
         </SidebarSection>
         <SidebarSection title={t("customize.connections")}>
           {item(

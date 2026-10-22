@@ -213,3 +213,8 @@
     padding: 12px 4px;
   }
 }
+
+.workflowContent {
+  max-width: calc(var(--ui-space-48) * 20);
+  padding: var(--ui-space-32);
+}
