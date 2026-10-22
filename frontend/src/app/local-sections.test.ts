@@ -21,6 +21,7 @@ describe("local app sections", () => {
       validSectionAddress("materials", "library?view=reading&q=memory"),
     ).toBe(true);
     expect(validSectionAddress("materials", "library?import=1")).toBe(false);
+    expect(validSectionAddress("materials", "home")).toBe(false);
     expect(
       validSectionAddress("materials", "open?url=https://arxiv.org/abs/1"),
     ).toBe(false);

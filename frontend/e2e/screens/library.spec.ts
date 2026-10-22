@@ -43,7 +43,7 @@ test("the library searches, filters by reading status and deletes", async ({
 
   await page.goto(LIBRARY);
   const library = page.getByRole("main");
-  await expect(library.getByRole("heading", { name: "文库" })).toBeVisible();
+  await expect(library.getByRole("heading", { name: "全部" })).toBeVisible();
   const rows = library.locator("[data-paper]");
   const link = (title: string) =>
     library.getByRole("link", { name: new RegExp(title) });
@@ -56,24 +56,25 @@ test("the library searches, filters by reading status and deletes", async ({
   await expect(link(first.title)).toBeVisible();
   await expect(link(second.title)).toHaveCount(0);
   await search.fill(`nothing-like-this ${stamp}`);
-  await expect(library.getByText("没有符合条件的论文。")).toBeVisible();
+  await expect(library.getByText("暂无论文")).toBeVisible();
   await search.fill(stamp);
 
   // Filter by reading status.
-  const status = library.getByRole("radiogroup", { name: "阅读状态" });
-  await status.getByRole("radio", { name: "在读" }).click();
+  const sidebar = page.getByRole("navigation");
+  await sidebar.getByRole("link", { name: "在读", exact: true }).click();
   await expect(link(second.title)).toBeVisible();
   await expect(link(first.title)).toHaveCount(0);
-  await status.getByRole("radio", { name: "未读" }).click();
+  await sidebar.getByRole("link", { name: "未读", exact: true }).click();
   await expect(link(first.title)).toBeVisible();
   await expect(link(second.title)).toHaveCount(0);
-  await status.getByRole("radio", { name: "全部" }).click();
+  await sidebar.getByRole("link", { name: "全部", exact: true }).click();
   await expect(rows).toHaveCount(2);
 
   // Delete asks first; cancelling keeps it.
   await library
-    .getByRole("button", { name: `删除 ${first.title}`, exact: true })
+    .getByRole("button", { name: `${first.title} 的操作`, exact: true })
     .click();
+  await page.getByRole("menuitem", { name: "删除", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "删除这篇论文？" });
   await expect(dialog).toContainText(first.title);
   await dialog.getByRole("button", { name: "取消" }).click();
@@ -81,8 +82,9 @@ test("the library searches, filters by reading status and deletes", async ({
   await expect(link(first.title)).toBeVisible();
 
   await library
-    .getByRole("button", { name: `删除 ${first.title}`, exact: true })
+    .getByRole("button", { name: `${first.title} 的操作`, exact: true })
     .click();
+  await page.getByRole("menuitem", { name: "删除", exact: true }).click();
   await dialog.getByRole("button", { name: "删除", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(link(first.title)).toHaveCount(0);
@@ -96,13 +98,19 @@ test("the library searches, filters by reading status and deletes", async ({
   await expect(page).toHaveURL(new RegExp(`#read/${second.paperId}$`));
 });
 
-test("the library imports a PDF from its dialog", async ({ page }) => {
+test("the library imports a PDF from its menu", async ({ page }) => {
   await signIn(page);
   await page.goto(LIBRARY);
   const library = page.getByRole("main");
   await library.getByRole("button", { name: "导入", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "导入论文" });
-  await dialog.getByTestId("import-file-input").setInputFiles({
+  await expect(
+    page.getByRole("menuitem", { name: "arXiv 链接或编号" }),
+  ).toBeVisible();
+  const choosing = page.waitForEvent("filechooser");
+  await page.getByRole("menuitem", { name: "PDF 文件" }).click();
+  await (
+    await choosing
+  ).setFiles({
     name: "library-import.pdf",
     mimeType: "application/pdf",
     buffer: pdfWithPages(2),

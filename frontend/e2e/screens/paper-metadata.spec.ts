@@ -73,7 +73,8 @@ test("the sheet shows the public record, refreshes it and copies three citations
   await page.goto("/#library");
   const library = page.getByRole("main");
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
-  await library.getByRole("button", { name: `${paper.title} 的详情` }).click();
+  await library.getByRole("button", { name: `${paper.title} 的操作` }).click();
+  await page.getByRole("menuitem", { name: "论文详情" }).click();
 
   // Never looked up: it is looked up once, on opening.
   const sheet = page.getByRole("dialog", { name: "论文详情" });
@@ -110,7 +111,7 @@ test("the sheet shows the public record, refreshes it and copies three citations
   expect(mock.refreshed.length).toBeGreaterThanOrEqual(3);
 });
 
-test("the library shows venue and citations, sorts by them and exports a .bib", async ({
+test("the library shows sources, sorts by citations and exports a .bib", async ({
   page,
 }) => {
   await signIn(page);
@@ -135,8 +136,10 @@ test("the library shows venue and citations, sorts by them and exports a .bib", 
   const library = page.getByRole("main");
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
   const card = (id: string) => library.locator(`[data-paper="${id}"]`);
-  await expect(card(few.paperId)).toContainText("Nature · 2015 · 被引 12");
-  await expect(card(many.paperId)).toContainText("被引 98,765");
+  await expect(card(few.paperId)).toContainText("Nature");
+  await expect(card(many.paperId)).toContainText(
+    "Advances in Neural Information Processing Systems",
+  );
   await expect(card(none.paperId)).not.toContainText("被引");
 
   await library.getByRole("button", { name: /^排序/ }).click();

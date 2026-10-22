@@ -66,78 +66,13 @@
   box-shadow: var(--ui-focus-ring);
 }
 
-.byline,
-.source {
+.byline {
   margin: 0;
   overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.byline {
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-}
-
-.source {
-  color: var(--ui-fg-3);
-  font-size: var(--ui-text-11);
-}
-
-.foot {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-6);
-  margin-top: auto;
-  padding-top: var(--ui-space-8);
-}
-
-.bar,
-.rowBar {
-  display: block;
-  overflow: hidden;
-  height: 3px;
-  border-radius: var(--ui-r-pill);
-  background: var(--ui-edge-subtle);
-}
-
-.bar i,
-.rowBar i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--ui-fg-2);
-}
-
-.meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-space-8);
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-}
-
-.progress {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-space-6);
-  color: var(--ui-fg-2);
-  white-space: nowrap;
-}
-
-/* A quiet dot distinguishes the papers currently being read. */
-.status[data-status="reading"]::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: var(--ui-r-pill);
-  background: var(--ui-accent);
 }
 
 .actions {
@@ -173,14 +108,6 @@
     opacity: 1;
     transform: none;
   }
-}
-
-.starred {
-  color: var(--ui-accent-text);
-}
-
-.starred svg {
-  fill: currentcolor;
 }
 
 /* ---- Row ---- */
@@ -247,22 +174,12 @@
   background: var(--ui-bg-2);
 }
 
-.cellProgress {
-  width: 150px;
+.cellSource {
+  overflow: hidden;
   color: var(--ui-fg-2);
-}
-
-.cellProgress .rowBar {
-  margin-bottom: var(--ui-space-4);
-}
-
-.cellProgress .progress {
   font-size: var(--ui-text-12);
-}
-
-.cellStatus {
-  width: 88px;
-  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cellDate {
@@ -273,7 +190,7 @@
 }
 
 .cellActions {
-  width: 112px;
+  width: 40px;
 }
 
 .cellActions .actions {
@@ -349,31 +266,21 @@
   fill: currentcolor;
 }
 
-.rowBy {
-  overflow: hidden;
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@container paper-library (max-width: 720px) {
-  .cellProgress,
-  .cellDate {
-    display: none;
-  }
-}
-
 @container paper-library (max-width: 420px) {
-  .rowFileIcon {
+  .cellSource {
     display: none;
   }
 
-  .cellActions {
-    width: 100px;
+  .rowLink {
+    gap: var(--ui-space-8);
   }
 
-  .cellStatus {
-    width: 60px;
+  .rowFileIcon {
+    width: 28px;
+    height: 34px;
+  }
+
+  .cellDate {
+    font-size: var(--ui-text-11);
   }
 }

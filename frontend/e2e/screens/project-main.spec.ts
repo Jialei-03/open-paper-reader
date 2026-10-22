@@ -759,12 +759,12 @@ test("materials routes filter real paper records and dismiss sidebar imports wit
   ).toHaveCount(0);
   await expect(library.locator("[data-view=list]")).toBeVisible();
   await expect(library.locator("[data-paper]")).toHaveCount(3);
-  await sidebar.getByRole("link", { name: "正在读", exact: true }).click();
+  await sidebar.getByRole("link", { name: "在读", exact: true }).click();
   await expect(page).toHaveURL(/#library\?view=reading$/);
   await expect(library.locator("[data-paper]")).toHaveCount(1);
   await expect(library.locator(`[data-paper="${papers[0].id}"]`)).toBeVisible();
   await expect(
-    sidebar.getByRole("link", { name: "正在读", exact: true }),
+    sidebar.getByRole("link", { name: "在读", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await sidebar.getByRole("link", { name: "未读", exact: true }).click();
   await expect(page).toHaveURL(/#library\?view=unread$/);
@@ -776,7 +776,7 @@ test("materials routes filter real paper records and dismiss sidebar imports wit
   await page.goto(
     `/#library?view=reading&q=${encodeURIComponent("资料")}&import=1`,
   );
-  const importing = page.getByRole("dialog", { name: "导入论文", exact: true });
+  const importing = page.getByRole("dialog", { name: "导入", exact: true });
   await expect(importing).toBeVisible();
   await importing.getByRole("button", { name: "关闭", exact: true }).click();
   await expect(importing).toHaveCount(0);
@@ -791,13 +791,13 @@ test("materials routes filter real paper records and dismiss sidebar imports wit
     library.getByRole("searchbox", { name: "搜索文库" }),
   ).toHaveValue("资料");
   await expect(
-    sidebar.getByRole("link", { name: "正在读", exact: true }),
+    sidebar.getByRole("link", { name: "在读", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   const search = library.getByRole("searchbox", { name: "搜索文库" });
   await search.fill("在读资料");
   await expect.poll(() => params().get("q")).toBe("在读资料");
   expect(params().get("view")).toBe("reading");
-  await sidebar.getByRole("link", { name: "导入论文", exact: true }).click();
+  await sidebar.getByRole("link", { name: "导入", exact: true }).click();
   await expect(importing).toBeVisible();
   expect(params().get("import")).toBe("1");
   expect(params().get("view")).toBe("reading");
@@ -810,7 +810,7 @@ test("materials routes filter real paper records and dismiss sidebar imports wit
   await expect(search).toHaveValue("在读资料");
   await expect(library.locator("[data-paper]")).toHaveCount(1);
   await expect(
-    sidebar.getByRole("link", { name: "正在读", exact: true }),
+    sidebar.getByRole("link", { name: "在读", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   expect(state.direct).toEqual([]);
   expect(state.workspaceRequests).toEqual([]);

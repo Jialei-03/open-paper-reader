@@ -35,6 +35,7 @@ export function validSectionAddress(
   const route = parseAppRoute(hash);
   return (
     !route.redirect &&
+    route.screen !== "home" &&
     route.screen !== "settings" &&
     route.screen !== "open" &&
     !new URLSearchParams(hash.split("?")[1] || "").has("import") &&
