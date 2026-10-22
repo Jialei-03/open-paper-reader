@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createPaperWithPdf, signIn } from "../reader/fixtures";
 
 const task = {
-  id: "task-ui",
+  id: "7f3c2a10-1b2c-4d5e-8f90-a1b2c3d4e5f6",
   title: "Daily papers",
   prompt: "Find papers",
   workspace_id: "workspace-ui",
@@ -52,7 +52,7 @@ async function setup(page: Page) {
         ],
       },
       schedules: [task],
-      "schedules/task-ui": task,
+      "schedules/7f3c2a10-1b2c-4d5e-8f90-a1b2c3d4e5f6": task,
       settings: {
         computes: [],
         default_compute: "host",
@@ -128,7 +128,7 @@ for (const theme of ["light", "dark"] as const) {
         ["discover", "发现"],
         ["schedules", "定时任务"],
         ["schedules/new", "新建任务"],
-        ["schedules/task-ui", "Daily papers"],
+        ["schedules/7f3c2a10-1b2c-4d5e-8f90-a1b2c3d4e5f6", "Daily papers"],
         ["customize/playbook", "研究手册"],
         ["customize/roles", "研究角色"],
         ["customize/machines", "机器"],
@@ -193,7 +193,7 @@ test("keyboard reaches import and destructive menus; tracking cancellation keeps
   await expect(importing).toBeHidden();
   await expect(importButton).toBeFocused();
 
-  await page.goto("/#schedules/task-ui");
+  await page.goto("/#schedules/7f3c2a10-1b2c-4d5e-8f90-a1b2c3d4e5f6");
   await page.getByRole("button", { name: "更多", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("menuitem").last()).toHaveText("删除");
@@ -228,7 +228,7 @@ test("reader shell stays within a 720px dark window", async ({ page }) => {
   await page.goto(`/#read/${paper.paperId}`);
   const heading = page.getByRole("main").getByRole("heading", { level: 1 });
   await expect(heading).toBeVisible();
-  await expect(heading).toHaveCSS("font-size", "14px");
+  await expect(heading).toHaveCSS("font-size", "15px");
   await noOverflow(page);
   await page.getByRole("button", { name: "更多", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: "论文详情" })).toBeVisible();

@@ -16,9 +16,9 @@
   box-shadow: var(--ui-focus-ring);
 }
 
-/* The sidebar that failed holds the room the sidebar would (var(--ui-reader-sidebar-width), as its own stylesheet has it). */
+/* The sidebar that failed holds the room the sidebar would (220px, as its own stylesheet has it). */
 .sidebarFailure {
-  --reader-sidebar-width: var(--ui-reader-sidebar-width);
+  --reader-sidebar-width: 220px;
   flex: none;
   width: var(--reader-sidebar-width);
 }

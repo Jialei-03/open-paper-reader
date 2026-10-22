@@ -3,7 +3,7 @@
  * controls leave; the controls keep their size.
  */
 .bar {
-  --header-control: var(--ui-control-md);
+  --header-control: 30px;
   /* Its own width is what the container rule below asks about (inline size only: the height is the header's). */
   container-type: inline-size;
   display: flex;
@@ -18,8 +18,8 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-family: var(--ui-font-sans);
-  font-size: var(--ui-text-14);
+  font-family: var(--ui-font-display);
+  font-size: var(--ui-text-15);
   font-weight: var(--ui-weight-strong);
   /* The old stylesheets give every h1 a tight tracking; this is not that page. */
   letter-spacing: normal;
@@ -37,7 +37,7 @@
 }
 
 .pageField {
-  width: var(--ui-space-48);
+  width: 48px;
 }
 
 /* The field is as tall as the buttons beside it, and the number is in the middle of it. */
@@ -52,7 +52,7 @@
 .total {
   padding: 0 var(--ui-space-6) 0 var(--ui-space-4);
   color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
+  font-size: var(--ui-text-13);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -84,22 +84,22 @@
 @starting-style {
   .back {
     opacity: 0;
-    transform: translateX(var(--ui-space-4));
+    transform: translateX(4px);
   }
 }
 
 /* The percentage keeps its room while it changes. */
 .zoom {
-  min-width: var(--ui-sidebar-top);
+  min-width: 56px;
   font-variant-numeric: tabular-nums;
 }
 
 /* The page, for a screen reader; the field shows it. */
 .announcement {
   position: absolute;
-  width: var(--ui-sr-only);
-  height: var(--ui-sr-only);
-  margin: calc(-1 * var(--ui-sr-only));
+  width: 1px;
+  height: 1px;
+  margin: -1px;
   padding: 0;
   border: 0;
   overflow: hidden;

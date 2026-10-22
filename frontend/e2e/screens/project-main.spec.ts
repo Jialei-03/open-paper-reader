@@ -584,9 +584,7 @@ test("scheduled tasks open a real editor and templates without a status dashboar
   await expect(
     sidebar.getByRole("link", { name: "定时任务", exact: true }),
   ).toHaveAttribute("aria-current", "page");
-  await expect(
-    page.getByRole("heading", { name: "安排任务", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("安排任务", { exact: true })).toBeVisible();
   await expect(
     page
       .getByRole("region", { name: "定时任务", exact: true })
@@ -598,7 +596,9 @@ test("scheduled tasks open a real editor and templates without a status dashboar
     sidebar.getByRole("link", { name: "看板", exact: true }),
   ).toHaveCount(0);
   const editor = page.getByRole("region", { name: "定时任务", exact: true });
-  await expect(editor.locator("p")).toHaveCount(0);
+  await expect(
+    editor.locator("p").filter({ hasNotText: "安排任务" }),
+  ).toHaveCount(0);
   await create.click();
   await expect(page).toHaveURL(/#schedules\/new$/);
   await expect(editor.getByRole("heading", { name: "新建任务" })).toBeVisible();

@@ -82,9 +82,7 @@ test("the local build installs layout translation from the translated view", asy
   page,
 }) => {
   const { install, calls } = await openTranslated(page);
-  await expect(
-    panel(page).getByText("会下载约 1 GB（BabelDOC 和版面模型）"),
-  ).toBeVisible();
+  await expect(panel(page).getByText("约 1 GB", { exact: true })).toBeVisible();
 
   await panel(page).getByRole("button", { name: "安装版面翻译" }).click();
   await expect(panel(page).getByText("正在安装 BabelDOC…")).toBeVisible();

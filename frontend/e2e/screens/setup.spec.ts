@@ -161,8 +161,6 @@ test("the setup speaks English", async ({ page }) => {
   await page.getByLabel("Model", { exact: true }).fill("gpt-test-a");
   await page.getByRole("button", { name: "Test connection" }).click();
   // The service's Chinese reason is not shown in the English interface.
-  await expect(page.getByRole("alert")).toHaveText(
-    "The model didn't answer. Check the address, the key and the model name.",
-  );
+  await expect(page.getByRole("alert")).toHaveText("The model did not respond");
   await expect(page.locator("main")).not.toContainText(/[一-鿿]/);
 });

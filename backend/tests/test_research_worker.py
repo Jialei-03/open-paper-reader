@@ -331,7 +331,10 @@ def test_scripted_sprint_end_to_end(lab):
 def test_abnormal_end_gets_fallback_summary(lab):
     app, project, run_sprint = lab
     rw.tick(app)
-    run_sprint([("tool", "research_map_read", {}), ("text", "")])
+    # Silent even when asked to go on (the runner asks twice).
+    run_sprint(
+        [("tool", "research_map_read", {}), ("text", ""), ("text", ""), ("text", "")]
+    )
     rw.tick(app)
     first, second = sprints(app, project["id"])
     assert first.status == "abnormal"

@@ -190,6 +190,11 @@ export function LayoutInstall({
                 ? t("common.retry")
                 : t("settings.layoutInstall.start")}
             </Button>
+            {state.status !== "failed" && (
+              <span className={styles.note}>
+                {t("settings.layoutInstall.size")}
+              </span>
+            )}
           </div>
         </>
       )}

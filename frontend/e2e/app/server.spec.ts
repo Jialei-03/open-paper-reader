@@ -143,7 +143,8 @@ test("an Agent credential only does what its scope says, and none once it is rev
     .getByRole("list", { name: "Agent 凭据" })
     .getByRole("listitem")
     .filter({ hasText: name });
-  await row.getByRole("button", { name: `撤销 ${name}` }).click();
+  await row.getByRole("button", { name: `${name} 的更多操作` }).click();
+  await page.getByRole("menuitem", { name: "撤销" }).click();
   await page
     .getByRole("dialog", { name: "撤销这个凭据？" })
     .getByRole("button", { name: "撤销" })

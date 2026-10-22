@@ -163,7 +163,7 @@ export const en = {
   "reader.toast.favorited": "Added to favorites",
   "reader.toast.unfavorited": "Removed from favorites",
   "reader.toast.favoriteFailed": "Could not update favorites. Try again.",
-  "reader.toast.conflict": "This paper changed elsewhere",
+  "reader.toast.conflict": "The paper changed elsewhere; refresh and try again",
   "reader.toast.downloadFailed": "Download failed",
   "reader.pdf.region": "Paper pages",
   "reader.pdf.page": "Page {page}",
@@ -572,7 +572,7 @@ export const en = {
   "details.record.refreshLabel": "Look this paper up again",
   "details.record.loading": "Loading metadata",
   "details.record.missing": "No metadata",
-  "details.record.failed": "Metadata lookup failed",
+  "details.record.failed": "Could not reach the public catalogs",
   "details.record.slow": "Too many metadata requests",
   "details.record.noId": "No searchable metadata",
   "details.cite": "Cite this paper",
@@ -728,8 +728,7 @@ export const en = {
   "settings.layoutInstall.cancelled":
     "The install was cancelled. Nothing was left behind.",
   "settings.layoutInstall.failed": "The install could not be finished.",
-  "settings.layoutInstall.sizeNote":
-    "Downloads about 1 GB (BabelDOC and its layout models) into its own folder.",
+  "settings.layoutInstall.size": "About 1 GB",
   "settings.layoutInstall.progress": "Install progress",
   "settings.layoutInstall.percent": "{percent}%",
   "settings.layoutInstall.stage.environment":
