@@ -326,7 +326,7 @@ test("the measurements are the design's", async ({ page }) => {
   const list = menu(page);
   const rename = item(page, "Rename");
   expect(await cssOf(list, "min-width")).toBe("180px");
-  expect(await cssOf(list, "border-top-left-radius")).toBe("16px");
+  expect(await cssOf(list, "border-top-left-radius")).toBe("12px");
   expect(await cssOf(list, "padding-top")).toBe("4px");
   expect(await cssOf(list, "background-color")).toBe(
     await resolved(page, "var(--ui-elev)"),
@@ -334,7 +334,7 @@ test("the measurements are the design's", async ({ page }) => {
   expect(await cssOf(rename, "height")).toBe("32px");
   expect(await cssOf(rename, "padding-left")).toBe("10px");
   expect(await cssOf(rename, "padding-right")).toBe("10px");
-  expect(await cssOf(rename, "border-top-left-radius")).toBe("10px");
+  expect(await cssOf(rename, "border-top-left-radius")).toBe("8px");
   const separator = list.getByRole("separator");
   expect(await cssOf(separator, "height")).toBe("1px");
   expect(await cssOf(separator, "margin-top")).toBe("4px");
