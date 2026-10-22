@@ -5,6 +5,9 @@ is written down with who made it, in which sprint, and why. These functions
 only stage changes on the session they are given; the caller commits.
 """
 
+import re
+import unicodedata
+
 from sqlalchemy import select
 
 from .models import (
@@ -27,14 +30,60 @@ PREFIX = 8
 
 
 def short_title(question):
-    import re
-
     text = re.sub(r"\s+", " ", question).strip().lstrip("# ")
-    text = re.split(r"[。！？\n]", text, maxsplit=1)[0]
-    return text[:16].rstrip("，,、:：;； ") or "新对话"
+    if len(text) <= 16:
+        return text or "新对话"
+    boundaries = [
+        i
+        for i, char in enumerate(text)
+        if char.isspace() or unicodedata.category(char).startswith("P")
+    ]
+    # A long unbroken phrase stays whole rather than losing part of a word.
+    end = max((i for i in boundaries if 0 < i <= 16), default=None)
+    if end is None:
+        end = next((i for i in boundaries if i > 16), len(text))
+    title = text[:end].rstrip()
+    return title if 0 < len(title) <= 100 else "新对话"
 
 
-def create_project(d, owner, question, background, model_config_id, budget=None):
+def researcher_language(message):
+    first = re.split(r"[。！？.!?\n]", message.strip(), maxsplit=1)[0]
+    return "zh" if re.search(r"[\u3400-\u9fff]", first) else "en"
+
+
+def language(d, project):
+    row = d.scalars(
+        select(ResearchEvent)
+        .where(
+            ResearchEvent.project_id == project.id,
+            ResearchEvent.action == "create_project",
+        )
+        .order_by(ResearchEvent.created_at)
+    ).first()
+    if row is not None:
+        value = row.detail.get("language")
+        if value not in {"zh", "en"}:
+            value = researcher_language(row.detail.get("question") or project.question)
+            row.detail = {**row.detail, "language": value}
+        return value
+    if project.parent_id:
+        parent = d.get(ResearchProject, project.parent_id)
+        if parent is not None:
+            return language(d, parent)
+    return researcher_language(project.question)
+
+
+def create_project(
+    d,
+    owner,
+    question,
+    background,
+    model_config_id,
+    budget=None,
+    *,
+    first_message=None,
+    language=None,
+):
     """A new project, its root question and the session its runs belong to."""
     question = question.strip()
     if not question:
@@ -57,7 +106,18 @@ def create_project(d, owner, question, background, model_config_id, budget=None)
     root = ResearchNode(project_id=project.id, kind="question", title=question[:300])
     d.add(root)
     d.flush()
-    event(d, project, root, "system", "create_project", {"question": question})
+    event(
+        d,
+        project,
+        root,
+        "system",
+        "create_project",
+        {
+            "question": question,
+            "language": language or researcher_language(first_message or question),
+            "title_pending": True,
+        },
+    )
     return project
 
 

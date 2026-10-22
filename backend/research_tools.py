@@ -857,7 +857,7 @@ def _wait(settings, d, job, seconds):
 
 def _chat(app, owner, research, name, args):
     from . import research_chat
-    from .models import AgentSession, ResearchWorkspace
+    from .models import AgentRun, AgentSession, ResearchWorkspace
 
     allowed = (
         LEAD_TOOLS
@@ -888,6 +888,16 @@ def _chat(app, owner, research, name, args):
             if session is None or session.archived_at or workspace.archived:
                 raise ValueError("请先恢复项目或对话")
         if name == "start_research":
+            prompt = (
+                d.scalars(
+                    select(AgentRun.prompt)
+                    .where(AgentRun.session_id == research.get("session_id"))
+                    .order_by(AgentRun.created_at.desc())
+                    .limit(1)
+                ).first()
+                if source is None
+                else None
+            )
             project = research_chat.start_research(
                 settings,
                 d,
@@ -899,6 +909,11 @@ def _chat(app, owner, research, name, args):
                     source.model_config_id
                     if source
                     else research.get("model_config_id", "")
+                ),
+                language=(
+                    research_map.language(d, source)
+                    if source
+                    else research_map.researcher_language(prompt or args["question"])
                 ),
             )
             if source:

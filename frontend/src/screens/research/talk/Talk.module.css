@@ -351,25 +351,8 @@
 
 .attention {
   display: flex;
-  align-items: center;
-  gap: var(--ui-space-8) var(--ui-space-12);
-  padding: var(--ui-space-10) var(--ui-space-12);
+  justify-content: flex-end;
   margin-bottom: var(--ui-space-8);
-  border: 1px solid var(--ui-edge-subtle);
-  border-radius: var(--ui-r-12);
-  background: var(--ui-bg);
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-13);
-  line-height: var(--ui-leading);
-}
-
-.attention > span {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.attention > button {
-  flex: none;
 }
 
 .locationBar a {
@@ -1429,9 +1412,6 @@
   line-height: var(--ui-leading);
 }
 @media (max-width: 600px) {
-  .attention {
-    flex-wrap: wrap;
-  }
   .head {
     gap: var(--ui-space-8);
     padding: 0 var(--ui-space-8);

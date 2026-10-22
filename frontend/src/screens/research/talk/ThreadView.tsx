@@ -755,14 +755,14 @@ function WorkBlock({
       </p>
     );
   }
-  const title =
-    role === "executor"
-      ? t("research.work.executor", { n: item.sprint.number })
-      : role === "advisor"
-        ? t("research.work.advisor", { n: item.sprint.number })
-        : ["scoping", "discussion"].includes(role)
-          ? t("research.role.discussion")
-          : t("research.work.distiller");
+  const title = t(
+    ["executor", "workflow"].includes(role)
+      ? "research.work.executor"
+      : role === "distiller"
+        ? "research.work.distiller"
+        : "research.work.advisor",
+    { n: item.sprint.number },
+  );
   return (
     <RunTurn
       run={run}

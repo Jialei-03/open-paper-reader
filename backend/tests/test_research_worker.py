@@ -218,7 +218,9 @@ def test_tick_creates_first_sprint_with_brief(lab):
             "role": "executor",
         }
         assert "Does L2 regularization help?" in run.prompt
-        assert "question/open" in run.prompt
+        assert "question/active" in run.prompt
+        assert sprint.focus_node_id is not None
+        assert "Focus this round：Does L2 regularization help?" in run.prompt
         assert "end_sprint" in run.prompt
         assert d.get(ResearchProject, project["id"]).spent["sprints"] == 1
     rw.tick(app)

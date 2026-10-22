@@ -68,11 +68,13 @@ def test_project_conversations_can_delegate_with_ownership_and_plan_boundary(env
         owner = d.get(ResearchProject, p["id"]).owner
     gate(app, runtime, "start_research")
     child = _chat(
-        app, owner, runtime, "start_research", {"question": "Check another hypothesis"}
+        app, owner, runtime, "start_research", {"question": "比较另一个假设"}
     )
     with app.state.maker() as d:
         result = d.get(ResearchProject, child["research_id"])
         assert result.parent_id == p["id"] and result.stage == "scoping"
+        source = d.get(ResearchProject, p["id"])
+        assert research_map.language(d, result) == research_map.language(d, source)
         assert not result.plan and not d.scalar(
             select(AgentRun.id).where(AgentRun.session_id == result.session_id)
         )

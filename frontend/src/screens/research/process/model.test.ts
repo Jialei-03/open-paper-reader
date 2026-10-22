@@ -86,6 +86,13 @@ describe("a run, read as a turn", () => {
         }),
       ),
     ).toBe("nvidia-smi");
+    expect(
+      target(
+        step("research_read", "completed", {
+          arguments: { research_id: "research-1" },
+        }),
+      ),
+    ).toBe("research-1");
     const printed = JSON.stringify({
       content: [{ type: "text", text: "RTX 5060 Ti" }],
     });

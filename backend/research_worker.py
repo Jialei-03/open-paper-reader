@@ -17,6 +17,7 @@ from sqlalchemy import select
 from . import (
     research_datasets,
     research_dialogue,
+    research_map,
     research_repo,
     research_sandbox,
     research_stages,
@@ -517,21 +518,34 @@ def _local(app, project, d=None):
     return item["kind"] == "docker"
 
 
-def _live_focus(d, project):
-    from .models import ResearchNode
-    from .research_map import is_live
+def _auto_focus(d, project, sprint):
+    from .research_tools import _focus
 
-    last = d.scalars(
-        select(ResearchSprint)
-        .where(
-            ResearchSprint.project_id == project.id,
-            ResearchSprint.role == "executor",
-            ResearchSprint.focus_node_id.is_not(None),
+    if sprint.focus_node_id:
+        return
+    nodes = research_map.nodes(d, project)
+    candidates = [n for n in nodes if n.parent_id is not None]
+    if not candidates:
+        candidates = nodes
+    order = {
+        h["title"]: i for i, h in enumerate((project.plan or {}).get("hypotheses", []))
+    }
+    candidates.sort(key=lambda n: order.get(n.title, len(order)))
+    node = next(
+        (
+            n
+            for n in candidates
+            if n.status in {"open", "active"} and research_map.is_live(d, n)
+        ),
+        None,
+    )
+    if node is not None:
+        _focus(
+            d,
+            project,
+            sprint,
+            {"node_id": node.id, "intent": "自动聚焦本轮首个未完成节点"},
         )
-        .order_by(ResearchSprint.number.desc())
-    ).first()
-    node = d.get(ResearchNode, last.focus_node_id) if last else None
-    return node.id if node is not None and is_live(d, node) else None
 
 
 BRIEFS = {
@@ -565,11 +579,10 @@ def _converse(app, d, project, latest):
 def _start(app, d, project, latest, role, config):
     number = (latest.number if latest else 0) + 1
     sprint = ResearchSprint(project_id=project.id, number=number, role=role, run_id="")
-    if role == "executor":
-        # Carrying on with the same node needs no new focus (and no blocked step).
-        sprint.focus_node_id = _live_focus(d, project)
     d.add(sprint)
     d.flush()
+    if role == "executor":
+        _auto_focus(d, project, sprint)
     spec = research_workflows.current(project)
     brief = (workflow_brief if role in {"workflow", "review"} else BRIEFS[role])(
         d, project, number, app.state.settings

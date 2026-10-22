@@ -677,6 +677,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 body.background,
                 body.model_config_id,
                 budget,
+                first_message=body.message or body.question,
             )
             p.compute_id = compute_id
             p.workspace_id = home.id

@@ -48,7 +48,9 @@ def answer(settings, d, project, text):
     d.add(sprint)
     d.flush()
     brief = (
-        f"# 当前研究\n{project.question}\n状态：{project.status} / {project.stage}\n"
+        research_brief._language_part(d, project)
+        + "\n\n"
+        + f"# 当前研究\n{project.question}\n状态：{project.status} / {project.stage}\n"
         + research_map.snapshot(d, project)
         + "\n\n## 最近研究记录\n"
         + research_brief.scoping_brief(d, project, number, settings)

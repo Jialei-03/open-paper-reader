@@ -10,7 +10,7 @@ import httpx
 from . import agent_limits
 from .models import File, Paper, TranslationJob
 
-from .tool_spec import ID, REV, TEXT, tool
+from .tool_spec import ID, REV, TEXT, LABELS, tool
 
 
 PAGING = {
@@ -266,6 +266,8 @@ from .research_tools import RESEARCH_TOOLS
 
 # Only research runs are given these (agent_worker leaves them out elsewhere).
 TOOLS.extend(RESEARCH_TOOLS)
+for spec in TOOLS:
+    spec["label"] = LABELS[spec["name"]]
 TOOL_MAP = {t["name"]: t for t in TOOLS}
 
 

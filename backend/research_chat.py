@@ -525,7 +525,15 @@ def _model(settings, owner, workspace, model_config_id, session=None):
 
 
 def start_research(
-    settings, d, owner, workspace, question, background="", model_config_id=""
+    settings,
+    d,
+    owner,
+    workspace,
+    question,
+    background="",
+    model_config_id="",
+    *,
+    language=None,
 ):
     from . import research_settings, research_stages
 
@@ -543,7 +551,9 @@ def start_research(
 
     compute_id = compute_for(settings, workspace)
     research_settings.compute(settings, compute_id)
-    project = research_map.create_project(d, owner, question, background, model_id)
+    project = research_map.create_project(
+        d, owner, question, background, model_id, language=language
+    )
     project.workspace_id = workspace.id
     d.get(AgentSession, project.session_id).workspace_id = workspace.id
     project.compute_id = compute_id

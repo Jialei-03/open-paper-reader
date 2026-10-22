@@ -146,6 +146,9 @@ export function target(step: RunStep): string {
     "query",
     "intent",
     "title",
+    "research_id",
+    "node_id",
+    "id",
     "job_id",
   ]
     .map((k) => a[k])

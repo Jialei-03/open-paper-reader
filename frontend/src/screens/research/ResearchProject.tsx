@@ -20,6 +20,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
@@ -475,7 +476,7 @@ export function ResearchProject({
       <header className={styles.head}>
         <Folder size={17} aria-hidden />
         <h1 className={styles.headTitle}>
-          <span title={p.question}>{p.title || p.question.slice(0, 16)}</span>
+          <span title={p.question}>{p.title || p.question}</span>
         </h1>
         <div className={styles.headTools}>
           <Menu
@@ -602,22 +603,17 @@ export function ResearchProject({
           </div>
           <div className={styles.dock}>
             {attention && (
-              <div className={styles.attention}>
-                <span>
-                  {t(
-                    attention.kind === "plan"
-                      ? "research.attention.plan"
-                      : "research.attention.decision",
-                  )}
-                </span>
-                <Button size="sm" variant="secondary" onClick={viewAttention}>
-                  {t(
-                    attention.kind === "plan"
-                      ? "research.attention.viewPlan"
-                      : "research.attention.viewDecision",
-                  )}
-                </Button>
-              </div>
+              <CardJump
+                key={`${id}-${attention.kind}-${attention.id}`}
+                cardId={`research-${attention.kind}-${attention.id}`}
+                scroller={scroller}
+                onClick={viewAttention}
+                label={t(
+                  attention.kind === "plan"
+                    ? "research.attention.viewPlan"
+                    : "research.attention.viewDecision",
+                )}
+              />
             )}
             {liveRun && busyNow && (
               <LiveCard
@@ -797,4 +793,36 @@ export function ResearchProject({
       </Dialog>
     </div>
   );
+}
+
+/** A shortcut is useful only while its card is outside the conversation viewport. */
+function CardJump({
+  cardId,
+  scroller,
+  onClick,
+  label,
+}: {
+  cardId: string;
+  scroller: RefObject<HTMLDivElement | null>;
+  onClick(): void;
+  label: string;
+}) {
+  const [outside, setOutside] = useState(false);
+  useEffect(() => {
+    const card = document.getElementById(cardId);
+    if (!card || !scroller.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setOutside(!entry.isIntersecting),
+      { root: scroller.current },
+    );
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [cardId, scroller]);
+  return outside ? (
+    <div className={styles.attention}>
+      <Button size="sm" variant="secondary" onClick={onClick}>
+        {label}
+      </Button>
+    </div>
+  ) : null;
 }

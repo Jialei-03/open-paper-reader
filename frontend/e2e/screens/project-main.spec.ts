@@ -2085,9 +2085,7 @@ test("research forks use a real ended checkpoint and keep source history read-on
     origin.locator("small").filter({ hasText: "系统" }),
   ).toBeVisible();
   await expect(origin.getByRole("button")).toHaveCount(1);
-  await expect(
-    page.getByRole("button", { name: "按这个计划开始实验" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "开始实验" })).toHaveCount(0);
   expect(state.resumes).toBe(0);
   await page.screenshot({
     path: testInfo.outputPath("research-fork-independent.png"),
@@ -2356,12 +2354,21 @@ test("conversation turns show checkpoint cards and one ordered content panel", a
   );
   const changes = page.getByRole("article", { name: "已修改 1 个文件" });
   await expect(changes).toContainText("+4");
-  await changes.getByRole("button", { name: "查看变更", exact: true }).click();
+  const viewChanges = changes.getByRole("button", {
+    name: "查看变更",
+    exact: true,
+  });
+  await viewChanges.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(viewChanges).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "查看变更" })).toContainText(
     "verified result",
   );
   await page.keyboard.press("Escape");
-  await changes.getByRole("button", { name: "撤销", exact: true }).click();
+  await changes.getByRole("button", { name: "撤销", exact: true }).focus();
+  await page.keyboard.press("Enter");
   await expect.poll(() => undos).toBe(1);
   await page.getByRole("button", { name: "显示研究记录", exact: true }).click();
   const panel = page.getByRole("complementary", { name: "研究记录" });
@@ -2421,3 +2428,147 @@ test("a fresh local app returns from settings to new research", async ({
       .getByRole("link", { name: "首页", exact: true }),
   ).toHaveCount(0);
 });
+
+for (const locale of ["zh", "en"] as const) {
+  test(`${locale}: plan shortcut follows visibility and card actions work from the keyboard`, async ({
+    page,
+  }) => {
+    await page.addInitScript(
+      (value) => localStorage.setItem("paper-locale", value),
+      locale,
+    );
+    await page.setViewportSize({ width: 720, height: 800 });
+    await project(page);
+    let approved = false;
+    let accepted = false;
+    const plan = {
+      version: 1,
+      question: "MNIST: AdamW vs SGD",
+      summary: "比较三个随机种子",
+      hypotheses: [{ title: "AdamW 更稳定", kill_if: "方差没有降低" }],
+      datasets: [],
+      compute_id: "host",
+    };
+    await page.route(`**/api/v1/research/projects/${rid}**`, async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("/plan/approve")) {
+        approved = true;
+        return route.fulfill({ json: {} });
+      }
+      if (path.endsWith("/decisions/conclusion")) {
+        accepted = route.request().postDataJSON().approve;
+        return route.fulfill({ json: {} });
+      }
+      if (path.endsWith("/runs")) return route.fulfill({ json: [] });
+      if (path.endsWith("/events"))
+        return route.fulfill({
+          json: [
+            {
+              id: "plan",
+              actor: "advisor",
+              action: "plan_proposed",
+              detail: { plan },
+              created_at: at,
+            },
+            ...Array.from({ length: 30 }, (_, i) => ({
+              id: `message-${i}`,
+              actor: "human",
+              action: "message",
+              detail: {
+                text: `Follow-up ${i}: keep all seeds and the baseline fixed.`,
+              },
+              created_at: at,
+            })),
+            ...(approved
+              ? [
+                  {
+                    id: "conclusion",
+                    actor: "advisor",
+                    action: "decision_requested",
+                    detail: {
+                      kind: "conclusion",
+                      reason: "AdamW has lower variance.",
+                      status: "concluded",
+                    },
+                    created_at: at,
+                  },
+                ]
+              : []),
+          ],
+        });
+      if (path.endsWith(`/projects/${rid}`))
+        return route.fulfill({
+          json: {
+            project: {
+              ...research,
+              id: rid,
+              title: "MNIST 优化器对比",
+              status: "waiting",
+              stage: approved ? "conclusion" : "scoping",
+              background: "",
+              model_config_id: "model-1",
+              budget: {},
+              spent: {},
+              session_id: researchSession,
+              workspace_id: wid,
+              plan: { ...plan, approved_at: approved ? at : undefined },
+              conclusion_record: {},
+              environment: {},
+              created_at: at,
+            },
+            nodes: [],
+            sprints: [],
+            jobs: [],
+            datasets: [],
+            docker: { available: true, reason: "" },
+            input_needed: "",
+          },
+        });
+      return route.fallback();
+    });
+    await page.goto(`/#research/${rid}`);
+    const view = page.getByRole("button", {
+      name: locale === "zh" ? "查看计划" : "View plan",
+      exact: true,
+    });
+    await expect(view).toBeVisible();
+    await expect(
+      page.getByText("计划已准备好，确认后才会开始执行。", { exact: true }),
+    ).toHaveCount(0);
+    await view.focus();
+    await page.keyboard.press("Enter");
+    const card = page.getByRole("article", {
+      name: locale === "zh" ? "研究计划" : "Research plan",
+      exact: true,
+    });
+    await expect(card).toBeInViewport();
+    await expect(view).toHaveCount(0);
+    const start = card.getByRole("button", {
+      name: locale === "zh" ? "开始实验" : "Start experiments",
+      exact: true,
+    });
+    expect(await start.evaluate((element) => element.tagName)).toBe("BUTTON");
+    await start.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(start).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => approved).toBe(true);
+    const accept = page.getByRole("button", {
+      name: locale === "zh" ? "接受结论" : "Accept conclusion",
+      exact: true,
+    });
+    await expect(accept).toBeEnabled();
+    await accept.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(accept).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => accepted).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  });
+}

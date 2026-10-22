@@ -874,3 +874,38 @@ def test_the_main_session_migration_preserves_existing_projects(tmp_path, monkey
     )
     assert isinstance(context_column["type"], Text)
     engine.dispose()
+
+
+def test_delegated_question_keeps_the_researchers_message_language(env):
+    from backend.research_tools import _chat
+
+    app, a, _b, settings = env
+    owner, model_id = configure(app, a, settings)
+    workspace = _workspace(a)
+    with app.state.maker() as d:
+        d.get(AgentSession, workspace["session_id"]).model_config_id = model_id
+        d.add(
+            AgentRun(
+                owner=owner,
+                session_id=workspace["session_id"],
+                model_config_id=model_id,
+                model="MiniMax-M3",
+                prompt="比较两种优化器。Use MNIST.",
+            )
+        )
+        d.commit()
+    child = _chat(
+        app,
+        owner,
+        {
+            "role": "lead",
+            "workspace_id": workspace["id"],
+            "session_id": workspace["session_id"],
+            "model_config_id": model_id,
+        },
+        "start_research",
+        {"question": "Compare AdamW and SGD on MNIST"},
+    )
+    with app.state.maker() as d:
+        project = d.get(ResearchProject, child["research_id"])
+        assert rm.language(d, project) == "zh"

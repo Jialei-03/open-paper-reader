@@ -84,9 +84,9 @@ function useVerb() {
   const { t } = useI18n();
   return (step: Pick<RunStep, "name" | "label">) => {
     const key = `research.tool.${step.name}` as MessageKey;
-    // A tool without a verb of its own reads as its label, never as nothing.
+    // Old runs may carry descriptions as labels; never render those.
     const said = t(key);
-    return said && said !== key ? said : step.label || step.name;
+    return said && said !== key ? said : step.name;
   };
 }
 

@@ -157,6 +157,9 @@ def process(app, job_id):
         # the model anything; the agent, which can look at pages, takes over.
         if run(app, job_id, cfg) is not False:
             return None
+    from .research_titles import prepare
+
+    prepare(app, job_id, cfg)
     return _process(app, job_id, cfg)
 
 
