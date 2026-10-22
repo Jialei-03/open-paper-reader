@@ -78,6 +78,9 @@ export function RecordPanel({
               {t("research.panel.changes")}
               {!!changes?.files.length && <ChangeNumbers changes={changes} />}
             </h3>
+            {!changes?.files.length && p.conclusion_record?.summary && (
+              <p>{p.conclusion_record.summary}</p>
+            )}
             <div className={styles.tags}>
               {!!changes?.files.length && (
                 <Button size="sm" variant="ghost" onClick={() => setDiff(true)}>
