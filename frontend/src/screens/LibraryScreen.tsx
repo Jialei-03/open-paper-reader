@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, send, type Paper } from "../api";
-import { useLocal } from "../app/edition";
 import { useI18n } from "../i18n/I18nProvider";
 import { useImports } from "../import/useImports";
 import {
@@ -30,7 +29,8 @@ import {
   toast,
   type MenuEntry,
 } from "../ui";
-import { ImportDrop, ImportJobs, useFileDrop } from "./home/ImportDrop";
+import { ImportJobs, useFileDrop } from "./home/ImportDrop";
+import { LibraryImport } from "./library/LibraryImport";
 import { PaperDetails } from "./library/PaperDetails";
 import { PaperCard, PaperRow } from "./library/PaperItem";
 import { sortPapers, type SortKey } from "./library/paper-meta";
@@ -111,7 +111,6 @@ export function LibraryScreen({
   reload,
 }: LibraryScreenProps) {
   const { t, tn, locale } = useI18n();
-  const local = useLocal();
   const [query, setQuery] = useState(queryFromAddress);
   const changeQuery = (value: string) => {
     setQuery(value);
@@ -169,14 +168,6 @@ export function LibraryScreen({
   const closeImport = () => {
     setImporting(false);
     clearImportRequest();
-  };
-
-  const chooseFilter = (next: Filter, search = query) => {
-    setFilter(next);
-    const params = new URLSearchParams();
-    if (next !== "all") params.set("view", next);
-    if (search.trim()) params.set("q", search);
-    go(`library${params.size ? `?${params}` : ""}`);
   };
 
   const visits = useMemo(() => recentPapers(owner), [owner]);
@@ -311,11 +302,16 @@ export function LibraryScreen({
           <div className={styles.headingGroup}>
             <div className={styles.titleLine}>
               <h1 id="library-title" className={styles.heading}>
-                {t("library.title")}
+                {t(
+                  filter === "all"
+                    ? "library.filter.all"
+                    : filter === "reading"
+                      ? "library.status.reading"
+                      : filter === "unread"
+                        ? "library.status.unread"
+                        : "library.status.read",
+                )}
               </h1>
-              <span className={styles.count}>
-                {tn("library.count", papers.length)}
-              </span>
             </div>
           </div>
           <div
@@ -333,56 +329,17 @@ export function LibraryScreen({
               onChange={(event) => changeQuery(event.target.value)}
             />
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Plus}
-            onClick={() => setImporting(true)}
-          >
-            {t("library.import")}
-          </Button>
+          <LibraryImport
+            imports={imports}
+            open={importing}
+            onOpen={() => setImporting(true)}
+            onClose={closeImport}
+          />
         </header>
         <div className={styles.tools}>
-          {local === true ? (
-            <div className={styles.currentView}>
-              <h2>
-                {t(
-                  filter === "all"
-                    ? "library.filter.all"
-                    : filter === "reading"
-                      ? "reader.sidebar.reading"
-                      : filter === "unread"
-                        ? "library.status.unread"
-                        : "library.status.read",
-                )}
-              </h2>
-              <span className={styles.resultCount} aria-live="polite">
-                {tn("library.count", shown.length)}
-              </span>
-            </div>
-          ) : (
-            <SegmentedControl
-              kind="radio"
-              size="sm"
-              label={t("library.filter")}
-              value={filter}
-              onChange={chooseFilter}
-              options={[
-                { value: "all", label: t("library.filter.all") },
-                { value: "unread", label: t("library.status.unread") },
-                { value: "reading", label: t("library.status.reading") },
-                { value: "read", label: t("library.status.read") },
-              ]}
-            />
-          )}
-          {local !== true && (query || filter !== "all") && (
-            <span className={styles.resultCount} role="status">
-              {t("library.filteredCount", {
-                shown: shown.length,
-                total: papers.length,
-              })}
-            </span>
-          )}
+          <span className={styles.resultCount} aria-live="polite">
+            {tn("library.count", shown.length)}
+          </span>
           <span className={styles.spacer} />
           {selecting ? (
             <>
@@ -455,11 +412,9 @@ export function LibraryScreen({
             />
           </div>
         </div>
-        {!importing && (
-          <div className={styles.jobs}>
-            <ImportJobs imports={imports} />
-          </div>
-        )}
+        <div className={styles.jobs}>
+          <ImportJobs imports={imports} />
+        </div>
         <div className={styles.list}>
           {papers.length === 0 ? (
             <div className={styles.message}>
@@ -476,12 +431,9 @@ export function LibraryScreen({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setQuery("");
-                  chooseFilter("all", "");
-                }}
+                onClick={() => (query ? changeQuery("") : setImporting(true))}
               >
-                {t("library.resetFilters")}
+                {t(query ? "library.resetSearch" : "library.import")}
               </Button>
             </div>
           ) : view === "grid" ? (
@@ -501,14 +453,11 @@ export function LibraryScreen({
               <thead>
                 <tr>
                   <th scope="col">{t("library.column.title")}</th>
-                  <th scope="col" className={styles.progress}>
-                    {t("library.column.progress")}
+                  <th scope="col" className={styles.source}>
+                    {t("library.column.source")}
                   </th>
-                  <th scope="col" className={styles.status}>
-                    {t("library.column.status")}
-                  </th>
-                  <th scope="col" className={styles.updated}>
-                    {t("library.column.updated")}
+                  <th scope="col" className={styles.opened}>
+                    {t("library.column.opened")}
                   </th>
                   <th scope="col" className={styles.actions}>
                     <span className={styles.visuallyHidden}>
@@ -523,6 +472,7 @@ export function LibraryScreen({
                     key={paper.id}
                     paper={paper}
                     meta={records[paper.id]}
+                    lastOpened={visits[paper.id]}
                     selected={chosen.has(paper.id)}
                     {...itemProps}
                   />
@@ -541,19 +491,9 @@ export function LibraryScreen({
         onDelete={asked}
       />
       <Dialog
-        open={importing}
-        onClose={closeImport}
-        title={t("library.import.title")}
-      >
-        <ImportDrop imports={imports} />
-      </Dialog>
-      <Dialog
         open={doomed !== null}
         onClose={() => !deleting && setDoomed(null)}
         title={t("library.delete.title")}
-        description={
-          doomed ? t("library.delete.body", { title: title(doomed) }) : ""
-        }
         size="sm"
         footer={
           <>
@@ -566,6 +506,7 @@ export function LibraryScreen({
           </>
         }
       >
+        {doomed && <p className={styles.deleteName}>{title(doomed)}</p>}
         {deleteError && (
           <p className={styles.error} role="alert">
             {deleteError}

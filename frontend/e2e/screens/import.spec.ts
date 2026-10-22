@@ -111,7 +111,7 @@ test("an uploaded PDF takes its title and arXiv id from the file, and is kept as
     .getByRole("button", { name: "导入", exact: true })
     .click();
   await page
-    .getByRole("dialog", { name: "导入论文" })
+    .getByRole("main")
     .getByTestId("import-file-input")
     .setInputFiles({
       name: "scan_0042.pdf",
@@ -137,7 +137,7 @@ test("several dropped PDFs are all imported and the library lists them without t
   await signIn(page);
   await page.goto("/#library");
   await expect(
-    page.getByRole("main").getByRole("heading", { name: "文库" }),
+    page.getByRole("main").getByRole("heading", { name: "全部" }),
   ).toBeVisible();
   const titles = [
     "First Dropped Paper About Memory",

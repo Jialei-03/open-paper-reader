@@ -1,6 +1,7 @@
 /* The card sets what a reset would give it (the new screens do not load one). */
 .root {
   --card-min: 220px;
+  min-width: 0;
   flex: 1;
   container: paper-library / inline-size;
   border-radius: 0;
@@ -39,7 +40,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--ui-space-16);
-  margin-bottom: var(--ui-space-16);
+  margin-bottom: var(--ui-space-24);
 }
 
 .headingGroup {
@@ -59,18 +60,6 @@
   font-size: clamp(24px, 2.3vw, 30px);
   font-weight: var(--ui-weight-strong);
   line-height: 1.3;
-}
-
-.subtitle {
-  margin: var(--ui-space-8) 0 0;
-  color: var(--ui-fg-3);
-  font-size: var(--ui-text-13);
-}
-
-.count {
-  color: var(--ui-fg-3);
-  font-size: var(--ui-text-12);
-  white-space: nowrap;
 }
 
 .search {
@@ -114,20 +103,6 @@
   flex: none;
   gap: var(--ui-space-8);
   padding: var(--ui-space-12) 0;
-}
-
-.currentView {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-space-10);
-  min-width: 0;
-}
-
-.currentView h2 {
-  margin: 0;
-  color: var(--ui-fg-1);
-  font-size: var(--ui-text-14);
-  font-weight: var(--ui-weight-strong);
 }
 
 .resultCount {
@@ -234,20 +209,16 @@
   padding-left: 0;
 }
 
-.progress {
-  width: 150px;
+.source {
+  width: 23%;
 }
 
-.status {
-  width: 88px;
-}
-
-.updated {
-  width: 120px;
+.opened {
+  width: 140px;
 }
 
 .actions {
-  width: 112px;
+  width: 40px;
   text-align: right;
 }
 
@@ -266,11 +237,6 @@
 }
 
 @container paper-library (max-width: 720px) {
-  .progress,
-  .updated {
-    display: none;
-  }
-
   .frame {
     padding: var(--ui-space-24) var(--ui-space-20) 0;
   }
@@ -289,12 +255,12 @@
     min-width: 0;
   }
 
-  .resultCount {
-    display: none;
+  .source {
+    width: 20%;
   }
 
-  .currentView .resultCount {
-    display: inline;
+  .opened {
+    width: 115px;
   }
 }
 
@@ -307,8 +273,12 @@
     gap: var(--ui-space-8);
   }
 
-  .subtitle {
-    max-width: 230px;
+  .source {
+    display: none;
+  }
+
+  .opened {
+    width: 95px;
   }
 
   .tools {
@@ -321,4 +291,28 @@
   font-size: var(--ui-text-12);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.importOptions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-24);
+}
+
+.arxiv {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ui-space-8);
+  width: 100%;
+}
+
+.arxiv > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.deleteName {
+  margin: 0;
+  overflow-wrap: anywhere;
 }

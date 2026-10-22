@@ -67,12 +67,7 @@ test("the library starts as a list, opens paper cards on request and remembers e
   );
   await expect(card.getByRole("heading", { name: paper.title })).toBeVisible();
   await expect(card).toContainText("A. Author, B. Author");
-  await expect(card).toContainText("arXiv 2301.12345 · 2023");
-  await expect(card).toContainText("还没开始读");
-  await expect(card.getByRole("progressbar")).toHaveAttribute(
-    "aria-valuenow",
-    "0",
-  );
+  await expect(card.getByRole("progressbar")).toHaveCount(0);
 
   // The list is a table; the choice is remembered.
   await view.getByRole("radio", { name: "列表" }).click();
@@ -91,9 +86,7 @@ test("the library starts as a list, opens paper cards on request and remembers e
   await expect(library.locator("[data-view=grid]")).toBeVisible();
 });
 
-test("a card shows reading progress from the page left at", async ({
-  page,
-}) => {
+test("the list shows when a paper was last opened", async ({ page }) => {
   await signIn(page);
   const stamp = Date.now().toString(36);
   const paper = await createPaperWithPdf(page, {
@@ -123,16 +116,14 @@ test("a card shows reading progress from the page left at", async ({
   await page.goto(LIBRARY);
   const library = page.getByRole("main");
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
-  await library
-    .getByRole("radiogroup", { name: "视图" })
-    .getByRole("radio", { name: "卡片" })
-    .click();
   const card = library.locator(`[data-paper="${paper.paperId}"]`);
-  await expect(card).toContainText("第 4 / 8 页");
-  await expect(card.getByRole("progressbar")).toHaveAttribute(
-    "aria-valuenow",
-    "50",
+  await expect(card.locator("time")).toHaveAttribute(
+    "datetime",
+    /^\d{4}-\d{2}-\d{2}T/,
   );
+  await expect(
+    library.getByRole("columnheader", { name: "上次打开时间" }),
+  ).toBeVisible();
 });
 
 test("papers can be sorted by title and by when they were added", async ({
@@ -186,7 +177,8 @@ test("the details sheet shows a paper, stars it and edits its title", async ({
   await page.goto(LIBRARY);
   const library = page.getByRole("main");
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
-  await library.getByRole("button", { name: `${paper.title} 的详情` }).click();
+  await library.getByRole("button", { name: `${paper.title} 的操作` }).click();
+  await page.getByRole("menuitem", { name: "论文详情" }).click();
 
   const sheet = page.getByRole("dialog", { name: "论文详情" });
   await expect(sheet).toContainText(paper.title);
@@ -263,6 +255,10 @@ test("covers come from the thumbnail route and the PDF itself is not downloaded"
   });
   const response = page.waitForResponse(/\/thumbnail$/);
   await page.goto(LIBRARY);
+  await page
+    .getByRole("radiogroup", { name: "视图" })
+    .getByRole("radio", { name: "卡片" })
+    .click();
   const card = page
     .getByRole("main")
     .locator(`[data-paper="${paper.paperId}"]`);

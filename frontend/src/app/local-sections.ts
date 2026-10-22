@@ -31,7 +31,6 @@ export function validSectionAddress(
   return (
     !route.redirect &&
     route.screen !== "settings" &&
-    route.screen !== "home" &&
     route.screen !== "open" &&
     !new URLSearchParams(hash.split("?")[1] || "").has("import") &&
     localSection(route) === section

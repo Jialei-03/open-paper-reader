@@ -56,7 +56,7 @@ export function SectionNavigation({
     return (
       <>
         <div className={styles.researchActions}>
-          {item(Plus, t("library.import.title"), `library?${importParams}`)}
+          {item(Plus, t("library.import"), `library?${importParams}`)}
         </div>
         <div className={styles.sectionLinks}>
           {item(
@@ -67,7 +67,7 @@ export function SectionNavigation({
           )}
           {item(
             BookOpen,
-            t("reader.sidebar.reading"),
+            t("library.status.reading"),
             "library?view=reading",
             route.screen === "library" && view === "reading",
           )}

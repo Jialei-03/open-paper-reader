@@ -162,6 +162,7 @@ export function AppSidebar({
   }, [papers, current, visits, paperId, t]);
 
   const reader = screen === "reader";
+  const materials = ["library", "discover", "reader", "open"].includes(screen);
   // Only the icons are left of a rail: the search is then an item like the others.
   const rail = floating ? !opened : collapsed;
   if (local === true)
@@ -238,27 +239,39 @@ export function AppSidebar({
               <Kbd shortcut={QUICK_OPEN_SHORTCUT} />
             </button>
           ))}
-        <SidebarItem
-          icon={House}
-          label={t("app.home")}
-          href="#home"
-          active={screen === "home"}
-          onClick={followLink(go, "home")}
-        />
-        <SidebarItem
-          icon={Library}
-          label={t("reader.sidebar.library")}
-          href="#library"
-          active={screen === "library"}
-          onClick={followLink(go, "library")}
-        />
-        <SidebarItem
-          icon={Compass}
-          label={t("app.discover")}
-          href="#discover"
-          active={screen === "discover"}
-          onClick={followLink(go, "discover")}
-        />
+        {materials ? (
+          <SectionNavigation
+            section="materials"
+            route={route}
+            hash={contextHash ?? window.location.hash.slice(1)}
+            reading={reading}
+            go={go}
+          />
+        ) : (
+          <>
+            <SidebarItem
+              icon={House}
+              label={t("app.home")}
+              href="#home"
+              active={screen === "home"}
+              onClick={followLink(go, "home")}
+            />
+            <SidebarItem
+              icon={Library}
+              label={t("reader.sidebar.library")}
+              href="#library"
+              active={screen === "library"}
+              onClick={followLink(go, "library")}
+            />
+            <SidebarItem
+              icon={Compass}
+              label={t("app.discover")}
+              href="#discover"
+              active={screen === "discover"}
+              onClick={followLink(go, "discover")}
+            />
+          </>
+        )}
         {local === false && (
           <SidebarItem
             icon={FlaskConical}
@@ -269,7 +282,7 @@ export function AppSidebar({
           />
         )}
       </SidebarSection>
-      {reading.length > 0 && (
+      {!materials && reading.length > 0 && (
         <SidebarSection title={t("reader.sidebar.reading")}>
           {reading.map(({ id, title }) => {
             const hash = readerHash({ paperId: id });
