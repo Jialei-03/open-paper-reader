@@ -16,6 +16,8 @@ from sqlalchemy import select
 
 from . import (
     research_datasets,
+    research_dialogue,
+    research_repo,
     research_sandbox,
     research_stages,
     research_tracker,
@@ -24,10 +26,12 @@ from .config import Settings, database
 from .filelock import lock_nowait
 from .models import (
     AgentRun,
+    AgentSession,
     ResearchEvent,
     ResearchJob,
     ResearchProject,
     ResearchSprint,
+    ResearchWorkspace,
     now,
 )
 from .parent_watch import watch_parent
@@ -105,13 +109,23 @@ def _settle(d, project, sprint):
     run = d.get(AgentRun, sprint.run_id)
     if run is None or run.status not in DONE:
         return False
-    if sprint.role == "scoping":
+    if sprint.role in {"scoping", "discussion"}:
         # A turn of the conversation: its reply is what the advisor said.
         reply = (run.response or "").strip()
         proposed = any(e.action == "plan_proposed" for e in _events(d, sprint))
         sprint.status = "ended" if run.status == "completed" else "abnormal"
         sprint.summary = reply[:4000]
         sprint.updated_at = now()
+        if run.status != "completed":
+            event(
+                d,
+                project,
+                None,
+                "system",
+                "sprint_abnormal",
+                {"run_status": run.status, "reason": (run.error or run.status)[:500]},
+                sprint.id,
+            )
         if reply:
             research_stages.say(d, project, "advisor", reply, sprint.id)
         elif proposed:
@@ -149,7 +163,10 @@ def _settle(d, project, sprint):
         None,
         "system",
         "sprint_abnormal",
-        {"run_status": run.status},
+        {
+            "run_status": run.status,
+            "reason": (run.error or sprint.summary or run.status)[:500],
+        },
         sprint.id,
     )
     if sprint.role == "advisor":
@@ -207,7 +224,7 @@ def _outages(d, project, history):
         select(ResearchEvent.created_at)
         .where(
             ResearchEvent.project_id == project.id,
-            ResearchEvent.actor == "human",
+            ResearchEvent.actor.in_(["human", "lead"]),
             ResearchEvent.action == "active",
         )
         .order_by(ResearchEvent.created_at.desc())
@@ -243,7 +260,7 @@ def _last_human_message(d, project):
         select(ResearchEvent.created_at)
         .where(
             ResearchEvent.project_id == project.id,
-            ResearchEvent.actor == "human",
+            ResearchEvent.actor.in_(["human", "lead"]),
             ResearchEvent.action == "message",
         )
         .order_by(ResearchEvent.created_at.desc())
@@ -333,17 +350,18 @@ def next_role(d, project, history):
 
 
 def _plan(app, d, project):
+    if not _schedulable(d, project, "active"):
+        return
     latest = d.scalars(
         select(ResearchSprint)
         .where(ResearchSprint.project_id == project.id)
         .order_by(ResearchSprint.number.desc())
     ).first()
-    if (
-        latest is not None
-        and latest.status == "running"
-        and not _settle(d, project, latest)
-    ):
-        return
+    if latest is not None and latest.status == "running":
+        if not _settle(d, project, latest):
+            return
+        if latest.role != "discussion":
+            capture_handoff(app.state.settings, d, project, latest)
     if latest is not None and latest.waiting_on:
         waiting = d.scalars(
             select(ResearchJob).where(
@@ -413,7 +431,7 @@ def _plan(app, d, project):
     role = next_role(d, project, history)
     if (
         role == "executor"
-        and _local(app, project)
+        and _local(app, project, d)
         and not research_sandbox.docker_status()["available"]
     ):
         # The executor's work is experiments: without Docker a sprint only spends tokens.
@@ -432,12 +450,17 @@ def _plan(app, d, project):
     _start(app, d, project, latest, role, config)
 
 
-def _local(app, project):
+def _local(app, project, d=None):
     """Whether the project's experiments run in this machine's Docker."""
     from . import research_settings
 
     try:
-        item = research_settings.compute(app.state.settings, project.compute_id)
+        if d is not None:
+            from .research_locations import execution_compute
+
+            item = execution_compute(app.state.settings, d, project)
+        else:
+            item = research_settings.compute(app.state.settings, project.compute_id)
     except ValueError:
         return True
     return item["kind"] == "docker"
@@ -473,6 +496,8 @@ def _converse(app, d, project, latest):
         return
     config = read_config(app.state.settings, project.owner, project.model_config_id)
     if not config.get("model"):
+        project.status = "paused"
+        event(d, project, None, "system", "paused", {"reason": "模型配置不可用"})
         research_stages.say(
             d, project, "system", "模型配置不可用，先在设置里选一个模型。"
         )
@@ -493,8 +518,16 @@ def _start(app, d, project, latest, role, config):
         session_id=project.session_id,
         model_config_id=project.model_config_id,
         model=config["model"],
-        prompt=BRIEFS[role](d, project, number, app.state.settings),
-        context="research/" + project.id,
+        prompt=(
+            ("\n\n".join(research_stages.unanswered(d, project)) or "继续讨论这项研究")
+            if role == "scoping"
+            else BRIEFS[role](d, project, number, app.state.settings)
+        ),
+        context=(
+            BRIEFS[role](d, project, number, app.state.settings)
+            if role == "scoping"
+            else "research/" + project.id
+        ),
         writable=True,
         lane="research",
         runtime={
@@ -556,6 +589,13 @@ def _start(app, d, project, latest, role, config):
 
 def _distill(app, d, project):
     """Once a project is over, one distiller sprint turns it into playbook rules."""
+    if project.stage == "done" or not _schedulable(d, project, "finished"):
+        return
+    if d.scalar(select(AgentRun.id).where(
+        AgentRun.session_id == project.session_id,
+        AgentRun.status.in_(("queued", "running")),
+    ).limit(1)):
+        return
     history = list(
         d.scalars(
             select(ResearchSprint)
@@ -574,6 +614,7 @@ def _distill(app, d, project):
         sprint = mine[-1]
         if sprint.status == "running" and _settle(d, project, sprint):
             event(d, project, None, "system", "distiller_silent", {}, sprint.id)
+            capture_handoff(app.state.settings, d, project, sprint)
         if sprint.status != "running":
             research_stages.set_stage(d, project, "done")
         return
@@ -620,12 +661,64 @@ def _distill(app, d, project):
     )
 
 
+def capture_handoff(settings, d, project, sprint):
+    """A failed Git checkpoint must not discard an otherwise valid handoff."""
+    from .research_branches import capture_round
+
+    try:
+        return capture_round(settings, d, project, sprint, allow_capture=True)
+    except (OSError, ValueError, RuntimeError) as exc:
+        event(
+            d,
+            project,
+            None,
+            "system",
+            "checkpoint_unavailable",
+            {"reason": str(exc)[:500]},
+            sprint.id,
+        )
+        return False
+
+
+def _schedulable(d, project, status):
+    from .research_chat import lock_session
+    from .research_workspaces import lock_workspace
+
+    session = d.get(AgentSession, project.session_id)
+    if session is None or session.owner != project.owner:
+        return False
+    lock_session(d, session)
+    d.refresh(project)
+    if project.workspace_id:
+        workspace = d.get(ResearchWorkspace, project.workspace_id)
+        if workspace is None or workspace.owner != project.owner:
+            return False
+        # Use the same session -> workspace order as archival, then discard the
+        # worker's earlier project snapshot before admitting another model run.
+        lock_workspace(d, workspace)
+        d.refresh(project)
+        if workspace.archived:
+            return False
+        from .research_locations import busy_workspace
+
+        if not project.parent_id and busy_workspace(
+            d, workspace, exclude_session_id=project.session_id
+        ):
+            return False
+    return project.status == status and (
+        status != "finished" or project.stage != "done"
+    )
+
+
 def tick(app):
     """One round of planning over every active project."""
     for name, step in (
+        ("conversations", research_dialogue.settle),
         ("sweep", research_sandbox.sweep),
         ("datasets", research_datasets.start_fetching),
         ("tracker", research_tracker.sync_pending),
+        ("repositories", research_repo.settle),
+        ("checkpoints", research_repo.checkpoints),
     ):
         try:
             step(app.state.settings, app.state.maker)
@@ -688,7 +781,9 @@ def main():
         while not stopping.is_set():
             try:
                 tick(app)
-            except Exception as e:  # noqa: BLE001 — the scheduler outlives one bad round
+            except (
+                Exception
+            ) as e:  # noqa: BLE001 — the scheduler outlives one bad round
                 print(
                     json.dumps({"research_worker": "tick", "error": str(e)[:300]}),
                     flush=True,

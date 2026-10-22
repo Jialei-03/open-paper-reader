@@ -42,3 +42,232 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Local research has a dedicated app rail and a calm, independent thread list. */
+.researchSidebar {
+  --research-rail-bg: #e7e7e7;
+  --research-pane-bg: #f3f3f3;
+  --ui-fg: #202020;
+  --ui-fg-1: #414141;
+  --ui-fg-2: #626262;
+  --ui-fg-3: #747474;
+  --ui-hover: rgb(0 0 0 / 5%);
+  --ui-selected: rgb(0 0 0 / 8%);
+  display: flex;
+  flex: none;
+  min-width: 0;
+  color: var(--ui-fg-1);
+}
+
+:root[data-theme="dark"] .researchSidebar {
+  --research-rail-bg: #343535;
+  --research-pane-bg: #222222;
+  --ui-fg: #ededed;
+  --ui-fg-1: #cecece;
+  --ui-fg-2: #ababab;
+  --ui-fg-3: #929292;
+  --ui-hover: rgb(255 255 255 / 5%);
+  --ui-selected: rgb(255 255 255 / 8%);
+}
+
+.researchRail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+  padding: 10px 4px;
+  border-radius: 12px 0 0 12px;
+  background: var(--research-rail-bg);
+}
+
+.railToggle {
+  flex: none;
+  margin-bottom: 20px;
+  color: var(--ui-fg-2);
+}
+
+:global(html[data-desktop]) .railToggle {
+  position: fixed;
+  top: 7px;
+  left: 160px;
+  z-index: 2147483647;
+  margin: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.railDestinations,
+.railFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+}
+
+.railFooter {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.railItem {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ui-fg-3);
+  text-decoration: none;
+}
+
+.railItem:hover,
+.railItem[aria-current] {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+}
+
+.researchPane {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--research-sidebar-width, 288px);
+  min-width: 0;
+  border-right: 1px solid var(--ui-edge-subtle);
+  background: var(--research-pane-bg);
+}
+
+/* The research shell has no card gap for the shared resize handle to reclaim. */
+.researchPane + div {
+  margin-right: 0;
+}
+
+.researchBrandRow {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  padding: 0 16px 0 18px;
+}
+
+.researchBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  cursor: pointer;
+}
+
+.researchBrand svg {
+  color: var(--ui-fg-3);
+}
+
+.researchSearch {
+  color: var(--ui-fg-3);
+}
+
+.researchScroll {
+  min-height: 0;
+  padding: 8px 10px 24px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.researchActions {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 24px;
+}
+
+.researchActions a {
+  height: 36px;
+  gap: 10px;
+  padding-inline: 10px;
+  font-size: 14px;
+}
+
+.researchReading {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+
+.railDivider {
+  width: 24px;
+  height: 1px;
+  margin: 12px 0;
+  background: var(--ui-edge-subtle);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--ui-fg);
+}
+
+.sectionLinks {
+  display: grid;
+  gap: 3px;
+}
+
+.sectionLinks a,
+.sectionGroup a,
+.taskNew a {
+  height: 36px;
+  padding-inline: 10px;
+  font-size: 14px;
+}
+
+.sectionGroup {
+  margin-top: 28px;
+}
+
+.sectionHint {
+  margin: 8px 10px;
+  color: var(--ui-fg-3);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.taskNavigation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.taskNew {
+  padding: 8px 10px 20px;
+}
+
+.researchSidebar[data-floating] {
+  width: 52px;
+}
+
+.researchSidebar[data-floating] .researchPane {
+  position: fixed;
+  z-index: 20;
+  top: 8px;
+  bottom: 8px;
+  left: 60px;
+  width: min(var(--research-sidebar-width, 288px), calc(100vw - 76px));
+  border-radius: 0 12px 12px 0;
+  box-shadow: var(--ui-elev-2);
+}
+
+.researchSidebar[data-collapsed] .researchRail {
+  border-radius: 12px;
+}

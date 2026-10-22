@@ -12,6 +12,7 @@ export function ReaderSidebar({
   current,
   visits,
   go,
+  contextHash,
 }: {
   /** The window is too narrow for the sidebar beside the paper (see `AppSidebar`). */
   floating: boolean;
@@ -23,11 +24,13 @@ export function ReaderSidebar({
   visits: Record<string, number>;
   /** Takes an address without its `#`, as everywhere in the workspace. */
   go: (hash: string) => void;
+  contextHash?: string;
 }) {
   return (
     <AppSidebar
       floating={floating}
       screen="reader"
+      contextHash={contextHash}
       paperId={paperId}
       papers={papers}
       current={current}

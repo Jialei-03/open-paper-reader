@@ -8,6 +8,17 @@ import {
   Plus,
   Sparkles,
   Target,
+  Archive,
+  ArchiveRestore,
+  MessageSquarePlus,
+  MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Pin,
+  PinOff,
+  Search,
+  Pencil,
+  Settings,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
@@ -17,6 +28,7 @@ import {
   Button,
   Dialog,
   IconButton,
+  Menu,
   SegmentedControl,
   Spinner,
   TextArea,
@@ -28,30 +40,33 @@ import {
   addCard,
   getBoard,
   getWorkspace,
-  listChats,
+  createProjectChat,
+  getChatSession,
+  listProjectSessions,
+  updateChatSession,
   moveCard,
   readResearchSettings,
   startCard,
   startProject,
   updateWorkspace,
+  workspaceNotes,
   type BoardCard,
   type Column,
   type Compute,
-  type ProjectChat as ProjectChatRow,
+  type ProjectSession,
   type ResearchSummary,
+  type ResearchNote,
   type Workspace,
 } from "../research-api";
 import { Mascot } from "../scene/Mascot";
-import { statusOf } from "../status";
 import { Composer } from "../talk/Composer";
 import { ComputePicker, ModelPicker } from "../talk/Pickers";
 import { ProjectChat } from "./ProjectChats";
+import { ProjectResults } from "./ProjectResults";
 import styles from "./Projects.module.css";
 
-/** The board is a second view; chats/<id> opens an earlier conversation. */
-type View = "overview" | "board" | "chats";
+type View = "main" | "board" | "history" | "results" | "about" | "new-research";
 const POLL = 4000;
-
 const KIND_ICON = {
   research: Microscope,
   hypothesis: Target,
@@ -60,7 +75,6 @@ const KIND_ICON = {
   idea: Lightbulb,
 } as const;
 
-/** A project: its board, its researches, and what they share. */
 export function ProjectPage({
   id,
   tab,
@@ -69,7 +83,6 @@ export function ProjectPage({
 }: {
   id: string;
   tab?: string;
-  /** A conversation open in the chats tab. */
   item?: string;
   go(hash: string): void;
 }) {
@@ -79,32 +92,187 @@ export function ProjectPage({
   >(null);
   const [cards, setCards] = useState<BoardCard[]>([]);
   const [columns, setColumns] = useState<Column[]>([]);
+  const [notes, setNotes] = useState<ResearchNote[]>([]);
   const [reads, setReads] = useState(0);
   const [failed, setFailed] = useState("");
+  const [sessions, setSessions] = useState<ProjectSession[]>([]);
+  const [selected, setSelected] = useState<ProjectSession | null>(null);
+  const [search, setSearch] = useState("");
+  const [archived, setArchived] = useState(false);
+  const [pages, setPages] = useState(1);
+  const [more, setMore] = useState(false);
+  const [listing, setListing] = useState(false);
+  const [listError, setListError] = useState("");
+  const [opening, setOpening] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
+  const [naming, setNaming] = useState<ProjectSession | null>(null);
+  const [title, setTitle] = useState("");
   const current: View =
-    tab === "board" ? "board" : tab === "chats" && item ? "chats" : "overview";
-
-  useEffect(() => {
-    Promise.all([getWorkspace(id), getBoard(id)]).then(
-      ([workspace, board]) => {
-        setW(workspace);
-        setCards(board.cards);
-        setColumns(board.columns);
-      },
-      (error: unknown) =>
-        setFailed(error instanceof Error ? error.message : String(error)),
-    );
-  }, [id, reads]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(
-      () => !document.hidden && setReads((n) => n + 1),
-      POLL,
-    );
-    return () => window.clearTimeout(timer);
-  }, [reads]);
-
+    tab === "results"
+      ? "results"
+      : tab === "board"
+        ? "board"
+        : tab === "history"
+          ? "history"
+          : tab === "about"
+            ? "about"
+            : tab === "new-research"
+              ? "new-research"
+              : "main";
+  const chatId = tab === "chats" && item ? item : w?.session_id || "";
+  const conversation = current === "main" || (current === "history" && !!item);
   const refresh = useCallback(() => setReads((n) => n + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getWorkspace(id).then(
+      (workspace) => {
+        if (!cancelled) {
+          setW(workspace);
+          setFailed("");
+        }
+      },
+      (error: unknown) => {
+        if (!cancelled)
+          setFailed(error instanceof Error ? error.message : String(error));
+      },
+    );
+    workspaceNotes(id).then(
+      (rows) => !cancelled && setNotes(rows),
+      () => undefined,
+    );
+    if (current === "board")
+      getBoard(id).then((board) => {
+        if (!cancelled) {
+          setCards(board.cards);
+          setColumns(board.columns);
+        }
+      }, fail);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, reads, current]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => !document.hidden && refresh(), POLL);
+    return () => window.clearInterval(timer);
+  }, [refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(
+      async () => {
+        setListing(true);
+        try {
+          const all: ProjectSession[] = [];
+          let cursor: string | undefined;
+          let next: string | null = null;
+          for (let page = 0; page < pages; page++) {
+            const result = await listProjectSessions(id, {
+              search,
+              archived,
+              cursor,
+            });
+            all.push(...result.items);
+            next = result.next_cursor;
+            if (!next) break;
+            cursor = next;
+          }
+          if (!cancelled) {
+            setSessions(all);
+            setMore(!!next);
+            setListError("");
+          }
+        } catch (error) {
+          if (!cancelled)
+            setListError(
+              error instanceof Error ? error.message : String(error),
+            );
+        } finally {
+          if (!cancelled) setListing(false);
+        }
+      },
+      search ? 180 : 0,
+    );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [id, search, archived, pages, reads]);
+
+  useEffect(() => {
+    if (!conversation || !chatId) return;
+    let cancelled = false;
+    setSelected((old) => (old?.id === chatId ? old : null));
+    getChatSession(chatId).then((session) => {
+      if (!cancelled && session.workspace_id === id) setSelected(session);
+    }, fail);
+    return () => {
+      cancelled = true;
+    };
+  }, [chatId, id, conversation, reads]);
+
+  const newChat = async () => {
+    setOpening(true);
+    try {
+      const chat = await createProjectChat(id);
+      setRailOpen(false);
+      go(`projects/${id}/chats/${chat.id}`);
+      refresh();
+    } catch (error) {
+      fail(error);
+    } finally {
+      setOpening(false);
+    }
+  };
+  const change = async (
+    session: ProjectSession,
+    body: { pinned?: boolean; archived?: boolean; title?: string },
+  ) => {
+    try {
+      await updateChatSession(session.id, body);
+      if (body.archived && chatId === session.id) go(`projects/${id}`);
+      refresh();
+    } catch (error) {
+      fail(error);
+    }
+  };
+  const sessionList = (full = false) => (
+    <SessionList
+      full={full}
+      sessions={sessions}
+      currentId={conversation ? chatId : ""}
+      search={search}
+      onSearch={(value) => {
+        setSearch(value);
+        setPages(1);
+      }}
+      archived={archived}
+      onArchived={(value) => {
+        setArchived(value);
+        setPages(1);
+      }}
+      more={more}
+      loading={listing}
+      error={listError}
+      onMore={() => setPages((n) => n + 1)}
+      onNew={newChat}
+      opening={opening}
+      onResearch={() => {
+        setRailOpen(false);
+        go(`projects/${id}/new-research`);
+      }}
+      onName={(session) => {
+        setNaming(session);
+        setTitle(session.title);
+      }}
+      onChange={change}
+      go={(hash) => {
+        setRailOpen(false);
+        go(hash);
+      }}
+    />
+  );
 
   if (!w)
     return (
@@ -112,7 +280,6 @@ export function ProjectPage({
         <div className={styles.inner}>{failed || <Spinner />}</div>
       </div>
     );
-
   return (
     <div className={styles.page}>
       <header className={styles.projectHead}>
@@ -124,45 +291,164 @@ export function ProjectPage({
         />
         <div className={styles.projectTitle}>
           <h1>{w.name}</h1>
-          {w.description && <p>{w.description}</p>}
         </div>
         <SegmentedControl
           kind="radio"
           size="sm"
           label={t("projects.view")}
-          value={current === "board" ? "board" : "overview"}
-          onChange={(next) =>
-            go(next === "board" ? `projects/${id}/board` : `projects/${id}`)
+          value={
+            current === "board" || current === "results"
+              ? current
+              : conversation && chatId === w.session_id
+                ? "main"
+                : ""
           }
+          onChange={(next) => {
+            setRailOpen(false);
+            go(next === "main" ? `projects/${id}` : `projects/${id}/${next}`);
+          }}
           options={[
-            { value: "overview", label: t("projects.view.list") },
+            { value: "main", label: t("projects.view.main") },
             { value: "board", label: t("projects.view.board") },
+            { value: "results", label: t("projects.view.results") },
           ]}
+        />
+        <Menu
+          label={t("projects.actions")}
+          items={[
+            {
+              id: "sessions",
+              label: t("projects.sessions"),
+              icon: PanelLeftOpen,
+              onSelect: () => {
+                setRailOpen(false);
+                go(`projects/${id}/history`);
+              },
+            },
+            {
+              id: "settings",
+              label: t("projects.view.about"),
+              icon: Settings,
+              onSelect: () => {
+                setRailOpen(false);
+                go(`projects/${id}/about`);
+              },
+            },
+          ]}
+          trigger={(props) => (
+            <IconButton
+              icon={MoreHorizontal}
+              label={t("projects.actions")}
+              size="sm"
+              {...props}
+            />
+          )}
         />
       </header>
       <div className={styles.panel}>
-        {current === "board" &&
-          (w.researches.length > 0 || cards.length > 0 ? (
-            <Board
-              workspace={w}
-              columns={columns}
-              cards={cards}
-              go={go}
-              refresh={refresh}
-            />
-          ) : (
-            <p className={styles.empty}>{t("projects.noResearch")}</p>
-          ))}
-        {current === "chats" && item && (
-          <ProjectChat key={item} workspace={w} chatId={item} go={go} />
+        {conversation && chatId && (
+          <div className={styles.main}>
+            <div
+              className={styles.sessionRail}
+              data-open={railOpen || undefined}
+            >
+              <div className={styles.railClose}>
+                <IconButton
+                  icon={PanelLeftClose}
+                  label={t("common.close")}
+                  size="sm"
+                  onClick={() => setRailOpen(false)}
+                />
+              </div>
+              {sessionList()}
+            </div>
+            {railOpen && (
+              <button
+                className={styles.railBackdrop}
+                aria-label={t("common.close")}
+                onClick={() => setRailOpen(false)}
+              />
+            )}
+            <div className={styles.conversation}>
+              <button
+                className={styles.railToggle}
+                type="button"
+                onClick={() => setRailOpen(true)}
+              >
+                <PanelLeftOpen size={15} aria-hidden />
+                {t("projects.sessions")}
+              </button>
+              <ProjectChat
+                key={chatId}
+                workspace={w}
+                chatId={chatId}
+                main={chatId === w.session_id}
+                session={selected}
+                notes={chatId === w.session_id ? notes : []}
+                researches={w.researches}
+                refreshKey={reads}
+                onChanged={refresh}
+                onNew={newChat}
+                go={go}
+              />
+            </div>
+          </div>
         )}
-        {current === "overview" && (
-          <div className={styles.overview}>
-            <Conversations workspace={w} go={go} />
+        {current === "board" && (
+          <Board
+            workspace={w}
+            columns={columns}
+            cards={cards}
+            go={go}
+            refresh={refresh}
+          />
+        )}
+        {current === "history" && !item && (
+          <div className={styles.sessionPage}>{sessionList(true)}</div>
+        )}
+        {current === "new-research" && (
+          <div className={styles.newResearch}>
+            <h2>{t("projects.newResearch")}</h2>
+            <NewResearch workspace={w} go={go} />
+          </div>
+        )}
+        {current === "results" && (
+          <ProjectResults workspaceId={id} refreshKey={reads} go={go} />
+        )}
+        {current === "about" && (
+          <div className={styles.projectSettings}>
             <About workspace={w} onSaved={refresh} />
           </div>
         )}
       </div>
+      <Dialog
+        open={!!naming}
+        onClose={() => setNaming(null)}
+        title={t("projects.sessions.rename")}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setNaming(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!title.trim()}
+              onClick={async () => {
+                if (naming) await change(naming, { title: title.trim() });
+                setNaming(null);
+              }}
+            >
+              {t("projects.save")}
+            </Button>
+          </>
+        }
+      >
+        <TextField
+          label={t("projects.sessions.title")}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </Dialog>
     </div>
   );
 }
@@ -577,76 +863,250 @@ function NewResearch({
   );
 }
 
-/** Everything said in the project, latest first: researches and conversations. */
-function Conversations({
-  workspace,
+function SessionList({
+  full,
+  sessions,
+  currentId,
+  search,
+  onSearch,
+  archived,
+  onArchived,
+  more,
+  loading,
+  error,
+  onMore,
+  onNew,
+  opening,
+  onResearch,
+  onName,
+  onChange,
   go,
 }: {
-  workspace: Workspace & { researches: ResearchSummary[] };
+  full: boolean;
+  sessions: ProjectSession[];
+  currentId: string;
+  search: string;
+  onSearch(value: string): void;
+  archived: boolean;
+  onArchived(value: boolean): void;
+  more: boolean;
+  loading: boolean;
+  error: string;
+  onMore(): void;
+  onNew(): void;
+  opening: boolean;
+  onResearch(): void;
+  onName(session: ProjectSession): void;
+  onChange(
+    session: ProjectSession,
+    body: { pinned?: boolean; archived?: boolean },
+  ): void;
   go(hash: string): void;
 }) {
-  const { t, locale } = useI18n();
-  const [chats, setChats] = useState<ProjectChatRow[]>([]);
-  useEffect(() => {
-    listChats(workspace.id).then(setChats, () => setChats([]));
-  }, [workspace.id]);
-  const when = (stamp: string) =>
-    new Intl.DateTimeFormat(locale, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(stamp));
-  const rows = [
-    ...workspace.researches.map((r) => {
-      const status = statusOf(r);
-      return {
-        key: r.id,
-        hash: `research/${r.id}`,
-        title: r.question,
-        at: r.updated_at,
-        column: status.tone,
-        status: t(status.key),
-        line: r.column === "done" ? r.conclusion || r.said : r.said,
-      };
-    }),
-    ...chats.map((c) => ({
-      key: c.id,
-      hash: `projects/${workspace.id}/chats/${c.id}`,
-      title: c.title,
-      at: c.updated_at,
-      column: "chat",
-      status: t("projects.kind.chat"),
-      line: "",
-    })),
-  ].sort((a, b) => b.at.localeCompare(a.at));
-
+  const { t } = useI18n();
   return (
-    <div className={styles.conversations}>
-      <NewResearch workspace={workspace} go={go} />
-      {rows.length > 0 && (
-        <ul className={styles.rows}>
-          {rows.map((r) => (
-            <li key={r.key}>
+    <nav
+      className={styles.sessions}
+      aria-label={t("projects.sessions")}
+      data-full={full || undefined}
+    >
+      <div className={styles.sessionActions}>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={MessageSquarePlus}
+          loading={opening}
+          onClick={onNew}
+        >
+          {t("projects.newChat")}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={Microscope}
+          onClick={onResearch}
+        >
+          {t("projects.newResearch")}
+        </Button>
+      </div>
+      <label className={styles.sessionSearch}>
+        <Search size={14} aria-hidden />
+        <input
+          type="search"
+          aria-label={t("projects.sessions.search")}
+          placeholder={t("projects.sessions.search")}
+          value={search}
+          onChange={(event) => onSearch(event.target.value)}
+        />
+      </label>
+      <div className={styles.sessionFilter}>
+        <span>
+          {t(archived ? "projects.sessions.archived" : "projects.sessions")}
+        </span>
+        <IconButton
+          size="sm"
+          icon={archived ? ArchiveRestore : Archive}
+          label={t(
+            archived
+              ? "projects.sessions.active"
+              : "projects.sessions.archived",
+          )}
+          onClick={() => onArchived(!archived)}
+        />
+      </div>
+      {error && <p className={styles.sessionError}>{error}</p>}
+      <ul className={styles.sessionRows}>
+        {sessions.map((session) => {
+          const hash =
+            session.kind === "research" && session.research_id
+              ? `research/${session.research_id}`
+              : session.kind === "project_lead"
+                ? `projects/${session.workspace_id}`
+                : `projects/${session.workspace_id}/chats/${session.id}`;
+          const role =
+            session.kind === "project_lead"
+              ? "projects.lead"
+              : session.kind === "research"
+                ? "projects.kind.research"
+                : "projects.kind.chat";
+          const status =
+            session.status === "active"
+              ? "projects.column.running"
+              : session.status === "waiting"
+                ? "projects.column.review"
+                : session.status === "paused"
+                  ? "projects.sessions.paused"
+                  : session.status === "finished"
+                    ? "projects.column.done"
+                    : session.status === "queued"
+                      ? "projects.sessions.queued"
+                      : session.status === "running"
+                        ? "projects.sessions.running"
+                        : session.status === "failed"
+                          ? "projects.notes.error"
+                          : session.status === "cancelled"
+                            ? "projects.sessions.cancelled"
+                            : "projects.sessions.idle";
+          const menu = [
+            ...(session.capabilities.rename
+              ? [
+                  {
+                    id: "rename",
+                    label: t("projects.sessions.rename"),
+                    icon: Pencil,
+                    onSelect: () => onName(session),
+                  },
+                ]
+              : []),
+            ...(session.capabilities.pin
+              ? [
+                  {
+                    id: "pin",
+                    label: t(
+                      session.pinned_at
+                        ? "projects.sessions.unpin"
+                        : "projects.sessions.pin",
+                    ),
+                    icon: session.pinned_at ? PinOff : Pin,
+                    onSelect: () =>
+                      onChange(session, { pinned: !session.pinned_at }),
+                  },
+                ]
+              : []),
+            ...(session.capabilities.archive || session.archived_at
+              ? [
+                  {
+                    id: "archive",
+                    label: t(
+                      session.archived_at
+                        ? "projects.sessions.restore"
+                        : "projects.sessions.archive",
+                    ),
+                    icon: session.archived_at ? ArchiveRestore : Archive,
+                    onSelect: () =>
+                      onChange(session, { archived: !session.archived_at }),
+                  },
+                ]
+              : []),
+          ];
+          return (
+            <li
+              key={session.id}
+              className={styles.sessionRow}
+              data-current={session.id === currentId || undefined}
+            >
               <a
-                href={`#${r.hash}`}
-                className={styles.row}
-                onClick={followLink(go, r.hash)}
+                href={`#${hash}`}
+                onClick={followLink(go, hash)}
+                aria-current={session.id === currentId ? "page" : undefined}
+                className={styles.sessionLink}
               >
-                <span className={styles.rowQuestion}>{r.title}</span>
-                <span className={styles.rowFacts}>
-                  <span className={styles.badge} data-column={r.column}>
-                    {r.status}
-                  </span>
-                  <span>{when(r.at)}</span>
+                <span className={styles.sessionTitle}>
+                  {session.pinned_at && <Pin size={11} aria-hidden />}
+                  {session.title || session.question || t(role)}
                 </span>
-                {r.line && <span className={styles.rowLine}>{r.line}</span>}
+                <span className={styles.sessionMeta}>
+                  <span>{t(role)}</span>
+                  <span
+                    data-live={
+                      session.status === "running" ||
+                      session.status === "active" ||
+                      undefined
+                    }
+                  >
+                    {t(status)}
+                  </span>
+                </span>
+                {session.forked_from?.research_id && (
+                  <span className={styles.sessionProgress}>
+                    ↳{" "}
+                    {session.forked_from.question ||
+                      session.forked_from.research_id}{" "}
+                    ·{" "}
+                    {t("research.sprint", {
+                      number: session.forked_from.number,
+                    })}
+                  </span>
+                )}
+                {(session.merged?.memory || session.merged?.code) && (
+                  <span className={styles.sessionProgress}>
+                    {t("research.merge.applied")}
+                  </span>
+                )}
+                {session.progress && (
+                  <span className={styles.sessionProgress}>
+                    {session.progress.replace(/^#{1,6}\s+/, "")}
+                  </span>
+                )}
               </a>
+              {menu.length > 0 && (
+                <Menu
+                  label={t("projects.sessions.actions")}
+                  items={menu}
+                  trigger={(props) => (
+                    <IconButton
+                      icon={MoreHorizontal}
+                      label={t("projects.sessions.actions")}
+                      size="sm"
+                      {...props}
+                    />
+                  )}
+                />
+              )}
             </li>
-          ))}
-        </ul>
+          );
+        })}
+      </ul>
+      {!sessions.length && !loading && !error && (
+        <p className={styles.sessionEmpty}>{t("projects.sessions.empty")}</p>
       )}
-    </div>
+      {loading && !sessions.length && <Spinner />}
+      {more && (
+        <Button size="sm" variant="ghost" loading={loading} onClick={onMore}>
+          {t("projects.sessions.more")}
+        </Button>
+      )}
+    </nav>
   );
 }
 

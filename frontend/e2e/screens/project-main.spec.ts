@@ -1,0 +1,2274 @@
+import { expect, test, type Page } from "@playwright/test";
+import type { Paper } from "../../src/api";
+import type {
+  BoardCard,
+  ChatControl,
+  ChatTurn,
+  ProjectSession,
+  ResearchNote,
+  ResearchMerge,
+  ResearchProject,
+  ResearchSummary,
+  Workspace,
+} from "../../src/screens/research/research-api";
+import { createPaperWithPdf, signIn } from "../reader/fixtures";
+
+const at = "2026-10-22T08:00:00Z";
+const wid = "11111111-1111-4111-8111-111111111111";
+const lead = "22222222-2222-4222-8222-222222222222";
+const rid = "33333333-3333-4333-8333-333333333333";
+const old = "44444444-4444-4444-8444-444444444444";
+const copy = "55555555-5555-4555-8555-555555555555";
+const direct = "66666666-6666-4666-8666-666666666666";
+const fresh = "77777777-7777-4777-8777-777777777777";
+const researchSession = "88888888-8888-4888-8888-888888888888";
+const workspace: Workspace = {
+  id: wid,
+  name: "表示学习",
+  description: "项目简介",
+  instructions: "比较表示质量",
+  model_config_id: "model-1",
+  compute_id: "host",
+  kind: "research",
+  archived: false,
+  session_id: lead,
+  created_at: at,
+  updated_at: at,
+};
+const research: ResearchSummary = {
+  id: rid,
+  question: "更小的表示是否足够",
+  stage: "scoping",
+  status: "waiting",
+  end_reason: "",
+  column: "review",
+  rounds: 0,
+  best: null,
+  working: "",
+  waiting: 1,
+  planned: true,
+  compute_id: "host",
+  updated_at: at,
+  said: "计划已写好，比较两个维度",
+  progress: "第一轮对比已完成",
+};
+function turn(id: string, prompt: string, response: string): ChatTurn {
+  return {
+    id,
+    prompt,
+    response,
+    status: "completed",
+    error: "",
+    steps: [],
+    runtime: { context: { tokens: 1200, contextWindow: 128000 } },
+    model_config_id: "model-1",
+    created_at: at,
+    updated_at: at,
+  };
+}
+function session(
+  id: string,
+  title: string,
+  kind: ProjectSession["kind"] = "project_chat",
+): ProjectSession {
+  return {
+    id,
+    title,
+    kind,
+    workspace_id: wid,
+    model_config_id: "model-1",
+    research_id: kind === "research" ? rid : null,
+    question: kind === "research" ? research.question : "",
+    source_session_id: null,
+    source_run_id: null,
+    pinned_at: kind === "project_lead" ? at : null,
+    archived_at: null,
+    status: kind === "research" ? "waiting" : "idle",
+    progress: kind === "research" ? research.progress! : "",
+    created_at: at,
+    updated_at: at,
+    capabilities: {
+      send: kind !== "research",
+      coordinate: kind === "project_lead",
+      rename: kind !== "research",
+      pin: kind !== "project_lead",
+      archive: kind === "project_chat",
+      delete: kind === "project_chat",
+      clone: kind !== "research",
+      compact: kind !== "research",
+      steer: kind !== "research",
+    },
+  };
+}
+
+async function project(page: Page) {
+  const state = {
+    workspaces: [
+      {
+        ...workspace,
+        location: {
+          kind: "local",
+          path: "/home/leslie/ORA",
+          connection_id: "",
+        },
+      },
+    ],
+    collections: [
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        name: "表示学习分类",
+        description: "分类",
+        archived: false,
+        research_ids: [rid],
+      },
+    ],
+    connections: [] as {
+      id: string;
+      name: string;
+      kind: string;
+      host: string;
+      port: number;
+      identity_file: string;
+    }[],
+    workspaceRequests: [] as Record<string, any>[],
+    folderRequests: [] as {
+      kind: string;
+      path: string;
+      connection_id: string;
+    }[],
+    connectionRequests: [] as Record<string, any>[],
+    organizations: [] as Record<string, any>[],
+    connectionFails: false,
+    sent: [] as {
+      id: string;
+      message: string;
+      model_config_id?: string;
+      command?: string;
+    }[],
+    patched: [] as {
+      id: string;
+      title?: string;
+      archived?: boolean;
+      pinned?: boolean;
+    }[],
+    direct: [] as Record<string, unknown>[],
+    created: 0,
+    pageSize: 40,
+    holdAbort: false,
+    sessions: [
+      session(lead, "项目导师", "project_lead"),
+      session(researchSession, research.question, "research"),
+      session(old, "以前的项目对话"),
+    ],
+    researches: [structuredClone(research)],
+    cards: [
+      {
+        id: "board-old",
+        kind: "idea",
+        title: "以前的看板想法",
+        summary: "",
+        column: "triage",
+        movable: true,
+        research: null,
+        working: "",
+        updated_at: at,
+      },
+    ] as BoardCard[],
+    notes: (["plan", "decision", "conclusion", "error"] as const).map(
+      (kind, n): ResearchNote => ({
+        id: `note-${n}`,
+        workspace_id: wid,
+        project_id: rid,
+        kind,
+        text: [
+          "请批准第一版计划",
+          "需要选择数据集。".repeat(40),
+          "两个维度的结果相近",
+          "机器连接中断",
+        ][n],
+        created_at: `2026-10-22T08:0${n + 1}:00Z`,
+        pending: n === 0,
+        status: n === 0 ? "pending" : n === 3 ? "historical" : "resolved",
+      }),
+    ),
+    controls: [] as ChatControl[],
+    turns: {
+      [lead]: [turn("turn-1", "项目到哪了", "第一项研究正在等待计划批准")],
+      [old]: [turn("turn-old", "以前的问题", "以前的回答")],
+      [copy]: [],
+      [fresh]: [],
+    } as Record<string, ChatTurn[]>,
+  };
+  await page.route("**/api/v1/health", (route) =>
+    route.fulfill({ json: { status: "ok", version: "test", mode: "local" } }),
+  );
+  await page.route("**/api/v1/translation-settings", (route) =>
+    route.fulfill({
+      json: {
+        active_id: "model-1",
+        configured: true,
+        models: [1, 2].map((n) => ({
+          id: `model-${n}`,
+          name: `模型${n}`,
+          model: `test-${n}`,
+          protocol: "openai",
+          base_url: "https://example.com/v1",
+        })),
+      },
+    }),
+  );
+  await page.route("**/api/v1/research/**", async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname.replace("/api/v1/research", "");
+    if (path === "/navigation")
+      return route.fulfill({
+        json: {
+          workspaces: state.workspaces.map((item) => ({
+            ...item,
+            researches: state.researches
+              .filter((row) => (row.workspace_id || wid) === item.id)
+              .map((row) => ({
+                ...row,
+                title: row.title || row.question,
+                workspace_id: row.workspace_id || wid,
+                session_id: researchSession,
+                collection_id:
+                  row.collection_id === undefined
+                    ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    : row.collection_id,
+                on_board: row.on_board || false,
+                pinned_at: row.pinned_at || null,
+              })),
+          })),
+          collections: state.collections,
+        },
+      });
+    if (path === "/workspaces" && route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      state.workspaceRequests.push(body);
+      const next = {
+        ...workspace,
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        name: body.name,
+        location: body.location,
+      };
+      state.workspaces.push(next);
+      return route.fulfill({ json: next });
+    }
+    if (path === "/collections") {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON();
+        const item = {
+          id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+          name: body.name,
+          description: body.description || "",
+          archived: false,
+          research_ids: [],
+        };
+        state.collections.push(item);
+        return route.fulfill({ json: item });
+      }
+      return route.fulfill({ json: state.collections });
+    }
+    if (path === "/connections") {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON();
+        state.connectionRequests.push(body);
+        if (state.connectionFails)
+          return route.fulfill({
+            status: 409,
+            json: { detail: "SSH 连接验证失败" },
+          });
+        const connection = { id: "ssh-test", kind: "ssh", ...body };
+        state.connections.push(connection);
+        return route.fulfill({ json: connection });
+      }
+      return route.fulfill({ json: state.connections });
+    }
+    if (path === "/folders") {
+      const kind = url.searchParams.get("kind") || "local";
+      const given = url.searchParams.get("path") || "";
+      const connection_id = url.searchParams.get("connection_id") || "";
+      state.folderRequests.push({ kind, path: given, connection_id });
+      const folder =
+        given || (kind === "ssh" ? "/home/runner" : "/home/leslie");
+      return route.fulfill({
+        json: {
+          path: folder,
+          parent: "/home",
+          entries:
+            folder.endsWith("/ORA") || folder.endsWith("/lab")
+              ? []
+              : [
+                  {
+                    name: kind === "ssh" ? "lab" : "ORA",
+                    path: `${folder}/${kind === "ssh" ? "lab" : "ORA"}`,
+                  },
+                ],
+        },
+      });
+    }
+    if (path === "/board")
+      return route.fulfill({
+        json: {
+          columns: ["triage", "todo", "running", "review", "done", "dropped"],
+          cards: state.researches
+            .filter((row) => row.on_board)
+            .map((row) => ({ ...row, title: row.title || row.question })),
+        },
+      });
+    const organization = path.match(/^\/projects\/([^/]+)\/organization$/);
+    if (organization) {
+      const body = route.request().postDataJSON();
+      state.organizations.push({ id: organization[1], ...body });
+      const row = state.researches.find((item) => item.id === organization[1])!;
+      Object.assign(row, body);
+      if (body.pinned !== undefined) row.pinned_at = body.pinned ? at : null;
+      return route.fulfill({ json: row });
+    }
+    if (path === "/recent") return route.fulfill({ json: [] });
+    if (path === "/projects") {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON();
+        state.direct.push(body);
+        state.researches.push({
+          ...research,
+          id: direct,
+          title: body.message,
+          question: body.message,
+          workspace_id: body.workspace_id,
+          collection_id: body.collection_id,
+          on_board: false,
+        });
+        return route.fulfill({ json: { id: direct } });
+      }
+      return route.fulfill({ json: [] });
+    }
+    if (path === "/settings")
+      return route.fulfill({
+        json: {
+          computes: [{ id: "host", name: "本机", kind: "host", gpus: "" }],
+          default_compute: "host",
+          states: {},
+          tracker: { kind: "none", mode: "local", project: "", has_key: false },
+        },
+      });
+    if (path === `/workspaces/${wid}`)
+      return route.fulfill({
+        json: { ...workspace, researches: state.researches },
+      });
+    if (path === `/workspaces/${wid}/notes`)
+      return route.fulfill({ json: state.notes });
+    if (path === `/workspaces/${wid}/sessions`) {
+      if (route.request().method() === "POST") {
+        state.created++;
+        const chat = session(fresh, "新聊天");
+        state.sessions.push(chat);
+        return route.fulfill({ json: chat });
+      }
+      const search = (url.searchParams.get("search") || "").toLowerCase();
+      const archived = url.searchParams.get("archived") === "true";
+      const items = state.sessions
+        .filter(
+          (row) =>
+            !!row.archived_at === archived &&
+            `${row.title} ${row.question}`.toLowerCase().includes(search),
+        )
+        .sort((a, b) => Number(!!b.pinned_at) - Number(!!a.pinned_at));
+      const start = Number(url.searchParams.get("cursor") || 0);
+      const end = start + state.pageSize;
+      return route.fulfill({
+        json: {
+          items: items.slice(start, end),
+          next_cursor: end < items.length ? String(end) : null,
+        },
+      });
+    }
+    if (path === `/workspaces/${wid}/board`)
+      return route.fulfill({
+        json: {
+          columns: ["triage", "todo", "running", "review", "done", "dropped"],
+          cards: state.cards,
+        },
+      });
+    if (path === `/workspaces/${wid}/cards`) {
+      const body = route.request().postDataJSON();
+      state.cards.push({
+        id: "first-idea",
+        kind: "idea",
+        title: body.title,
+        summary: "",
+        column: "triage",
+        movable: true,
+        research: null,
+        working: "",
+        updated_at: at,
+      });
+      return route.fulfill({ json: state.cards.at(-1) });
+    }
+    const message = path.match(/^\/chats\/([^/]+)\/messages$/);
+    if (message) {
+      const body = route.request().postDataJSON();
+      state.sent.push({ id: message[1], ...body });
+      const next = turn(
+        `turn-${state.sent.length + 1}`,
+        body.message,
+        `收到：${body.message}`,
+      );
+      next.model_config_id = body.model_config_id || "model-1";
+      if (body.command === "compact") {
+        next.runtime.command = "compact";
+        next.runtime.compaction = { tokens_before: 1200 };
+      }
+      state.turns[message[1]].push(next);
+      return route.fulfill({
+        json: state.sessions.find((row) => row.id === message[1]),
+      });
+    }
+    if (path === `/chats/${lead}/clone`) {
+      state.turns[copy] = [...state.turns[lead]];
+      const chat = {
+        ...session(copy, "项目导师（副本）"),
+        source_session_id: lead,
+      };
+      state.sessions.push(chat);
+      return route.fulfill({ json: chat });
+    }
+    if (/^\/projects\/[^/]+\/events$/.test(path))
+      return route.fulfill({
+        json: [
+          {
+            id: "event-lead",
+            actor: "lead",
+            action: "message",
+            detail: { text: "来自主会话的补充" },
+            node_id: null,
+            sprint_id: null,
+            created_at: at,
+          },
+        ],
+      });
+    if (/^\/projects\/[^/]+\/workspace\/list$/.test(path))
+      return route.fulfill({
+        json: {
+          path: "",
+          entries: [],
+          truncated: false,
+          round: null,
+          changed: [],
+          compute: "ssh",
+        },
+      });
+    if (/^\/projects\/[^/]+$/.test(path))
+      return route.fulfill({
+        json: {
+          project: {
+            ...(state.researches.find(
+              (row) => row.id === path.split("/").at(-1),
+            ) || research),
+            id: path.split("/").at(-1),
+            background: "",
+            model_config_id: "model-1",
+            budget: {},
+            spent: { sprints: 0, tokens: 0, job_seconds: 0 },
+            session_id: researchSession,
+            workspace_id:
+              state.researches.find((row) => row.id === path.split("/").at(-1))
+                ?.workspace_id || wid,
+            location: state.workspaces.find(
+              (item) =>
+                item.id ===
+                (state.researches.find(
+                  (row) => row.id === path.split("/").at(-1),
+                )?.workspace_id || wid),
+            )?.location,
+            plan: {},
+            conclusion_record: {},
+            environment: {},
+            created_at: at,
+          },
+          nodes: [],
+          sprints: [],
+          jobs: [],
+          docker: { available: true, reason: "" },
+          input_needed: "",
+          datasets: [],
+        },
+      });
+    return route.fulfill({ json: [] });
+  });
+  await page.route("**/api/v1/agent/sessions/**", async (route) => {
+    const url = new URL(route.request().url());
+    const match = url.pathname.match(
+      /\/sessions\/([^/]+)(?:\/(runs|controls))?$/,
+    )!;
+    const id = match[1];
+    if (match[2] === "runs")
+      return route.fulfill({ json: state.turns[id] || [] });
+    if (match[2] === "controls") {
+      if (route.request().method() === "POST") {
+        const body = route.request().postDataJSON();
+        const control: ChatControl = {
+          id: `control-${state.controls.length}`,
+          session_id: id,
+          run_id: body.expected_run_id,
+          kind: body.kind,
+          text: body.text,
+          status: "accepted",
+          error: "",
+          created_at: at,
+          updated_at: at,
+        };
+        state.controls.push(control);
+        if (body.kind === "abort") {
+          const active = state.turns[id].find(
+            (run) => run.id === body.expected_run_id,
+          )!;
+          if (state.holdAbort) active.runtime.phase = "stopping";
+          else active.status = "cancelled";
+        }
+        return route.fulfill({ json: control });
+      }
+      return route.fulfill({
+        json: state.controls.filter(
+          (control) =>
+            control.session_id === id &&
+            (!url.searchParams.get("run_id") ||
+              control.run_id === url.searchParams.get("run_id")),
+        ),
+      });
+    }
+    const chat = state.sessions.find((row) => row.id === id)!;
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON();
+      state.patched.push({ id, ...body });
+      if (body.title !== undefined) chat.title = body.title;
+      if (body.pinned !== undefined) chat.pinned_at = body.pinned ? at : null;
+      if (body.archived !== undefined)
+        chat.archived_at = body.archived ? at : null;
+    }
+    return route.fulfill({ json: chat });
+  });
+  await signIn(page);
+  await page.goto(`/#new?workspace=${wid}`);
+  await expect(
+    page
+      .getByTestId("new-research")
+      .getByRole("textbox", { name: /^(开始研究|Start research)$/ }),
+  ).toBeEnabled();
+  return state;
+}
+
+test("task filters open the existing research while keeping its task section", async ({
+  page,
+}) => {
+  const state = await project(page);
+  const tasks = [
+    {
+      filter: "active",
+      id: "10101010-1010-4010-8010-101010101010",
+      title: "正在执行的研究",
+      status: "active",
+      stage: "experiments",
+      working: "executor",
+      end_reason: "",
+    },
+    {
+      filter: "waiting",
+      id: rid,
+      title: "等待批准的研究",
+      status: "waiting",
+      stage: "scoping",
+      working: "",
+      end_reason: "",
+    },
+    {
+      filter: "paused",
+      id: "20202020-2020-4020-8020-202020202020",
+      title: "暂停中的研究",
+      status: "paused",
+      stage: "experiments",
+      working: "",
+      end_reason: "",
+    },
+    {
+      filter: "history",
+      id: "30303030-3030-4030-8030-303030303030",
+      title: "已经完成的研究",
+      status: "finished",
+      stage: "done",
+      working: "",
+      end_reason: "concluded",
+    },
+  ] as const;
+  state.researches = [
+    ...tasks.map((task) => ({
+      ...research,
+      ...task,
+      workspace_id: wid,
+    })),
+    {
+      ...research,
+      id: "40404040-4040-4040-8040-404040404040",
+      title: "没有执行任务的普通讨论",
+      status: "active",
+      stage: "scoping",
+      working: "",
+      planned: false,
+      workspace_id: wid,
+    },
+  ];
+  await page.reload();
+  const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+  const taskSection = sidebar.getByRole("link", { name: "任务", exact: true });
+  const taskNavigation = sidebar.getByRole("navigation", {
+    name: "研究任务",
+    exact: true,
+  });
+  await taskSection.click();
+  await expect(page).toHaveURL(/#tasks\/active$/);
+  await expect(taskSection).toHaveAttribute("aria-current", "page");
+  await expect(
+    sidebar.getByRole("button", { name: "表示学习 本机", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: /没有执行任务的普通讨论/ }),
+  ).toHaveCount(0);
+
+  for (const task of tasks) {
+    await taskNavigation.locator(`a[href="#tasks/${task.filter}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`#tasks/${task.filter}$`));
+    const target = `#tasks/${task.filter}?research=${task.id}`;
+    await page.locator(`a[href="${target}"]`).last().click();
+    await expect(page).toHaveURL(
+      new RegExp(`#tasks/${task.filter}\\?research=${task.id}$`),
+    );
+    await expect(
+      page.getByRole("heading", { name: task.title, exact: true }),
+    ).toBeVisible();
+    await expect(taskSection).toHaveAttribute("aria-current", "page");
+    await expect(
+      sidebar.getByRole("link", { name: "研究", exact: true }),
+    ).not.toHaveAttribute("aria-current", "page");
+    await expect(taskNavigation.locator(`a[href="${target}"]`)).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: task.title, exact: true }),
+    ).toBeVisible();
+    await expect(taskSection).toHaveAttribute("aria-current", "page");
+  }
+  expect(state.direct).toEqual([]);
+  expect(state.sent).toEqual([]);
+});
+
+test("customize switches between the saved research playbook and real model settings", async ({
+  page,
+}) => {
+  const state = await project(page);
+  await page.route("**/api/v1/research/playbook", (route) =>
+    route.fulfill({
+      json: {
+        version: 3,
+        rules: [
+          {
+            id: "rule-navigation",
+            when: "比较两个表示维度时",
+            do: "固定数据和随机种子再比较",
+            why: "让每次研究沿用已经验证过的判断规则。",
+            sources: [rid],
+            helpful: 2,
+            harmful: 0,
+            status: "active",
+            created_at: at,
+          },
+        ],
+        history: [],
+      },
+    }),
+  );
+  const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+  const customize = sidebar.getByRole("link", { name: "自定义", exact: true });
+  await customize.click();
+  await expect(page).toHaveURL(/#customize\/playbook$/);
+  await expect(customize).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("heading", { name: "研究手册（第 3 版）", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("固定数据和随机种子再比较", { exact: false }),
+  ).toBeVisible();
+  await sidebar.locator('a[href="#customize/models"]').click();
+  await expect(page).toHaveURL(/#customize\/models$/);
+  await expect(page.getByText("模型1", { exact: true })).toBeVisible();
+  await expect(page.getByText("模型2", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "使用 模型2", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(customize).toHaveAttribute("aria-current", "page");
+  await expect(page.getByText("模型1", { exact: true })).toBeVisible();
+  await sidebar.locator('a[href="#customize/playbook"]').click();
+  await expect(
+    page.getByRole("heading", { name: "研究手册（第 3 版）", exact: true }),
+  ).toBeVisible();
+  expect(state.direct).toEqual([]);
+  expect(state.sent).toEqual([]);
+});
+
+test("materials routes filter real paper records and dismiss sidebar imports without losing view or search", async ({
+  page,
+}) => {
+  const papers: Paper[] = ["reading", "unread", "read"].map((status, n) => ({
+    id: `90909090-9090-4090-8090-${String(n).padStart(12, "0")}`,
+    title: `${status === "reading" ? "在读" : status === "unread" ? "未读" : "已读"}资料`,
+    authors: "ORA Test",
+    abstract: "",
+    external_id: "",
+    tags: [],
+    current_version: "v1",
+    agent_status: "idle",
+    reading_status: status,
+    favorite: false,
+    archived: false,
+    revision: 1,
+    updated_at: at,
+  }));
+  await page.route("**/api/v1/papers", (route) =>
+    route.fulfill({ json: papers }),
+  );
+  await page.route("**/api/v1/papers/*/files", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.route("**/api/v1/paper-metadata", (route) =>
+    route.fulfill({ json: {} }),
+  );
+  const state = await project(page);
+  const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+  const materials = sidebar.getByRole("link", { name: "资料", exact: true });
+  await materials.click();
+  await expect(page).toHaveURL(/#library$/);
+  await expect(materials).toHaveAttribute("aria-current", "page");
+  await expect(sidebar).toContainText("资料");
+  const library = page.getByRole("main");
+  // project() explicitly identifies this as the local edition: status lives in the sidebar.
+  await expect(
+    library.getByRole("radiogroup", { name: "阅读状态" }),
+  ).toHaveCount(0);
+  await expect(library.locator("[data-view=list]")).toBeVisible();
+  await expect(library.locator("[data-paper]")).toHaveCount(3);
+  await sidebar.getByRole("link", { name: "正在读", exact: true }).click();
+  await expect(page).toHaveURL(/#library\?view=reading$/);
+  await expect(library.locator("[data-paper]")).toHaveCount(1);
+  await expect(library.locator(`[data-paper="${papers[0].id}"]`)).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "正在读", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await sidebar.getByRole("link", { name: "未读", exact: true }).click();
+  await expect(page).toHaveURL(/#library\?view=unread$/);
+  await expect(library.locator("[data-paper]")).toHaveCount(1);
+  await expect(library.locator(`[data-paper="${papers[1].id}"]`)).toBeVisible();
+  await sidebar.getByRole("link", { name: "全部", exact: true }).click();
+  await expect(library.locator("[data-paper]")).toHaveCount(3);
+
+  await page.goto(
+    `/#library?view=reading&q=${encodeURIComponent("资料")}&import=1`,
+  );
+  const importing = page.getByRole("dialog", { name: "导入论文", exact: true });
+  await expect(importing).toBeVisible();
+  await importing.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(importing).toHaveCount(0);
+  const params = () =>
+    new URLSearchParams(new URL(page.url()).hash.split("?")[1]);
+  await expect.poll(() => params().has("import")).toBe(false);
+  expect(params().get("view")).toBe("reading");
+  expect(params().get("q")).toBe("资料");
+  await page.reload();
+  await expect(importing).toHaveCount(0);
+  await expect(
+    library.getByRole("searchbox", { name: "搜索文库" }),
+  ).toHaveValue("资料");
+  await expect(
+    sidebar.getByRole("link", { name: "正在读", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  const search = library.getByRole("searchbox", { name: "搜索文库" });
+  await search.fill("在读资料");
+  await expect.poll(() => params().get("q")).toBe("在读资料");
+  expect(params().get("view")).toBe("reading");
+  await sidebar.getByRole("link", { name: "导入论文", exact: true }).click();
+  await expect(importing).toBeVisible();
+  expect(params().get("import")).toBe("1");
+  expect(params().get("view")).toBe("reading");
+  expect(params().get("q")).toBe("在读资料");
+  await importing.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(importing).toHaveCount(0);
+  await expect.poll(() => params().has("import")).toBe(false);
+  expect(params().get("view")).toBe("reading");
+  expect(params().get("q")).toBe("在读资料");
+  await expect(search).toHaveValue("在读资料");
+  await expect(library.locator("[data-paper]")).toHaveCount(1);
+  await expect(
+    sidebar.getByRole("link", { name: "正在读", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  expect(state.direct).toEqual([]);
+  expect(state.workspaceRequests).toEqual([]);
+});
+
+test("global quick open searches project sessions and keeps papers first for keyboard navigation", async ({
+  page,
+}) => {
+  const state = await project(page);
+  const paper = await createPaperWithPdf(page, {
+    title: `${workspace.name} 检索论文 ${Date.now().toString(36)}`,
+  });
+  const paperResponse = await page.request.get(
+    `/api/v1/papers/${paper.paperId}`,
+  );
+  expect(paperResponse.ok()).toBeTruthy();
+  const paperRecord = await paperResponse.json();
+  await page.route("**/api/v1/papers", (route) =>
+    route.fulfill({ json: [paperRecord] }),
+  );
+  // A same-screen hash change does not refresh AppShell's paper snapshot.
+  await page.reload();
+  const requests: { search: string; limit: string | null }[] = [];
+  await page.route("**/api/v1/research/sessions**", (route) => {
+    const url = new URL(route.request().url());
+    const search = url.searchParams.get("search") || "";
+    requests.push({ search, limit: url.searchParams.get("limit") });
+    const items = state.sessions
+      .map((row) => ({ ...row, workspace_name: workspace.name }))
+      .filter((row) =>
+        `${row.title} ${row.question} ${row.workspace_name}`.includes(search),
+      );
+    return route.fulfill({ json: { items, next_cursor: null } });
+  });
+  await page.goto(`/#projects/${wid}/chats/${old}`);
+  await expect(
+    page.getByTestId("project-history-chat").getByRole("textbox"),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "搜索论文、项目与会话", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+k");
+  const dialog = page.getByRole("dialog", { name: "搜索论文、项目与会话" });
+  const field = dialog.getByRole("combobox", { name: "搜索论文、项目与会话" });
+  await field.fill(workspace.name);
+  await expect
+    .poll(() => requests.at(-1))
+    .toEqual({ search: workspace.name, limit: "8" });
+  await expect(
+    dialog.getByRole("option").first().getByText(paper.title, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("option").first().locator("svg.lucide-file-text"),
+  ).toHaveCount(1);
+  await expect(dialog.getByText(workspace.name, { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("option").nth(1)).toContainText(workspace.name);
+  await field.press("ArrowDown");
+  await field.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`#workspaces/${wid}$`));
+
+  for (const [query, hash] of [
+    ["以前的项目对话", `projects/${wid}/chats/${old}`],
+    [research.question, `research/${rid}`],
+  ] as const) {
+    await page.keyboard.press("ControlOrMeta+k");
+    await field.fill(query);
+    await expect.poll(() => requests.at(-1)?.search).toBe(query);
+    await expect(dialog.getByText(query, { exact: true })).toBeVisible();
+    await expect(dialog.getByRole("option").first()).toContainText(query);
+    await field.press("Enter");
+    await expect(page).toHaveURL(new RegExp(`#${hash}$`));
+  }
+
+  await page.keyboard.press("ControlOrMeta+k");
+  await field.fill(paper.title);
+  await expect(
+    dialog.getByRole("option").first().getByText(paper.title, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("option").first().locator("svg.lucide-file-text"),
+  ).toHaveCount(1);
+  await field.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`#read/${paper.paperId}$`));
+  await expect(
+    page.getByRole("heading", { name: paper.title, exact: true }),
+  ).toBeVisible();
+});
+
+test("global session search failures leave local paper search available", async ({
+  page,
+}) => {
+  await project(page);
+  const paper = await createPaperWithPdf(page, {
+    title: `仍可检索论文 ${Date.now().toString(36)}`,
+  });
+  const paperResponse = await page.request.get(
+    `/api/v1/papers/${paper.paperId}`,
+  );
+  expect(paperResponse.ok()).toBeTruthy();
+  const paperRecord = await paperResponse.json();
+  await page.route("**/api/v1/papers", (route) =>
+    route.fulfill({ json: [paperRecord] }),
+  );
+  await page.reload();
+  await page.route("**/api/v1/research/sessions**", (route) =>
+    route.fulfill({ status: 503, json: { detail: "Search unavailable" } }),
+  );
+  await page.goto(`/#new?workspace=${wid}`);
+  await expect(
+    page
+      .getByTestId("new-research")
+      .getByRole("textbox", { name: /^(开始研究|Start research)$/ }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "搜索论文、项目与会话", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("ControlOrMeta+k");
+  const dialog = page.getByRole("dialog", { name: "搜索论文、项目与会话" });
+  const field = dialog.getByRole("combobox", { name: "搜索论文、项目与会话" });
+  await field.fill(paper.title);
+  await expect(dialog.getByRole("status")).toHaveText(
+    "项目与会话暂时无法搜索；仍可搜索文库，或重新打开后重试。",
+  );
+  await expect(
+    dialog.getByRole("option").first().getByText(paper.title, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("option").first().locator("svg.lucide-file-text"),
+  ).toHaveCount(1);
+  await field.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`#read/${paper.paperId}$`));
+  await expect(
+    page.getByRole("heading", { name: paper.title, exact: true }),
+  ).toBeVisible();
+});
+
+test("new research stays empty until the first message chooses a physical workspace and optional project", async ({
+  page,
+}, testInfo) => {
+  const state = await project(page);
+  const start = page.getByTestId("new-research");
+  await expect(start.getByRole("heading", { level: 1 })).toContainText(
+    workspace.name,
+  );
+  await expect(start.getByRole("textbox", { name: "开始研究" })).toBeEmpty();
+  await expect(
+    start.getByRole("button", { name: "发送", exact: true }),
+  ).toBeDisabled();
+  expect(state.direct).toEqual([]);
+  await start.getByRole("button", { name: "项目分类", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "表示学习分类", exact: true })
+    .click();
+  await start
+    .getByRole("textbox", { name: "开始研究" })
+    .fill("比较两个维度的表示质量");
+  await page.screenshot({
+    path: testInfo.outputPath("new-research-zh-desktop.png"),
+  });
+  await start.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`#research/${direct}$`));
+  expect(state.direct).toEqual([
+    {
+      message: "比较两个维度的表示质量",
+      model_config_id: "model-1",
+      workspace_id: wid,
+      collection_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    },
+  ]);
+  await expect(
+    page.getByRole("heading", { name: /比较两个维度/ }),
+  ).toBeVisible();
+});
+
+test("new research keeps the workspace and classification of the open research", async ({
+  page,
+}) => {
+  const state = await project(page);
+  await page.goto(`/#research/${rid}`);
+  const start = page
+    .getByRole("navigation", { name: "侧栏" })
+    .getByRole("link", { name: "新研究", exact: true });
+  await expect(start).toHaveAttribute(
+    "href",
+    `#new?workspace=${wid}&collection=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa`,
+  );
+  await start.click();
+  const startPage = page.getByTestId("new-research");
+  await expect(startPage.getByRole("heading", { level: 1 })).toContainText(
+    workspace.name,
+  );
+  await expect(
+    startPage.getByRole("button", { name: "项目分类", exact: true }),
+  ).toHaveAttribute("title", "项目分类: 表示学习分类");
+  // The compact workspace chip keeps its exact physical folder in its tooltip.
+  await expect(
+    startPage.getByTitle("表示学习\n/home/leslie/ORA", { exact: true }),
+  ).toBeVisible();
+  expect(state.direct).toEqual([]);
+});
+
+test("a missing explicit workspace asks for a folder instead of silently changing machines", async ({
+  page,
+}) => {
+  const state = await project(page);
+  await page.getByRole("textbox", { name: "开始研究" }).fill("保留这个问题");
+  await page.goto("/#new?workspace=00000000-0000-4000-8000-000000000000");
+  await expect(page.getByRole("alert")).toHaveText("工作区不可用");
+  await expect(page.getByRole("textbox", { name: "开始研究" })).toBeDisabled();
+  await page
+    .getByRole("button", { name: "选择本机或 SSH 文件夹", exact: true })
+    .click();
+  // An ordinary navigation refresh must not unmount the recovery picker.
+  await page.waitForTimeout(5500);
+  await expect(
+    page.getByRole("dialog", { name: "选择工作区", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("option", { name: /表示学习 本机/ }).click();
+  await expect(page.getByRole("textbox", { name: "开始研究" })).toHaveValue(
+    "保留这个问题",
+  );
+  expect(state.workspaceRequests).toEqual([]);
+  expect(state.direct).toEqual([]);
+});
+
+test("workspace chooser searches real folders and creates a workspace without an empty research", async ({
+  page,
+}) => {
+  const state = await project(page);
+  await page.getByRole("button", { name: "选择工作区", exact: true }).click();
+  const chooser = page.getByRole("dialog", { name: "选择工作区", exact: true });
+  await chooser
+    .getByRole("searchbox", { name: "搜索工作区" })
+    .fill("no such folder");
+  await expect(chooser.getByRole("option")).toHaveCount(0);
+  await chooser
+    .getByRole("button", { name: "添加工作区", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "添加工作区", exact: true });
+  await expect(
+    dialog.getByRole("button", { name: /本机 此电脑上的文件夹/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await dialog
+    .getByRole("region", { name: "浏览文件夹" })
+    .getByRole("button", { name: "ORA", exact: true })
+    .click();
+  await expect(dialog.getByRole("textbox", { name: "目录路径" })).toHaveValue(
+    "/home/leslie/ORA",
+  );
+  const selectedFolder = dialog.getByRole("region", { name: "已选文件夹" });
+  await expect(selectedFolder).toContainText("本机");
+  await expect(selectedFolder).toContainText("/home/leslie/ORA");
+  const name = dialog.getByRole("textbox", { name: "工作区名称（可选）" });
+  await expect(name).toBeEmpty();
+  await expect(name).toHaveAttribute("placeholder", "ORA");
+  await name.fill("实验目录");
+  await dialog
+    .getByRole("button", { name: "使用此文件夹", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId("new-research")).toContainText("实验目录");
+  expect(state.workspaceRequests).toEqual([
+    {
+      name: "实验目录",
+      location: { kind: "local", path: "/home/leslie/ORA", connection_id: "" },
+    },
+  ]);
+  expect(state.direct).toEqual([]);
+  expect(state.folderRequests).toContainEqual({
+    kind: "local",
+    path: "/home/leslie/ORA",
+    connection_id: "",
+  });
+});
+
+test("workspace folders hide dot directories by default and still open a hidden path directly", async ({
+  page,
+}) => {
+  const state = await project(page);
+  await page.route("**/api/v1/research/folders?**", async (route) => {
+    const url = new URL(route.request().url());
+    const given = url.searchParams.get("path") || "";
+    if (url.searchParams.get("kind") !== "local") return route.fallback();
+    state.folderRequests.push({
+      kind: "local",
+      path: given,
+      connection_id: "",
+    });
+    const path = given || "/home/leslie";
+    return route.fulfill({
+      json: {
+        path,
+        parent: "/home/leslie",
+        entries:
+          path === "/home/leslie"
+            ? [
+                { name: ".private", path: "/home/leslie/.private" },
+                { name: "ORA", path: "/home/leslie/ORA" },
+              ]
+            : [],
+      },
+    });
+  });
+  await page.getByRole("button", { name: "选择工作区", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "选择工作区", exact: true })
+    .getByRole("button", { name: "添加工作区", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "添加工作区", exact: true });
+  const folders = dialog.getByRole("region", { name: "浏览文件夹" });
+  const hidden = folders.getByRole("button", { name: ".private", exact: true });
+  const showHidden = folders.getByRole("checkbox", { name: "显示隐藏文件夹" });
+  await expect(
+    folders.getByRole("button", { name: "ORA", exact: true }),
+  ).toBeVisible();
+  await expect(showHidden).not.toBeChecked();
+  await expect(hidden).toHaveCount(0);
+  await showHidden.check();
+  await expect(hidden).toBeVisible();
+  await showHidden.uncheck();
+  await expect(hidden).toHaveCount(0);
+  const address = folders.getByRole("textbox", { name: "目录路径" });
+  await address.fill("/home/leslie/.private");
+  await expect(
+    dialog.getByRole("button", { name: "使用此文件夹" }),
+  ).toBeDisabled();
+  await address.press("Enter");
+  await expect(
+    dialog.getByRole("region", { name: "已选文件夹" }),
+  ).toContainText("/home/leslie/.private");
+  await expect(
+    dialog.getByRole("textbox", { name: "工作区名称（可选）" }),
+  ).toBeEmpty();
+  await dialog
+    .getByRole("button", { name: "使用此文件夹", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.workspaceRequests).toEqual([
+    {
+      name: ".private",
+      location: {
+        kind: "local",
+        path: "/home/leslie/.private",
+        connection_id: "",
+      },
+    },
+  ]);
+  expect(state.direct).toEqual([]);
+});
+
+test("SSH connections validate before a remote folder can become a workspace", async ({
+  page,
+}) => {
+  const state = await project(page);
+  state.connectionFails = true;
+  await page.goto("/#workspaces");
+  await page.getByRole("button", { name: "SSH 连接", exact: true }).click();
+  const connection = page.getByRole("dialog", {
+    name: "SSH 连接",
+    exact: true,
+  });
+  await connection
+    .getByRole("textbox", { name: "显示名称" })
+    .fill("实验服务器");
+  await connection.getByRole("textbox", { name: "主机名" }).fill("runner@lab");
+  await connection
+    .getByRole("textbox", { name: "身份文件（可选）" })
+    .fill("~/.ssh/id_ed25519");
+  await connection.getByRole("button", { name: "保存并验证" }).click();
+  await expect(connection.getByRole("alert")).toContainText("SSH 连接验证失败");
+  expect(state.connections).toEqual([]);
+  state.connectionFails = false;
+  await connection.getByRole("button", { name: "保存并验证" }).click();
+  await expect(connection).toContainText("实验服务器");
+  await connection
+    .getByRole("button", { name: "关闭", exact: true })
+    .last()
+    .click();
+  await page.getByRole("button", { name: "添加工作区", exact: true }).click();
+  const workspaceDialog = page.getByRole("dialog", {
+    name: "添加工作区",
+    exact: true,
+  });
+  await workspaceDialog
+    .getByRole("button", { name: "实验服务器 runner@lab", exact: true })
+    .click();
+  await expect(
+    workspaceDialog.getByRole("button", {
+      name: "实验服务器 runner@lab",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await workspaceDialog
+    .getByRole("region", { name: "浏览文件夹" })
+    .getByRole("button", { name: "lab", exact: true })
+    .click();
+  await expect(
+    workspaceDialog.getByRole("textbox", { name: "目录路径" }),
+  ).toHaveValue("/home/runner/lab");
+  await workspaceDialog
+    .getByRole("textbox", { name: "工作区名称（可选）" })
+    .fill("远端实验");
+  await expect(
+    workspaceDialog.getByRole("region", { name: "已选文件夹" }),
+  ).toContainText("实验服务器");
+  await expect(
+    workspaceDialog.getByRole("region", { name: "已选文件夹" }),
+  ).toContainText("/home/runner/lab");
+  await workspaceDialog
+    .getByRole("button", { name: "使用此文件夹", exact: true })
+    .click();
+  await expect
+    .poll(() => state.workspaceRequests.at(-1))
+    .toEqual({
+      name: "远端实验",
+      location: {
+        kind: "ssh",
+        path: "/home/runner/lab",
+        connection_id: "ssh-test",
+      },
+    });
+  await expect(workspaceDialog).toHaveCount(0);
+  await expect(page).toHaveURL(
+    /#workspaces\/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb$/,
+  );
+  expect(state.folderRequests).toContainEqual({
+    kind: "ssh",
+    path: "",
+    connection_id: "ssh-test",
+  });
+  expect(state.direct).toEqual([]);
+  await expect(page.getByRole("main")).toContainText(
+    "实验服务器 · /home/runner/lab",
+  );
+  await expect(
+    page.getByRole("button", { name: "远端实验 实验服务器", exact: true }),
+  ).toBeVisible();
+  await page.goto("/#new?workspace=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
+  await expect(
+    page
+      .getByTestId("new-research")
+      .getByTitle("实验服务器 · SSH · runner@lab\n/home/runner/lab", {
+        exact: true,
+      }),
+  ).toHaveText("实验服务器");
+  await page.getByRole("button", { name: "选择工作区", exact: true }).click();
+  const folderPicker = page.getByRole("dialog", {
+    name: "选择工作区",
+    exact: true,
+  });
+  await folderPicker
+    .getByRole("searchbox", { name: "搜索工作区" })
+    .fill("runner@lab");
+  await expect(folderPicker.getByRole("option")).toHaveCount(1);
+  await expect(folderPicker.getByRole("option")).toContainText(
+    "实验服务器 · /home/runner/lab",
+  );
+  await page.keyboard.press("Escape");
+  state.researches[0].workspace_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  await page.goto(`/#research/${rid}`);
+  const workspaceLink = page.getByRole("link", {
+    name: "远端实验",
+    exact: true,
+  });
+  await expect(workspaceLink).toHaveAttribute("title", "/home/runner/lab");
+  await expect(
+    workspaceLink
+      .locator("..")
+      .getByTitle("实验服务器 · SSH · runner@lab", { exact: true }),
+  ).toHaveText("实验服务器");
+  const showRecord = page.getByRole("button", {
+    name: "显示研究记录",
+    exact: true,
+  });
+  await expect(showRecord).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "研究记录" }),
+  ).toHaveCount(0);
+  await showRecord.click();
+  await expect(
+    page.getByRole("tab", { name: "计划", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "文件", exact: true }).click();
+  await expect(
+    page.getByRole("tabpanel", { name: "文件", exact: true }),
+  ).toContainText("最近同步的文件快照");
+});
+
+test("research titles, project classification, pins, and manual board membership keep their own meanings", async ({
+  page,
+}) => {
+  const state = await project(page);
+  expect(state.researches[0].workspace_id || wid).toBe(wid);
+  await page.goto("/#board");
+  await expect(
+    page.getByRole("heading", { name: "看板还是空的" }),
+  ).toBeVisible();
+  await page.goto(`/#research/${rid}`);
+  await page.getByRole("button", { name: "研究操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "重命名", exact: true }).click();
+  const naming = page.getByRole("dialog", { name: "重命名" });
+  await naming.getByRole("textbox", { name: "研究标题" }).fill("小表示对比");
+  await naming.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(naming).toHaveCount(0);
+  expect(state.researches[0].question).toBe(research.question);
+  await expect(page.getByRole("heading", { name: "小表示对比" })).toBeVisible();
+  await page.getByRole("button", { name: "研究操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "置顶", exact: true }).click();
+  await expect.poll(() => state.researches[0].pinned_at).toBeTruthy();
+  await page.getByRole("button", { name: "研究操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "加入看板", exact: true }).click();
+  await expect.poll(() => state.researches[0].on_board).toBe(true);
+  await page.goto("/#board");
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("region", { name: "等你", exact: true })
+      .getByRole("link", { name: /小表示对比/ }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "移出看板", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "看板还是空的" }),
+  ).toBeVisible();
+  await page.goto(`/#research/${rid}`);
+  await page.getByRole("button", { name: "研究操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "项目分类", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "项目分类" })
+    .getByRole("button", { name: "未分类", exact: true })
+    .click();
+  await expect.poll(() => state.researches[0].collection_id).toBeNull();
+  expect(state.researches[0].workspace_id || wid).toBe(wid);
+  await page.goto("/#collections/unclassified");
+  await expect(
+    page.getByRole("main").getByRole("link", { name: /小表示对比/ }),
+  ).toBeVisible();
+});
+
+test("the board directly selects existing research without starting or moving it", async ({
+  page,
+}) => {
+  const state = await project(page);
+  await page.goto("/#board");
+  await page
+    .getByRole("button", { name: "选择研究", exact: true })
+    .first()
+    .click();
+  const dialog = page.getByRole("dialog", { name: "选择研究", exact: true });
+  await dialog.getByRole("searchbox", { name: "搜索研究" }).fill("更小的表示");
+  const row = dialog.getByRole("checkbox", { name: /更小的表示是否足够/ });
+  await expect(row).not.toBeChecked();
+  await row.check();
+  await expect.poll(() => state.researches[0].on_board).toBe(true);
+  await expect(dialog.getByRole("status")).toHaveText("已选 1 项");
+  await dialog.getByRole("button", { name: "确定", exact: true }).click();
+  await expect(
+    page.getByRole("main").getByRole("region", { name: "等你", exact: true }),
+  ).toContainText("更小的表示是否足够");
+  await expect(
+    page.getByRole("region", { name: "想法", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "显示空列", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "想法", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "选择研究", exact: true }).click();
+  await expect(row).toBeChecked();
+  await row.uncheck();
+  await expect.poll(() => state.researches[0].on_board).toBe(false);
+  await dialog.getByRole("button", { name: "确定", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "看板还是空的" }),
+  ).toBeVisible();
+  expect(state.researches[0].workspace_id || wid).toBe(wid);
+  expect(state.direct).toEqual([]);
+});
+
+test("folder grouping shows pinned titles and more, while projects remain classifications", async ({
+  page,
+}) => {
+  const state = await project(page);
+  state.researches = Array.from({ length: 7 }, (_, n) => ({
+    ...research,
+    id:
+      n === 0 ? rid : `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+    title: `研究 ${n}`,
+    pinned_at: n === 6 ? at : null,
+  }));
+  await page.reload();
+  const sidebar = page.getByRole("navigation", { name: "侧栏" });
+  await expect(
+    sidebar.getByRole("link", { name: "研究 6", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "研究 5", exact: true }),
+  ).toHaveCount(0);
+  await sidebar.getByRole("button", { name: "展开显示", exact: true }).click();
+  await expect(
+    sidebar.getByRole("link", { name: "研究 5", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    sidebar.getByRole("link", { name: "研究 5", exact: true }),
+  ).toBeVisible();
+  const grouping = sidebar.getByRole("button", {
+    name: "按什么分组",
+    exact: true,
+  });
+  await grouping.click();
+  await page.getByRole("menuitem", { name: "项目", exact: true }).click();
+  await expect(
+    sidebar.getByRole("button", { name: "表示学习分类", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(grouping).toHaveText("项目");
+  await expect(
+    sidebar.getByRole("button", { name: "表示学习分类", exact: true }),
+  ).toBeVisible();
+  await sidebar.getByRole("button", { name: "管理项目", exact: true }).click();
+  await page.getByRole("button", { name: "新建项目", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "新建项目" });
+  await expect(dialog).toContainText(
+    "项目用于分类，不改变文件位置和执行设备。",
+  );
+  await dialog.getByRole("textbox", { name: "项目名称" }).fill("论文复现");
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(page).toHaveURL(
+    /#collections\/cccccccc-cccc-4ccc-8ccc-cccccccccccc$/,
+  );
+  expect(state.workspaceRequests).toEqual([]);
+  expect(state.direct).toEqual([]);
+});
+
+test("an older selected research stays visible in a short sidebar list and manual folds survive reloads", async ({
+  page,
+}) => {
+  const state = await project(page);
+  state.researches = Array.from({ length: 7 }, (_, n) => ({
+    ...research,
+    id:
+      n === 0 ? rid : `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`,
+    title: `研究 ${n}`,
+    updated_at: `2026-10-22T08:0${n}:00Z`,
+    pinned_at: n === 6 ? at : null,
+  }));
+  await page.reload();
+  const sidebar = page.getByRole("navigation", { name: "侧栏" });
+  const current = sidebar.getByRole("link", { name: "研究 0", exact: true });
+  await expect(current).toHaveCount(0);
+  await page.goto(`/#research/${rid}`);
+  await expect(current).toBeVisible();
+  await expect(current).toHaveAttribute("aria-current", "page");
+  await expect(
+    sidebar.getByRole("link", { name: "研究 6", exact: true }),
+  ).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: /^研究 \d$/ })).toHaveCount(5);
+  const folder = sidebar.getByRole("button", {
+    name: "表示学习 本机",
+    exact: true,
+  });
+  await folder.click();
+  await expect(folder).toHaveAttribute("aria-expanded", "false");
+  await expect(current).toHaveCount(0);
+  await page.reload();
+  await expect(folder).toHaveAttribute("aria-expanded", "false");
+  await expect(current).toHaveCount(0);
+  await folder.click();
+  await expect(current).toBeVisible();
+  expect(state.direct).toEqual([]);
+});
+
+test("new-research drafts and models survive reading, folder and project changes, while legacy project links open folders", async ({
+  page,
+}) => {
+  const state = await project(page);
+  const input = page.getByRole("textbox", { name: "开始研究" });
+  await input.fill("ORA 中未发送的想法");
+  const start = page.getByTestId("new-research");
+  await start.getByRole("button", { name: "模型1", exact: true }).click();
+  await page.getByRole("menuitem", { name: "模型2", exact: true }).click();
+  await page.goto("/#library");
+  await page.goto(`/#new?workspace=${wid}`);
+  await expect(input).toHaveValue("ORA 中未发送的想法");
+  await expect(
+    start.getByRole("button", { name: "模型2", exact: true }),
+  ).toBeVisible();
+  state.workspaces.push({
+    ...workspace,
+    id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    name: "另一目录",
+    location: { kind: "local", path: "/home/leslie/Other", connection_id: "" },
+  });
+  await page.reload();
+  await page.getByRole("button", { name: "选择工作区", exact: true }).click();
+  await page.getByRole("option", { name: /另一目录/ }).click();
+  await expect(page).toHaveURL(
+    /#new\?workspace=dddddddd-dddd-4ddd-8ddd-dddddddddddd$/,
+  );
+  await expect(input).toHaveValue("ORA 中未发送的想法");
+  await expect(
+    start.getByRole("button", { name: "模型2", exact: true }),
+  ).toBeVisible();
+  await input.fill("保留问题，改用另一目录");
+  await page.goto(`/#new?workspace=${wid}`);
+  await expect(input).toHaveValue("保留问题，改用另一目录");
+  await page.goto("/#new?workspace=dddddddd-dddd-4ddd-8ddd-dddddddddddd");
+  await expect(input).toHaveValue("保留问题，改用另一目录");
+  await start.getByRole("button", { name: "项目分类", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "表示学习分类", exact: true })
+    .click();
+  await expect(input).toHaveValue("保留问题，改用另一目录");
+  await expect(
+    start.getByRole("button", { name: "模型2", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(input).toHaveValue("保留问题，改用另一目录");
+  await expect(
+    start.getByRole("button", { name: "模型2", exact: true }),
+  ).toBeVisible();
+  await page.goto(`/#projects/${wid}`);
+  await expect(page).toHaveURL(new RegExp(`#workspaces/${wid}$`));
+  await expect(
+    page.getByRole("button", { name: "项目导师", exact: true }),
+  ).toHaveCount(0);
+  expect(state.direct).toEqual([]);
+});
+
+test("a finished research accepts a discussion and stops only its current answer", async ({
+  page,
+}) => {
+  const state = await project(page);
+  const sent: { text: string }[] = [];
+  const controls: {
+    expected_run_id: string;
+    kind: string;
+    client_id: string;
+  }[] = [];
+  let active = false;
+  let started = false;
+  let completed = false;
+  const discussionReply =
+    "已有证据支持小表示，适用条件是数据分布与当前实验一致。";
+  const runId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+  const sprintId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const finished: ResearchProject = {
+    ...research,
+    title: "已完成的表示研究",
+    background: "",
+    model_config_id: "model-1",
+    status: "finished",
+    stage: "done",
+    end_reason: "concluded",
+    budget: { max_sprints: null, max_tokens: null, max_job_seconds: null },
+    spent: { sprints: 1, tokens: 1000, job_seconds: 12 },
+    session_id: researchSession,
+    workspace_id: wid,
+    plan: {},
+    conclusion_record: {},
+    environment: {},
+    created_at: at,
+  };
+  await page.route(`**/api/v1/research/projects/${rid}**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith(`/projects/${rid}`))
+      return route.fulfill({
+        json: {
+          project: finished,
+          nodes: [],
+          jobs: [],
+          datasets: [],
+          docker: { available: true, reason: "" },
+          input_needed: "",
+          sprints: started
+            ? [
+                {
+                  id: sprintId,
+                  number: 2,
+                  role: "discussion",
+                  run_id: runId,
+                  status: active ? "running" : "ended",
+                  focus_node_id: null,
+                  summary: completed ? discussionReply : "",
+                  next_focus: "",
+                  waiting_on: [],
+                  tokens: 0,
+                  created_at: at,
+                  updated_at: at,
+                },
+              ]
+            : [],
+        },
+      });
+    if (path.endsWith("/events"))
+      return route.fulfill({
+        json: [
+          {
+            id: "finished-answer",
+            actor: "advisor",
+            action: "message",
+            detail: { text: "已确认的研究结论" },
+            node_id: null,
+            sprint_id: null,
+            created_at: at,
+          },
+          ...sent.map((item, n) => ({
+            id: `discussion-user-${n}`,
+            actor: "human",
+            action: "message",
+            detail: item,
+            node_id: null,
+            sprint_id: null,
+            created_at: at,
+          })),
+          ...(completed
+            ? [
+                {
+                  id: "discussion-complete",
+                  actor: "advisor",
+                  action: "message",
+                  detail: { text: discussionReply },
+                  node_id: null,
+                  sprint_id: sprintId,
+                  created_at: at,
+                },
+                {
+                  id: "discussion-ended",
+                  actor: "system",
+                  action: "sprint_ended",
+                  detail: {},
+                  node_id: null,
+                  sprint_id: sprintId,
+                  created_at: at,
+                },
+              ]
+            : []),
+        ],
+      });
+    if (path.endsWith("/runs"))
+      return route.fulfill({
+        json: started
+          ? [
+              {
+                id: runId,
+                status: active
+                  ? "running"
+                  : completed
+                    ? "completed"
+                    : "cancelled",
+                response: completed ? discussionReply : "正在解释已有证据",
+                error: "",
+                steps: [],
+                role: "discussion",
+                runtime: {
+                  phase: active ? "responding" : "stopped",
+                  read_only: true,
+                },
+                created_at: at,
+                updated_at: at,
+                sprint_id: sprintId,
+                sprint_number: 2,
+              },
+            ]
+          : [],
+      });
+    if (path.endsWith("/messages") && route.request().method() === "POST") {
+      sent.push(route.request().postDataJSON());
+      active = true;
+      started = true;
+      completed = false;
+      return route.fulfill({ json: finished });
+    }
+    return route.fallback();
+  });
+  await page.route(
+    `**/api/v1/agent/sessions/${researchSession}/controls`,
+    async (route) => {
+      if (route.request().method() !== "POST")
+        return route.fulfill({ json: [] });
+      const body = route.request().postDataJSON();
+      controls.push(body);
+      active = false;
+      return route.fulfill({
+        json: {
+          id: "discussion-abort",
+          session_id: researchSession,
+          run_id: runId,
+          kind: "abort",
+          text: "",
+          status: "applied",
+          error: "",
+          created_at: at,
+          updated_at: at,
+        },
+      });
+    },
+  );
+  await page.goto(`/#research/${rid}`);
+  const input = page.getByRole("textbox", {
+    name: "研究会话消息",
+    exact: true,
+  });
+  await expect(input).toBeEnabled();
+  const finishedPlaceholder = "继续讨论研究结果；输入 / 可以下载报告、查看文件";
+  await expect(input).toHaveAttribute("placeholder", finishedPlaceholder);
+  await expect(
+    page.getByRole("complementary", { name: "研究记录" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "显示研究记录", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "结论", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("tabpanel", { name: "结论", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
+  await input.fill("解释这个结论的适用条件");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  const stop = page.getByRole("button", { name: "停止回答", exact: true });
+  await expect(stop).toBeEnabled();
+  await expect(page.getByText("研究助手", { exact: true })).toBeVisible();
+  await expect(page.getByText("复盘", { exact: true })).toHaveCount(0);
+  expect(sent).toEqual([{ text: "解释这个结论的适用条件" }]);
+  await input.fill("未发送的追问");
+  await stop.click();
+  await expect(stop).toHaveCount(0);
+  await expect(input).toHaveValue("未发送的追问");
+  await expect(input).toHaveAttribute("placeholder", finishedPlaceholder);
+  await expect(
+    page.getByText("已确认的研究结论", { exact: true }),
+  ).toBeVisible();
+  expect(controls).toHaveLength(1);
+  expect(controls[0]).toMatchObject({ expected_run_id: runId, kind: "abort" });
+  expect(controls[0].client_id).toMatch(/^[0-9a-f-]{36}$/);
+  await input.fill("请完整说明适用条件");
+  await page.getByRole("button", { name: "发送", exact: true }).click();
+  await expect(stop).toBeEnabled();
+  completed = true;
+  active = false;
+  await expect(stop).toHaveCount(0);
+  const reply = page.getByText(discussionReply, { exact: true });
+  await expect(reply).toHaveCount(1);
+  await expect(
+    reply.locator("../..").getByText("研究助手", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("复盘", { exact: true })).toHaveCount(0);
+  await expect(input).toHaveAttribute("placeholder", finishedPlaceholder);
+  expect(sent).toEqual([
+    { text: "解释这个结论的适用条件" },
+    { text: "请完整说明适用条件" },
+  ]);
+  expect(finished.status).toBe("finished");
+  expect(finished.question).toBe(research.question);
+  expect(state.direct).toEqual([]);
+});
+
+test.describe("a narrow English research start", () => {
+  test.use({
+    locale: "en-US",
+    colorScheme: "dark",
+    viewport: { width: 390, height: 844 },
+  });
+  test("keeps workspace selection, a draft, and model input usable", async ({
+    page,
+  }, testInfo) => {
+    await project(page);
+    await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    const start = page.getByTestId("new-research");
+    await expect(start.getByRole("heading", { level: 1 })).toContainText(
+      workspace.name,
+    );
+    await expect(
+      start.getByRole("textbox", { name: "Start research" }),
+    ).toBeInViewport();
+    await start
+      .getByRole("textbox", { name: "Start research" })
+      .fill("Compare representation quality");
+    await start
+      .getByRole("button", { name: "Choose workspace", exact: true })
+      .click();
+    const chooser = page.getByRole("dialog", {
+      name: "Choose workspace",
+      exact: true,
+    });
+    await chooser.getByRole("searchbox").fill("表示");
+    await chooser.getByRole("searchbox").press("ArrowDown");
+    await expect(chooser.getByRole("option").first()).toBeFocused();
+    await chooser.getByRole("option").first().press("Enter");
+    await expect(
+      start.getByRole("textbox", { name: "Start research" }),
+    ).toHaveValue("Compare representation quality");
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+      )
+      .toBeLessThanOrEqual(2);
+    await page.screenshot({
+      path: testInfo.outputPath("new-research-en-dark-narrow.png"),
+    });
+  });
+});
+
+const branchId = "99999999-9999-4999-8999-999999999999";
+const checkpoint = "a".repeat(40);
+const mainCommit = "b".repeat(40);
+const mergedCommit = "c".repeat(40);
+
+async function branches(page: Page, handoffPending = false) {
+  const base = await project(page);
+  const source: ResearchProject = {
+    ...research,
+    status: handoffPending ? "active" : "finished",
+    stage: handoffPending ? "experiments" : "done",
+    end_reason: "concluded",
+    background: "比较表示维度",
+    model_config_id: "model-1",
+    budget: { max_sprints: null, max_tokens: null, max_job_seconds: null },
+    spent: { sprints: 2, tokens: 2000, job_seconds: 30 },
+    session_id: researchSession,
+    workspace_id: wid,
+    location: { kind: "local", path: "/private/fork-cwd", connection_id: "" },
+    plan: {},
+    conclusion_record: {
+      status: "concluded",
+      answer: "小表示足够",
+      summary: "三个种子均支持小表示",
+      proposed_at: at,
+      accepted: true,
+      note: "",
+    },
+    environment: {},
+    created_at: at,
+  };
+  const state = {
+    ...base,
+    forkChecks: 0,
+    child: null as ResearchProject | null,
+    forks: [] as Record<string, string>[],
+    resumes: 0,
+    previews: [] as { kind: "memory" | "code"; paths?: string[] }[],
+    applies: [] as Record<string, string>[],
+    cancelled: [] as string[],
+    records: [] as ResearchMerge[],
+    codeConflict: false,
+    staleNext: false,
+  };
+  const files = ["train.py", "docs/notes.md"].map((path) => ({
+    path,
+    status: "M",
+    diff: `diff --git a/${path} b/${path}\n-old\n+verified result`,
+  }));
+  await page.route("**/api/v1/research/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(
+      "/api/v1/research",
+      "",
+    );
+    if (path === `/projects/${rid}/forks/options`) {
+      state.forkChecks++;
+      return route.fulfill({
+        json: {
+          can_fork: true,
+          reason: "",
+          rounds: [
+            {
+              sprint_id: "older",
+              number: 1,
+              role: "executor",
+              status: "ended",
+              commit_sha: "",
+              available: false,
+              reason: "此轮没有历史快照",
+            },
+            {
+              sprint_id: "checkpoint",
+              number: 2,
+              role: "executor",
+              status: "ended",
+              commit_sha: checkpoint,
+              available: !handoffPending || state.forkChecks > 1,
+              reason:
+                handoffPending && state.forkChecks === 1
+                  ? "原始运行仍在收尾"
+                  : "",
+            },
+            {
+              sprint_id: "running",
+              number: 3,
+              role: "executor",
+              status: "running",
+              commit_sha: "",
+              available: false,
+              reason: "此轮尚未结束",
+            },
+          ],
+        },
+      });
+    }
+    if (path === `/projects/${rid}/forks`) {
+      const body = route.request().postDataJSON();
+      state.forks.push(body);
+      state.child = {
+        ...source,
+        id: branchId,
+        question: "更小的表示是否足够 · 分叉",
+        status: "paused",
+        stage: "scoping",
+        end_reason: "",
+        parent_id: rid,
+        conclusion_record: {},
+        forked_from: {
+          research_id: rid,
+          source_session_id: researchSession,
+          sprint_id: "checkpoint",
+          number: 2,
+          commit: checkpoint,
+          change: body.change,
+          at,
+          question: source.question,
+        },
+      };
+      return route.fulfill({ json: state.child });
+    }
+    if (path === `/projects/${branchId}/resume`) {
+      state.resumes++;
+      return route.fulfill({ json: state.child });
+    }
+    if (path === `/projects/${rid}/merge-options`)
+      return route.fulfill({ json: { memory: true, code: true, reason: "" } });
+    if (
+      path === `/projects/${rid}/merges` ||
+      path === `/workspaces/${wid}/merges`
+    )
+      return route.fulfill({ json: state.records });
+    if (path === `/workspaces/${wid}/memory`)
+      return route.fulfill({
+        json: state.records
+          .filter((item) => item.kind === "memory" && item.status === "applied")
+          .map((item) => ({
+            path: `memory/${rid}.md`,
+            research_id: rid,
+            title: source.question,
+            commit_sha: item.commit_sha,
+            updated_at: at,
+            text: item.memory_text,
+          })),
+      });
+    if (path === `/projects/${rid}/merge-preview`) {
+      const body = route.request().postDataJSON();
+      state.previews.push(body);
+      const selected = body.paths || files.map((file) => file.path);
+      const item: ResearchMerge = {
+        id: `merge-${state.previews.length}`,
+        kind: body.kind,
+        status:
+          body.kind === "code" && state.codeConflict ? "conflict" : "preview",
+        expected_main_commit: mainCommit,
+        expected_source_commit: checkpoint,
+        target_location: {
+          kind: "local",
+          path: "/home/leslie/actual-workspace",
+          connection_id: "",
+        },
+        files:
+          body.kind === "code"
+            ? files.filter((file) => selected.includes(file.path))
+            : [],
+        paths: body.kind === "code" ? selected : [`memory/${rid}.md`],
+        memory_text:
+          body.kind === "memory"
+            ? "# 小表示足够\n\n证据：三个种子 0.91、0.92、0.91。"
+            : "",
+        conflicts:
+          body.kind === "code" && state.codeConflict
+            ? [
+                {
+                  path: "train.py",
+                  diff: "<<<<<<< main\nold\n=======\nverified result\n>>>>>>> research",
+                },
+              ]
+            : [],
+        commit_sha: "",
+        error: "",
+        created_at: at,
+        research_id: rid,
+        question: source.question,
+      };
+      state.records.push(item);
+      return route.fulfill({ json: item });
+    }
+    const mutation = path.match(
+      new RegExp(`^/projects/${rid}/merges/([^/]+)/(apply|cancel)$`),
+    );
+    if (mutation) {
+      const item = state.records.find((row) => row.id === mutation[1])!;
+      if (mutation[2] === "cancel") {
+        state.cancelled.push(item.id);
+        item.status = "cancelled";
+        return route.fulfill({ json: item });
+      }
+      state.applies.push(route.request().postDataJSON());
+      if (state.staleNext) {
+        state.staleNext = false;
+        return route.fulfill({
+          status: 409,
+          json: { detail: "项目代码已变化" },
+        });
+      }
+      item.status = "applied";
+      item.commit_sha = mergedCommit;
+      base.researches[0].merged = {
+        [item.kind]: {
+          merge_id: item.id,
+          commit_sha: mergedCommit,
+          paths: item.paths,
+          at,
+        },
+      };
+      base.sessions.find((row) => row.research_id === rid)!.merged = {
+        [item.kind]: {
+          merge_id: item.id,
+          commit_sha: mergedCommit,
+          paths: item.paths,
+          at,
+        },
+      };
+      base.notes.push({
+        id: item.id,
+        workspace_id: wid,
+        project_id: rid,
+        kind: "merged",
+        text: "小表示研究成果已合并",
+        created_at: at,
+        pending: false,
+        status: "historical",
+      });
+      return route.fulfill({ json: item });
+    }
+    if (path === `/projects/${rid}` || path === `/projects/${branchId}`)
+      return route.fulfill({
+        json: {
+          project: path.endsWith(branchId) ? state.child : source,
+          nodes: [],
+          sprints: [],
+          jobs: [],
+          datasets: [],
+          docker: { available: true, reason: "" },
+          input_needed: "",
+          inherited_history: path.endsWith(branchId)
+            ? {
+                events: [
+                  {
+                    id: "source-approval",
+                    actor: "human",
+                    action: "human_decision",
+                    node_id: null,
+                    sprint_id: null,
+                    detail: { approve: true, text: "原批准只属于来源研究" },
+                    created_at: at,
+                  },
+                  {
+                    id: "source-msg",
+                    actor: "advisor",
+                    action: "message",
+                    node_id: null,
+                    sprint_id: null,
+                    detail: { text: "原轮次的证据与建议" },
+                    created_at: at,
+                  },
+                  {
+                    id: "source-budget",
+                    actor: "system",
+                    action: "decision_requested",
+                    node_id: null,
+                    sprint_id: null,
+                    detail: { kind: "budget", reason: "原轮次预算已用完" },
+                    created_at: at,
+                  },
+                ],
+                sprints: [],
+              }
+            : undefined,
+        },
+      });
+    if (path === `/projects/${branchId}/events`)
+      return route.fulfill({
+        json: [
+          {
+            id: "child-change",
+            actor: "human",
+            action: "message",
+            detail: { text: state.child?.forked_from?.change },
+            node_id: null,
+            sprint_id: null,
+            created_at: at,
+          },
+        ],
+      });
+    return route.fallback();
+  });
+  await page.goto(`/#research/${rid}`);
+  if (handoffPending) {
+    await expect.poll(() => state.forkChecks).toBeGreaterThan(0);
+    await expect(
+      page.getByRole("button", { name: "从此轮分叉", exact: true }),
+    ).toBeDisabled();
+  }
+  await expect(
+    page.getByRole("button", { name: "从此轮分叉", exact: true }),
+  ).toBeEnabled();
+  return state;
+}
+
+test("research forks use a real ended checkpoint and keep source history read-only", async ({
+  page,
+}, testInfo) => {
+  const state = await branches(page, true);
+  expect(state.forkChecks).toBeGreaterThanOrEqual(2);
+  await page.getByRole("button", { name: "从此轮分叉", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "从此轮分叉" });
+  await expect(dialog.getByRole("radio", { name: /第 1 轮/ })).toBeDisabled();
+  await expect(dialog.getByRole("radio", { name: /第 3 轮/ })).toBeDisabled();
+  await expect(dialog.getByRole("radio", { name: /第 2 轮/ })).toBeChecked();
+  await expect(dialog.getByRole("button", { name: "创建分叉" })).toBeDisabled();
+  await dialog
+    .getByRole("textbox", { name: "这次换什么" })
+    .fill("只改正则强度，固定其他条件");
+  await expect(dialog).toContainText("新研究将暂停");
+  await page.screenshot({
+    path: testInfo.outputPath("research-fork-preview.png"),
+  });
+  await dialog.getByRole("button", { name: "创建分叉" }).click();
+  await expect(page).toHaveURL(new RegExp(`#research/${branchId}$`));
+  expect(state.forks).toHaveLength(1);
+  expect(state.forks[0]).toMatchObject({
+    sprint_id: "checkpoint",
+    expected_commit: checkpoint,
+    change: "只改正则强度，固定其他条件",
+  });
+  expect(state.forks[0].client_id).toMatch(/^[0-9a-f-]{36}$/);
+  const origin = page.getByRole("region", { name: "分叉来源" });
+  await expect(
+    origin.getByRole("link", { name: research.question }),
+  ).toHaveAttribute("href", `#research/${rid}`);
+  await expect(origin).toContainText(checkpoint.slice(0, 10));
+  await expect(origin.getByRole("button", { name: "继续定题" })).toBeVisible();
+  await origin.locator("summary").filter({ hasText: "来源历史" }).click();
+  await expect(origin).toContainText("原轮次的证据与建议");
+  await expect(origin).toContainText("原轮次预算已用完");
+  await expect(
+    origin.locator("small").filter({ hasText: "系统" }),
+  ).toBeVisible();
+  await expect(origin.getByRole("button")).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "按这个计划开始实验" }),
+  ).toHaveCount(0);
+  expect(state.resumes).toBe(0);
+  await page.screenshot({
+    path: testInfo.outputPath("research-fork-independent.png"),
+  });
+});
+
+test("memory merge requires an evidence preview and explicit confirmation, then appears in project results", async ({
+  page,
+}) => {
+  const state = await branches(page);
+  await page.getByRole("button", { name: "合并成果", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "合并成果" });
+  await expect(dialog.getByRole("button", { name: "确认合并" })).toBeDisabled();
+  await expect(dialog).toContainText("/home/leslie/ORA");
+  await expect(dialog.getByTitle("本机", { exact: true })).toHaveText("本机");
+  await expect(dialog).not.toContainText("/private/fork-cwd");
+  await dialog.getByRole("button", { name: "预览", exact: true }).click();
+  await expect(dialog).toContainText("/home/leslie/actual-workspace");
+  await expect(dialog).not.toContainText("/private/fork-cwd");
+  await expect(dialog).toContainText("三个种子 0.91、0.92、0.91");
+  await expect(dialog.getByRole("button", { name: "确认合并" })).toBeDisabled();
+  await dialog
+    .getByRole("checkbox", { name: "确认将以上结论与证据写入工作区记忆。" })
+    .check();
+  await dialog.getByRole("button", { name: "确认合并" }).click();
+  await expect(dialog.getByRole("status")).toContainText("已合并");
+  expect(state.applies).toEqual([
+    { expected_main_commit: mainCommit, expected_source_commit: checkpoint },
+  ]);
+  await dialog
+    .getByRole("button", { name: "关闭", exact: true })
+    .last()
+    .click();
+  await page.goto(`/#workspaces/${wid}/results`);
+  await expect(
+    page.getByRole("radio", { name: "成果", exact: true }),
+  ).toBeChecked();
+  const memory = page
+    .locator("details")
+    .filter({ has: page.getByText(research.question, { exact: true }) })
+    .first();
+  await memory.locator("summary").first().click();
+  await expect(memory).toContainText("三个种子 0.91、0.92、0.91");
+  await page.getByRole("radio", { name: "研究", exact: true }).click();
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("link", { name: new RegExp(research.question) })
+      .first(),
+  ).toContainText("已合并");
+});
+
+test("code merge blocks conflicts, binds selected paths, and requires a refreshed stale preview", async ({
+  page,
+}, testInfo) => {
+  const state = await branches(page);
+  state.codeConflict = true;
+  await page.getByRole("button", { name: "合并成果", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "合并成果" });
+  await dialog.getByRole("radio", { name: "代码", exact: true }).click();
+  await dialog.getByRole("button", { name: "预览", exact: true }).click();
+  await expect(dialog.getByRole("region", { name: "合并冲突" })).toContainText(
+    "<<<<<<< main",
+  );
+  await expect(dialog.getByRole("button", { name: "确认合并" })).toBeDisabled();
+  state.codeConflict = false;
+  await dialog.getByRole("button", { name: "重新预览", exact: true }).click();
+  await dialog.getByRole("checkbox", { name: /docs\/notes.md/ }).uncheck();
+  await expect(dialog).toContainText("选择已变更，请更新预览。");
+  await expect(dialog.getByRole("button", { name: "确认合并" })).toBeDisabled();
+  await dialog.getByRole("button", { name: "重新预览", exact: true }).click();
+  await expect
+    .poll(() => state.previews.at(-1))
+    .toEqual({ kind: "code", paths: ["train.py"] });
+  await dialog
+    .getByRole("checkbox", { name: "确认将所选代码合并到工作区。" })
+    .check();
+  state.staleNext = true;
+  await dialog.getByRole("button", { name: "确认合并" }).click();
+  await expect(dialog).toContainText("预览已过期，请重新预览后确认。");
+  await expect(dialog.getByRole("button", { name: "确认合并" })).toBeDisabled();
+  await dialog.getByRole("button", { name: "重新预览", exact: true }).click();
+  const confirmation = dialog.getByRole("checkbox", {
+    name: "确认将所选代码合并到工作区。",
+  });
+  await expect(confirmation).not.toBeChecked();
+  await dialog
+    .locator("details")
+    .filter({ hasText: "diff --git" })
+    .locator("summary")
+    .first()
+    .click();
+  await page.screenshot({
+    path: testInfo.outputPath("research-code-selected-preview.png"),
+  });
+  await confirmation.check();
+  await dialog.getByRole("button", { name: "确认合并" }).click();
+  await expect(dialog.getByRole("status")).toContainText("已合并");
+  expect(state.applies).toHaveLength(2);
+  expect(
+    state.records.find((item) => item.status === "applied")?.paths,
+  ).toEqual(["train.py"]);
+  expect(state.cancelled.length).toBeGreaterThanOrEqual(3);
+});

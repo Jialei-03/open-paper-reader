@@ -9,20 +9,23 @@ export function Section({
   lead,
   action,
   children,
+  headingLevel = 2,
 }: {
   title: string;
   lead?: string;
   action?: ReactNode;
   children: ReactNode;
+  headingLevel?: 1 | 2;
 }) {
   const id = useId();
+  const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
     <section className={styles.section} aria-labelledby={id}>
       <div className={styles.sectionHead}>
         <div>
-          <h2 id={id} className={styles.sectionTitle}>
+          <Heading id={id} className={styles.sectionTitle}>
             {title}
-          </h2>
+          </Heading>
           {lead && <p className={styles.sectionLead}>{lead}</p>}
         </div>
         {action}

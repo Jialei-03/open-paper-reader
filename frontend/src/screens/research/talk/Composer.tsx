@@ -1,7 +1,8 @@
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import { useI18n } from "../../../i18n/I18nProvider";
 import type { SlashCommand } from "../../../lib/slash";
-import { useSlashCommands } from "../../../ui";
+import { Menu, useSlashCommands } from "../../../ui";
 import { INSERT_EVENT, type InsertDetail } from "../files/files-api";
 import styles from "./Talk.module.css";
 
@@ -36,7 +37,7 @@ export function Composer({
   busy?: boolean;
   disabled?: boolean;
   autoFocus?: boolean;
-  /** Pickers on the left of the foot (model, compute). */
+  /** Pickers beside the send button (model, compute). */
   tools?: ReactNode;
   /** Changing it puts the cursor at the end of the text (after a starter was picked). */
   focusKey?: number;
@@ -49,6 +50,7 @@ export function Composer({
   /** Nothing more to say here (a finished research), but its slash commands still run. */
   commandsOnly?: boolean;
 }) {
+  const { t } = useI18n();
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const el = field.current;
@@ -77,6 +79,11 @@ export function Composer({
     return () => window.removeEventListener(INSERT_EVENT, take);
   }, [acceptInserts]);
   const ready = value.trim().length > 0 && !busy && !disabled && !commandsOnly;
+  // Actions that need text stay in the slash palette. These run without
+  // replacing an unsent draft, and model choices already have their picker.
+  const actions = (commands ?? []).filter(
+    (command) => !command.takesArgument && command.group !== "model",
+  );
   const send = () => {
     if (slash.submit()) return;
     if (ready) onSend();
@@ -113,16 +120,43 @@ export function Composer({
         }}
       />
       <div className={styles.composerFoot}>
-        {tools}
-        {status && <span className={styles.composerStatus}>{status}</span>}
-        <button
-          type="submit"
-          className={styles.send}
-          disabled={!ready}
-          aria-label={sendLabel}
-        >
-          <ArrowUp size={16} strokeWidth={2.2} aria-hidden />
-        </button>
+        <div className={styles.composerStart}>
+          {actions.length > 0 && (
+            <Menu
+              label={t("research.composer.actions")}
+              placement={{ side: "top", align: "start" }}
+              items={actions.map((command) => ({
+                id: command.name,
+                label: command.description,
+                disabled,
+                onSelect: () => void command.run(""),
+              }))}
+              trigger={(props) => (
+                <button
+                  type="button"
+                  className={styles.composerAction}
+                  aria-label={t("research.composer.actions")}
+                  disabled={disabled}
+                  {...props}
+                >
+                  <Plus size={20} strokeWidth={1.8} aria-hidden />
+                </button>
+              )}
+            />
+          )}
+          {status && <span className={styles.composerStatus}>{status}</span>}
+        </div>
+        <div className={styles.composerEnd}>
+          {tools}
+          <button
+            type="submit"
+            className={styles.send}
+            disabled={!ready}
+            aria-label={sendLabel}
+          >
+            <ArrowUp size={19} strokeWidth={2} aria-hidden />
+          </button>
+        </div>
       </div>
     </form>
   );

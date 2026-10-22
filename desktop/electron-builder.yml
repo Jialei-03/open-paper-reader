@@ -14,6 +14,8 @@ files:
 extraResources:
   - from: bundle/python
     to: python
+  - from: bundle/git
+    to: git
 # The assistant runtime goes in by scripts/after-pack.js: extra resources
 # would leave its node_modules out.
 afterPack: scripts/after-pack.js

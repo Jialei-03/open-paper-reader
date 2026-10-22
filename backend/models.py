@@ -306,6 +306,11 @@ class AgentSession(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String(100), default="新会话")
+    kind: Mapped[str] = mapped_column(String(24), default="chat", server_default="chat")
+    source_session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    source_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    pinned_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    archived_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     paper_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     # A conversation inside a research project (research_chat); none for the reader's.
     workspace_id: Mapped[str | None] = mapped_column(
@@ -323,9 +328,7 @@ class AgentSessionEntry(Base):
 
     __tablename__ = "agent_session_entries"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    session_id: Mapped[str] = mapped_column(
-        ForeignKey("agent_sessions.id"), index=True
-    )
+    session_id: Mapped[str] = mapped_column(ForeignKey("agent_sessions.id"), index=True)
     seq: Mapped[int] = mapped_column(Integer)
     entry: Mapped[dict] = mapped_column(JSON)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
@@ -340,7 +343,7 @@ class AgentRun(Base):
     model_config_id: Mapped[str] = mapped_column(String(36))
     model: Mapped[str] = mapped_column(String(200))
     prompt: Mapped[str] = mapped_column(Text)
-    context: Mapped[str] = mapped_column(String(200), default="")
+    context: Mapped[str] = mapped_column(Text, default="")
     writable: Mapped[bool] = mapped_column(Boolean, default=True)
     status: Mapped[str] = mapped_column(String(24), default="queued")
     response: Mapped[str] = mapped_column(Text, default="")
@@ -495,12 +498,32 @@ class ResearchWorkspace(Base):
     owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
+    # A physical folder; an empty legacy value resolves to its managed repo.
+    location: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     instructions: Mapped[str] = mapped_column(Text, default="")
     # Evaluation runs are kept apart from research a person leads.
     kind: Mapped[str] = mapped_column(String(16), default="research")
     compute_id: Mapped[str] = mapped_column(String(64), default="")
     model_config_id: Mapped[str] = mapped_column(String(36), default="")
+    session_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, unique=True
+    )
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchCollection(Base):
+    """An optional classification of researches, independent of their files."""
+
+    __tablename__ = "research_collections"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    archived: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
 
@@ -532,11 +555,21 @@ class ResearchProject(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     question: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    collection_id: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+    on_board: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
     # The project it belongs to (research_workspaces); set for every research.
     workspace_id: Mapped[str | None] = mapped_column(
         String(36), nullable=True, index=True
     )
     background: Mapped[str] = mapped_column(Text, default="")
+    spawned_by: Mapped[str] = mapped_column(
+        String(16), default="human", server_default="human"
+    )
     model_config_id: Mapped[str] = mapped_column(String(36))
     # active, waiting (for a person), paused, finished
     status: Mapped[str] = mapped_column(String(16), default="active")
@@ -561,6 +594,14 @@ class ResearchProject(Base):
     plan: Mapped[dict] = mapped_column(JSON, default=dict)
     # The answer once proposed: {status, answer, summary, proposed_at, accepted, note}.
     conclusion: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Research forks keep their own map, Pi session and immutable source history.
+    parent_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    forked_from: Mapped[dict] = mapped_column(JSON, default=dict)
+    fork_key: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, unique=True
+    )
+    inherited_history: Mapped[dict] = mapped_column(JSON, default=dict)
+    merged: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
 
@@ -631,6 +672,23 @@ class ResearchEvent(Base):
     created_at: Mapped[str] = mapped_column(String(40), default=now)
 
 
+class ResearchNote(Base):
+    """A research event delivered to the project's main conversation."""
+
+    __tablename__ = "research_notes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("research_workspaces.id"), index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("research_projects.id"), index=True
+    )
+    event_id: Mapped[str] = mapped_column(ForeignKey("research_events.id"), unique=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
 class ResearchSprint(Base):
     """One run of the research agent on a project, ended by a handoff."""
 
@@ -649,6 +707,10 @@ class ResearchSprint(Base):
     next_focus: Mapped[str] = mapped_column(Text, default="")
     waiting_on: Mapped[list] = mapped_column(JSON, default=list)
     tokens: Mapped[int] = mapped_column(Integer, default=0)
+    # The checkpoint of the research's worktree when the round ended (research_repo).
+    commit_sha: Mapped[str] = mapped_column(String(64), default="", server_default="")
+    # Only snapshots sealed at the round boundary are eligible for a research fork.
+    snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
 
@@ -690,3 +752,45 @@ from . import library_collections  # noqa: E402,F401
 from . import citations  # noqa: E402,F401
 
 from . import paper_shares  # noqa: E402,F401
+
+
+class AgentControl(Base):
+    """A durable instruction addressed to exactly one running Pi conversation."""
+
+    __tablename__ = "agent_controls"
+    __table_args__ = (UniqueConstraint("owner", "client_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    session_id: Mapped[str] = mapped_column(ForeignKey("agent_sessions.id"), index=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("agent_runs.id"), index=True)
+    client_id: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[str] = mapped_column(String(16))
+    text: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    error: Mapped[str] = mapped_column(String(300), default="")
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class ResearchMerge(Base):
+    """A reviewed, immutable selection of research results to apply to main."""
+
+    __tablename__ = "research_merges"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("research_workspaces.id"), index=True
+    )
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("research_projects.id"), index=True
+    )
+    kind: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="preview")
+    expected_main_commit: Mapped[str] = mapped_column(String(64))
+    expected_source_commit: Mapped[str] = mapped_column(String(64))
+    paths: Mapped[list] = mapped_column(JSON, default=list)
+    preview: Mapped[dict] = mapped_column(JSON, default=dict)
+    commit_sha: Mapped[str] = mapped_column(String(64), default="")
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)

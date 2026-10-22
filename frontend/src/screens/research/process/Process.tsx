@@ -60,14 +60,18 @@ const ICONS: Record<string, LucideIcon> = {
   record_result: ClipboardCheck,
   advise: Stamp,
   propose_plan: FileText,
+  start_research: Play,
+  message_research: FilePen,
 };
 
 const AGENT: Record<string, Agent> = {
   executor: "executor",
   advisor: "advisor",
   scoping: "advisor",
+  discussion: "advisor",
   distiller: "distiller",
   chat: "advisor",
+  lead: "advisor",
 };
 
 const OUTPUT_LINES = 40;
@@ -274,10 +278,12 @@ export function Trail({ steps }: { steps: RunStep[]; live?: boolean }) {
 /** "已处理 · 运行 5 条命令 · 读了 2 处": the work of a finished run, in one line. */
 export function SummaryLine({
   steps,
+  status,
   open,
   onToggle,
 }: {
   steps: RunStep[];
+  status?: string;
   open: boolean;
   onToggle(): void;
 }) {
@@ -285,15 +291,22 @@ export function SummaryLine({
   const parts = summary(steps).map(([kind, n]) =>
     t(`research.process.sum.${kind}` as MessageKey, { n }),
   );
+  const label =
+    status === "failed"
+      ? "research.process.failed"
+      : status === "cancelled"
+        ? "research.process.cancelled"
+        : "research.process.done";
   return (
     <button
       type="button"
       className={styles.summary}
+      data-status={status}
       aria-expanded={open}
       onClick={onToggle}
     >
       <ChevronRight size={12} className={styles.chevron} aria-hidden />
-      {[t("research.process.done"), ...parts].join(" · ")}
+      {[t(label), ...parts].join(" · ")}
     </button>
   );
 }
@@ -356,12 +369,24 @@ export function RunTurn({
           {steps.length > 0 && (
             <SummaryLine
               steps={steps}
+              status={run?.status}
               open={open}
               onToggle={() => setOpen(!open)}
             />
           )}
           {open && <Trail steps={steps} live={false} />}
           {final && <Words text={final} live={false} />}
+          {steps.length === 0 &&
+            (run?.status === "cancelled" ||
+              (run?.status === "failed" && !run.error)) && (
+              <p className={styles.pending}>
+                {t(
+                  run.status === "failed"
+                    ? "research.process.failed"
+                    : "research.process.cancelled",
+                )}
+              </p>
+            )}
           {run?.status === "failed" && run.error && (
             <p className={styles.error}>{run.error}</p>
           )}

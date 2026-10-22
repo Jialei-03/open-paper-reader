@@ -104,6 +104,130 @@ def test_bash_without_focus_is_blocked_and_logged(world):
     assert blocked[0].detail == {"tool": "bash", "reason": "no_focus"}
 
 
+@pytest.mark.parametrize("role", ["scoping", "discussion"])
+def test_conversation_workspace_reads_have_valid_readonly_schemas_and_dispatch(
+    world, role
+):
+    from backend.agent_worker import research_tools
+
+    app, _maker, research, ids, calls = world
+    conversation = {**research, "role": role}
+    names = {spec["name"] for spec in research_tools(role)}
+    assert {"read", "ls", "find", "grep"} <= names
+    assert not names & {
+        "bash",
+        "write",
+        "edit",
+        "run_job",
+        "stop_job",
+        "advise",
+        "distill",
+        "focus",
+        "add_node",
+        "update_node",
+        "record_result",
+        "start_research",
+        "message_research",
+    }
+    for name, args in (
+        ("read", {"path": "README.md", "offset": 1, "limit": 20}),
+        ("ls", {}),
+        ("find", {"pattern": "*.py", "path": "."}),
+        ("grep", {"pattern": "metric", "path": ".", "literal": True}),
+    ):
+        result = asyncio.run(
+            execute(
+                app,
+                ids.owner,
+                "session",
+                name,
+                args,
+                "key",
+                False,
+                research=conversation,
+            )
+        )
+        assert result["isError"] is False
+    assert [name for _pid, name, _args in calls] == ["read", "ls", "find", "grep"]
+
+
+@pytest.mark.parametrize("role", ["scoping", "discussion"])
+def test_conversation_rejects_mutating_names_and_extra_shell_arguments(world, role):
+    app, _maker, research, ids, calls = world
+    conversation = {**research, "role": role}
+    for name, args in (
+        ("bash", {"command": "echo changed > README.md"}),
+        ("write", {"path": "README.md", "content": "changed"}),
+        (
+            "edit",
+            {"path": "README.md", "edits": [{"oldText": "old", "newText": "new"}]},
+        ),
+        ("read", {"path": "README.md", "command": "touch changed"}),
+        ("ls", {"command": "touch changed"}),
+        ("grep", {"pattern": "metric", "content": "changed"}),
+        ("find", {}),
+        ("read", {}),
+    ):
+        with pytest.raises(ValueError):
+            asyncio.run(
+                execute(
+                    app,
+                    ids.owner,
+                    "session",
+                    name,
+                    args,
+                    "key",
+                    False,
+                    research=conversation,
+                )
+            )
+    assert calls == []
+
+
+@pytest.mark.parametrize("role", ["scoping", "discussion"])
+def test_conversation_workspace_reads_require_a_live_round(world, role):
+    app, maker, research, ids, calls = world
+    with maker() as d:
+        d.get(ResearchSprint, ids.sprint).status = "ended"
+        d.commit()
+    with pytest.raises(ValueError, match="本轮已结束"):
+        asyncio.run(
+            execute(
+                app,
+                ids.owner,
+                "session",
+                "read",
+                {"path": "README.md"},
+                "key",
+                False,
+                research={**research, "role": role},
+            )
+        )
+    assert calls == []
+
+
+def test_workspace_search_cannot_read_a_symlink_outside_the_selected_folder(
+    tmp_path, monkeypatch
+):
+    from backend.research_ora import tools
+
+    folder = tmp_path / "selected"
+    folder.mkdir()
+    (folder / "README.md").write_text("Public project description")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("PRIVATE_OUTSIDE_DATA")
+    (folder / "linked.txt").symlink_to(outside)
+    monkeypatch.setattr(tools, "ROOT", folder.resolve())
+    output = tools.grep(
+        {"path": ".", "pattern": "PRIVATE_OUTSIDE_DATA", "literal": True}
+    )
+    assert "PRIVATE_OUTSIDE_DATA" not in str(output)
+    assert "linked.txt" not in str(tools.find({"path": ".", "pattern": "*"}))
+    with pytest.raises(ValueError, match="工作区内"):
+        tools.read({"path": "linked.txt"})
+    assert (folder / "README.md").read_text() == "Public project description"
+
+
 def test_focus_free_tools_work_without_focus(world):
     app, _maker, research, ids, _calls = world
     out = call(app, ids, research, "research_map_read", {})

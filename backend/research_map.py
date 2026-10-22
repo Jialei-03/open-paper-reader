@@ -13,6 +13,7 @@ from .models import (
     ResearchNode,
     ResearchProject,
     now,
+    uid,
 )
 
 KINDS = {"question", "hypothesis", "experiment", "finding"}
@@ -30,12 +31,13 @@ def create_project(d, owner, question, background, model_config_id, budget=None)
     question = question.strip()
     if not question:
         raise ValueError("研究问题不能为空")
-    session = AgentSession(owner=owner, title=("研究：" + question)[:100])
+    session = AgentSession(owner=owner, title=("研究：" + question)[:100], kind="research")
     d.add(session)
     d.flush()
     project = ResearchProject(
         owner=owner,
         question=question,
+        title=question[:300],
         background=background or "",
         model_config_id=model_config_id,
         session_id=session.id,
@@ -75,14 +77,19 @@ def root(d, project):
 
 def event(d, project, node, actor, action, detail, sprint_id=None):
     row = ResearchEvent(
+        id=uid(),
         project_id=project.id,
         node_id=node.id if node is not None else None,
         sprint_id=sprint_id,
         actor=actor,
         action=action,
         detail=detail,
+        created_at=now(),
     )
     d.add(row)
+    from .research_notes import record
+
+    record(d, project, row)
     return row
 
 

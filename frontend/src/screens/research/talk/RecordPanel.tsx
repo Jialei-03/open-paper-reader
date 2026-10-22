@@ -2,7 +2,7 @@ import { Download } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import type { MessageKey } from "../../../i18n/i18n";
-import { Button, SegmentedControl } from "../../../ui";
+import { Button } from "../../../ui";
 import { buildConversation } from "../conversation";
 import {
   jobSeries,
@@ -62,21 +62,62 @@ export function RecordPanel({
   return (
     <aside className={styles.record} aria-label={t("research.record.title")}>
       <div className={styles.recordHead}>
-        <SegmentedControl
-          kind="tabs"
-          size="sm"
-          label={t("research.record.title")}
-          value={tab}
-          onChange={onTab}
-          options={TABS.map((value) => ({
-            value,
-            label: t(`research.record.${value}` as MessageKey),
-            panelId: `record-${value}`,
-          }))}
-        />
+        <div className={styles.recordTitleRow}>
+          <h2>{t("research.record.title")}</h2>
+          <span title={detail.project.question}>
+            {detail.project.title || detail.project.question}
+          </span>
+        </div>
+        <div
+          className={styles.recordTabs}
+          role="tablist"
+          aria-label={t("research.record.title")}
+          onKeyDown={(event) => {
+            if (
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.nativeEvent.isComposing
+            )
+              return;
+            const index = TABS.indexOf(tab);
+            const next =
+              event.key === "ArrowRight"
+                ? (index + 1) % TABS.length
+                : event.key === "ArrowLeft"
+                  ? (index - 1 + TABS.length) % TABS.length
+                  : event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? TABS.length - 1
+                      : -1;
+            if (next < 0) return;
+            event.preventDefault();
+            onTab(TABS[next]);
+            event.currentTarget
+              .querySelectorAll<HTMLButtonElement>('[role="tab"]')
+              [next]?.focus();
+          }}
+        >
+          {TABS.map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              id={`record-${value}-tab`}
+              aria-controls={`record-${value}`}
+              aria-selected={value === tab}
+              tabIndex={value === tab ? 0 : -1}
+              onClick={() => onTab(value)}
+            >
+              {t(`research.record.${value}` as MessageKey)}
+            </button>
+          ))}
+        </div>
       </div>
       <div
         className={styles.recordBody}
+        data-tab={tab}
         id={`record-${tab}`}
         role="tabpanel"
         aria-labelledby={`record-${tab}-tab`}
@@ -94,11 +135,18 @@ export function RecordPanel({
         )}
         {tab === "answer" && <AnswerTab detail={detail} />}
         {tab === "files" && (
-          <FilesPanel
-            key={detail.project.id}
-            projectId={detail.project.id}
-            settled={settledKey(detail.sprints, detail.jobs)}
-          />
+          <>
+            {detail.project.location?.kind === "ssh" && (
+              <p className={styles.fileSnapshot}>
+                {t("research.files.remoteSnapshot")}
+              </p>
+            )}
+            <FilesPanel
+              key={detail.project.id}
+              projectId={detail.project.id}
+              settled={settledKey(detail.sprints, detail.jobs)}
+            />
+          </>
         )}
         {tab === "scene" && (
           <SceneTab detail={detail} events={events} actions={actions} />

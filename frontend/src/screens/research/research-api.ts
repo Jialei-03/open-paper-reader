@@ -5,6 +5,15 @@ import type { RunStep } from "./process/model";
 export interface ResearchProject {
   id: string;
   question: string;
+  title?: string;
+  collection_id?: string | null;
+  on_board?: boolean;
+  pinned_at?: string | null;
+  location?: {
+    kind: "local" | "ssh" | "managed";
+    path: string;
+    connection_id: string;
+  };
   background: string;
   model_config_id: string;
   status: "active" | "waiting" | "paused" | "finished";
@@ -28,6 +37,30 @@ export interface ResearchProject {
   updated_at: string;
   /** How a finished project was answered (the list only); "" otherwise. */
   conclusion?: string;
+  parent_id?: string | null;
+  forked_from?: ResearchForkSource | Record<string, never>;
+  merged?: ResearchMerged | Record<string, never>;
+  capabilities?: { fork?: boolean };
+}
+
+export interface ResearchForkSource {
+  research_id: string;
+  source_session_id: string;
+  sprint_id: string;
+  number: number;
+  commit: string;
+  change: string;
+  at: string;
+  question?: string;
+}
+export interface ResearchMerged {
+  memory?: {
+    merge_id: string;
+    commit_sha: string;
+    paths: string[];
+    at: string;
+  };
+  code?: { merge_id: string; commit_sha: string; paths: string[]; at: string };
 }
 
 export type Stage =
@@ -63,6 +96,7 @@ export interface ResearchPlan {
   budget: { max_sprints: number | null; max_job_hours: number | null };
   summary: string;
   approved_at: string | null;
+  inherited?: boolean;
 }
 
 export interface ConclusionRecord {
@@ -114,7 +148,10 @@ export type NodeStatus =
   | "abandoned"
   | "parked";
 
-export type Evidence =
+export type Evidence = {
+  source_research_id?: string;
+  source_log_url?: string;
+} & (
   | {
       kind: "log";
       job_id: string;
@@ -128,9 +165,12 @@ export type Evidence =
       paper_id: string | null;
       page: number;
       quote: string;
-    };
+    }
+);
 
 export interface ResultEntry {
+  source_research_id?: string;
+  source_node_id?: string;
   summary: string;
   evidence: Evidence[];
   kill_triggered: "yes" | "no" | "unsure";
@@ -160,6 +200,7 @@ export interface ResearchNode {
 }
 
 export interface ResearchSprint {
+  project_id?: string;
   id: string;
   number: number;
   role: string;
@@ -172,6 +213,7 @@ export interface ResearchSprint {
   tokens: number;
   created_at: string;
   updated_at: string;
+  commit_sha?: string;
 }
 
 export interface ResearchJob {
@@ -211,6 +253,7 @@ export interface ProjectDetail {
   /** What the advisor said the project waits for (a file, a definition); "" otherwise. */
   input_needed: string;
   datasets: Dataset[];
+  inherited_history?: { events: ResearchEvent[]; sprints: ResearchSprint[] };
 }
 
 export interface LogLines {
@@ -231,6 +274,7 @@ export const startProject = (body: {
   model_config_id: string;
   compute_id?: string;
   workspace_id?: string;
+  collection_id?: string | null;
 }) => send(BASE, body) as Promise<ResearchProject>;
 
 export const sendMessage = (id: string, text: string) =>
@@ -455,6 +499,11 @@ export function uploadFile(projectId: string, file: File) {
 
 /** A project: researches pursued together, and what they share. */
 export interface Workspace {
+  location?: {
+    kind: "local" | "ssh" | "managed";
+    path: string;
+    connection_id: string;
+  };
   id: string;
   name: string;
   description: string;
@@ -462,6 +511,7 @@ export interface Workspace {
   kind: "research" | "eval";
   compute_id: string;
   model_config_id: string;
+  session_id?: string;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -485,6 +535,12 @@ export type Column =
 
 /** A research as a project lists it. */
 export interface ResearchSummary {
+  title?: string;
+  session_id?: string;
+  workspace_id?: string;
+  collection_id?: string | null;
+  on_board?: boolean;
+  pinned_at?: string | null;
   id: string;
   question: string;
   stage: Stage;
@@ -504,6 +560,10 @@ export interface ResearchSummary {
   tokens?: number;
   conclusion?: string;
   said?: string;
+  progress?: string;
+  parent_id?: string | null;
+  forked_from?: ResearchForkSource | Record<string, never>;
+  merged?: ResearchMerged | Record<string, never>;
 }
 
 export interface RecentResearch extends ResearchSummary {
@@ -537,6 +597,19 @@ export const createWorkspace = (name: string, description = "") =>
   send(WS, { name, description }) as Promise<Workspace>;
 export const getWorkspace = (id: string) =>
   api<Workspace & { researches: ResearchSummary[] }>(`${WS}/${id}`);
+export interface ResearchNote {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  kind: "plan" | "decision" | "conclusion" | "error" | "fork" | "merged";
+  text: string;
+  created_at: string;
+  pending?: boolean;
+  resolved?: boolean;
+  status?: "pending" | "resolved" | "historical";
+}
+export const workspaceNotes = (id: string) =>
+  api<ResearchNote[]>(`${WS}/${id}/notes`);
 export const updateWorkspace = (id: string, body: Partial<Workspace>) =>
   send(`${WS}/${id}`, body, "PATCH") as Promise<Workspace>;
 export const getBoard = (id: string) =>
@@ -578,6 +651,12 @@ export interface ChatTurn {
     compaction?: { reason?: string; error?: string; tokens_before?: number };
     /** How full the conversation's context was after this turn (Pi's count). */
     context?: { tokens?: number | null; contextWindow?: number };
+    conversation_messages?: {
+      id: string;
+      role: "user" | "assistant";
+      text: string;
+      control_id?: string;
+    }[];
   };
   model_config_id?: string;
   created_at: string;
@@ -603,3 +682,192 @@ export const renameChat = (chatId: string, title: string) =>
   send(`/agent/sessions/${chatId}`, { title }, "PATCH");
 export const chatTurns = (chatId: string) =>
   api<ChatTurn[]>(`/agent/sessions/${chatId}/runs`);
+
+export interface SessionCapabilities {
+  send: boolean;
+  coordinate: boolean;
+  rename: boolean;
+  pin: boolean;
+  archive: boolean;
+  delete: boolean;
+  clone: boolean;
+  compact: boolean;
+  steer: boolean;
+}
+
+export interface ProjectSession extends ProjectChat {
+  kind:
+    | "project_lead"
+    | "project_chat"
+    | "research"
+    | "paper"
+    | "chat"
+    | "artifact";
+  research_id: string | null;
+  question: string;
+  source_session_id: string | null;
+  source_run_id: string | null;
+  pinned_at: string | null;
+  archived_at: string | null;
+  status: string;
+  active_run_id?: string | null;
+  last_run_status?: string | null;
+  stage?: Stage;
+  progress: string;
+  capabilities: SessionCapabilities;
+  parent_id?: string | null;
+  forked_from?: ResearchForkSource | Record<string, never>;
+  merged?: ResearchMerged | Record<string, never>;
+}
+
+export interface ForkRound {
+  sprint_id: string;
+  number: number;
+  role: string;
+  status: string;
+  commit_sha: string;
+  available: boolean;
+  reason: string;
+}
+export const forkOptions = (projectId: string) =>
+  api<{ can_fork: boolean; reason: string; rounds: ForkRound[] }>(
+    `${BASE}/${projectId}/forks/options`,
+  );
+export const forkResearch = (
+  projectId: string,
+  body: {
+    sprint_id: string;
+    expected_commit: string;
+    change: string;
+    client_id: string;
+  },
+) => send(`${BASE}/${projectId}/forks`, body) as Promise<ResearchProject>;
+
+export type MergeKind = "memory" | "code";
+export interface MergeFile {
+  path: string;
+  status: string;
+  diff: string;
+  binary?: boolean;
+  truncated?: boolean;
+}
+export interface ResearchMerge {
+  target_location?: {
+    kind: "local" | "ssh" | "managed";
+    path: string;
+    connection_id?: string;
+    host?: string;
+    port?: number;
+  } | null;
+  id: string;
+  kind: MergeKind;
+  status: "preview" | "conflict" | "applied" | "cancelled" | "failed";
+  expected_main_commit: string;
+  expected_source_commit: string;
+  files: MergeFile[];
+  paths: string[];
+  memory_text?: string;
+  conflicts: { path: string; diff: string }[];
+  commit_sha: string;
+  error: string;
+  created_at: string;
+  research_id?: string;
+  project_id?: string;
+  question?: string;
+}
+export const mergeOptions = (projectId: string) =>
+  api<{
+    memory: boolean;
+    code: boolean;
+    reason: string;
+    memory_reason?: string;
+    code_reason?: string;
+  }>(`${BASE}/${projectId}/merge-options`);
+export const researchMerges = (projectId: string) =>
+  api<ResearchMerge[]>(`${BASE}/${projectId}/merges`);
+export const previewMerge = (
+  projectId: string,
+  kind: MergeKind,
+  paths?: string[],
+) =>
+  send(`${BASE}/${projectId}/merge-preview`, {
+    kind,
+    ...(paths ? { paths } : {}),
+  }) as Promise<ResearchMerge>;
+export const applyMerge = (projectId: string, preview: ResearchMerge) =>
+  send(`${BASE}/${projectId}/merges/${preview.id}/apply`, {
+    expected_main_commit: preview.expected_main_commit,
+    expected_source_commit: preview.expected_source_commit,
+  }) as Promise<ResearchMerge>;
+export const cancelMerge = (projectId: string, mergeId: string) =>
+  send(
+    `${BASE}/${projectId}/merges/${mergeId}/cancel`,
+    {},
+  ) as Promise<ResearchMerge>;
+export interface ProjectMemory {
+  path: string;
+  research_id: string;
+  title: string;
+  commit_sha: string;
+  merge_commit_sha?: string;
+  updated_at: string;
+  text: string;
+}
+export const projectMemories = (workspaceId: string) =>
+  api<ProjectMemory[]>(`${WS}/${workspaceId}/memory`);
+export const projectMerges = (workspaceId: string) =>
+  api<ResearchMerge[]>(`${WS}/${workspaceId}/merges`);
+
+export const listProjectSessions = (
+  workspaceId: string,
+  options: { search?: string; cursor?: string; archived?: boolean } = {},
+) => {
+  const query = new URLSearchParams({ limit: "40" });
+  if (options.search) query.set("search", options.search);
+  if (options.cursor) query.set("cursor", options.cursor);
+  if (options.archived) query.set("archived", "true");
+  return api<{ items: ProjectSession[]; next_cursor: string | null }>(
+    `${WS}/${workspaceId}/sessions?${query}`,
+  );
+};
+export const createProjectChat = (workspaceId: string) =>
+  send(`${WS}/${workspaceId}/sessions`, {}) as Promise<ProjectSession>;
+export const getChatSession = (sessionId: string) =>
+  api<ProjectSession>(`/agent/sessions/${sessionId}`);
+export const updateChatSession = (
+  sessionId: string,
+  body: { title?: string; pinned?: boolean; archived?: boolean },
+) =>
+  send(
+    `/agent/sessions/${sessionId}`,
+    body,
+    "PATCH",
+  ) as Promise<ProjectSession>;
+
+export interface ChatControl {
+  id: string;
+  session_id: string;
+  run_id: string;
+  kind: "steer" | "follow_up" | "abort";
+  text: string;
+  status: "queued" | "accepted" | "applied" | "rejected";
+  error: string;
+  created_at: string;
+  updated_at: string;
+}
+export const chatControls = (sessionId: string, runId?: string) =>
+  api<ChatControl[]>(
+    `/agent/sessions/${sessionId}/controls${runId ? `?run_id=${encodeURIComponent(runId)}` : ""}`,
+  );
+export const controlChat = (
+  sessionId: string,
+  runId: string,
+  kind: ChatControl["kind"],
+  text = "",
+) =>
+  send(`/agent/sessions/${sessionId}/controls`, {
+    expected_run_id: runId,
+    kind,
+    text,
+    client_id: crypto.randomUUID(),
+  }) as Promise<ChatControl>;

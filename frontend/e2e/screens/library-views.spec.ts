@@ -41,7 +41,7 @@ async function patchPaper(
   expect(response.ok()).toBeTruthy();
 }
 
-test("the library shows cards with the first page, and a list on request", async ({
+test("the library starts as a list, opens paper cards on request and remembers either view", async ({
   page,
 }) => {
   await signIn(page);
@@ -56,6 +56,9 @@ test("the library shows cards with the first page, and a list on request", async
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
 
   const card = library.locator(`[data-paper="${paper.paperId}"]`);
+  const view = library.getByRole("radiogroup", { name: "视图" });
+  await expect(library.locator("[data-view=list]")).toBeVisible();
+  await view.getByRole("radio", { name: "卡片" }).click();
   await expect(library.locator("[data-view=grid]")).toBeVisible();
   // The first page is the server's picture, not drawn in the browser.
   await expect(card.locator('img[data-thumb="image"]')).toHaveAttribute(
@@ -72,7 +75,6 @@ test("the library shows cards with the first page, and a list on request", async
   );
 
   // The list is a table; the choice is remembered.
-  const view = library.getByRole("radiogroup", { name: "视图" });
   await view.getByRole("radio", { name: "列表" }).click();
   await expect(library.locator("[data-view=list]")).toBeVisible();
   await expect(
@@ -84,6 +86,8 @@ test("the library shows cards with the first page, and a list on request", async
     await page.evaluate(() => localStorage.getItem("paper-library-view")),
   ).toBe("list");
   await view.getByRole("radio", { name: "卡片" }).click();
+  await expect(library.locator("[data-view=grid]")).toBeVisible();
+  await page.reload();
   await expect(library.locator("[data-view=grid]")).toBeVisible();
 });
 
@@ -119,6 +123,10 @@ test("a card shows reading progress from the page left at", async ({
   await page.goto(LIBRARY);
   const library = page.getByRole("main");
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
+  await library
+    .getByRole("radiogroup", { name: "视图" })
+    .getByRole("radio", { name: "卡片" })
+    .click();
   const card = library.locator(`[data-paper="${paper.paperId}"]`);
   await expect(card).toContainText("第 4 / 8 页");
   await expect(card.getByRole("progressbar")).toHaveAttribute(

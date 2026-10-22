@@ -8,7 +8,7 @@ import {
   Gauge,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useI18n } from "../../../i18n/I18nProvider";
@@ -31,7 +31,9 @@ import styles from "./Talk.module.css";
 const ROLE_AGENT: Record<string, Agent> = {
   executor: "executor",
   advisor: "advisor",
+  lead: "advisor",
   scoping: "advisor",
+  discussion: "advisor",
   distiller: "distiller",
   system: "system",
 };
@@ -58,7 +60,7 @@ function Speaker({
     <div className={styles.speaker}>
       <Mascot agent={ROLE_AGENT[role] ?? "advisor"} size={20} />
       {t(
-        `research.role.${role === "scoping" ? "advisor" : role}` as MessageKey,
+        `research.role.${role === "scoping" ? "discussion" : role}` as MessageKey,
       )}
       {note && <span className={styles.speakerNote}>{note}</span>}
       {action}
@@ -101,6 +103,7 @@ export function ThreadView({
             return (
               <PlanCard
                 key={item.id}
+                id={item.id}
                 plan={item.plan}
                 current={item.current}
                 approved={
@@ -188,12 +191,14 @@ function StageMark({ to, note }: { to: string; note: string }) {
 }
 
 function PlanCard({
+  id,
   plan,
   current,
   approved,
   computes,
   actions,
 }: {
+  id: string;
   plan: ResearchPlan;
   current: boolean;
   approved: boolean;
@@ -203,13 +208,16 @@ function PlanCard({
   const { t } = useI18n();
   const compute = computes.find((c) => c.id === plan.compute_id);
   const [whole, setWhole] = useState(false);
-  const long =
-    (plan.summary ?? "").length > 240 ||
-    [plan.metric, plan.baseline, plan.goal].some((x) => (x ?? "").length > 90);
+  useEffect(() => {
+    if (approved) setWhole(false);
+  }, [approved]);
+  const shownHypotheses = whole ? plan.hypotheses : plan.hypotheses.slice(0, 2);
   // Experiments need the environment ready; say so before the person agrees.
   const unready = !!compute && compute.ready === false;
   return (
     <article
+      id={`research-plan-${id}`}
+      tabIndex={-1}
       className={styles.card}
       data-faded={(!current && !approved) || undefined}
       aria-label={t("research.plan.title")}
@@ -229,23 +237,40 @@ function PlanCard({
           <span />
         )}
       </header>
-      {(current || approved) && (
+      {(approved || !current) && (
+        <button
+          type="button"
+          className={styles.planCompact}
+          aria-expanded={whole}
+          onClick={() => setWhole(!whole)}
+        >
+          <ChevronRight size={14} aria-hidden />
+          <span>
+            {approved
+              ? t("research.plan.compact", { n: plan.hypotheses.length })
+              : plan.question || t("research.plan.title")}
+          </span>
+          <span className={styles.planToggle}>
+            {t(whole ? "research.plan.less" : "research.plan.more")}
+          </span>
+        </button>
+      )}
+      {((current && !approved) || whole) && (
         <div className={styles.cardBody}>
           {plan.question && (
-            <h3 className={styles.planQuestion}>{plan.question}</h3>
+            <h3
+              className={styles.planQuestion}
+              data-clamped={!whole || undefined}
+            >
+              {plan.question}
+            </h3>
           )}
           {plan.summary && (
-            <div
-              className={styles.summary}
-              data-clamped={(long && !whole) || undefined}
-            >
+            <div className={styles.summary} data-clamped={!whole || undefined}>
               <Prose text={plan.summary} />
             </div>
           )}
-          <dl
-            className={styles.facts}
-            data-clamped={(long && !whole) || undefined}
-          >
+          <dl className={styles.facts} data-clamped={!whole || undefined}>
             {plan.metric && (
               <>
                 <dt>{t("research.plan.metric")}</dt>
@@ -265,7 +290,46 @@ function PlanCard({
               </>
             )}
           </dl>
-          {long && (
+          <ol className={styles.hyps}>
+            {shownHypotheses.map((h, i) => (
+              <li key={h.title} className={styles.hyp}>
+                <span
+                  className={styles.hypTitle}
+                  data-clamped={!whole || undefined}
+                >
+                  {h.title}
+                  {i === 0 && plan.hypotheses.length > 1 && (
+                    <span className={styles.first}>
+                      {t("research.plan.first")}
+                    </span>
+                  )}
+                </span>
+                {whole && (
+                  <span className={styles.hypKill}>
+                    {t("research.plan.killIf", { text: h.kill_if })}
+                  </span>
+                )}
+                {whole && h.value && (
+                  <span className={styles.hypKill}>
+                    {t("research.plan.value", { text: h.value })}
+                  </span>
+                )}
+                {whole && h.cost && (
+                  <span className={styles.hypKill}>
+                    {t("research.plan.cost", { text: h.cost })}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ol>
+          {!whole && plan.hypotheses.length > shownHypotheses.length && (
+            <p className={styles.planRemaining}>
+              {t("research.plan.remaining", {
+                n: plan.hypotheses.length - shownHypotheses.length,
+              })}
+            </p>
+          )}
+          {current && !approved && (
             <button
               type="button"
               className={styles.more}
@@ -275,33 +339,6 @@ function PlanCard({
               {t(whole ? "research.plan.less" : "research.plan.more")}
             </button>
           )}
-          <ol className={styles.hyps}>
-            {plan.hypotheses.map((h, i) => (
-              <li key={h.title} className={styles.hyp}>
-                <span className={styles.hypTitle}>
-                  {h.title}
-                  {i === 0 && plan.hypotheses.length > 1 && (
-                    <span className={styles.first}>
-                      {t("research.plan.first")}
-                    </span>
-                  )}
-                </span>
-                <span className={styles.hypKill}>
-                  {t("research.plan.killIf", { text: h.kill_if })}
-                </span>
-                {h.value && (
-                  <span className={styles.hypKill}>
-                    {t("research.plan.value", { text: h.value })}
-                  </span>
-                )}
-                {h.cost && (
-                  <span className={styles.hypKill}>
-                    {t("research.plan.cost", { text: h.cost })}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ol>
           <div className={styles.tags}>
             {plan.datasets.map((name) => (
               <span key={name} className={styles.tag}>
@@ -331,7 +368,9 @@ function PlanCard({
       {current && !approved && (
         <footer className={styles.cardFoot}>
           <p>
-            {unready ? (
+            {plan.inherited ? (
+              t("research.fork.inheritedPlan")
+            ) : unready ? (
               <>
                 {t("research.plan.notReady", { name: compute?.name ?? "" })}{" "}
                 <a href="#settings/environments">
@@ -346,7 +385,10 @@ function PlanCard({
             variant="primary"
             size="sm"
             loading={actions.busy}
-            onClick={() => actions.approvePlan(plan.version)}
+            disabled={!!plan.inherited}
+            onClick={() => {
+              if (!plan.inherited) actions.approvePlan(plan.version);
+            }}
           >
             {t("research.plan.start")}
           </Button>
@@ -365,13 +407,18 @@ function DecisionCard({
 }) {
   const { t } = useI18n();
   const [note, setNote] = useState("");
+  const [whole, setWhole] = useState(false);
   const d = item.event.detail as Record<string, string>;
+  const long =
+    (d.reason || "").length > 320 || (d.reason || "").split("\n").length > 6;
   const conclusion = d.kind === "conclusion";
   const budget = d.kind === "budget";
   // The advisor asks something only the researcher knows; the work goes on meanwhile.
   const question = d.kind === "question";
   return (
     <article
+      id={`research-decision-${item.id}`}
+      tabIndex={-1}
       className={`${styles.card} ${item.open ? styles.ask : ""}`}
       aria-label={t("research.ask.title")}
     >
@@ -405,7 +452,22 @@ function DecisionCard({
         )}
       </header>
       <div className={styles.cardBody}>
-        <Prose text={d.reason || ""} />
+        <div
+          className={styles.summary}
+          data-clamped={(long && !whole) || undefined}
+        >
+          <Prose text={d.reason || ""} />
+        </div>
+        {long && (
+          <button
+            type="button"
+            className={styles.more}
+            aria-expanded={whole}
+            onClick={() => setWhole(!whole)}
+          >
+            {t(whole ? "research.plan.less" : "research.plan.more")}
+          </button>
+        )}
         {item.open && (
           <textarea
             className={styles.note}
@@ -583,6 +645,7 @@ function WorkBlock({
 }) {
   const { t } = useI18n();
   const role = item.sprint.role;
+  const conversational = role === "scoping" || role === "discussion";
   if (item.sprint.number === 0) {
     // A note by the system between sprints: one line.
     const said = item.steps
@@ -601,17 +664,17 @@ function WorkBlock({
       ? t("research.work.executor", { n: item.sprint.number })
       : role === "advisor"
         ? t("research.work.advisor", { n: item.sprint.number })
-        : role === "scoping"
-          ? t("research.work.scoping")
+        : conversational
+          ? t("research.role.discussion")
           : t("research.work.distiller");
   return (
     <RunTurn
       run={run}
       role={role}
       title={title}
-      // A scoping turn's words are the advisor's message, shown on their own.
+      // Conversation replies already appear as advisor messages in the thread.
       final={
-        role === "scoping" || item.sprint.status !== "ended"
+        conversational || item.sprint.status !== "ended"
           ? ""
           : item.sprint.summary
       }

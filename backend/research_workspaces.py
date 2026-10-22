@@ -12,10 +12,12 @@ Columns: triage (ideas), todo, running, review (waiting for the person),
 done, dropped.
 """
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select, update as sql_update
 
 from . import research_map
 from .models import (
+    AgentRun,
+    AgentSession,
     ResearchCard,
     ResearchNode,
     ResearchEvent,
@@ -61,7 +63,7 @@ def ensure(d, owner):
     d.flush()
 
 
-def create(d, owner, name, description="", kind="research"):
+def create(d, owner, name, description="", kind="research", location=None):
     name = (name or "").strip()[:200]
     if not name:
         raise ValueError("项目名称不能为空")
@@ -70,6 +72,11 @@ def create(d, owner, name, description="", kind="research"):
         name=name,
         description=(description or "").strip()[:4000],
         kind=kind,
+        location=(
+            location
+            if location is not None
+            else {"kind": "managed", "path": "", "connection_id": ""}
+        ),
     )
     d.add(workspace)
     d.flush()
@@ -93,7 +100,88 @@ def default_for(d, owner):
 EDITABLE = ("name", "description", "instructions", "compute_id", "model_config_id")
 
 
+def lock_workspace(d, workspace):
+    d.execute(
+        sql_update(ResearchWorkspace)
+        .where(ResearchWorkspace.id == workspace.id)
+        .values(updated_at=ResearchWorkspace.updated_at)
+    )
+    d.refresh(workspace)
+
+
+def _before_archive(d, workspace):
+    from .research_chat import lock_session
+
+    session_ids = select(ResearchProject.session_id).where(
+        ResearchProject.workspace_id == workspace.id,
+        ResearchProject.owner == workspace.owner,
+    )
+    sessions = list(
+        d.scalars(
+            select(AgentSession)
+            .where(
+                AgentSession.owner == workspace.owner,
+                or_(
+                    AgentSession.workspace_id == workspace.id,
+                    AgentSession.id.in_(session_ids),
+                ),
+            )
+            .order_by(AgentSession.id)
+        )
+    )
+    # Existing-session writers acquire their session before the workspace.
+    for session in sessions:
+        lock_session(d, session)
+    lock_workspace(d, workspace)
+    researches = select(ResearchProject.id).where(
+        ResearchProject.workspace_id == workspace.id,
+        ResearchProject.owner == workspace.owner,
+    )
+    scoped_sessions = select(AgentSession.id).where(
+        AgentSession.owner == workspace.owner,
+        or_(
+            AgentSession.workspace_id == workspace.id, AgentSession.id.in_(session_ids)
+        ),
+    )
+    running = d.scalar(
+        select(AgentRun.id)
+        .where(
+            AgentRun.session_id.in_(scoped_sessions),
+            AgentRun.status.in_(["queued", "running"]),
+        )
+        .limit(1)
+    )
+    unfinished = d.scalar(
+        select(ResearchProject.id)
+        .where(
+            ResearchProject.id.in_(researches),
+            or_(
+                ResearchProject.status.in_(["active", "waiting"]),
+                and_(
+                    ResearchProject.status == "finished",
+                    ResearchProject.stage != "done",
+                ),
+            ),
+        )
+        .limit(1)
+    )
+    jobs = d.scalar(
+        select(ResearchJob.id)
+        .where(
+            ResearchJob.project_id.in_(researches),
+            ResearchJob.status.in_(["queued", "running"]),
+        )
+        .limit(1)
+    )
+    if running or unfinished or jobs:
+        raise ValueError("请先停止回答、暂停研究并等待作业结束，再归档项目")
+
+
 def update(d, workspace, body):
+    if body.get("archived") is True:
+        _before_archive(d, workspace)
+    elif body.get("archived") is False:
+        lock_workspace(d, workspace)
     for key in EDITABLE:
         if key in body and body[key] is not None:
             value = str(body[key]).strip()
@@ -211,9 +299,28 @@ def _last_said(d, project):
 def summary(d, project):
     """A research as the project page lists it."""
     sprint = _running_sprint(d, project)
+    progress = d.scalar(
+        select(ResearchSprint.summary)
+        .where(ResearchSprint.project_id == project.id, ResearchSprint.summary != "")
+        .order_by(ResearchSprint.number.desc())
+        .limit(1)
+    )
     return {
         "id": project.id,
         "question": project.question,
+        "title": project.title or project.question,
+        "workspace_id": project.workspace_id,
+        "session_id": project.session_id,
+        "collection_id": project.collection_id,
+        "on_board": project.on_board,
+        "pinned_at": (
+            d.get(AgentSession, project.session_id).pinned_at
+            if d.get(AgentSession, project.session_id)
+            else None
+        ),
+        "parent_id": project.parent_id,
+        "forked_from": project.forked_from or {},
+        "merged": project.merged or {},
         "stage": project.stage,
         "status": project.status,
         "end_reason": project.end_reason,
@@ -235,6 +342,11 @@ def summary(d, project):
         "tokens": project.spent.get("tokens", 0),
         "conclusion": (project.conclusion or {}).get("summary", "")[:400],
         "said": _last_said(d, project)[:200],
+        "progress": (
+            (project.conclusion or {}).get("summary")
+            or progress
+            or _last_said(d, project)
+        )[:400],
     }
 
 
@@ -421,10 +533,12 @@ def workspace_out(w):
         "id": w.id,
         "name": w.name,
         "description": w.description,
+        "location": w.location or {},
         "instructions": w.instructions,
         "kind": w.kind,
         "compute_id": w.compute_id,
         "model_config_id": w.model_config_id,
+        "session_id": w.session_id,
         "archived": w.archived,
         "created_at": w.created_at,
         "updated_at": w.updated_at,

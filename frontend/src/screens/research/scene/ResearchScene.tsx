@@ -41,12 +41,11 @@ interface Beat {
 export function ResearchScene({
   turns,
   nodes,
-  live,
   onLog,
 }: {
   turns: Turn[];
   nodes: ResearchNode[];
-  /** The project is still running: new steps play as they arrive. */
+  /** Kept for callers; the scene always presents recorded steps. */
   live: boolean;
   onLog(jobId: string): void;
 }) {
@@ -67,29 +66,28 @@ export function ResearchScene({
       }),
     [turns, t],
   );
-  const still = reducedMotion();
-  const [index, setIndex] = useState(() =>
-    still ? Math.max(beats.length - 1, 0) : 0,
-  );
-  const [playing, setPlaying] = useState(!still);
+  // Null follows the latest recorded step. Replaying is an explicit choice.
+  const [index, setIndex] = useState<number | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const still = reducedMotion() || !playing;
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>("1");
   const [looks, setLooks] = useState(loadLooks);
   const [dressing, setDressing] = useState(false);
 
   const last = beats.length - 1;
-  const at = Math.min(index, Math.max(last, 0));
+  const at = Math.min(index ?? Math.max(last, 0), Math.max(last, 0));
   const beat = beats[at];
 
-  // Advance on a timer; at the end of a live project, wait for the next step.
+  // A replay stops at the last recorded step; it never impersonates a live run.
   useEffect(() => {
     if (!playing || at >= last) {
-      if (playing && !live && at >= last && last >= 0) setPlaying(false);
+      if (playing && at >= last && last >= 0) setPlaying(false);
       return;
     }
     const pause = (beat?.frame.handoff ? BEAT * 1.4 : BEAT) / Number(speed);
     const timer = window.setTimeout(() => setIndex(at + 1), pause);
     return () => window.clearTimeout(timer);
-  }, [playing, at, last, live, speed, beat]);
+  }, [playing, at, last, speed, beat]);
 
   if (!beat) return <p className={styles.empty}>{t("research.scene.empty")}</p>;
 
@@ -130,6 +128,23 @@ export function ResearchScene({
 
   return (
     <div className={styles.scene}>
+      <div className={styles.replayHead}>
+        <div>
+          <strong>{t("research.scene.replay")}</strong>
+          <span>{t("research.scene.recorded")}</span>
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={index === null && !playing}
+          onClick={() => {
+            setPlaying(false);
+            setIndex(null);
+          }}
+        >
+          {t("research.scene.latest")}
+        </Button>
+      </div>
       <div className={styles.stage} aria-hidden="true">
         <IsoRoomArt />
         <span
@@ -255,7 +270,7 @@ export function ResearchScene({
           label={t(playing ? "research.scene.pause" : "research.scene.play")}
           size="sm"
           onClick={() => {
-            if (!playing && at >= last && !live) setIndex(0);
+            if (!playing && at >= last) setIndex(0);
             setPlaying(!playing);
           }}
         />

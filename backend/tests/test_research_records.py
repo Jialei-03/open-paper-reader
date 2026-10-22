@@ -93,7 +93,7 @@ def test_scoping_is_a_conversation_and_spends_no_sprint(world):
         assert sprint.role == "scoping"
         run = d.get(AgentRun, sprint.run_id)
         assert "想把手写数字识别准确率再提一提" in run.prompt
-        assert "mnist" in run.prompt  # the datasets the system can fetch
+        assert "mnist" in run.context  # context is refreshed without repeating it in Pi's user history
         assert d.get(ResearchProject, world.pid).spent["sprints"] == 0
     _finish_run(world, "基线现在多少？")
     with world.maker() as d:
@@ -351,7 +351,7 @@ def test_a_remote_job_runs_detached_and_reports_its_exit(world, monkeypatch):
         launch = fake.calls[-1][-1]
         assert (
             "CUDA_VISIBLE_DEVICES=1" in launch
-            and "'(set -o pipefail; python t.py); echo $?" in launch
+            and "'(\nset -o pipefail; python t.py\n)\necho $?" in launch
         )
         assert rr.state(job) == {"Running": True}
         fake.state = "0"

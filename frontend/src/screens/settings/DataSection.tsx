@@ -15,7 +15,7 @@ type Storage = {
   categories: Record<string, number>;
 };
 
-/** Where the space goes, and taking everything away as one file. */
+/** Reading-material storage and export; research directories have their own lifecycle. */
 export function DataSection() {
   const i18n = useI18n();
   const { t } = i18n;

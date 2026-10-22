@@ -1,0 +1,60 @@
+.page {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--ui-bg-1);
+}
+
+.content {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+  padding: 32px 48px;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 32px;
+}
+
+.header h1 {
+  margin: 0;
+  color: var(--ui-fg);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.header > span {
+  color: var(--ui-fg-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.body {
+  padding-top: 24px;
+}
+
+.models > section {
+  margin-top: 0;
+}
+.models h1 {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.body > section {
+  margin-top: 0;
+}
+
+@media (max-width: 700px) {
+  .content {
+    padding: 32px 20px;
+  }
+}

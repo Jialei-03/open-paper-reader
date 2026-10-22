@@ -8,12 +8,14 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+from concurrent.futures import Future
 import time
 from pathlib import Path
 
 from sqlalchemy import func, select, update
 
-from . import agent_budget, agent_limits, translation_settings
+from . import agent_budget, agent_controls, agent_limits, translation_settings
 from .agent_attachments import attachments as chat_attachments
 from .agent_budget import RunBudget
 from .agent_checkpoint import fingerprint, previous_write
@@ -40,7 +42,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 RESEARCH_SKILLS = {
     role: agent_runtime_dir() / "skills" / f"research-{role}" / "SKILL.md"
-    for role in ("executor", "advisor", "distiller", "scoping", "chat")
+    for role in ("executor", "advisor", "distiller", "scoping", "discussion", "chat", "lead")
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
 RESEARCH_BASE = {
@@ -53,6 +55,7 @@ RESEARCH_BASE = {
     "list_figures",
     "web_read",
 }
+WORKSPACE_READ = {"read", "ls", "find", "grep"}
 
 
 # An executor round writes code and checks short runs: it gets more than an
@@ -65,23 +68,29 @@ def research_tools(role="executor"):
     from .research_tools import (
         ADVISOR_TOOLS,
         CHAT_TOOLS,
+        LEAD_TOOLS,
+        LEAD_WRITES,
         DISTILLER_TOOLS,
         SCOPING_TOOLS,
     )
 
-    if role == "chat":
+    if role in {"chat", "lead", "discussion"}:
         return [
             t
             for t in TOOLS
-            if (t.get("research") and t["name"] in CHAT_TOOLS)
+            if (
+                t.get("research")
+                and t["name"] in (LEAD_TOOLS if role == "lead" else CHAT_TOOLS)
+            )
             or t["name"] in RESEARCH_BASE
+            or (role == "discussion" and t["name"] in WORKSPACE_READ)
         ]
     if role == "scoping":
         return [
             t
             for t in TOOLS
             if (t.get("research") and t["name"] in SCOPING_TOOLS)
-            or t["name"] in RESEARCH_BASE
+            or t["name"] in RESEARCH_BASE | WORKSPACE_READ
         ]
     if role == "distiller":
         return [t for t in TOOLS if t["name"] in DISTILLER_TOOLS]
@@ -104,6 +113,7 @@ def research_tools(role="executor"):
                 "propose_plan",
                 "project_overview",
                 "research_read",
+                *LEAD_WRITES,
             }
         )
         or t["name"] in PI_NAMES
@@ -141,6 +151,17 @@ def _process(app, job_id, cfg):
         attached = list(r.attachment_ids or [])
         # A research sprint starts from its map, not from the session's chat.
         research = (r.runtime or {}).get("research")
+        if research and research.get("role") in {"chat", "lead"}:
+            from . import research_chat
+            from .models import ResearchWorkspace
+
+            workspace = d.get(ResearchWorkspace, research.get("workspace_id"))
+            if workspace is None or workspace.owner != owner:
+                raise ValueError("项目不可用")
+            if research.get("role") == "lead" and workspace.session_id != session_id:
+                raise ValueError("项目主会话不可用")
+            r.context = research_chat.context(d, workspace, app.state.settings)
+            d.commit()
         cfg = {**cfg, **(r.runtime or {}).get("model_options", {})}
         cfg["_request_options"] = request_options(cfg)
         validate_endpoint(cfg.get("base_url", ""))
@@ -149,7 +170,7 @@ def _process(app, job_id, cfg):
         history = []
         # A conversation in a project remembers its turns; a round does not.
         keeps = not (r.runtime or {}).get("reading_artifact_id") and not (
-            research and research.get("role") != "chat"
+            research and research.get("role") not in {"chat", "lead", "scoping", "discussion"}
         )
         # What Pi kept of this conversation; while there is none, its history is rebuilt below.
         entries = (
@@ -180,6 +201,10 @@ def _process(app, job_id, cfg):
             )
         )
         for p in reversed(previous):
+            if research and research.get("role") in {"scoping", "discussion"}:
+                prior_role = ((p.runtime or {}).get("research") or {}).get("role")
+                if prior_role not in {None, "chat", "lead", "scoping", "discussion"}:
+                    continue
             history.append(
                 {
                     "role": "user",
@@ -227,9 +252,11 @@ def _process(app, job_id, cfg):
                 return {
                     "role": "assistant",
                     "content": content,
-                    "api": "anthropic-messages"
-                    if cfg.get("protocol") == "anthropic"
-                    else "openai-completions",
+                    "api": (
+                        "anthropic-messages"
+                        if cfg.get("protocol") == "anthropic"
+                        else "openai-completions"
+                    ),
                     "provider": "workspace",
                     "model": r.model,
                     "usage": {
@@ -306,6 +333,7 @@ def _process(app, job_id, cfg):
             except (ValueError, KeyError):
                 region_text = ""
         payload = {
+            "run_id": job_id,
             "config": cfg,
             "history": history,
             **({"session": {"id": session_id, "entries": entries}} if keeps else {}),
@@ -329,19 +357,36 @@ def _process(app, job_id, cfg):
                 if r.attachment_ids
                 else ""
             ),
-            "tools": research_tools(research.get("role", "executor"))
-            if research
-            else [
-                t
-                for t in TOOLS
-                if (writable or not t["write"]) and not t.get("research")
-            ],
+            "tools": (
+                research_tools(research.get("role", "executor"))
+                if research
+                else [
+                    t
+                    for t in TOOLS
+                    if (writable or not t["write"]) and not t.get("research")
+                ]
+            ),
             "limits": {
                 **agent_limits.runtime_limits(cfg),
                 # A silent model is given up on as soon as on the direct path.
                 "model_timeout_seconds": translation_settings.MODEL_TIMEOUT_SECONDS,
             },
         }
+        if research and research.get("project_id"):
+            from .models import ResearchProject
+            from .research_locations import tool_cwd
+
+            project = d.get(ResearchProject, research["project_id"])
+            if (
+                project is None
+                or project.owner != owner
+                or project.session_id != session_id
+            ):
+                raise ValueError("研究会话不可用，无法确定工具工作目录")
+            # Old unbound research and ordinary chats retain their existing
+            # isolated runner context. Bound tools expose their real local/SSH cwd.
+            if project.workspace_id:
+                payload["tool_cwd"] = tool_cwd(app.state.settings, d, project)
     payload["context"] += selection_context(app, owner, session_id, job_id, snapshot)
     if research:
         payload["system_prompt"] = RESEARCH_SKILLS[
@@ -398,7 +443,10 @@ def _process(app, job_id, cfg):
         with maker() as d:
             current = d.get(AgentRun, job_id)
             if current and current.status == "running":
-                current.runtime = transition(current.runtime, value)
+                current.runtime = transition(
+                    current.runtime,
+                    "stopping" if agent_controls.stopping(current) else value,
+                )
                 current.updated_at = now()
                 d.commit()
 
@@ -407,7 +455,11 @@ def _process(app, job_id, cfg):
     def cancelled():
         with maker() as d:
             current = d.get(AgentRun, job_id)
-            return not current or current.status != "running"
+            return (
+                not current
+                or current.status != "running"
+                or agent_controls.stopping(current)
+            )
 
     def store():
         # Cancellation stops further work, but keep receipts from writes already finished.
@@ -415,7 +467,7 @@ def _process(app, job_id, cfg):
             current = d.get(AgentRun, job_id)
             if current:
                 structured = store_preview(d, current, clean_response(response))
-                if current.status == "running":
+                if current.status in {"running", "cancelled"}:
                     current.response = "" if structured else clean_response(response)
                 current.steps = list(steps)
                 current.updated_at = now()
@@ -447,27 +499,209 @@ def _process(app, job_id, cfg):
         )
         poll = selectors.DefaultSelector()
         poll.register(child.stdout, selectors.EVENT_READ)
-        child.stdin.write((json.dumps(payload) + "\n").encode())
-        child.stdin.flush()
+        writing = threading.Lock()
+
+        def send(value):
+            with writing:
+                try:
+                    child.stdin.write((json.dumps(value) + "\n").encode())
+                    child.stdin.flush()
+                except (BrokenPipeError, OSError, ValueError):
+                    pass
+
+        send(payload)
+        controller = agent_controls.Controller(maker, job_id, send)
+        controller.start()
+        tool_tasks = []
+        tool_lock = threading.Lock()
+        aborted = False
         from . import model_usage
+
+        def perform_tool(event):
+            nonlocal calls, image_count, said_shown
+
+            phase("tool")
+            calls += 1
+            if calls > agent_limits.TOOL_CALLS:
+                raise ValueError("达到工具调用次数限制")
+            name = event["name"]
+            args = event["args"]
+            if len(json.dumps(args)) > agent_limits.TOOL_ARGUMENT_CHARS:
+                raise ValueError("工具参数超过大小限制")
+            audit_args = {
+                k: (
+                    v[:8000] + "…（已截断）"
+                    if isinstance(v, str) and len(v) > 8000
+                    else v
+                )
+                for k, v in args.items()
+            }
+            step = {
+                "name": name,
+                "label": TOOL_MAP.get(name, {}).get("label", name),
+                "status": "running",
+                "arguments": audit_args,
+                "fingerprint": fingerprint(name, args),
+            }
+            # What the model wrote before this call (why it does it),
+            # once per message: later calls of the message share it.
+            words = clean_response(response).strip()
+            if words and not said_shown:
+                step["said"] = words[-4000:]
+                said_shown = True
+            steps.append(step)
+            store()
+            try:
+                reused = (
+                    previous_write(app, owner, resume_from, name, args)
+                    if TOOL_MAP.get(name, {}).get("write")
+                    and name not in PI_NAMES | {"export_file", "download_file"}
+                    else None
+                )
+                if reused is not None:
+                    steps[-1]["reused"] = True
+                result = (
+                    reused
+                    if reused is not None
+                    else asyncio.run(
+                        asyncio.wait_for(
+                            execute(
+                                app,
+                                owner,
+                                session_id,
+                                name,
+                                args,
+                                f"agent:{job_id}:{calls}",
+                                writable,
+                                sandbox_id=job_id,
+                                research=research,
+                            ),
+                            timeout=min(150, budget.remaining()),
+                        )
+                    )
+                )
+                if (
+                    name in {"download_file", "export_file"}
+                    and isinstance(result, dict)
+                    and result.get("id")
+                ):
+                    file_url = (
+                        result.get("url") or f"/api/v1/files/{result['id']}/content"
+                    )
+                    steps[-1]["files"] = [
+                        {k: result.get(k) for k in ("id", "name", "mime", "size")}
+                        | {"url": file_url}
+                    ]
+                images = (
+                    result.pop("_image_content", []) if isinstance(result, dict) else []
+                )
+                attachments = (
+                    result.get("images", []) if isinstance(result, dict) else []
+                )
+                if images:
+                    visual = (
+                        bool(cfg.get("vision"))
+                        and image_count + len(images) <= agent_limits.IMAGES_PER_RUN
+                    )
+                    result["vision_delivered"] = visual
+                    result["notice"] = (
+                        "图片已传给模型并显示在聊天中。"
+                        if visual
+                        else "图片已显示给用户，但未传给模型：未开启视觉输入或已达到本轮 8 张上限。不得声称看到了图片内容。"
+                    )
+                    images = images if visual else []
+                    image_count += len(images)
+                    steps[-1]["images"] = attachments
+                    steps[-1]["vision_delivered"] = visual
+                receipt = result.get("_receipt") if isinstance(result, dict) else None
+                if receipt:
+                    steps[-1]["receipt"] = receipt
+                raw = json.dumps(result, ensure_ascii=False)
+                if len(raw) > agent_limits.TOOL_RESULT_CHARS:
+                    result = {
+                        "truncated": True,
+                        "text": raw[: agent_limits.TOOL_RESULT_CHARS],
+                    }
+                record_reading_evidence(app, job_id, name, result)
+                steps[-1].update(
+                    status="completed",
+                    result={
+                        "summary": raw[:2000],
+                        "truncated": len(raw) > 2000,
+                        **({"receipt": receipt} if receipt else {}),
+                    },
+                )
+                reply = {
+                    "id": event["id"],
+                    "result": result,
+                    "images": images,
+                }
+            except (
+                Exception
+            ) as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
+                message = (
+                    str(e)[:500]
+                    if isinstance(e, ValueError)
+                    else "工具执行失败或超时，请重试"
+                )
+                if not isinstance(e, ValueError):
+                    # Where it broke, for whoever runs the server: the
+                    # kind of error and the line, never its text.
+                    where = e.__traceback__
+                    while where and where.tb_next:
+                        where = where.tb_next
+                    print(
+                        json.dumps(
+                            {
+                                "agent_tool_error": name,
+                                "type": type(e).__name__,
+                                "at": (
+                                    f"{Path(where.tb_frame.f_code.co_filename).name}:{where.tb_lineno}"
+                                    if where
+                                    else ""
+                                ),
+                            }
+                        ),
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                steps[-1].update(status="failed", error=message)
+                reply = {
+                    "id": event["id"],
+                    "result": {"error": message},
+                    "error": True,
+                }
+            store()
+            phase("preparing")
+            send(reply)
 
         usage_id = None
         buffer = b""
         last = 0
         try:
             while budget.remaining():
-                with maker() as d:
-                    r = d.get(AgentRun, job_id)
-                    if not r or r.status == "cancelled":
-                        break
+                if (
+                    controller.stop_started is not None
+                    and time.monotonic() - controller.stop_started
+                    > agent_controls.STOP_GRACE
+                ):
+                    break
+                for task in tool_tasks:
+                    if task.done():
+                        task.result()
                 events = poll.select(0.25)
                 if not events:
-                    if child.poll() is not None:
+                    if child.poll() is not None and all(
+                        task.done() for task in tool_tasks
+                    ):
                         break
                     continue
                 chunk = os.read(child.stdout.fileno(), 65536)
                 if not chunk:
-                    break
+                    if all(task.done() for task in tool_tasks):
+                        break
+                    time.sleep(0.02)
+                    continue
                 buffer += chunk
                 # Pi's session entries carry tool results: room for a large one.
                 if len(buffer) > 8_000_000:
@@ -486,25 +720,24 @@ def _process(app, job_id, cfg):
                         else:
                             budget.release()
                             phase("preparing")
-                        child.stdin.write(
-                            (json.dumps({"id": event["id"]}) + "\n").encode()
-                        )
-                        child.stdin.flush()
+                        send({"id": event["id"]})
                     elif event["type"] == "model_request":
                         # Pi is about to call the model: it waits for one of the
                         # model's slots (shared models have few), and the request
                         # is reserved against the account's budget (raises when spent).
                         budget.release()
                         phase("waiting_model")
-                        budget.acquire(cfg, cancelled)
+                        try:
+                            budget.acquire(cfg, cancelled)
+                        except ValueError:
+                            if cancelled():
+                                continue
+                            raise
                         usage_id = model_usage.start(
                             maker, owner, "agent", job_id, cfg, app.state.settings
                         )
                         phase("model")
-                        child.stdin.write(
-                            (json.dumps({"id": event["id"]}) + "\n").encode()
-                        )
-                        child.stdin.flush()
+                        send({"id": event["id"]})
                     elif event["type"] == "usage":
                         # The answer is in: its slot is free while tools run.
                         budget.release()
@@ -534,173 +767,62 @@ def _process(app, job_id, cfg):
                         said_shown = False
                         store()
                     elif event["type"] == "tool":
-                        phase("tool")
-                        calls += 1
-                        if calls > agent_limits.TOOL_CALLS:
-                            raise ValueError("达到工具调用次数限制")
-                        name = event["name"]
-                        args = event["args"]
-                        if len(json.dumps(args)) > agent_limits.TOOL_ARGUMENT_CHARS:
-                            raise ValueError("工具参数超过大小限制")
-                        audit_args = {
-                            k: (
-                                v[:8000] + "…（已截断）"
-                                if isinstance(v, str) and len(v) > 8000
-                                else v
-                            )
-                            for k, v in args.items()
-                        }
-                        step = {
-                            "name": name,
-                            "label": TOOL_MAP.get(name, {}).get("label", name),
-                            "status": "running",
-                            "arguments": audit_args,
-                            "fingerprint": fingerprint(name, args),
-                        }
-                        # What the model wrote before this call (why it does it),
-                        # once per message: later calls of the message share it.
-                        words = clean_response(response).strip()
-                        if words and not said_shown:
-                            step["said"] = words[-4000:]
-                            said_shown = True
-                        steps.append(step)
-                        store()
-                        try:
-                            reused = (
-                                previous_write(app, owner, resume_from, name, args)
-                                if TOOL_MAP.get(name, {}).get("write")
-                                and name
-                                not in PI_NAMES | {"export_file", "download_file"}
-                                else None
-                            )
-                            if reused is not None:
-                                steps[-1]["reused"] = True
-                            result = (
-                                reused
-                                if reused is not None
-                                else asyncio.run(
-                                    asyncio.wait_for(
-                                        execute(
-                                            app,
-                                            owner,
-                                            session_id,
-                                            name,
-                                            args,
-                                            f"agent:{job_id}:{calls}",
-                                            writable,
-                                            sandbox_id=job_id,
-                                            research=research,
-                                        ),
-                                        timeout=min(150, budget.remaining()),
-                                    )
-                                )
-                            )
-                            if (
-                                name in {"download_file", "export_file"}
-                                and isinstance(result, dict)
-                                and result.get("id")
-                            ):
-                                file_url = (
-                                    result.get("url")
-                                    or f"/api/v1/files/{result['id']}/content"
-                                )
-                                steps[-1]["files"] = [
-                                    {
-                                        k: result.get(k)
-                                        for k in ("id", "name", "mime", "size")
-                                    }
-                                    | {"url": file_url}
-                                ]
-                            images = (
-                                result.pop("_image_content", [])
-                                if isinstance(result, dict)
-                                else []
-                            )
-                            attachments = (
-                                result.get("images", [])
-                                if isinstance(result, dict)
-                                else []
-                            )
-                            if images:
-                                visual = (
-                                    bool(cfg.get("vision"))
-                                    and image_count + len(images)
-                                    <= agent_limits.IMAGES_PER_RUN
-                                )
-                                result["vision_delivered"] = visual
-                                result["notice"] = (
-                                    "图片已传给模型并显示在聊天中。"
-                                    if visual
-                                    else "图片已显示给用户，但未传给模型：未开启视觉输入或已达到本轮 8 张上限。不得声称看到了图片内容。"
-                                )
-                                images = images if visual else []
-                                image_count += len(images)
-                                steps[-1]["images"] = attachments
-                                steps[-1]["vision_delivered"] = visual
-                            receipt = (
-                                result.get("_receipt")
-                                if isinstance(result, dict)
-                                else None
-                            )
-                            if receipt:
-                                steps[-1]["receipt"] = receipt
-                            raw = json.dumps(result, ensure_ascii=False)
-                            if len(raw) > agent_limits.TOOL_RESULT_CHARS:
-                                result = {
-                                    "truncated": True,
-                                    "text": raw[: agent_limits.TOOL_RESULT_CHARS],
-                                }
-                            record_reading_evidence(app, job_id, name, result)
-                            steps[-1].update(
-                                status="completed",
-                                result={
-                                    "summary": raw[:2000],
-                                    "truncated": len(raw) > 2000,
-                                    **({"receipt": receipt} if receipt else {}),
-                                },
-                            )
-                            reply = {
-                                "id": event["id"],
-                                "result": result,
-                                "images": images,
-                            }
-                        except Exception as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
-                            message = (
-                                str(e)[:500]
-                                if isinstance(e, ValueError)
-                                else "工具执行失败或超时，请重试"
-                            )
-                            if not isinstance(e, ValueError):
-                                # Where it broke, for whoever runs the server: the
-                                # kind of error and the line, never its text.
-                                where = e.__traceback__
-                                while where and where.tb_next:
-                                    where = where.tb_next
-                                print(
-                                    json.dumps(
-                                        {
-                                            "agent_tool_error": name,
-                                            "type": type(e).__name__,
-                                            "at": f"{Path(where.tb_frame.f_code.co_filename).name}:{where.tb_lineno}"
-                                            if where
-                                            else "",
-                                        }
-                                    ),
-                                    file=sys.stderr,
-                                    flush=True,
-                                )
-                            steps[-1].update(status="failed", error=message)
-                            reply = {
-                                "id": event["id"],
-                                "result": {"error": message},
-                                "error": True,
-                            }
-                        store()
-                        phase("preparing")
-                        child.stdin.write((json.dumps(reply) + "\n").encode())
-                        child.stdin.flush()
+                        task = Future()
+
+                        def perform(event=event, task=task):
+                            try:
+                                with tool_lock:
+                                    if cancelled():
+                                        send(
+                                            {
+                                                "id": event["id"],
+                                                "error": True,
+                                                "result": {"error": "任务已停止"},
+                                            }
+                                        )
+                                    else:
+                                        perform_tool(event)
+                                task.set_result(None)
+                            except BaseException as error:
+                                task.set_exception(error)
+
+                        tool_tasks.append(task)
+                        threading.Thread(target=perform, daemon=True).start()
                     elif event["type"] == "entry":
                         added.append(event["entry"])
+                    elif event["type"] == "control":
+                        if event.get("status") == "applied" and keeps and added:
+                            keep_entries(maker, session_id, added)
+                            added.clear()
+                        agent_controls.acknowledge(
+                            maker,
+                            job_id,
+                            event.get("id"),
+                            event.get("status"),
+                            event.get("error", ""),
+                        )
+                    elif event["type"] == "conversation":
+                        with maker() as d:
+                            current = d.get(AgentRun, job_id)
+                            if current:
+                                messages = list(
+                                    (current.runtime or {}).get(
+                                        "conversation_messages", []
+                                    )
+                                )
+                                message = event.get("message") or {}
+                                if message.get("role") in {
+                                    "user",
+                                    "assistant",
+                                } and not any(
+                                    m.get("id") == message.get("id") for m in messages
+                                ):
+                                    messages.append(message)
+                                    current.runtime = {
+                                        **(current.runtime or {}),
+                                        "conversation_messages": messages,
+                                    }
+                                    d.commit()
                     elif event["type"] in {"compaction", "context"}:
                         # Shown by the composer: how full the context is, a compaction in progress.
                         with maker() as d:
@@ -719,6 +841,7 @@ def _process(app, job_id, cfg):
                         failed = event["message"][:500]
                     elif event["type"] == "done":
                         done = True
+                        aborted = bool(event.get("aborted"))
                         if event.get("limited"):
                             response += "\n\n本轮已达到执行上限，可以继续发送消息。"
                 if time.monotonic() - last > 0.4:
@@ -730,6 +853,7 @@ def _process(app, job_id, cfg):
                     "已停止；已完成操作保留"
                 )
         finally:
+            controller.close()
             poll.close()
             if child.poll() is None:
                 child.terminate()
@@ -740,6 +864,9 @@ def _process(app, job_id, cfg):
                     child.wait()
             budget.release()
             store()
+            if keeps and added:
+                keep_entries(maker, session_id, added)
+                added.clear()
             with maker() as d:
                 current = d.get(AgentRun, job_id)
                 if current:
@@ -754,18 +881,35 @@ def _process(app, job_id, cfg):
     if keeps and added:
         keep_entries(maker, session_id, added)
     with maker() as d:
+        current = d.get(AgentRun, job_id)
+        stopped = current is not None and agent_controls.stopping(current)
         d.execute(
             update(AgentRun)
             .where(AgentRun.id == job_id, AgentRun.status == "running")
             .values(
-                status="completed" if done and not failed else "failed",
-                error=failed or ("" if done else "执行进程中断，请重试"),
+                status=(
+                    "cancelled"
+                    if stopped or aborted
+                    else "completed" if done and not failed else "failed"
+                ),
+                error=(
+                    ""
+                    if stopped or aborted
+                    else failed or ("" if done else "执行进程中断，请重试")
+                ),
                 updated_at=now(),
             )
         )
         d.flush()
         current = d.get(AgentRun, job_id)
         if current:
+            if stopped or aborted:
+                current.runtime = {
+                    **(current.runtime or {}),
+                    "abort_confirmed": aborted,
+                    "stop_forced": not aborted,
+                }
+            agent_controls.settle(d, job_id, aborted=stopped or aborted)
             if done and not failed and final_answer is not None:
                 current.response = final_answer
             finish_artifact(d, app.state.settings, current, answer=final_answer)
@@ -874,14 +1018,25 @@ def main():
                         "服务重启，任务已停止；已完成操作保留，可继续任务"
                     )
                     interrupted.updated_at = now()
+                agent_controls.settle(d, interrupted.id)
             d.commit()
         children = {}
+        stopping_children = {}
         while True:
             for job_id, (child, deadline) in list(children.items()):
                 with app.state.maker() as d:
                     r = d.get(AgentRun, job_id)
-                    cancelled = not r or r.status == "cancelled"
-                if child.poll() is None and (cancelled or time.monotonic() > deadline):
+                    cancelled = not r or agent_controls.stopping(r)
+                if cancelled:
+                    stopping_children.setdefault(job_id, time.monotonic())
+                stop_expired = (
+                    job_id in stopping_children
+                    and time.monotonic() - stopping_children[job_id]
+                    > agent_controls.STOP_GRACE + 3
+                )
+                if child.poll() is None and (
+                    stop_expired or time.monotonic() > deadline
+                ):
                     os.killpg(child.pid, signal.SIGTERM)
                     try:
                         child.wait(timeout=3)
@@ -891,6 +1046,9 @@ def main():
                 if child.poll() is not None:
                     with app.state.maker() as d:
                         stopped = d.get(AgentRun, job_id)
+                        requested = stopped is not None and agent_controls.stopping(
+                            stopped
+                        )
                         if stopped:
                             stopped.runtime = {
                                 **(stopped.runtime or {}),
@@ -900,13 +1058,19 @@ def main():
                             update(AgentRun)
                             .where(AgentRun.id == job_id, AgentRun.status == "running")
                             .values(
-                                status="failed",
-                                error="任务超时或执行进程退出；已完成操作保留",
+                                status="cancelled" if requested else "failed",
+                                error=(
+                                    ""
+                                    if requested
+                                    else "任务超时或执行进程退出；已完成操作保留"
+                                ),
                                 updated_at=now(),
                             )
                         )
+                        agent_controls.settle(d, job_id, aborted=requested)
                         d.commit()
                     del children[job_id]
+                    stopping_children.pop(job_id, None)
             while (
                 not app.state.settings.agent_worker_concurrency
                 or len(children) < app.state.settings.agent_worker_concurrency
@@ -939,16 +1103,20 @@ if __name__ == "__main__":
         app = create_app()
         try:
             process(app, sys.argv[2])
-        except Exception as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
+        except (
+            Exception
+        ) as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
             with app.state.maker() as d:
                 d.execute(
                     update(AgentRun)
                     .where(AgentRun.id == sys.argv[2], AgentRun.status == "running")
                     .values(
                         status="failed",
-                        error=str(e)[:300]
-                        if isinstance(e, ValueError)
-                        else "Agent 执行失败，请检查服务与模型配置",
+                        error=(
+                            str(e)[:300]
+                            if isinstance(e, ValueError)
+                            else "Agent 执行失败，请检查服务与模型配置"
+                        ),
                         updated_at=now(),
                     )
                 )

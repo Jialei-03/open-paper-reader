@@ -2,7 +2,14 @@ import { FolderPlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { followLink } from "../../../reader/route";
-import { Button, Dialog, TextArea, TextField, toast } from "../../../ui";
+import {
+  Button,
+  Dialog,
+  Spinner,
+  TextArea,
+  TextField,
+  toast,
+} from "../../../ui";
 import {
   createWorkspace,
   listWorkspaces,
@@ -22,17 +29,32 @@ export function ProjectsHome({ go }: { go(hash: string): void }) {
   const [about, setAbout] = useState("");
   const [busy, setBusy] = useState(false);
   const [more, setMore] = useState(false);
+  const [failed, setFailed] = useState("");
+  const [reads, setReads] = useState(0);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
-    listWorkspaces().then(setRows, () => setRows([]));
-  }, []);
+    listWorkspaces().then(
+      (items) => {
+        setRows(items);
+        setFailed("");
+      },
+      (error: unknown) =>
+        setFailed(error instanceof Error ? error.message : String(error)),
+    );
+  }, [reads]);
 
   const when = (stamp: string) =>
     new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(
       new Date(stamp),
     );
-  const main = (rows ?? []).filter((w) => !w.archived && w.kind === "research");
-  const rest = (rows ?? []).filter((w) => w.archived || w.kind !== "research");
+  const visible = (rows ?? []).filter((w) =>
+    `${w.name} ${w.description}`
+      .toLocaleLowerCase()
+      .includes(search.trim().toLocaleLowerCase()),
+  );
+  const main = visible.filter((w) => !w.archived && w.kind === "research");
+  const rest = visible.filter((w) => w.archived || w.kind !== "research");
 
   const make = async () => {
     setBusy(true);
@@ -90,7 +112,30 @@ export function ProjectsHome({ go }: { go(hash: string): void }) {
             {t("projects.new")}
           </Button>
         </header>
-        {rows && main.length === 0 && (
+        {rows && rows.length > 0 && (
+          <TextField
+            type="search"
+            label={t("projects.search")}
+            hideLabel
+            placeholder={t("projects.search")}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        )}
+        {failed && (
+          <p className={styles.empty}>
+            {failed}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setReads((n) => n + 1)}
+            >
+              {t("common.retry")}
+            </Button>
+          </p>
+        )}
+        {!rows && !failed && <Spinner />}
+        {rows && main.length === 0 && !failed && !search && (
           <p className={styles.empty}>{t("projects.empty")}</p>
         )}
         <div className={styles.grid}>{main.map(card)}</div>

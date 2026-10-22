@@ -1,0 +1,45 @@
+# Pi 会话管理与执行控制
+
+2026-10-22。参考用户提供的 Codex App 界面，以及官方仓库 [`342ed69a174c`](https://github.com/openai/codex/tree/342ed69a174c206c1de52a59491b131e0753cfa5) 的 thread / turn 契约；底座继续使用 Pi 0.85.1。官方仓库的 app-server 与 TUI 不等于完整桌面 App 前端源码。当前产品关系见 [folder-workspaces.md](folder-workspaces.md)。
+
+## 对象和权限
+
+- `AgentSession` 是持续会话，`AgentRun` 是一次执行，`AgentSessionEntry` 是 Pi 的历史。研究入口中的一个会话对应一项 `ResearchProject`；选定工作区和模型后，首条消息创建研究并开始定题，没有额外的空普通聊天或固定导师层。
+- `ResearchWorkspace` 是实际目录归属，`ResearchCollection` 是手选分类。分类可跨目录，修改分类、标题、置顶或看板成员不改变研究执行位置。
+- `kind` 区分研究、论文、通用聊天与阅读产物等能力；早期项目导师和项目聊天类型仅保留历史兼容。迁移 0039 将这两类旧会话转换成暂停研究，复用会话 ID 与 Pi 历史，不继承自动批准或协调权限。
+- 后端输出 `capabilities`；前端用它显示操作，后端仍独立校验。研究使用自身消息、审批、生命周期和按轮次分叉接口，不能走通用运行、steer / follow_up、clone、compact 或删除接口绕过研究状态机。
+
+## 查询与操作
+
+- `GET /research/navigation`：当前侧栏按工作区列研究，并提供项目分类；`GET /research/board` 仅列手选加入看板的研究。
+- `POST /research/projects` 创建研究；已有研究使用自身 `/messages` 入口。`PATCH /research/projects/{id}/organization` 更新显示标题、置顶、分类和看板成员。
+- `GET /research/workspaces/{id}/sessions` 保留兼容列表、搜索、置顶优先、游标分页和归档筛选。旧 `POST /research/workspaces/{id}/sessions` 与 `/chats` 创建入口返回 410，引导新建研究。
+- `GET /research/sessions`：本机全局只读搜索，匹配会话标题、研究问题或项目名；排除其他用户、归档工作区与阅读产物，供快速搜索使用。
+- `GET/PATCH /agent/sessions/{id}`：按能力读取或更新元数据。普通对话有活动轮次时拒绝归档；研究需完全结束、复盘完成且没有活动轮次或作业。研究标题等组织信息走研究接口。
+- 对具备能力的论文、通用聊天和未转换兼容对话，`/clone` 保留所有已终止的可见轮次（含失败、取消）及 Pi 条目，记录来源会话和最后一轮，清除复制记录的停止／执行状态。它不复制实验目录，也不等同按研究检查点分叉；已迁移研究使用轮次分叉，不开放通用 clone / compact。
+
+归档工作区会串行核对其会话、研究和作业；有活动或等待中的研究时拒绝。归档后可读取历史，重新开始工作前必须恢复工作区。调度器也独立检查归档状态。锁顺序为现有会话按 ID 排序，再锁工作区；追加与发消息遵循同样顺序，持锁后复核归档状态。
+
+## 运行控制
+
+`POST /agent/sessions/{id}/controls` 接收 `expected_run_id`、幂等 `client_id`、`kind`（`steer`、`follow_up`、`abort`）与文字；`GET` 读取持久状态（queued / accepted / applied / rejected）。
+
+- 只有具备能力的普通会话可使用 `steer` / `follow_up`。前者交给 Pi 在工具调用后的边界送入，后者交给 Pi 在当前工作收尾后处理。控制持久化并绑定原运行，重复或迟到消息不会迁入下一轮；归档后拒绝新增追加，仍可请求停止。
+- `abort` 先清空 Pi 队列，再中止、保存增量 entries，确认后才把 run 置为 cancelled。尚未消费的消息明确标为 rejected；前端可以恢复为草稿。
+- 停止期间保持运行占用，禁止新发消息；界面可编辑草稿。宿主侧工具已经在执行时先收尾，避免用户看到“已停止”后仍有未记录的操作。
+- 控制泵独立于宿主工具等待，保持 Node 控制与确认通道可用。超过宽限时间无响应才强制终止子进程。
+- 同一个 run 内可能有多段回答，`runtime.conversation_messages` 保留已完成消息，`response` 继续承载最近回答／流式片段；旧数据仍能显示。
+
+研究不用通用 steer / follow_up。定题和只读 discussion 使用同一研究的 Pi 条目；回答期间的新问题记为研究消息，按消息边界进入下一轮。自主执行、评审和提炼继续使用各自简报与交接。研究可以中止当前回答，但计划批准、暂停、恢复、停止实验仍走研究流程；“停止本轮”不会代替暂停或停止实验。
+
+## 页面与通报
+
+侧栏展示工作区及其中的研究会话，分类和看板提供手选视图。新研究先选择实际目录、可选分类和模型；中央始终显示研究聊天，计划、地图、实验、证据、文件和成果为配套记录。历史会话链接仍可读取，切换研究保留各自草稿。
+
+通报引用原研究事件，不为展示调用模型；pending 根据当前计划版本、未回答请求、用户回复和研究生命周期计算。旧计划不会因另一个请求进入等待状态而重新成为待办，错误保留为历史。消息、通报和成果均保留研究来源。
+
+## 验证
+
+后端会话和控制回归见 `test_session_management.py`、`test_agent_controls.py`、`test_research_notes.py`、`test_research_archive.py`，并与目录工作区、分类看板、研究消息边界、Pi 和 Agent 回归共同验证。Node 使用 `runner.test.mjs` 的本地脚本模型验证真实 Pi 控制。页面验收需覆盖目录选择、会话切换、草稿、研究中止、运行中留言、历史来源和快速搜索。
+
+按研究轮次分叉与成果合并使用独立领域接口，详见 [workspace-threads.md](workspace-threads.md)。分叉的研究继续使用 Pi，但其地图和文件来自精确轮次检查点，继承事件仅供参考；它与普通会话复制有不同语义。项目资料库仍是后续功能。

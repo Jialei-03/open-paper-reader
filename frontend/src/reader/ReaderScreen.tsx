@@ -1251,6 +1251,7 @@ export function ReaderScreen({
         sidebar={
           <RegionBoundary region="sidebar" className={styles.sidebarFailure}>
             <ReaderSidebar
+              contextHash={readerHash(route).slice(1)}
               floating={compact}
               paperId={paperId}
               papers={papers}

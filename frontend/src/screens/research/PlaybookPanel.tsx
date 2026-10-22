@@ -2,7 +2,7 @@ import { Check, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
-import { Button, toast } from "../../ui";
+import { Button, Spinner, toast } from "../../ui";
 import {
   readPlaybook,
   reviewRule,
@@ -22,12 +22,52 @@ export function PlaybookPanel() {
   const [book, setBook] = useState<Playbook | null>(null);
   const [busy, setBusy] = useState("");
   const [reads, setReads] = useState(0);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    readPlaybook().then(setBook, () => setBook(null));
-  }, [reads]);
+    let cancelled = false;
+    setError("");
+    readPlaybook().then(
+      (value) => {
+        if (cancelled) return;
+        setBook(value);
+      },
+      (reason: unknown) => {
+        if (cancelled) return;
+        setError(
+          reason instanceof Error && reason.message
+            ? reason.message
+            : t("settings.loadError"),
+        );
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [reads, t]);
 
-  if (!book) return null;
+  if (error)
+    return (
+      <section className={styles.playbook}>
+        <p className={styles.hint} role="alert">
+          {error}
+        </p>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => setReads((n) => n + 1)}
+        >
+          {t("common.retry")}
+        </Button>
+      </section>
+    );
+  if (!book)
+    return (
+      <section className={styles.playbook} aria-label={t("common.loading")}>
+        <Spinner />
+        <p className={styles.hint}>{t("common.loading")}</p>
+      </section>
+    );
   const rules = sortRules(book.rules);
 
   const review = async (rule: PlaybookRule, approve: boolean) => {

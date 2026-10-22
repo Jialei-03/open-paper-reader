@@ -288,7 +288,7 @@ async def execute(
     if (
         not isinstance(args, dict)
         or set(args) - set(spec["parameters"]["properties"])
-        or not set(spec["parameters"]["required"]) <= set(args)
+        or not set(spec["parameters"].get("required", [])) <= set(args)
     ):
         raise ValueError("工具参数不合法")
     for field in ("id", "paper_id"):

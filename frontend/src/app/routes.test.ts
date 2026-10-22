@@ -45,7 +45,6 @@ describe("parseAppRoute", () => {
       "dashboard",
       "knowledge",
       "directions",
-      "collections/x",
       "tokens",
       "graph",
       "item/i1",
@@ -74,35 +73,67 @@ describe("parseAppRoute: #open", () => {
   });
 });
 
-describe("parseAppRoute: #research", () => {
-  it("reads the research list and a project", () => {
-    expect(parseAppRoute("research")).toEqual({
-      screen: "projects",
-      redirect: "projects",
+describe("research navigation", () => {
+  const id = "0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d";
+  it("starts empty, then routes a real research thread", () => {
+    expect(parseAppRoute("new")).toEqual({ screen: "new-research" });
+    expect(parseAppRoute(`new?workspace=${id}&collection=${id}`)).toEqual({
+      screen: "new-research",
+      workspaceId: id,
+      collectionId: id,
     });
-    expect(
-      parseAppRoute("research/0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d"),
-    ).toEqual({
+    expect(parseAppRoute(`research/${id}`)).toEqual({
       screen: "research",
-      projectId: "0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d",
+      projectId: id,
+    });
+    expect(parseAppRoute("research")).toEqual({
+      screen: "new-research",
+      redirect: "new",
     });
     expect(parseAppRoute("research/not-an-id")).toEqual({
-      screen: "projects",
-      redirect: "projects",
+      screen: "new-research",
+      redirect: "new",
     });
   });
-
-  it("reads the projects, one project, and one of its tabs", () => {
-    const id = "0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d";
-    expect(parseAppRoute("projects")).toEqual({ screen: "projects" });
-    expect(parseAppRoute(`projects/${id}`)).toEqual({
-      screen: "projects",
+  it("separates physical workspaces, classifications, and the selected board", () => {
+    expect(parseAppRoute("workspaces")).toEqual({ screen: "workspaces" });
+    expect(parseAppRoute(`workspaces/${id}/results`)).toEqual({
+      screen: "workspaces",
       workspaceId: id,
+      tab: "results",
+    });
+    expect(parseAppRoute("collections")).toEqual({
+      screen: "research-collections",
+    });
+    expect(parseAppRoute(`collections/${id}`)).toEqual({
+      screen: "research-collections",
+      collectionId: id,
+    });
+    expect(parseAppRoute("collections/unclassified")).toEqual({
+      screen: "research-collections",
+      collectionId: "unclassified",
+    });
+    expect(parseAppRoute("board")).toEqual({ screen: "research-board" });
+  });
+  it("maps old projects to folders and preserves saved ordinary-chat links", () => {
+    expect(parseAppRoute("projects")).toEqual({
+      screen: "research-collections",
+      redirect: "collections",
+    });
+    expect(parseAppRoute(`projects/${id}`)).toEqual({
+      screen: "workspaces",
+      workspaceId: id,
+      redirect: `workspaces/${id}`,
+    });
+    expect(parseAppRoute(`projects/${id}/results`)).toEqual({
+      screen: "workspaces",
+      workspaceId: id,
+      tab: "results",
+      redirect: `workspaces/${id}/results`,
     });
     expect(parseAppRoute(`projects/${id}/board`)).toEqual({
-      screen: "projects",
-      workspaceId: id,
-      tab: "board",
+      screen: "research-board",
+      redirect: "board",
     });
     expect(parseAppRoute(`projects/${id}/chats/${id}`)).toEqual({
       screen: "projects",
@@ -110,10 +141,42 @@ describe("parseAppRoute: #research", () => {
       tab: "chats",
       item: id,
     });
-    expect(parseAppRoute(`projects/${id}/chats/x;y`)).toEqual({
-      screen: "projects",
-      workspaceId: id,
-      tab: "chats",
+  });
+});
+
+describe("section navigation", () => {
+  const id = "0b6c2c1e-1d2f-4a3b-9c8d-7e6f5a4b3c2d";
+  it("keeps task filters and the selected research in the task section", () => {
+    for (const filter of ["active", "waiting", "paused", "history"]) {
+      expect(parseAppRoute(`tasks/${filter}?research=${id}`)).toEqual({
+        screen: "research-tasks",
+        filter,
+        projectId: id,
+      });
+    }
+    expect(parseAppRoute("tasks/waiting?research=invalid")).toEqual({
+      screen: "research-tasks",
+      filter: "waiting",
+    });
+    expect(parseAppRoute("tasks/unknown")).toEqual({
+      screen: "research-tasks",
+      filter: "active",
+      redirect: "tasks/active",
+    });
+  });
+  it("opens real customization pages and normalizes unknown subsections", () => {
+    expect(parseAppRoute("customize/models")).toEqual({
+      screen: "customize",
+      section: "models",
+    });
+    expect(parseAppRoute("customize/playbook")).toEqual({
+      screen: "customize",
+      section: "playbook",
+    });
+    expect(parseAppRoute("customize/plugins")).toEqual({
+      screen: "customize",
+      section: "playbook",
+      redirect: "customize/playbook",
     });
   });
 });

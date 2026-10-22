@@ -19,7 +19,13 @@ def _cap(limit):
     return "不限" if limit is None else limit
 
 
-WHO = {"human": "研究者", "advisor": "导师", "executor": "执行者", "system": "系统"}
+WHO = {
+    "human": "研究者",
+    "lead": "项目导师",
+    "advisor": "导师",
+    "executor": "执行者",
+    "system": "系统",
+}
 
 
 def _setting_out(settings, project):
@@ -136,12 +142,38 @@ def _instructions(d, project):
     from .models import ResearchWorkspace
 
     w = d.get(ResearchWorkspace, project.workspace_id) if project.workspace_id else None
-    text = (w.instructions or "").strip() if w else ""
+    text = (w.instructions or "").strip() if w and w.owner == project.owner else ""
     return [f"## 项目说明（研究者为整个项目写的，必须遵守）\n{text}"] if text else []
 
 
+def _location(d, project, settings):
+    if settings is None or not project.workspace_id:
+        return ""
+    from .models import ResearchWorkspace
+    from .research_locations import research_location
+
+    workspace = d.get(ResearchWorkspace, project.workspace_id)
+    if workspace is None or workspace.owner != project.owner:
+        return ""
+    location = research_location(settings, workspace, project)
+    device = f"SSH {location.get('connection_id', '')}" if location.get("kind") == "ssh" else "本机"
+    return (
+        f"## 已绑定的工作区\n{workspace.name} · {device}\n实际工作目录：{location.get('path', '')}\n"
+        "文件和命令工具已绑定此目录，直接使用，无需另建一份工作区。项目分类不改变目录和机器。"
+        "系统在应用私有仓库保存检查点；不要为检查点对用户的 Git 自动 commit、reset 或 checkout。"
+    )
+
+
 def _context_parts(d, project, settings):
+    from . import research_memory
+
     parts = _instructions(d, project)
+    location = _location(d, project, settings)
+    if location:
+        parts.append(location)
+    memory = research_memory.context(d, project, settings)
+    if memory:
+        parts.append(memory)
     moved = d.scalars(
         select(ResearchEvent)
         .where(
@@ -181,6 +213,9 @@ def scoping_brief(d, project, sprint_number, settings=None):
     from . import research_datasets, research_settings, research_stages
 
     parts = [f"# 定题对话 · 第 {sprint_number} 轮", *_instructions(d, project)]
+    location = _location(d, project, settings)
+    if location:
+        parts.append(location)
     lines = []
     for row in research_stages.conversation(d, project):
         if row.action == "plan_proposed":
@@ -225,6 +260,12 @@ def scoping_brief(d, project, sprint_number, settings=None):
         from . import research_chat
 
         parts.append(research_chat.context(d, workspace, settings))
+    else:
+        from . import research_memory
+
+        memory = research_memory.context(d, project, settings)
+        if memory:
+            parts.append(memory)
     parts.append(
         "## 这一轮\n回复研究者最新的话。他只是在问问题（项目进展、某个结果、某篇论文）"
         "就直接回答，不提计划；要做实验才能回答的问题，信息够了再用 propose_plan "

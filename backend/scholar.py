@@ -203,26 +203,42 @@ def _shape(**fields):
 
 
 def _from_s2(data):
-    ids = data.get("externalIds") or {}
-    venue_info = data.get("publicationVenue") or {}
-    journal = data.get("journal") or {}
-    venue = (venue_info.get("name") or journal.get("name") or data.get("venue") or "").strip()
-    arxiv = clean_arxiv(ids.get("ArXiv") or "")
-    doi = clean_doi(ids.get("DOI") or "")
+    def text(value):
+        return value.strip() if isinstance(value, str) else ""
+
+    if not isinstance(data, dict) or not text(data.get("title")):
+        raise ScholarUnavailable("invalid paper metadata")
+    ids = data.get("externalIds")
+    ids = ids if isinstance(ids, dict) else {}
+    venue_info = data.get("publicationVenue")
+    # Recommendation responses sometimes supply the venue name directly.
+    if isinstance(venue_info, str):
+        venue_info = {"name": venue_info}
+    elif not isinstance(venue_info, dict):
+        venue_info = {}
+    journal = data.get("journal")
+    journal = journal if isinstance(journal, dict) else {}
+    authors = data.get("authors")
+    authors = authors if isinstance(authors, list) else []
+    types = data.get("publicationTypes")
+    types = [types] if isinstance(types, str) else types if isinstance(types, list) else []
+    venue = text(venue_info.get("name")) or text(journal.get("name")) or text(data.get("venue"))
+    arxiv = clean_arxiv(text(ids.get("ArXiv")))
+    doi = clean_doi(text(ids.get("DOI")))
     if venue.lower() in {"arxiv.org", "arxiv"} or (arxiv and venue.lower().startswith("arxiv")):
         venue = ""
     return _shape(
-        title=(data.get("title") or "").strip(),
-        authors=[a["name"].strip() for a in data.get("authors") or [] if isinstance(a, dict) and a.get("name")][:100],
+        title=text(data.get("title")),
+        authors=[text(a.get("name")) for a in authors if isinstance(a, dict) and text(a.get("name"))][:100],
         year=_int(data.get("year")),
         venue=venue,
-        abstract=(data.get("abstract") or "")[:20000],
+        abstract=text(data.get("abstract"))[:20000],
         citation_count=_int(data.get("citationCount")),
         reference_count=_int(data.get("referenceCount")),
         doi=doi,
         arxiv=arxiv,
-        url=data.get("url") or "",
-        kind=_kind(data.get("publicationTypes"), venue_info.get("type"), venue, arxiv),
+        url=text(data.get("url")),
+        kind=_kind(types, text(venue_info.get("type")), venue, arxiv),
         volume=str(journal.get("volume") or "").strip(),
         pages=str(journal.get("pages") or "").strip().replace("--", "-"),
         source="Semantic Scholar",

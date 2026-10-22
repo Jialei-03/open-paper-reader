@@ -1,8 +1,11 @@
 /* The card sets what a reset would give it (the new screens do not load one). */
 .root {
-  --search-width: 320px;
   --card-min: 220px;
   flex: 1;
+  container: paper-library / inline-size;
+  border-radius: 0;
+  background: var(--ui-bg-1);
+  box-shadow: none;
   color: var(--ui-fg);
   font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
   -webkit-font-smoothing: antialiased;
@@ -18,6 +21,11 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  width: 100%;
+  max-width: 1220px;
+  margin: 0 auto;
+  padding: var(--ui-space-32) var(--ui-space-32) 0;
+  box-sizing: border-box;
   transition: background-color var(--ui-dur-2) var(--ui-ease-out);
 }
 
@@ -25,23 +33,74 @@
   background: var(--ui-accent-soft);
 }
 
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-16);
+  margin-bottom: var(--ui-space-16);
+}
+
+.headingGroup {
+  flex: 1;
+  min-width: 0;
+}
+
+.titleLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-12);
+}
+
 .heading {
   margin: 0;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-16);
+  font-size: clamp(24px, 2.3vw, 30px);
   font-weight: var(--ui-weight-strong);
+  line-height: 1.3;
+}
+
+.subtitle {
+  margin: var(--ui-space-8) 0 0;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-13);
 }
 
 .count {
-  color: var(--ui-fg-2);
+  color: var(--ui-fg-3);
   font-size: var(--ui-text-12);
+  white-space: nowrap;
 }
 
-/* In the header, level with the title and the import button, and taking the room between them. */
 .search {
-  flex: 0 1 var(--search-width);
-  min-width: 0;
-  margin-left: auto;
+  position: relative;
+  flex: 0 1 280px;
+  width: 280px;
+  min-width: 160px;
+}
+
+.searchIcon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: var(--ui-space-12);
+  color: var(--ui-fg-3);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.search input {
+  height: 36px;
+  padding-left: var(--ui-space-40);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-bg-2);
+  font-size: var(--ui-text-13);
+}
+
+.search input:focus {
+  border-color: var(--ui-edge);
 }
 
 .spacer {
@@ -52,12 +111,58 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  flex: none;
   gap: var(--ui-space-8);
-  padding: var(--ui-space-4) var(--ui-space-16) var(--ui-space-12);
+  padding: var(--ui-space-12) 0;
+}
+
+.currentView {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-10);
+  min-width: 0;
+}
+
+.currentView h2 {
+  margin: 0;
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+}
+
+.resultCount {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+  white-space: nowrap;
+}
+
+.viewSwitch {
+  flex: none;
+}
+
+.viewSwitch [role="radio"] {
+  justify-content: center;
+  width: 32px;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.viewSwitch [role="radio"] > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.viewSwitch svg {
+  width: 15px;
+  height: 15px;
 }
 
 .jobs {
-  padding: 0 var(--ui-space-16);
+  flex: none;
 }
 
 .jobs:not(:empty) {
@@ -68,19 +173,39 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 var(--ui-space-16) var(--ui-space-24);
+  padding: 0 0 var(--ui-space-32);
 }
 
 .message {
-  margin: var(--ui-space-40) auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-16);
+  min-height: 260px;
+  padding: var(--ui-space-24);
   color: var(--ui-fg-2);
   text-align: center;
 }
 
+.message > svg {
+  color: var(--ui-fg-3);
+  opacity: 0.7;
+}
+
+.message p {
+  max-width: 380px;
+  margin: 0;
+  line-height: 1.7;
+}
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
-  gap: var(--ui-space-12);
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--card-min)), 1fr)
+  );
+  gap: var(--ui-space-20);
 }
 
 .table {
@@ -90,11 +215,23 @@
 }
 
 .table th {
-  padding: var(--ui-space-6) var(--ui-space-8);
-  color: var(--ui-fg-2);
+  padding: var(--ui-space-12) var(--ui-space-8);
+  border-bottom: 1px solid var(--ui-edge-subtle);
+  color: var(--ui-fg-3);
   font-size: var(--ui-text-12);
   font-weight: var(--ui-weight-regular);
   text-align: left;
+}
+
+.table thead {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: var(--ui-bg-1);
+}
+
+.table th:first-child {
+  padding-left: 0;
 }
 
 .progress {
@@ -128,10 +265,54 @@
   color: var(--ui-danger-text);
 }
 
-@media (max-width: 760px) {
+@container paper-library (max-width: 720px) {
   .progress,
   .updated {
     display: none;
+  }
+
+  .frame {
+    padding: var(--ui-space-24) var(--ui-space-20) 0;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .headingGroup {
+    flex-basis: 100%;
+  }
+
+  .search {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .resultCount {
+    display: none;
+  }
+
+  .currentView .resultCount {
+    display: inline;
+  }
+}
+
+@container paper-library (max-width: 420px) {
+  .frame {
+    padding: var(--ui-space-20) var(--ui-space-12) 0;
+  }
+
+  .header {
+    gap: var(--ui-space-8);
+  }
+
+  .subtitle {
+    max-width: 230px;
+  }
+
+  .tools {
+    gap: var(--ui-space-6);
   }
 }
 

@@ -179,7 +179,7 @@ def semantic_scholar(ident):
     return [
         _shown(scholar._from_s2(row))
         for row in rows
-        if isinstance(row, dict) and row.get("title")
+        if isinstance(row, dict) and isinstance(row.get("title"), str) and row["title"].strip()
     ]
 
 

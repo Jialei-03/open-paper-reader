@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Info, Star, Trash2 } from "lucide-react";
+import { FileText, Info, Star, Trash2 } from "lucide-react";
 import { useMemo, useRef } from "react";
 import type { Paper } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -212,24 +212,29 @@ export function PaperRow(props: PaperItemProps) {
           href={hash}
           onClick={followLink(go, hash.slice(1))}
         >
-          <span className={styles.rowTitle}>
-            {paper.favorite && (
-              <Star
-                className={styles.rowStar}
-                size={13}
-                aria-label={t("library.favorite")}
-                role="img"
-              />
-            )}
-            <span className={styles.rowName}>
-              {paper.title || t("reader.untitled")}
-            </span>
+          <span className={styles.rowFileIcon} aria-hidden>
+            <FileText size={19} strokeWidth={1.5} />
           </span>
-          {(facts.byline || source) && (
-            <span className={styles.rowBy}>
-              {[facts.byline, source].filter(Boolean).join(" · ")}
+          <span className={styles.rowCopy}>
+            <span className={styles.rowTitle}>
+              {paper.favorite && (
+                <Star
+                  className={styles.rowStar}
+                  size={13}
+                  aria-label={t("library.favorite")}
+                  role="img"
+                />
+              )}
+              <span className={styles.rowName}>
+                {paper.title || t("reader.untitled")}
+              </span>
             </span>
-          )}
+            {(facts.byline || source) && (
+              <span className={styles.rowBy}>
+                {[facts.byline, source].filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </span>
         </a>
       </td>
       <td className={styles.cellProgress}>

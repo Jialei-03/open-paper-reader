@@ -101,8 +101,8 @@ def start(settings, d, item, project, job):
     log = research_sandbox.logdir(settings, project.id) / f"{job.id}.log"
     exit_file = run_dir / ".exit"
     wrapped = (
-        f"({research_sandbox.strict(job.command)}); "
-        f"echo $? > {shlex.quote(str(exit_file))}"
+        f"(\n{research_sandbox.strict(job.command)}\n)\n"
+        f"echo $? > {shlex.quote(str(exit_file))}\n"
     )
     with open(log, "w") as out:
         process = subprocess.Popen(

@@ -17,6 +17,31 @@ export type AppRoute =
   | { screen: "settings"; category?: string; redirect?: string }
   | { screen: "research"; projectId?: string; redirect?: string }
   | {
+      screen: "new-research";
+      workspaceId?: string;
+      collectionId?: string;
+      redirect?: string;
+    }
+  | { screen: "research-board"; redirect?: string }
+  | {
+      screen: "research-tasks";
+      filter: "active" | "waiting" | "paused" | "history";
+      projectId?: string;
+      redirect?: string;
+    }
+  | {
+      screen: "customize";
+      section: "playbook" | "models";
+      redirect?: string;
+    }
+  | {
+      screen: "workspaces";
+      workspaceId?: string;
+      tab?: string;
+      redirect?: string;
+    }
+  | { screen: "research-collections"; collectionId?: string; redirect?: string }
+  | {
       screen: "projects";
       workspaceId?: string;
       tab?: string;
@@ -51,25 +76,87 @@ export function parseAppRoute(hash: string): AppRoute {
       ? { screen: "settings", category }
       : { screen: "settings", redirect: "settings" };
   }
-  // Research lives in projects now; the old list address opens them.
-  if (path === "research") return { screen: "projects", redirect: "projects" };
-  if (path === "projects") return { screen: "projects" };
+  const uuid = (value = "") => /^[0-9a-f-]{36}$/.test(value);
+  if (path === "tasks" || path.startsWith("tasks/")) {
+    const filter = path.slice("tasks/".length);
+    const projectId =
+      new URLSearchParams(hash.split("?")[1] || "").get("research") || "";
+    if (["active", "waiting", "paused", "history"].includes(filter))
+      return {
+        screen: "research-tasks",
+        filter: filter as "active" | "waiting" | "paused" | "history",
+        ...(uuid(projectId) ? { projectId } : {}),
+      };
+    return {
+      screen: "research-tasks",
+      filter: "active",
+      redirect: "tasks/active",
+    };
+  }
+  if (path === "customize" || path.startsWith("customize/")) {
+    const section = path.slice("customize/".length);
+    return section === "models" || section === "playbook"
+      ? { screen: "customize", section }
+      : {
+          screen: "customize",
+          section: "playbook",
+          redirect: "customize/playbook",
+        };
+  }
+  if (path === "new") {
+    const params = new URLSearchParams(hash.split("?")[1] || "");
+    const workspaceId = params.get("workspace") || "";
+    const collectionId = params.get("collection") || "";
+    return {
+      screen: "new-research",
+      ...(uuid(workspaceId) ? { workspaceId } : {}),
+      ...(uuid(collectionId) ? { collectionId } : {}),
+    };
+  }
+  if (path === "board") return { screen: "research-board" };
+  if (path === "workspaces") return { screen: "workspaces" };
+  if (path.startsWith("workspaces/")) {
+    const [workspaceId, tab] = path.slice("workspaces/".length).split("/");
+    return uuid(workspaceId)
+      ? {
+          screen: "workspaces",
+          workspaceId,
+          ...(tab === "results" ? { tab } : {}),
+        }
+      : { screen: "workspaces", redirect: "workspaces" };
+  }
+  if (path === "collections" || path === "projects")
+    return {
+      screen: "research-collections",
+      ...(path === "projects" ? { redirect: "collections" } : {}),
+    };
+  if (path.startsWith("collections/")) {
+    const collectionId = path.slice("collections/".length);
+    return uuid(collectionId) || collectionId === "unclassified"
+      ? { screen: "research-collections", collectionId }
+      : { ...HOME, redirect: "home" };
+  }
   if (path.startsWith("projects/")) {
     const [workspaceId, tab, item] = path.slice("projects/".length).split("/");
-    return /^[0-9a-f-]{36}$/.test(workspaceId)
-      ? {
-          screen: "projects",
-          workspaceId,
-          ...(tab ? { tab } : {}),
-          ...(item && /^[0-9a-f-]{36}$/.test(item) ? { item } : {}),
-        }
-      : { screen: "projects", redirect: "projects" };
+    if (!uuid(workspaceId))
+      return { screen: "research-collections", redirect: "collections" };
+    // Older ordinary chats remain readable by their saved address.
+    if (tab === "chats" && uuid(item))
+      return { screen: "projects", workspaceId, tab, item };
+    if (tab === "board") return { screen: "research-board", redirect: "board" };
+    return {
+      screen: "workspaces",
+      workspaceId,
+      ...(tab === "results" ? { tab } : {}),
+      redirect: `workspaces/${workspaceId}${tab === "results" ? "/results" : ""}`,
+    };
   }
+  if (path === "research") return { screen: "new-research", redirect: "new" };
   if (path.startsWith("research/")) {
     const projectId = path.slice("research/".length);
-    return /^[0-9a-f-]{36}$/.test(projectId)
+    return uuid(projectId)
       ? { screen: "research", projectId }
-      : { screen: "projects", redirect: "projects" };
+      : { screen: "new-research", redirect: "new" };
   }
   if (path === "open") {
     // From the browser extension: the address of a paper to import, then read.

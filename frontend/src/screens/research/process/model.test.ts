@@ -64,6 +64,20 @@ describe("a run, read as a turn", () => {
     ]);
   });
 
+  it("reports project supervision without claiming to execute commands or experiments", () => {
+    expect(
+      summary([
+        step("project_overview"),
+        step("research_read"),
+        step("start_research"),
+        step("message_research"),
+      ]),
+    ).toEqual([
+      ["read", 2],
+      ["record", 2],
+    ]);
+  });
+
   it("names what a step was about, and what came back", () => {
     expect(
       target(

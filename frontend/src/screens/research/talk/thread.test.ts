@@ -51,6 +51,48 @@ const plan = (version: number) => ({
 });
 
 describe("buildThread", () => {
+  it.each(["scoping", "discussion"])(
+    "presents a real advisor reply from a %s sprint as a conversation message",
+    (role) => {
+      const reply = "这个结论仅适用于已验证的数据。";
+      const turn = { ...sprint("conversation", role), summary: reply };
+      // _settle stores the same response in the sprint summary and an advisor
+      // message; the actor itself is not a synthetic discussion role.
+      const events = [
+        ev("message", "human", { text: "解释结论适用范围" }, turn.id),
+        ev("research_map_read", "advisor", {}, turn.id),
+        ev("message", "advisor", { text: reply }, turn.id),
+      ];
+      const items = buildThread(events, [turn], [], [], "done");
+      const messages = items.filter((item) => item.kind === "message");
+      expect(messages.map((item) => [item.who, item.text])).toEqual([
+        ["human", "解释结论适用范围"],
+        ["discussion", reply],
+      ]);
+      expect(messages.filter((item) => item.text === reply)).toHaveLength(1);
+      expect(events[2].actor).toBe("advisor");
+      expect(turn.summary).toBe(reply);
+    },
+  );
+
+  it("preserves review, system and unbound message speakers", () => {
+    const items = buildThread(
+      [
+        ev("message", "advisor", { text: "实验评审" }, "review"),
+        ev("message", "system", { text: "停止回答" }, "chat"),
+        ev("message", "advisor", { text: "历史消息" }),
+        ev("message", "advisor", { text: "缺少轮次" }, "missing"),
+      ],
+      [sprint("review", "advisor"), sprint("chat", "discussion")],
+      [],
+      [],
+      "done",
+    );
+    expect(
+      items.filter((item) => item.kind === "message").map((item) => item.who),
+    ).toEqual(["advisor", "system", "advisor", "advisor"]);
+  });
+
   it("shows scoping as a round and only the newest plan is on the table", () => {
     const events = [
       ev("message", "human", { text: "想提升 MNIST" }),

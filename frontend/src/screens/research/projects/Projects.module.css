@@ -1,7 +1,4 @@
-/*
- * Research projects: a grid of projects, and inside one a board (after
- * Hermes's Kanban, MIT), the list of its researches, and what they share.
- */
+/* Research projects and their conversations, researches, and board. */
 
 .page {
   display: flex;
@@ -670,6 +667,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
 }
 
 .chatBar {
@@ -690,22 +688,16 @@
   gap: var(--ui-space-16);
 }
 
-/* A project's front page: its conversations, and beside them what it shares. */
+/* Earlier conversations and the project's settings remain separate views. */
 
 .overview {
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--ui-space-32);
-  width: min(1080px, 100%);
+  width: min(760px, 100%);
   margin: 0 auto;
   padding: var(--ui-space-32) var(--ui-space-24);
-}
-
-@media (width <= 860px) {
-  .overview {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .conversations {
@@ -755,4 +747,375 @@
   display: flex;
   gap: var(--ui-space-4);
   margin-left: calc(-1 * var(--ui-space-8));
+}
+
+/* Project conversations share one thread list. */
+.main {
+  position: relative;
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.sessionRail {
+  min-height: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--ui-edge-subtle);
+  background: var(--ui-bg-1);
+}
+.conversation {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.conversation > .chat {
+  flex: 1 1 auto;
+}
+.sessions {
+  padding: var(--ui-space-12);
+}
+.sessionActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4);
+  margin-bottom: var(--ui-space-12);
+}
+.sessionSearch {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-6);
+  padding: 0 var(--ui-space-8);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg);
+  color: var(--ui-fg-3);
+}
+.sessionSearch input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--ui-text-12);
+  color: var(--ui-fg);
+}
+.sessionSearch:focus-within {
+  box-shadow: var(--ui-focus-ring);
+}
+.sessionSearch input:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+.sessionFilter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: var(--ui-space-8) 0;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+.sessionRows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sessionRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  border-radius: var(--ui-r-8);
+}
+.sessionRow:hover,
+.sessionRow[data-current] {
+  background: var(--ui-hover);
+}
+.sessionRow > button {
+  flex: none;
+  margin-top: var(--ui-space-8);
+}
+.sessionLink {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  gap: var(--ui-space-6);
+  padding: var(--ui-space-10) var(--ui-space-8);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--ui-r-8);
+}
+.sessionLink:focus-visible {
+  outline: 0;
+  box-shadow: var(--ui-focus-ring);
+}
+.sessionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sessionTitle svg {
+  flex: none;
+  color: var(--ui-fg-3);
+}
+.sessionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+}
+.sessionMeta [data-live] {
+  color: var(--ui-success-text);
+}
+.sessionProgress {
+  overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sessionEmpty,
+.sessionError {
+  margin: var(--ui-space-16) 0;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+}
+.sessionError {
+  color: var(--ui-danger-text);
+}
+.sessionPage,
+.newResearch {
+  box-sizing: border-box;
+  width: min(840px, 100%);
+  padding: var(--ui-space-24) var(--ui-space-16);
+  margin: 0 auto;
+}
+.sessionPage .sessionRow {
+  align-items: center;
+}
+.sessionPage .sessionRows {
+  gap: var(--ui-space-8);
+}
+.newResearch {
+  width: min(720px, 100%);
+}
+.newResearch h2 {
+  margin: 0 0 var(--ui-space-20);
+  font-size: var(--ui-text-16);
+  font-weight: var(--ui-weight-strong);
+}
+.railToggle,
+.railClose,
+.railBackdrop {
+  display: none;
+}
+.chatBar {
+  align-items: flex-start;
+  padding-top: var(--ui-space-16);
+}
+.chatHeading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.chatHeading h2 {
+  overflow: hidden;
+  margin: 0 0 var(--ui-space-4);
+  color: var(--ui-fg);
+  font-size: var(--ui-text-15);
+  font-weight: var(--ui-weight-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chatHeading > span {
+  font-size: var(--ui-text-11);
+}
+
+.sourceLink {
+  margin-left: var(--ui-space-8);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+  text-decoration: none;
+}
+
+.sourceLink:hover {
+  color: var(--ui-fg);
+}
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-10);
+}
+.notice[data-pending] {
+  border-color: color-mix(in oklab, var(--ui-fg) 24%, transparent);
+}
+.noticeLink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  color: inherit;
+  text-decoration: none;
+}
+.noticeLink:hover {
+  color: var(--ui-fg);
+}
+.noticeLink:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+.noticeHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-8);
+}
+.noticeHead time {
+  margin-left: auto;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+}
+.noticeState {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+}
+.noticeQuestion {
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-strong);
+}
+.noticeText {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.noticeText[data-clamped] {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.noticeMore {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-fg-3);
+  font: inherit;
+  font-size: var(--ui-text-12);
+  cursor: pointer;
+}
+.pendingNotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+}
+.pendingNotes h3 {
+  margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+}
+.noteHistory > summary {
+  padding: var(--ui-space-8) 0;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+  cursor: pointer;
+}
+.noteHistory > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+  margin-top: var(--ui-space-8);
+}
+.controlMessage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+}
+.controlMessage > span {
+  align-self: flex-end;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-11);
+}
+.projectSettings {
+  box-sizing: border-box;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: var(--ui-space-32) var(--ui-space-24);
+}
+@media (width <= 860px) {
+  .main {
+    display: flex;
+  }
+  .conversation {
+    flex: 1 1 auto;
+  }
+  .sessionRail {
+    display: none;
+  }
+  .sessionRail[data-open] {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 4;
+    display: block;
+    width: min(288px, calc(100% - 28px));
+    box-shadow: var(--ui-elev-2);
+  }
+  .railClose {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--ui-space-6) var(--ui-space-8) 0;
+  }
+  .railBackdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    padding: 0;
+    border: 0;
+    background: color-mix(in oklab, var(--ui-fg) 12%, transparent);
+  }
+  .railToggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--ui-space-6);
+    align-self: flex-start;
+    margin: var(--ui-space-8) var(--ui-space-16) 0;
+    padding: var(--ui-space-4) 0;
+    border: 0;
+    background: transparent;
+    color: var(--ui-fg-2);
+    font: inherit;
+    font-size: var(--ui-text-12);
+    cursor: pointer;
+  }
+  .projectHead > [role="radiogroup"] {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .chatBar {
+    padding-top: var(--ui-space-8);
+  }
 }

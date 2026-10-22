@@ -23,7 +23,7 @@ import styles from "./Settings.module.css";
 const displayName = (row: ModelRow) => row.name || row.model;
 
 /** The models: the current one, the others (use, test, remove), and adding one with the setup's form. */
-export function ModelsSection() {
+export function ModelsSection({ page = false }: { page?: boolean } = {}) {
   const i18n = useI18n();
   const { t, tn } = i18n;
   const [settings, setSettings] = useState<ModelSettings | null>(null);
@@ -81,6 +81,7 @@ export function ModelsSection() {
   const models = settings?.models ?? [];
   return (
     <Section
+      headingLevel={page ? 1 : 2}
       title={t("settings.models.title")}
       lead={t("settings.models.lead")}
       action={

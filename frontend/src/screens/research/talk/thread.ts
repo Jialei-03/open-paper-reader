@@ -92,11 +92,18 @@ export function buildThread(
   for (const event of events) {
     if (HIDDEN.has(event.action)) continue;
     const at = event.created_at;
+    const sprint = event.sprint_id ? bySprint.get(event.sprint_id) : undefined;
     if (event.action === "message") {
       items.push({
         kind: "message",
         id: event.id,
-        who: event.actor,
+        // The backend records conversational replies as advisor messages.
+        // Their sprint distinguishes chat from an experiment review.
+        who:
+          event.actor === "advisor" &&
+          (sprint?.role === "scoping" || sprint?.role === "discussion")
+            ? "discussion"
+            : event.actor,
         text: str(event.detail.text),
         at,
       });
@@ -154,7 +161,6 @@ export function buildThread(
       });
       continue;
     }
-    const sprint = event.sprint_id ? bySprint.get(event.sprint_id) : undefined;
     const step: Step = {
       id: event.id,
       actor: event.actor,

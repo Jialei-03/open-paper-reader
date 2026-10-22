@@ -23,6 +23,7 @@ def env(cloud_env):  # noqa: F811
     cloud_env[3].mode = "local"
     return cloud_env
 
+
 WS = "/api/v1/research/workspaces"
 
 
@@ -52,16 +53,26 @@ def _project_with_a_running_job(app, owner):
         return w.id, p.id
 
 
-def test_asking_a_project_opens_a_conversation_not_a_research(env):
+def test_a_legacy_conversation_still_reads_without_touching_research(env):
     app, a, _b, settings = env
     owner, model = configure(app, a, settings)
     wid, pid = _project_with_a_running_job(app, owner)
-    r = a.post(
+    retired = a.post(
         f"{WS}/{wid}/chats",
         json={"message": "现在进展怎么样？", "model_config_id": model},
     )
-    assert r.status_code == 200, r.text
-    chat = r.json()
+    assert retired.status_code == 410
+    with app.state.maker() as d:
+        old = rc.start(
+            settings,
+            d,
+            owner,
+            d.get(rw.ResearchWorkspace, wid),
+            "现在进展怎么样？",
+            model,
+        )
+        d.commit()
+        chat = rc.session_out(d, old)
     with app.state.maker() as d:
         assert len(list(d.scalars(select(ResearchProject)))) == 1
         session = d.get(AgentSession, chat["id"])
@@ -135,7 +146,9 @@ def test_a_new_conversation_reads_the_project_before_it_has_a_plan(env):
     with app.state.maker() as d:
         talk = rm.create_project(d, owner, "ResNet 那轮结果怎样？", "", "m")
         talk.workspace_id = wid
-        sprint = ResearchSprint(project_id=talk.id, number=1, run_id="r", role="scoping")
+        sprint = ResearchSprint(
+            project_id=talk.id, number=1, run_id="r", role="scoping"
+        )
         d.add(sprint)
         d.commit()
         brief = scoping_brief(d, talk, 1, settings)

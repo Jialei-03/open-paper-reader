@@ -1,14 +1,31 @@
 import {
   Compass,
   FlaskConical,
+  SquarePen,
+  LayoutGrid,
+  Folder,
   FileText,
   House,
   Library,
   LogOut,
   Search,
   Settings,
+  ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Clock3,
+  SlidersHorizontal,
+  type LucideIcon,
 } from "lucide-react";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import type { Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { followLink, readerHash } from "../reader/route";
@@ -21,9 +38,27 @@ import {
   SidebarItem,
   SidebarSection,
   useSidebarWidth,
+  IconButton,
+  Menu,
+  Resizer,
+  Tooltip,
+  matchesShortcut,
+  useResizableWidth,
 } from "../ui";
-import type { AppScreen } from "./routes";
+import { parseAppRoute, type AppScreen } from "./routes";
+import {
+  localSection,
+  readSectionAddresses,
+  validSectionAddress,
+} from "./local-sections";
+import { SectionNavigation } from "./SectionNavigation";
+import { TaskNavigation } from "../screens/tasks/TaskCenter";
 import styles from "./AppSidebar.module.css";
+import { useLocal } from "./edition";
+import {
+  ResearchTree,
+  useResearchNavigation,
+} from "../screens/research/ResearchNavigation";
 
 /** Opens quick open, from anywhere in the app. */
 export const QUICK_OPEN_SHORTCUT = "mod+k";
@@ -54,6 +89,8 @@ export interface AppSidebarProps {
   screen: AppScreen;
   /** The paper being read, when `screen` is the reader. */
   paperId?: string;
+  researchId?: string;
+  contextHash?: string;
   papers: Paper[];
   /** The paper being read, once it has loaded (named from itself until the list has caught up with it). */
   current?: Paper | null;
@@ -71,12 +108,37 @@ export function AppSidebar({
   floating,
   screen,
   paperId = "",
+  researchId,
+  contextHash,
   papers,
   current = null,
   visits,
   go,
 }: AppSidebarProps) {
   const { t } = useI18n();
+  const local = useLocal();
+  const { data: researchNavigation } = useResearchNavigation();
+  const currentResearch = researchId
+    ? researchNavigation.workspaces
+        .flatMap((workspace) => workspace.researches)
+        .find((research) => research.id === researchId)
+    : undefined;
+  const route = parseAppRoute(contextHash ?? window.location.hash.slice(1));
+  const workspaceId =
+    currentResearch?.workspace_id ||
+    (route.screen === "workspaces" || route.screen === "new-research"
+      ? route.workspaceId
+      : undefined);
+  const collectionId =
+    currentResearch?.collection_id ||
+    (route.screen === "research-collections" || route.screen === "new-research"
+      ? route.collectionId
+      : undefined);
+  const newContext = new URLSearchParams();
+  if (workspaceId) newContext.set("workspace", workspaceId);
+  if (collectionId && collectionId !== "unclassified")
+    newContext.set("collection", collectionId);
+  const newResearchHash = `new${newContext.size ? `?${newContext}` : ""}`;
   const { owner, quickOpen, signOut } = useContext(AppActions);
   const sizing = useSidebarWidth(owner);
   // Two answers, one for each kind of window: what was chosen on a wide one is not lost on a narrow one.
@@ -103,6 +165,22 @@ export function AppSidebar({
   const reader = screen === "reader";
   // Only the icons are left of a rail: the search is then an item like the others.
   const rail = floating ? !opened : collapsed;
+  if (local === true)
+    return (
+      <AppResearchSidebar
+        floating={floating}
+        collapsed={rail}
+        onCollapsedChange={(shut) =>
+          floating ? setOpened(!shut) : setCollapsed(shut)
+        }
+        screen={screen}
+        researchId={researchId}
+        newResearchHash={newResearchHash}
+        reading={reading}
+        contextHash={contextHash ?? window.location.hash.slice(1)}
+        go={go}
+      />
+    );
   return (
     <Sidebar
       label={t("reader.region.sidebar")}
@@ -136,7 +214,7 @@ export function AppSidebar({
           (rail ? (
             <SidebarItem
               icon={Search}
-              label={t("app.quickOpen")}
+              label={t(local ? "app.quickOpen.all" : "app.quickOpen")}
               meta={formatShortcut(QUICK_OPEN_SHORTCUT, currentPlatformIsMac())}
               onClick={quickOpen}
             />
@@ -144,6 +222,7 @@ export function AppSidebar({
             <button
               type="button"
               className={styles.search}
+              aria-label={t(local ? "app.quickOpen.all" : "app.quickOpen")}
               aria-keyshortcuts={ariaKeyShortcuts(
                 QUICK_OPEN_SHORTCUT,
                 currentPlatformIsMac(),
@@ -154,7 +233,9 @@ export function AppSidebar({
               }}
             >
               <Search size={15} aria-hidden="true" />
-              <span className={styles.placeholder}>{t("app.quickOpen")}</span>
+              <span className={styles.placeholder}>
+                {t(local ? "app.quickOpen.short" : "app.quickOpen")}
+              </span>
               <Kbd shortcut={QUICK_OPEN_SHORTCUT} />
             </button>
           ))}
@@ -179,13 +260,15 @@ export function AppSidebar({
           active={screen === "discover"}
           onClick={followLink(go, "discover")}
         />
-        <SidebarItem
-          icon={FlaskConical}
-          label={t("app.research")}
-          href="#projects"
-          active={screen === "projects" || screen === "research"}
-          onClick={followLink(go, "projects")}
-        />
+        {local === false && (
+          <SidebarItem
+            icon={FlaskConical}
+            label={t("app.research")}
+            href="#new"
+            active={screen === "new-research"}
+            onClick={followLink(go, "new")}
+          />
+        )}
       </SidebarSection>
       {reading.length > 0 && (
         <SidebarSection title={t("reader.sidebar.reading")}>
@@ -207,5 +290,339 @@ export function AppSidebar({
         </SidebarSection>
       )}
     </Sidebar>
+  );
+}
+
+const researchSidebarMax = (width: number) =>
+  Math.max(240, Math.min(360, Math.floor(width / 3)));
+
+/** The local research surface keeps app destinations in a separate, quiet rail. */
+function AppResearchSidebar({
+  floating,
+  collapsed,
+  onCollapsedChange,
+  screen,
+  researchId,
+  newResearchHash,
+  reading,
+  contextHash,
+  go,
+}: {
+  floating: boolean;
+  collapsed: boolean;
+  onCollapsedChange(collapsed: boolean): void;
+  screen: AppScreen;
+  researchId?: string;
+  newResearchHash: string;
+  reading: { id: string; title: string }[];
+  contextHash: string;
+  go(hash: string): void;
+}) {
+  const { t } = useI18n();
+  const { owner, quickOpen, signOut } = useContext(AppActions);
+  const route = parseAppRoute(contextHash);
+  const section = localSection(route);
+  const remembered = useRef(readSectionAddresses(owner || ""));
+  useEffect(() => {
+    if (!validSectionAddress(section, contextHash)) return;
+    remembered.current[section] = contextHash;
+    try {
+      localStorage.setItem(
+        `app-sections:${owner || ""}`,
+        JSON.stringify(remembered.current),
+      );
+    } catch {
+      /* Navigation still works when preferences cannot be saved. */
+    }
+  }, [owner, section, contextHash]);
+  const destination = (key: typeof section) =>
+    remembered.current[key] ||
+    {
+      research: newResearchHash,
+      materials: "library",
+      tasks: "tasks/active",
+      customize: "customize/playbook",
+      board: "board",
+    }[key];
+  const title =
+    section === "research"
+      ? "ORA"
+      : section === "board"
+        ? t("projects.view.board")
+        : t(`app.section.${section}`);
+  const nav = useRef<HTMLElement>(null);
+  const sizing = useResizableWidth({
+    key: `research-sidebar-width:${owner || ""}`,
+    fallback: 288,
+    min: 240,
+    maxFor: researchSidebarMax,
+  });
+  const choose = (hash: string) => {
+    go(hash);
+    if (floating) onCollapsedChange(true);
+  };
+  useEffect(() => {
+    const keyboard = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.repeat) return;
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest("input, textarea, [contenteditable='true']")
+      )
+        return;
+      if (matchesShortcut(event, "mod+\\", currentPlatformIsMac())) {
+        event.preventDefault();
+        onCollapsedChange(!collapsed);
+      } else if (floating && !collapsed && event.key === "Escape") {
+        event.preventDefault();
+        onCollapsedChange(true);
+      }
+    };
+    const outside = (event: Event) => {
+      if (
+        floating &&
+        !collapsed &&
+        event.target instanceof Element &&
+        !nav.current?.contains(event.target) &&
+        !event.target.closest('[role="menu"]')
+      )
+        onCollapsedChange(true);
+    };
+    window.addEventListener("keydown", keyboard);
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside);
+    return () => {
+      window.removeEventListener("keydown", keyboard);
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("focusin", outside);
+    };
+  }, [collapsed, floating, onCollapsedChange]);
+  const railLink = (
+    Icon: LucideIcon,
+    label: string,
+    hash: string,
+    active: boolean,
+  ) => (
+    <Tooltip content={label} placement={{ side: "right", align: "center" }}>
+      <a
+        className={styles.railItem}
+        href={`#${hash}`}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        onClick={followLink(choose, hash)}
+      >
+        <Icon size={21} strokeWidth={1.7} aria-hidden />
+      </a>
+    </Tooltip>
+  );
+  return (
+    <nav
+      ref={nav}
+      aria-label={t("reader.region.sidebar")}
+      className={styles.researchSidebar}
+      data-floating={floating || undefined}
+      data-collapsed={collapsed || undefined}
+    >
+      <div className={styles.researchRail}>
+        <IconButton
+          className={styles.railToggle}
+          icon={collapsed ? PanelLeftOpen : PanelLeftClose}
+          label={t(collapsed ? "sidebar.expand" : "sidebar.collapse")}
+          shortcut="mod+\\"
+          aria-expanded={!collapsed}
+          aria-keyshortcuts={ariaKeyShortcuts("mod+\\", currentPlatformIsMac())}
+          onClick={() => onCollapsedChange(!collapsed)}
+        />
+        <div className={styles.railDestinations}>
+          {railLink(
+            House,
+            t("app.section.research"),
+            destination("research"),
+            section === "research",
+          )}
+          {railLink(
+            Library,
+            t("app.section.materials"),
+            destination("materials"),
+            section === "materials",
+          )}
+          {railLink(
+            Clock3,
+            t("app.section.tasks"),
+            destination("tasks"),
+            section === "tasks",
+          )}
+          {railLink(
+            SlidersHorizontal,
+            t("app.section.customize"),
+            destination("customize"),
+            section === "customize",
+          )}
+          <span className={styles.railDivider} />
+          {railLink(
+            LayoutGrid,
+            t("projects.view.board"),
+            "board",
+            section === "board",
+          )}
+          {collapsed &&
+            railLink(
+              SquarePen,
+              t("projects.newResearch"),
+              newResearchHash,
+              screen === "new-research",
+            )}
+          {collapsed &&
+            railLink(
+              Folder,
+              t("workspace.workspaces"),
+              "workspaces",
+              screen === "workspaces",
+            )}
+          {collapsed && quickOpen && (
+            <IconButton
+              className={styles.railItem}
+              icon={Search}
+              label={t("app.quickOpen.all")}
+              shortcut={QUICK_OPEN_SHORTCUT}
+              onClick={quickOpen}
+            />
+          )}
+        </div>
+        <div className={styles.railFooter}>
+          {railLink(
+            Settings,
+            t("reader.sidebar.settings"),
+            "settings",
+            screen === "settings",
+          )}
+          {signOut && (
+            <IconButton
+              className={styles.railItem}
+              icon={LogOut}
+              label={t("app.signOut")}
+              onClick={signOut}
+            />
+          )}
+        </div>
+      </div>
+      {!collapsed && (
+        <>
+          <div
+            className={styles.researchPane}
+            style={
+              {
+                "--research-sidebar-width": `${sizing.width}px`,
+              } as CSSProperties
+            }
+          >
+            <div className={styles.researchBrandRow}>
+              {section === "research" ? (
+                <Menu
+                  label="ORA"
+                  trigger={(props) => (
+                    <button
+                      {...props}
+                      type="button"
+                      className={styles.researchBrand}
+                    >
+                      ORA <ChevronDown size={13} aria-hidden />
+                    </button>
+                  )}
+                  items={[
+                    {
+                      id: "workspaces",
+                      label: t("workspace.manage"),
+                      icon: Folder,
+                      onSelect: () => choose("workspaces"),
+                    },
+                    {
+                      id: "collections",
+                      label: t("workspace.manageCollections"),
+                      icon: Folder,
+                      onSelect: () => choose("collections"),
+                    },
+                    { kind: "separator", id: "settings-divider" },
+                    {
+                      id: "settings",
+                      label: t("reader.sidebar.settings"),
+                      icon: Settings,
+                      onSelect: () => choose("settings"),
+                    },
+                  ]}
+                />
+              ) : (
+                <h2 className={styles.sectionTitle}>{title}</h2>
+              )}
+              {quickOpen && (
+                <IconButton
+                  className={styles.researchSearch}
+                  icon={Search}
+                  label={t("app.quickOpen.all")}
+                  shortcut={QUICK_OPEN_SHORTCUT}
+                  onClick={() => {
+                    quickOpen();
+                    if (floating) onCollapsedChange(true);
+                  }}
+                />
+              )}
+            </div>
+            {section === "tasks" && route.screen === "research-tasks" ? (
+              <div className={styles.taskNavigation}>
+                <div className={styles.taskNew}>
+                  <SidebarItem
+                    icon={SquarePen}
+                    label={t("projects.newResearch")}
+                    href={`#${newResearchHash}`}
+                    onClick={followLink(choose, newResearchHash)}
+                  />
+                </div>
+                <TaskNavigation
+                  filter={route.filter}
+                  currentId={route.projectId}
+                  go={choose}
+                />
+              </div>
+            ) : (
+              <div className={styles.researchScroll}>
+                {section === "research" ? (
+                  <>
+                    <div className={styles.researchActions}>
+                      <SidebarItem
+                        icon={SquarePen}
+                        label={t("projects.newResearch")}
+                        href={`#${newResearchHash}`}
+                        onClick={followLink(choose, newResearchHash)}
+                      />
+                    </div>
+                    <ResearchTree currentId={researchId} go={choose} />
+                  </>
+                ) : (
+                  <SectionNavigation
+                    section={section}
+                    route={route}
+                    hash={contextHash}
+                    reading={reading}
+                    go={choose}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+          {!floating && (
+            <Resizer
+              sizes="previous"
+              width={sizing.width}
+              min={240}
+              max={sizing.max}
+              fallback={288}
+              maxNow={() => researchSidebarMax(window.innerWidth)}
+              property="--research-sidebar-width"
+              label={t("sidebar.resize")}
+              onChange={sizing.choose}
+            />
+          )}
+        </>
+      )}
+    </nav>
   );
 }

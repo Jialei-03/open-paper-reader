@@ -3,7 +3,7 @@
 
 from pathlib import Path
 
-from fastapi import Depends, HTTPException, Response, UploadFile
+from fastapi import Depends, HTTPException, Query, Response, UploadFile
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -12,6 +12,7 @@ from sqlalchemy import select, update
 from . import research_datasets, research_files, research_map
 from .models import (
     AgentRun,
+    AgentSession,
     ResearchCard,
     ResearchWorkspace,
     ResearchEvent,
@@ -55,6 +56,7 @@ class ProjectInput(BaseModel):
     datasets: list[str] = Field(default_factory=list, max_length=5)
     compute_id: str = Field(default="", max_length=64)
     workspace_id: str = Field(default="", max_length=64)
+    collection_id: str | None = Field(default=None, max_length=36)
 
     @field_validator("message", "question")
     @classmethod
@@ -65,6 +67,7 @@ class ProjectInput(BaseModel):
 class WorkspaceInput(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=4000)
+    location: dict = Field(default_factory=lambda: {"kind": "managed"})
 
 
 class WorkspacePatch(BaseModel):
@@ -106,6 +109,10 @@ class ChatInput(BaseModel):
     command: Literal["compact"] | None = None
 
 
+class SessionCreate(BaseModel):
+    title: str = Field(default="新对话", min_length=1, max_length=100)
+
+
 class LimitsInput(BaseModel):
     note: str = Field(default="", max_length=2000)
 
@@ -131,10 +138,13 @@ class PlanApproval(BaseModel):
     note: str = Field(default="", max_length=2000)
 
 
-def project_out(p):
+def project_out(p, *, location=None):
     return {
         "id": p.id,
         "question": p.question,
+        "title": p.title or p.question,
+        "collection_id": p.collection_id,
+        "on_board": p.on_board,
         "background": p.background,
         "model_config_id": p.model_config_id,
         "status": p.status,
@@ -143,11 +153,15 @@ def project_out(p):
         "spent": p.spent,
         "session_id": p.session_id,
         "workspace_id": p.workspace_id,
+        "location": location or {},
         "stage": p.stage,
         "compute_id": p.compute_id,
         "plan": p.plan or {},
         "conclusion_record": p.conclusion or {},
         "environment": p.environment or {},
+        "parent_id": p.parent_id,
+        "forked_from": p.forked_from or {},
+        "merged": p.merged or {},
         "created_at": p.created_at,
         "updated_at": p.updated_at,
     }
@@ -287,11 +301,33 @@ def install_research_routes(app, settings, db, auth, human, owned):
         if settings.mode != "local":
             raise HTTPException(403, LOCAL_ONLY)
 
-    def project_of(d, id, a):
+    def project_of(d, id, a, writable=False):
         allowed(a, d)
-        return owned(d, ResearchProject, id, a)
+        project = owned(d, ResearchProject, id, a)
+        if writable and project.workspace_id:
+            from . import research_chat, research_workspaces
+            from .models import AgentSession
+
+            session = owned(d, AgentSession, project.session_id, a)
+            workspace = owned(d, ResearchWorkspace, project.workspace_id, a)
+            research_chat.lock_session(d, session)
+            research_workspaces.lock_workspace(d, workspace)
+            d.refresh(project)
+            if workspace.archived or session.archived_at:
+                raise HTTPException(409, "请先恢复项目或研究会话")
+        return project
 
     research_files.install_research_files(app, settings, db, auth, project_of)
+    from .research_branches import install_branch_routes
+    from .research_merge import install_merge_routes
+
+    install_branch_routes(app, settings, db, auth, project_of, project_out)
+    install_merge_routes(app, settings, db, auth, human, owned)
+    from .research_hub import install_hub_routes
+    from .research_locations import install_location_routes
+
+    install_hub_routes(app, settings, db, auth, human, owned, project_of, project_out)
+    install_location_routes(app, settings, db, auth, human, owned)
 
     def workspace_for(d, a, workspace_id, budget=None):
         from . import research_workspaces
@@ -300,10 +336,14 @@ def install_research_routes(app, settings, db, auth, human, owned):
             w = d.get(ResearchWorkspace, workspace_id)
             if w is None or w.owner != a["id"]:
                 raise HTTPException(404, "Not found")
-            return w
-        if budget is not None and budget.auto_decide:
-            research_workspaces.ensure(d, a["id"])
-        return research_workspaces.default_for(d, a["id"])
+        else:
+            if budget is not None and budget.auto_decide:
+                research_workspaces.ensure(d, a["id"])
+            w = research_workspaces.default_for(d, a["id"])
+        research_workspaces.lock_workspace(d, w)
+        if w.archived:
+            raise HTTPException(409, "请先恢复这个项目")
+        return w
 
     def workspace_of(d, id, a):
         allowed(a, d)
@@ -337,23 +377,65 @@ def install_research_routes(app, settings, db, auth, human, owned):
 
         allowed(a, d)
         try:
-            w = research_workspaces.create(d, a["id"], body.name, body.description)
+            from .research_locations import validate_location
+
+            location = validate_location(settings, body.location)
+            if location["kind"] in {"local", "ssh"}:
+                # A physical folder has one admission lock. Serialize creation
+                # before checking identity, including concurrent first requests.
+                d.execute(
+                    update(User)
+                    .where(User.id == a["id"])
+                    .values(username=User.username)
+                )
+                for existing in d.scalars(
+                    select(ResearchWorkspace).where(ResearchWorkspace.owner == a["id"])
+                ):
+                    saved = existing.location or {}
+                    if (
+                        saved.get("kind"),
+                        saved.get("path"),
+                        saved.get("connection_id") or "",
+                    ) == (
+                        location["kind"],
+                        location["path"],
+                        location.get("connection_id") or "",
+                    ):
+                        raise HTTPException(
+                            409, "这个目录已有工作区，请打开或恢复已有工作区"
+                        )
+            w = research_workspaces.create(
+                d, a["id"], body.name, body.description, location=location
+            )
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         d.commit()
-        return research_workspaces.workspace_out(w)
+        from .research_locations import location_for
+
+        return research_workspaces.workspace_out(w) | {
+            "location": location_for(settings, w)
+        }
 
     @app.get("/api/v1/research/workspaces/{id}")
     def workspace(id: str, a=Depends(auth), d=Depends(db)):
         from . import research_workspaces
+        from .research_locations import location_for
 
         w = workspace_of(d, id, a)
         return research_workspaces.workspace_out(w) | {
+            "location": location_for(settings, w),
             "researches": [
                 research_workspaces.summary(d, p)
                 for p in research_workspaces.researches(d, w)
-            ]
+            ],
         }
+
+    @app.get("/api/v1/research/workspaces/{id}/notes")
+    def workspace_notes(id: str, a=Depends(auth), d=Depends(db)):
+        from . import research_notes
+
+        w = workspace_of(d, id, a)
+        return research_notes.present(d, w)
 
     @app.patch("/api/v1/research/workspaces/{id}")
     def edit_workspace(id: str, body: WorkspacePatch, a=Depends(auth), d=Depends(db)):
@@ -363,19 +445,55 @@ def install_research_routes(app, settings, db, auth, human, owned):
         try:
             research_workspaces.update(d, w, body.model_dump())
         except ValueError as e:
-            raise HTTPException(422, str(e)) from None
+            raise HTTPException(409 if body.archived is True else 422, str(e)) from None
         d.commit()
         return research_workspaces.workspace_out(w)
 
-    def chat_out(session):
-        return {
-            "id": session.id,
-            "title": session.title,
-            "workspace_id": session.workspace_id,
-            "model_config_id": session.model_config_id,
-            "created_at": session.created_at,
-            "updated_at": session.updated_at,
-        }
+    def chat_out(d, session):
+        from .research_chat import session_out
+
+        return session_out(d, session)
+
+    @app.get("/api/v1/research/sessions")
+    def find_sessions(
+        search: str = Query("", max_length=200),
+        cursor: str = Query("", max_length=1000),
+        limit: int = Query(8, ge=1, le=50),
+        a=Depends(auth),
+        d=Depends(db),
+    ):
+        from . import research_chat
+
+        allowed(a, d)
+        try:
+            return research_chat.search_sessions(d, a["id"], search, cursor, limit)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+
+    @app.get("/api/v1/research/workspaces/{id}/sessions")
+    def workspace_sessions(
+        id: str,
+        search: str = Query("", max_length=200),
+        cursor: str = Query("", max_length=1000),
+        limit: int = Query(40, ge=1, le=100),
+        archived: bool = False,
+        a=Depends(auth),
+        d=Depends(db),
+    ):
+        from . import research_chat
+
+        w = workspace_of(d, id, a)
+        try:
+            result = research_chat.session_page(d, w, search, cursor, limit, archived)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from None
+        d.commit()
+        return result
+
+    @app.post("/api/v1/research/workspaces/{id}/sessions")
+    def new_session(id: str, body: SessionCreate, a=Depends(auth), d=Depends(db)):
+        workspace_of(d, id, a)
+        raise HTTPException(410, "请从工作区新建研究")
 
     def chat_of(d, id, a):
         from .models import AgentSession
@@ -391,22 +509,12 @@ def install_research_routes(app, settings, db, auth, human, owned):
         """The project's conversations, the last spoken in first."""
         from . import research_chat
 
-        return [chat_out(s) for s in research_chat.chats(d, workspace_of(d, id, a))]
+        return [chat_out(d, s) for s in research_chat.chats(d, workspace_of(d, id, a))]
 
     @app.post("/api/v1/research/workspaces/{id}/chats")
     def new_chat(id: str, body: ChatInput, a=Depends(auth), d=Depends(db)):
-        """A new conversation about the project, starting with a question."""
-        from . import research_chat
-
-        w = workspace_of(d, id, a)
-        try:
-            session = research_chat.start(
-                settings, d, a["id"], w, body.message, body.model_config_id
-            )
-        except ValueError as e:
-            raise HTTPException(409, str(e)) from None
-        d.commit()
-        return chat_out(session)
+        workspace_of(d, id, a)
+        raise HTTPException(410, "请从工作区新建研究")
 
     @app.post("/api/v1/research/chats/{id}/messages")
     def chat_message(id: str, body: ChatInput, a=Depends(auth), d=Depends(db)):
@@ -430,11 +538,11 @@ def install_research_routes(app, settings, db, auth, human, owned):
         except ValueError as e:
             raise HTTPException(409, str(e)) from None
         d.commit()
-        return chat_out(session)
+        return chat_out(d, session)
 
     @app.post("/api/v1/research/chats/{id}/clone")
     def clone_chat(id: str, a=Depends(auth), d=Depends(db)):
-        """"/clone": the conversation copied, to go on with apart from the original."""
+        """ "/clone": the conversation copied, to go on with apart from the original."""
         from . import research_chat
 
         session = chat_of(d, id, a)
@@ -445,9 +553,12 @@ def install_research_routes(app, settings, db, auth, human, owned):
             )
         ):
             raise HTTPException(409, "等这一轮回答完再复制")
-        copy = research_chat.clone(d, session)
+        try:
+            copy = research_chat.clone(d, session)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
         d.commit()
-        return chat_out(copy)
+        return chat_out(d, copy)
 
     @app.get("/api/v1/research/workspaces/{id}/board")
     def workspace_board(id: str, a=Depends(auth), d=Depends(db)):
@@ -522,6 +633,8 @@ def install_research_routes(app, settings, db, auth, human, owned):
     @app.post("/api/v1/research/projects")
     def create(body: ProjectInput, a=Depends(auth), d=Depends(db)):
         from . import research_datasets, research_settings, research_stages
+        from .research_hub import collection_of
+        from .research_locations import bind, compute_for
 
         allowed(a, d)
         if not body.message and not body.question:
@@ -536,11 +649,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
         )
         try:
             home = workspace_for(d, a, body.workspace_id, body.budget)
-            compute_id = (
-                body.compute_id
-                or home.compute_id
-                or research_settings.load(settings)["default_compute"]
-            )
+            collection = collection_of(d, a["id"], body.collection_id, writable=True)
+            compute_id = compute_for(settings, home)
+            if body.compute_id and body.compute_id != compute_id:
+                raise ValueError("执行位置由工作区目录决定，请选择对应的工作区")
             research_settings.compute(settings, compute_id)
             p = research_map.create_project(
                 d,
@@ -552,24 +664,39 @@ def install_research_routes(app, settings, db, auth, human, owned):
             )
             p.compute_id = compute_id
             p.workspace_id = home.id
+            p.collection_id = collection.id if collection else None
+            d.get(AgentSession, p.session_id).workspace_id = home.id
+            bind(settings, home, p)
             research_datasets.request(d, p, body.datasets)
-            if body.message:
+            if not (budget or {}).get("auto_decide"):
                 # The plan is talked through first; nothing runs until it is approved.
                 p.stage = "scoping"
-                research_stages.say(d, p, "human", body.message)
+                research_stages.say(d, p, "human", body.message or body.question)
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         d.commit()
-        return project_out(p)
+        from . import research_repo
+
+        if research_repo.available():
+            try:
+                # Its worktree in the project's repository, before anything is written.
+                research_repo.adopt(settings, home, p)
+            except (research_repo.GitError, OSError) as e:
+                # The worker's housekeeping tries again; the research starts anyway.
+                print(f"research_repo: {e}"[:300], flush=True)
+        from .research_locations import location_for
+
+        return project_out(p, location=location_for(settings, home))
 
     @app.post("/api/v1/research/projects/{id}/messages")
     def message(id: str, body: MessageInput, a=Depends(auth), d=Depends(db)):
-        from . import research_stages
+        from .research_dialogue import post
 
-        p = project_of(d, id, a)
-        if p.stage == "done":
-            raise HTTPException(409, "研究已经结束")
-        research_stages.say(d, p, "human", body.text)
+        p = project_of(d, id, a, writable=True)
+        try:
+            post(settings, d, p, body.text)
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
         d.commit()
         return project_out(p)
 
@@ -579,7 +706,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
         ended goes back to its experiments (a retrospective under way stops)."""
         from . import research_stages
 
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         if p.status == "finished" and p.end_reason not in {"budget"}:
             raise HTTPException(409, "研究已结束")
         if p.end_reason == "budget":
@@ -618,7 +745,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
     @app.post("/api/v1/research/projects/{id}/question")
     def restate(id: str, body: QuestionInput, a=Depends(auth), d=Depends(db)):
         """The researcher, as the one in charge, restates what is being asked."""
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         if p.status == "finished":
             raise HTTPException(409, "研究已结束")
         before = p.question
@@ -640,15 +767,24 @@ def install_research_routes(app, settings, db, auth, human, owned):
     @app.post("/api/v1/research/projects/{id}/compute")
     def move_compute(id: str, body: ComputeInput, a=Depends(auth), d=Depends(db)):
         """Where the next experiments run; a job already running stays where it is."""
-        from . import research_settings
+        from . import research_settings, research_stages
 
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         try:
+            bound = research_stages.bound_compute(settings, d, p)
+            if bound and body.compute_id != bound:
+                raise HTTPException(
+                    409, "执行位置由工作区目录决定，不能在研究中切换到其他机器"
+                )
             research_settings.compute(settings, body.compute_id)
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         if body.compute_id != p.compute_id:
-            old = research_settings.compute(settings, p.compute_id)
+            old = (
+                research_settings.compute(settings, p.compute_id)
+                if not bound
+                else {"kind": "host"}
+            )
             if old["kind"] == "ssh":
                 from . import research_remote
 
@@ -686,7 +822,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
     def move_model(id: str, body: ModelInput, a=Depends(auth), d=Depends(db)):
         """The model the next rounds run on (advisor and executor alike); a round
         already running finishes on the one it started with."""
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         chosen = read_config(settings, a["id"], body.model_config_id)
         if not chosen.get("model"):
             raise HTTPException(422, "这个模型不可用，先在设置里检查它")
@@ -713,7 +849,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
     def approve_plan(id: str, body: PlanApproval, a=Depends(auth), d=Depends(db)):
         from . import research_stages
 
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         try:
             research_stages.approve_plan(settings, d, p, body.version, body.note)
         except ValueError as e:
@@ -885,7 +1021,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
 
     @app.get("/api/v1/research/projects/{id}")
     def project(id: str, a=Depends(auth), d=Depends(db)):
+        from .research_locations import research_location
+
         p = project_of(d, id, a)
+        workspace = d.get(ResearchWorkspace, p.workspace_id) if p.workspace_id else None
         sprints = d.scalars(
             select(ResearchSprint)
             .where(ResearchSprint.project_id == p.id)
@@ -899,7 +1038,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
             .limit(50)
         )
         return {
-            "project": project_out(p),
+            "project": project_out(
+                p, location=research_location(settings, workspace, p) if workspace else None
+            ),
+            "inherited_history": p.inherited_history or {"events": [], "sprints": []},
             "nodes": [node_out(n) for n in research_map.nodes(d, p)],
             "sprints": [sprint_out(s) for s in sprints],
             "jobs": [job_out(j, d) for j in jobs],
@@ -992,7 +1134,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
     ):
         from .research_advice import act
 
-        project_of(d, id, a)
+        project_of(d, id, a, writable=True)
         # One answer at a time: a second click waits, then finds it answered.
         p = d.scalars(
             select(ResearchProject).where(ResearchProject.id == id).with_for_update()
@@ -1070,7 +1212,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
         """A data file for the experiments, kept at /work/data/<name>."""
         from .research_sandbox import WORKSPACE_BYTES, _size, workdir
 
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         name = Path(file.filename or "").name.strip()
         if not name or name.startswith(".") or len(name) > 200:
             raise HTTPException(422, "文件名不合法")
@@ -1161,7 +1303,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
 
     @app.post("/api/v1/research/projects/{id}/resume")
     def resume(id: str, a=Depends(auth), d=Depends(db)):
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         if p.status == "finished":
             raise HTTPException(409, "研究已结束，不能继续")
         if any(x["open"] for x in decisions_of(d, p)):

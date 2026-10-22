@@ -37,16 +37,10 @@ def probe(settings, item):
     if item["kind"] == "host":
         return research_host.probe(settings, item)
     if item["kind"] == "ssh":
+        from .research_locations import ssh_args
+
         reach = subprocess.run(
-            [
-                "ssh",
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "ConnectTimeout=8",
-                item["host"],
-                "true",
-            ],
+            [*ssh_args(item), item["host"], "true"],
             capture_output=True,
             text=True,
             timeout=20,

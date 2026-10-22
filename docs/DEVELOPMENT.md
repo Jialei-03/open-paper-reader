@@ -69,8 +69,10 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 | `app/` | 登录后的外壳：`AppShell`（路由到各页、设置窗口浮在当前页上）、`AppSidebar`、`routes.ts`（`#home`、`#projects/<id>/<tab>/<对话>`、`#research/<id>`、`#read/<论文>`、`#settings/<分类>`） |
 | `ui/` | 自己写的组件库（按钮、对话框、输入框……），演示页 `frontend/ui-kit.html` |
 | `screens/home/`、`HomeScreen.tsx` | 首页：研究项目、继续阅读、推荐、最近导入 |
-| `screens/research/projects/` | 研究项目：项目列表、项目页（看板、对话、研究、项目资料）、项目对话 |
+| `screens/research/projects/` | 研究项目：统一会话导航、主会话与普通对话、通报；看板、独立新研究、项目设置 |
 | `screens/research/ResearchProject.tsx` | 一个研究：对话主线、实时卡片、右侧记录面板 |
+| `app/local-sections.ts`、`app/SectionNavigation.tsx` | 本机研究、资料、任务、自定义、看板分区；二级导航及按用户保存的最后地址，不保存导入动作或设置覆盖层地址 |
+| `screens/tasks/`、`screens/customize/` | `#tasks/<active\|waiting\|paused\|history>?research=<id>` 复用真实研究详情；`#customize/<playbook\|models>` 复用研究规则和模型配置，不新增定时调度器或插件市场 |
 | `screens/research/talk/` | 对话主线（`thread.ts` 从事件推导出对话条目）、计划卡片、决定卡片、输入框、记录面板、环境准备窗口 |
 | `screens/research/files/` | 记录面板的「文件」页签：研究工作区的目录树、预览（代码、Markdown、CSV、图片、PDF）、下载、拖拽上传；「插入到输入框」发 `ora:composer-insert` 事件，`ora:open-files` 事件打开这个页签（参考 pi-web，MIT） |
 | `screens/research/process/` | Agent 的工作过程：步骤、命令和输出、打字机效果（参考 claude-web 和 pi-web，MIT） |
@@ -92,7 +94,8 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 | `agents.py` | 阅读助手的会话与运行接口 |
 | `research_routes.py` | 研究的全部 HTTP 接口 |
 | `research_workspaces.py` | 研究项目、看板、想法卡片 |
-| `research_chat.py` | 项目里的对话：只读地读项目里的研究、实验和日志 |
+| `research_chat.py`、`research_notes.py` | 主会话与普通对话、会话能力与元数据、搜索分页与复制；通报从源事件派生待处理或历史状态 |
+| `agent_controls.py` | 绑定具体运行的追加、排队与停止；持久控制记录、幂等投递和 Pi 确认 |
 | `research_stages.py` | 阶段：定题对话、计划、批准、结论、预算、改问题 |
 | `research_worker.py` | 调度：每隔几秒决定哪个研究下一轮由谁做，收尾异常的轮次，提炼 |
 | `research_brief.py` | 每一轮的简报：问题、地图、交接、导师意见、环境、数据、你说的话 |
@@ -115,7 +118,7 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 
 `runner.mjs` 跑一次 Agent，用的是 Pi 的会话层（`pi-coding-agent` 的 `AgentSession`）：对话的条目由后端存在 `agent_session_entries`，每次交回给 Pi 恢复会话；上下文满了由 Pi 自动压缩，`/compact` 手动压缩；换模型时 Pi 在会话里记一条 `model_change`。我们的工具仍由后端执行（`noTools: "builtin"` 加 `customTools`），不读机器上的 `~/.pi`；模型按 Pi 的标准方式注册成一个 provider，应用里选的思考强度经 `before_provider_request` 写进请求，每次请求前先向后端要一个模型名额（共享模型的并发有限）并预留额度，回答结束就释放名额。研究的每一轮仍然从简报开始、不带历史，但一轮之内同样会自动压缩。压缩时的总结请求同样先要名额和额度（`session_before_compact`），一次压缩记一笔用量。还没搬过来的：MiniMax 的 `reasoning_split`。
 
-`skills/` 是写给模型的说明，每个研究角色一份：`research-scoping`（定题的导师）、`research-executor`（执行者）、`research-advisor`（导师）、`research-distiller`（提炼者）、`research-envsetup`（准备环境）、`research-chat`（项目对话）。改 Agent 的行为，先看对应的 skill。
+`skills/` 是写给模型的说明，每个研究角色一份：`research-scoping`（定题的导师）、`research-executor`（执行者）、`research-advisor`（导师）、`research-distiller`（提炼者）、`research-envsetup`（准备环境）、`research-chat`（历史项目对话）、`research-lead`（项目主会话）。改 Agent 的行为，先看对应的 skill。
 
 ## 4. 研究系统
 
@@ -126,8 +129,12 @@ Agent 的每次运行都是一个子进程：`backend/agent_worker.py` 准备好
 1. `research_worker.tick` 每隔几秒运行一次：收作业结果（`research_sandbox.sweep`）、在后台启动数据集下载、同步实验追踪、收尾环境准备，然后对每个进行中的研究调用 `_plan`。
 2. `_plan` 先收尾已经结束的一轮（`_settle`），有等着的作业或数据就等，然后用 `next_role` 决定下一轮是谁（定题时是导师对话；之后是执行者，按规则轮到导师），写一个 `ResearchSprint` 和一个 `AgentRun`（`runtime.research` 里写着角色、研究和这一轮）。
 3. `agent_worker` 取到这个运行：系统提示是这个角色的 skill，上下文是 `research_brief` 写的简报，工具是 `research_tools(role)`。研究的每一轮**不带聊天历史**，一切从简报开始；项目对话例外，它带着这次对话前面的问答。
-4. 每个工具调用先过 `research_tools.gate`：角色能不能用、执行者是否先聚焦了、项目对话只能读。文件和命令工具交给 `research_sandbox.pi_call`，按研究的环境分派到 Docker、本机（`research_host`）或 SSH（`research_remote`）。
+4. 每个工具调用先过 `research_tools.gate`：角色能不能用、执行者是否先聚焦了；历史项目对话只能读，项目导师只增加派出研究和带话的权限。文件和命令工具交给 `research_sandbox.pi_call`，按研究的环境分派到 Docker、本机（`research_host`）或 SSH（`research_remote`）。
 5. 执行者用 `end_sprint` 交接；导师用 `advise` 给判断（`research_advice.apply` 落到地图上，结论和请你拍板的事变成等你决定的条目）。
+
+**项目主会话**：`ResearchWorkspace.session_id` 固定指向一个 Pi 会话。`research_chat.ask` 以 `lead` 角色继续它，`agent_worker` 开始回答前刷新项目概览和最近通报。`start_research` 从定题开始，不批准计划；`message_research` 以 `lead` 身份写入研究对话，只消费该轮开始前的消息。`research_map.event` 把计划、决定、结论和异常写进 `research_notes`，不创建模型任务。旧对话仍用 `chat` 角色。迁移 `0034` 创建主会话、回填通报，并把运行上下文扩展为 Text。
+
+**会话管理与控制**：迁移 `0035` 补齐 `AgentSession.kind`、复制来源、置顶和归档元数据，迁移 `0036` 增加持久 `AgentControl`。会话列表和能力由后端按归属、类型与实际研究关系计算，不能由客户端授予角色。`/new` 只创建空 `AgentSession`；发消息另创建 `AgentRun`。`runner.mjs` 接收带 `expected_run_id` 的控制消息，调用 Pi 原生 `steer`、`followUp`、`clearQueue` 和 `abort`；每次消息结束增量回传 Pi entries，停止时先保存条目并确认，超时才强制终止。`runtime.conversation_messages` 保存同一 run 内的多段用户与助手消息。普通对话控制与研究的带话／审批保持分离。详细契约见 [会话管理](design/session-management.md)。
 
 **人在哪里决定**：计划（`approve_plan`）、结论（接受或要求补做）、预算用完（追加或结束）、导师的提问和请你拍板。它们都是 `decision_requested` 事件，由 `research_stages.decide` 处理，在研究页的对话里显示成卡片。
 

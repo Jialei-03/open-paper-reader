@@ -13,10 +13,12 @@ Evaluation runs (budget.auto_decide) have nobody to ask: they skip scoping
 and their conclusions stand as proposed.
 """
 
+from types import SimpleNamespace
+
 from sqlalchemy import select
 
 from . import research_map
-from .models import ResearchEvent, now
+from .models import ResearchEvent, ResearchSprint, now
 
 STAGES = ("scoping", "experiments", "conclusion", "retrospective", "done")
 
@@ -88,11 +90,17 @@ def unanswered(d, project):
     )
     waiting = []
     for row in rows:
-        if row.actor == "human":
-            waiting.append(row.detail.get("text", ""))
+        if row.actor in {"human", "lead"}:
+            waiting.append(row)
         else:
-            waiting = []
-    return waiting
+            sprint = d.get(ResearchSprint, row.sprint_id) if row.sprint_id else None
+            # A reply can only consume messages present when its round began.
+            waiting = (
+                [r for r in waiting if r.created_at > sprint.created_at]
+                if sprint
+                else []
+            )
+    return [r.detail.get("text", "") for r in waiting]
 
 
 def conversation(d, project, limit=40):
@@ -107,7 +115,12 @@ def conversation(d, project, limit=40):
             .limit(limit)
         )
     )
-    return list(reversed(rows))
+    inherited = [
+        SimpleNamespace(**row)
+        for row in (project.inherited_history or {}).get("events", [])
+        if row.get("action") in {"message", "plan_proposed"}
+    ]
+    return [*inherited, *reversed(rows)][-limit:]
 
 
 def check_plan(settings, args, version):
@@ -148,22 +161,44 @@ def check_plan(settings, args, version):
         "compute_id": compute_id,
         # No limit unless the researcher wants one.
         "budget": {
-            "max_sprints": int(min(max(budget["max_sprints"], 2), 200))
-            if budget.get("max_sprints")
-            else None,
-            "max_job_hours": float(min(max(budget["max_job_hours"], 0.1), 1000))
-            if budget.get("max_job_hours")
-            else None,
+            "max_sprints": (
+                int(min(max(budget["max_sprints"], 2), 200))
+                if budget.get("max_sprints")
+                else None
+            ),
+            "max_job_hours": (
+                float(min(max(budget["max_job_hours"], 0.1), 1000))
+                if budget.get("max_job_hours")
+                else None
+            ),
         },
         "summary": (args.get("summary") or "").strip()[:2000],
         "approved_at": None,
     }
 
 
+def bound_compute(settings, d, project):
+    """External folders choose execution; independent forks retain their compute."""
+    from .models import ResearchWorkspace
+    from .research_locations import compute_for
+
+    if not project.workspace_id or project.parent_id:
+        return None
+    workspace = d.get(ResearchWorkspace, project.workspace_id)
+    if workspace is None or workspace.owner != project.owner:
+        raise ValueError("研究工作区不可用")
+    if (workspace.location or {}).get("kind") in {"local", "ssh"}:
+        return compute_for(settings, workspace)
+    return None
+
+
 def propose_plan(settings, d, project, sprint, args):
     """A version of the plan, shown as a card in the conversation."""
     if project.stage != "scoping":
         raise ValueError("计划只在定题阶段提出；之后的改动走导师的判断")
+    bound = bound_compute(settings, d, project)
+    if bound:
+        args = {**args, "compute_id": bound}
     plan = check_plan(settings, args, (project.plan or {}).get("version", 0) + 1)
     project.plan = plan
     research_map.event(
@@ -181,7 +216,20 @@ def approve_plan(settings, d, project, version, note=""):
         raise ValueError("项目已经过了定题阶段")
     if not plan or plan.get("version") != version:
         raise ValueError("计划已经更新过，请看最新的版本")
+    if plan.get("inherited"):
+        raise ValueError("这是来源研究的历史计划；请先继续定题，确认新的计划版本")
+    bound = bound_compute(settings, d, project)
+    if bound and plan.get("compute_id") != bound:
+        raise ValueError("计划的执行位置与工作区目录不一致，请确认更新后的计划")
     root = research_map.root(d, project)
+    if project.parent_id and root.status in {*research_map.CLOSED, "parked"}:
+        research_map.update_node(
+            d,
+            root,
+            status="open",
+            actor="human",
+            reason="研究者批准分叉研究的新计划，重新打开本研究的问题",
+        )
     if plan.get("question"):
         project.question = plan["question"]
         root.title = plan["question"][:300]

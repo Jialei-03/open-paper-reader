@@ -12,6 +12,25 @@
   color: var(--ui-fg-2);
 }
 
+.replayHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-12);
+}
+
+.replayHead > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  font-size: var(--ui-text-13);
+}
+
+.replayHead span {
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
 .stage {
   position: relative;
   overflow: hidden;

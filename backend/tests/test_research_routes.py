@@ -1,7 +1,8 @@
 import pytest
 from sqlalchemy import select
 
-from backend.models import AgentRun, ResearchProject, ResearchSprint
+from backend import research_chat
+from backend.models import AgentRun, ResearchProject, ResearchSprint, ResearchWorkspace
 from backend.tests.test_acceptance import env as cloud_env  # noqa: F401
 from backend.tests.test_agents import configure
 
@@ -19,6 +20,15 @@ def create(c, model, **extra):
     body = {"question": "Does L2 regularization help?", "model_config_id": model}
     body.update(extra)
     return c.post(BASE, json=body)
+
+
+def legacy_chat(app, settings, owner, workspace_id, model):
+    """Keep existing project chats usable after their creation API is retired."""
+    with app.state.maker() as d:
+        workspace = d.get(ResearchWorkspace, workspace_id)
+        session = research_chat.start(settings, d, owner, workspace, "进展如何", model)
+        d.commit()
+        return research_chat.session_out(d, session)
 
 
 def test_create_and_get_project(env):
@@ -761,13 +771,10 @@ def test_the_next_rounds_run_on_the_model_chosen_for_them(env):
 
 def test_a_project_chat_goes_on_with_its_model_and_can_be_compacted(env):
     app, a, _b, settings = env
-    _owner, model = configure(app, a, settings)
+    owner, model = configure(app, a, settings)
     project = create(a, model).json()
     workspace = project["workspace_id"]
-    chat = a.post(
-        f"/api/v1/research/workspaces/{workspace}/chats",
-        json={"message": "进展如何", "model_config_id": model},
-    ).json()
+    chat = legacy_chat(app, settings, owner, workspace, model)
     assert chat["model_config_id"] == model
     with app.state.maker() as d:
         for run in d.scalars(select(AgentRun).where(AgentRun.session_id == chat["id"])):
@@ -794,12 +801,9 @@ def test_a_project_chat_is_cloned_with_what_it_remembers(env):
     from backend.models import AgentSessionEntry
 
     app, a, _b, settings = env
-    _owner, model = configure(app, a, settings)
+    owner, model = configure(app, a, settings)
     project = create(a, model).json()
-    chat = a.post(
-        f"/api/v1/research/workspaces/{project['workspace_id']}/chats",
-        json={"message": "进展如何", "model_config_id": model},
-    ).json()
+    chat = legacy_chat(app, settings, owner, project["workspace_id"], model)
     # Still answering: nothing to copy yet.
     assert a.post(f"/api/v1/research/chats/{chat['id']}/clone").status_code == 409
     with app.state.maker() as d:
