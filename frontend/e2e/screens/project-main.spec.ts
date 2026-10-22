@@ -562,27 +562,58 @@ async function project(page: Page) {
   return state;
 }
 
-test("scheduled tasks have a disabled entry and no status dashboard", async ({
+test("scheduled tasks open a real editor and templates without a status dashboard", async ({
   page,
 }) => {
   const state = await project(page);
   const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
   await sidebar.getByRole("link", { name: "定时任务", exact: true }).click();
-  await expect(page).toHaveURL(/#scheduled$/);
+  await expect(page).toHaveURL(/#schedules$/);
+  await expect(
+    sidebar.getByRole("link", { name: "定时任务", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   await expect(
     page.getByRole("heading", { name: "安排任务", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("main").getByRole("button", { name: "新建任务" }),
-  ).toBeDisabled();
-  await expect(
-    sidebar.getByRole("button", { name: "新建任务" }),
-  ).toBeDisabled();
+    page
+      .getByRole("region", { name: "定时任务", exact: true })
+      .getByRole("button", { name: "新建任务" }),
+  ).toBeEnabled();
+  const create = sidebar.getByRole("link", { name: "新建任务", exact: true });
+  await expect(create).toHaveAttribute("href", "#schedules/new");
   await expect(
     sidebar.getByRole("link", { name: "看板", exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole("main").locator("p")).toHaveCount(0);
+  const editor = page.getByRole("region", { name: "定时任务", exact: true });
+  await expect(editor.locator("p")).toHaveCount(0);
+  await create.click();
+  await expect(page).toHaveURL(/#schedules\/new$/);
+  await expect(editor.getByRole("heading", { name: "新建任务" })).toBeVisible();
+  await expect(
+    editor.getByRole("combobox", { name: "项目", exact: true }),
+  ).toHaveValue(wid);
+  await editor.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page).toHaveURL(/#schedules$/);
+  for (const title of ["每日论文速递", "每周研究周报", "跟踪实验", "夜间复跑"])
+    await expect(
+      editor.getByRole("button", { name: new RegExp(title) }),
+    ).toBeVisible();
+  await page
+    .getByRole("region", { name: "定时任务", exact: true })
+    .getByRole("button", { name: /每周研究周报/ })
+    .click();
+  await expect(page).toHaveURL(/#schedules\/new\?template=weekly$/);
+  await expect(
+    editor.getByRole("textbox", { name: "标题", exact: true }),
+  ).toHaveValue("每周研究周报");
+  await expect(
+    editor.getByRole("combobox", { name: "频率", exact: true }),
+  ).toHaveValue("weekly");
+  await editor.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page).toHaveURL(/#schedules$/);
   expect(state.direct).toEqual([]);
+  expect(state.sent).toEqual([]);
 });
 
 test("customize switches between the saved research playbook and real model settings", async ({
@@ -616,8 +647,9 @@ test("customize switches between the saved research playbook and real model sett
   await expect(page).toHaveURL(/#customize\/playbook$/);
   await expect(customize).toHaveAttribute("aria-current", "page");
   await expect(
-    page.getByRole("heading", { name: "研究手册（第 3 版）", exact: true }),
+    page.getByRole("heading", { name: "研究手册", exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("第 3 版", { exact: true })).toBeVisible();
   await expect(
     page.getByText("固定数据和随机种子再比较", { exact: false }),
   ).toBeVisible();
@@ -625,16 +657,21 @@ test("customize switches between the saved research playbook and real model sett
   await expect(page).toHaveURL(/#customize\/models$/);
   await expect(page.getByText("模型1", { exact: true })).toBeVisible();
   await expect(page.getByText("模型2", { exact: true })).toBeVisible();
+  await page
+    .getByRole("button", { name: "模型2 的更多操作", exact: true })
+    .click();
   await expect(
-    page.getByRole("button", { name: "使用 模型2", exact: true }),
-  ).toBeVisible();
+    page.getByRole("menuitem", { name: "使用", exact: true }),
+  ).toBeEnabled();
+  await page.keyboard.press("Escape");
   await page.reload();
   await expect(customize).toHaveAttribute("aria-current", "page");
   await expect(page.getByText("模型1", { exact: true })).toBeVisible();
   await sidebar.locator('a[href="#customize/playbook"]').click();
   await expect(
-    page.getByRole("heading", { name: "研究手册（第 3 版）", exact: true }),
+    page.getByRole("heading", { name: "研究手册", exact: true }),
   ).toBeVisible();
+  await expect(page.getByText("第 3 版", { exact: true })).toBeVisible();
   expect(state.direct).toEqual([]);
   expect(state.sent).toEqual([]);
 });
@@ -934,6 +971,9 @@ test("a missing explicit workspace asks for a folder instead of silently changin
   await page.goto("/#new?workspace=00000000-0000-4000-8000-000000000000");
   await expect(page.getByRole("alert")).toHaveText("工作区不可用");
   await expect(page.getByRole("textbox", { name: "开始研究" })).toBeEnabled();
+  await expect(page.getByRole("textbox", { name: "开始研究" })).toHaveValue(
+    "保留这个问题",
+  );
   await expect(
     page.getByRole("button", { name: "发送", exact: true }),
   ).toBeDisabled();
@@ -963,7 +1003,7 @@ test("workspace chooser searches real folders and creates a workspace without an
   await chooser.getByRole("button", { name: "新建项目", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "新建项目", exact: true });
   await expect(
-    dialog.getByRole("button", { name: /本机 此电脑上的文件夹/ }),
+    dialog.getByRole("button", { name: "本机", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await dialog
     .getByRole("region", { name: "浏览文件夹" })
@@ -1167,7 +1207,12 @@ test("SSH connections validate before a remote folder can become a workspace", a
       .getByTitle("实验服务器 · SSH · runner@lab", {
         exact: true,
       }),
-  ).toHaveText("实验服务器");
+  ).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("new-research")
+      .getByRole("button", { name: "选择项目", exact: true }),
+  ).toHaveText("远端实验");
   await page.getByRole("button", { name: "选择项目", exact: true }).click();
   const folderPicker = page.getByRole("dialog", {
     name: "选择项目",
@@ -1185,7 +1230,7 @@ test("SSH connections validate before a remote folder can become a workspace", a
   await page.goto(`/#research/${rid}`);
   await expect(
     page.getByTitle("/home/runner/lab", { exact: true }).last(),
-  ).toContainText("远端实验");
+  ).toHaveCount(0);
   const showRecord = page.getByRole("button", {
     name: "显示研究记录",
     exact: true,
@@ -1199,6 +1244,16 @@ test("SSH connections validate before a remote folder can become a workspace", a
     page.getByRole("complementary", { name: "研究记录" }),
   ).toBeVisible();
   await expect(page.getByRole("tab")).toHaveCount(0);
+  await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "侧栏", exact: true })
+    .getByRole("link", { name: "远端实验", exact: true })
+    .click();
+  await expect(page.getByRole("main")).toContainText(
+    "实验服务器 · /home/runner/lab",
+  );
+  await page.getByRole("main").locator(`a[href="#research/${rid}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`#research/${rid}$`));
 });
 
 test("conversation actions rename the title and the project owns list and board views", async ({
@@ -1216,14 +1271,19 @@ test("conversation actions rename the title and the project owns list and board 
   await page.goto(`/#workspaces/${wid}`);
   await page.getByRole("radio", { name: "看板", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`#workspaces/${wid}/board$`));
-  await expect(
-    page
-      .getByRole("main")
-      .getByRole("link", { name: "小表示对比", exact: true }),
-  ).toBeVisible();
+  const boardResearch = page
+    .getByRole("main")
+    .locator(`a[href="#research/${rid}"]`);
+  await expect(boardResearch).toContainText("小表示对比");
+  await expect(boardResearch).toContainText(research.progress!);
   await page.getByRole("radio", { name: "列表", exact: true }).click();
   await expect(
     page.getByRole("main").getByRole("link", { name: /小表示对比/ }),
+  ).toBeVisible();
+  await page.getByRole("main").locator(`a[href="#research/${rid}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`#research/${rid}$`));
+  await expect(
+    page.getByRole("heading", { name: "小表示对比", exact: true }),
   ).toBeVisible();
   expect(state.direct).toEqual([]);
 });
@@ -1235,6 +1295,11 @@ test("notifications open pending conversations and sidebar entries expose real s
   state.researches[0].status = "waiting";
   await page.reload();
   const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+  const pending = sidebar.locator(`a[href="#research/${rid}"]`).first();
+  await expect(pending).toHaveAttribute("aria-description", "等你确认");
+  await expect(
+    pending.getByRole("img", { name: "等你确认", exact: true }),
+  ).toBeVisible();
   await sidebar.getByRole("button", { name: "通知", exact: true }).click();
   const notifications = page.getByRole("dialog", { name: "通知", exact: true });
   await expect(notifications).toContainText(research.question);
@@ -1336,6 +1401,10 @@ test("new-research drafts and models survive reading, folder and project changes
   });
   await page.reload();
   await page.getByRole("button", { name: "选择项目", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "选择项目", exact: true }),
+  ).toBeVisible();
+  expect(state.direct).toEqual([]);
   await page.getByRole("option", { name: /另一目录/ }).click();
   await expect(page).toHaveURL(
     /#new\?workspace=dddddddd-dddd-4ddd-8ddd-dddddddddddd$/,
@@ -1396,7 +1465,14 @@ test("a finished research accepts a discussion and stops only its current answer
     session_id: researchSession,
     workspace_id: wid,
     plan: {},
-    conclusion_record: {},
+    conclusion_record: {
+      status: "concluded",
+      answer: "小表示足够",
+      summary: "小表示已通过三个种子核验",
+      proposed_at: at,
+      accepted: true,
+      note: "",
+    },
     environment: {},
     created_at: at,
   };
@@ -1550,6 +1626,14 @@ test("a finished research accepts a discussion and stops only its current answer
   await expect(
     page.getByRole("complementary", { name: "研究记录" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("complementary", { name: "研究记录" }),
+  ).toContainText("小表示已通过三个种子核验");
+  await expect(
+    page
+      .getByRole("complementary", { name: "研究记录" })
+      .getByRole("button", { name: "查看变更", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByRole("tab")).toHaveCount(0);
   await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
   await input.fill("解释这个结论的适用条件");
@@ -1600,7 +1684,7 @@ test.describe("a narrow English research start", () => {
   test("keeps workspace selection, a draft, and model input usable", async ({
     page,
   }, testInfo) => {
-    await project(page);
+    const state = await project(page);
     await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     const start = page.getByTestId("new-research");
@@ -1624,6 +1708,11 @@ test.describe("a narrow English research start", () => {
     await chooser.getByRole("searchbox").press("ArrowDown");
     await expect(chooser.getByRole("option").first()).toBeFocused();
     await chooser.getByRole("option").first().press("Enter");
+    await expect(chooser).toHaveCount(0);
+    await expect(
+      start.getByRole("button", { name: "Choose project", exact: true }),
+    ).toBeFocused();
+    await expect(page).toHaveURL(new RegExp(`#new\\?workspace=${wid}$`));
     await expect(
       start.getByRole("textbox", { name: "Start research" }),
     ).toHaveValue("Compare representation quality");
@@ -1632,6 +1721,7 @@ test.describe("a narrow English research start", () => {
         page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
       )
       .toBeLessThanOrEqual(2);
+    expect(state.direct).toEqual([]);
     await page.screenshot({
       path: testInfo.outputPath("new-research-en-dark-narrow.png"),
     });

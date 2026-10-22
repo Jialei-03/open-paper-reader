@@ -95,6 +95,7 @@ export function WorkspacePicker({
         </Button>
       ) : (
         <button
+          type="button"
           ref={anchor}
           className={styles.chip}
           aria-label={t("workspace.choose")}
@@ -168,6 +169,7 @@ export function WorkspacePicker({
             >
               {workspaces.map((workspace) => (
                 <button
+                  type="button"
                   key={workspace.id}
                   role="option"
                   aria-selected={workspace.id === value}
@@ -309,7 +311,7 @@ export function CreateWorkspaceDialog({
               onClick={() => kind !== "local" && chooseDevice("local")}
             >
               <Laptop size={18} aria-hidden />
-
+              <span>{t("workspace.local")}</span>
               {kind === "local" && <Check size={15} aria-hidden />}
             </button>
             {connections.map((connection) => (
