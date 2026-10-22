@@ -619,8 +619,6 @@ export const en = {
   "model.name": "Model",
   "model.name.placeholder": "e.g. gpt-4.1-mini",
   "model.fetch": "Get model list",
-  "model.fetched#one": "{count} model found. Pick it or type a name.",
-  "model.fetched#other": "{count} models found. Pick one or type a name.",
   "model.test": "Test connection",
   "model.testing": "Testing…",
   "model.connected": "Connected to {model}.",

@@ -39,7 +39,9 @@ test("opens a paper in the new reader", async ({ page }) => {
   await expect(
     paper.getByRole("heading", { level: 1, name: title, exact: true }),
   ).toBeVisible();
-  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
+  await expect(
+    sidebar(page).getByRole("link", { name: "全部", exact: true }),
+  ).toBeVisible();
   // The paper being read is in the list of what is being read, and marked.
   await expect(
     sidebar(page).getByRole("link", { name: title, exact: true }),
@@ -98,7 +100,9 @@ test("an unknown paper explains and links back", async ({ page }) => {
   const back = paper.getByRole("link", { name: "回到文库" });
   await expect(back).toBeVisible();
   // The rest of the screen is there: this is a paper that is missing, not a screen that broke.
-  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
+  await expect(
+    sidebar(page).getByRole("link", { name: "全部", exact: true }),
+  ).toBeVisible();
   await expect(panelTabs(page)).toBeVisible();
 
   await back.click();
@@ -122,7 +126,9 @@ test("a failing region shows a retry instead of a blank screen", async ({
   await expect(alert).toContainText("论文出了问题");
   await expect(alert.getByRole("button", { name: "重试" })).toBeVisible();
   // The other regions carry on.
-  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
+  await expect(
+    sidebar(page).getByRole("link", { name: "全部", exact: true }),
+  ).toBeVisible();
   await expect(
     panelTabs(page).getByRole("tab", { name: "助手" }),
   ).toBeVisible();
@@ -232,7 +238,9 @@ test("the sidebar collapses to its icons", async ({ page }) => {
 
   await sidebar(page).getByRole("button", { name: "收起侧栏" }).click();
   // Collapsed, an item is named by its label although the label is not drawn.
-  await expect(sidebar(page).getByRole("link", { name: "全部", exact: true })).toBeVisible();
+  await expect(
+    sidebar(page).getByRole("link", { name: "全部", exact: true }),
+  ).toBeVisible();
   await expect(
     sidebar(page).getByRole("button", { name: "展开侧栏" }),
   ).toBeVisible();

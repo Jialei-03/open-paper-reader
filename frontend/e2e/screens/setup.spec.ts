@@ -86,7 +86,6 @@ test("a model is kept only once its connection test passes", async ({
   await expect(page.getByLabel("模型", { exact: true })).toHaveValue(
     "gpt-test-a",
   );
-  await expect(page.getByText("找到 2 个模型")).toBeVisible();
 
   // A model that does not answer is not kept.
   await page.getByRole("button", { name: "测试连接" }).click();

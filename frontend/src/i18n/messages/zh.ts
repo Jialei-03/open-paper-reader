@@ -587,8 +587,6 @@ export const zh: { [K in keyof typeof en]: string } = {
   "model.name": "模型",
   "model.name.placeholder": "例如 gpt-4.1-mini",
   "model.fetch": "获取模型列表",
-  "model.fetched#one": "找到 {count} 个模型，可以选择或直接填写。",
-  "model.fetched#other": "找到 {count} 个模型，可以选择或直接填写。",
   "model.test": "测试连接",
   "model.testing": "正在测试…",
   "model.connected": "已连接 {model}。",
