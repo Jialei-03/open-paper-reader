@@ -28,11 +28,14 @@ import { Mascot } from "../scene/Mascot";
 import { mainMetric, plainCommand, type ResearchRun } from "../process/model";
 import { RunTurn } from "../process/Process";
 import type { ThreadItem } from "./thread";
+import { WorkflowBoundary } from "../../workflows/WorkflowProgress";
 import { CheckpointCard } from "../ChangeCards";
 import styles from "./Talk.module.css";
 
 const ROLE_AGENT: Record<string, Agent> = {
   executor: "executor",
+  workflow: "executor",
+  review: "advisor",
   advisor: "advisor",
   lead: "advisor",
   scoping: "advisor",
@@ -76,6 +79,7 @@ export interface ThreadActions {
   decide(id: string, approve: boolean, note: string): void;
   openLog(jobId: string): void;
   openRun(jobId: string): void;
+  openOutput?(path: string): void;
   moveCompute(computeId: string): void;
   busy: boolean;
   fork?(sprintId?: string): void;
@@ -106,6 +110,18 @@ export function ThreadView({
         const sprintId =
           boundary?.kind === "work" ? boundary.sprint.id : undefined;
         switch (item.kind) {
+          case "workflow":
+            return (
+              <WorkflowBoundary
+                key={item.id}
+                id={item.id}
+                index={item.index}
+                status={item.status}
+                outputs={item.outputs}
+                workflow={project.workflow}
+                open={actions.openOutput}
+              />
+            );
           case "message":
             return (
               <MessageItem
@@ -477,6 +493,10 @@ function DecisionCard({
   const d = item.event.detail as Record<string, string>;
   const long =
     (d.reason || "").length > 320 || (d.reason || "").split("\n").length > 6;
+  const workflow = d.kind === "workflow_step";
+  const choices = Array.isArray(item.event.detail.choices)
+    ? (item.event.detail.choices as { title: string }[])
+    : [];
   const conclusion = d.kind === "conclusion";
   const budget = d.kind === "budget";
   // The advisor asks something only the researcher knows; the work goes on meanwhile.
@@ -494,13 +514,15 @@ function DecisionCard({
           size={18}
         />
         <strong>
-          {conclusion
-            ? t("research.ask.conclusion")
-            : budget
-              ? t("research.ask.budget")
-              : question
-                ? t("research.ask.question")
-                : t("research.ask.title")}
+          {workflow
+            ? t("workflows.status.waiting")
+            : conclusion
+              ? t("research.ask.conclusion")
+              : budget
+                ? t("research.ask.budget")
+                : question
+                  ? t("research.ask.question")
+                  : t("research.ask.title")}
         </strong>
         {conclusion ? (
           <span
@@ -534,6 +556,18 @@ function DecisionCard({
             {t(whole ? "research.plan.less" : "research.plan.more")}
           </button>
         )}
+        {item.open &&
+          choices.map((choice, index) => (
+            <Button
+              key={index}
+              size="sm"
+              variant={note === choice.title ? "secondary" : "ghost"}
+              aria-pressed={note === choice.title}
+              onClick={() => setNote(choice.title)}
+            >
+              {choice.title}
+            </Button>
+          ))}
         {item.open && (
           <textarea
             className={styles.note}
@@ -566,25 +600,30 @@ function DecisionCard({
               onClick={() => actions.decide(item.id, false, note)}
             >
               {t(
-                conclusion
-                  ? "research.ask.more"
-                  : budget
-                    ? "research.ask.budgetStop"
-                    : "research.ask.no",
+                workflow
+                  ? "workflows.redo"
+                  : conclusion
+                    ? "research.ask.more"
+                    : budget
+                      ? "research.ask.budgetStop"
+                      : "research.ask.no",
               )}
             </Button>
             <Button
               size="sm"
               variant="primary"
               loading={actions.busy}
+              disabled={!!choices.length && !note.trim()}
               onClick={() => actions.decide(item.id, true, note)}
             >
               {t(
-                conclusion
-                  ? "research.ask.accept"
-                  : budget
-                    ? "research.ask.budgetMore"
-                    : "research.ask.yes",
+                workflow
+                  ? "workflows.continue"
+                  : conclusion
+                    ? "research.ask.accept"
+                    : budget
+                      ? "research.ask.budgetMore"
+                      : "research.ask.yes",
               )}
             </Button>
           </>

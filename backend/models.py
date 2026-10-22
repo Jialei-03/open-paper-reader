@@ -595,6 +595,10 @@ class ResearchProject(Base):
     plan: Mapped[dict] = mapped_column(JSON, default=dict)
     # The answer once proposed: {status, answer, summary, proposed_at, accepted, note}.
     conclusion: Mapped[dict] = mapped_column(JSON, default=dict)
+    workflow: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    workflow_state: Mapped[dict] = mapped_column(
+        JSON, default=dict, server_default="{}"
+    )
     # Research forks keep their own map, Pi session and immutable source history.
     parent_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     forked_from: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -797,6 +801,17 @@ class ResearchMerge(Base):
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
 
 
+class ResearchWorkflow(Base):
+    __tablename__ = "research_workflows"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    definition: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+    updated_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
 class ResearchSchedule(Base):
     __tablename__ = "research_schedules"
     __table_args__ = (Index("ix_research_schedules_due", "paused", "next_run_at"),)
@@ -807,6 +822,9 @@ class ResearchSchedule(Base):
     prompt: Mapped[str] = mapped_column(Text)
     destination: Mapped[str] = mapped_column(String(16), default="new")
     research_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    workflow_id: Mapped[str] = mapped_column(
+        String(64), default="research", server_default="research"
+    )
     frequency: Mapped[str] = mapped_column(String(16), default="daily")
     local_time: Mapped[str] = mapped_column(String(5), default="09:00")
     weekday: Mapped[int] = mapped_column(Integer, default=0)

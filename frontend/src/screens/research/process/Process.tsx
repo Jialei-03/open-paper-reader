@@ -60,12 +60,16 @@ const ICONS: Record<string, LucideIcon> = {
   record_result: ClipboardCheck,
   advise: Stamp,
   propose_plan: FileText,
+  finish_step: ClipboardCheck,
+  review_step: Stamp,
   start_research: Play,
   message_research: FilePen,
 };
 
 const AGENT: Record<string, Agent> = {
   executor: "executor",
+  workflow: "executor",
+  review: "advisor",
   advisor: "advisor",
   scoping: "advisor",
   discussion: "advisor",

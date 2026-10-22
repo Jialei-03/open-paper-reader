@@ -223,6 +223,18 @@ async function project(page: Page) {
     if (path.endsWith("/read")) return route.fulfill({ json: { read_at: at } });
     if (path.endsWith("/changes"))
       return route.fulfill({ json: { files: [], added: 0, removed: 0 } });
+    if (path === "/workflows")
+      return route.fulfill({
+        json: [
+          {
+            id: "research",
+            name: "Research",
+            version: 1,
+            builtin: true,
+            steps: [],
+          },
+        ],
+      });
     if (path === "/navigation")
       return route.fulfill({
         json: {
@@ -931,6 +943,7 @@ test("new research stays empty until the first message chooses a physical worksp
     {
       message: "比较两个维度的表示质量",
       model_config_id: "model-1",
+      workflow_id: "research",
       workspace_id: wid,
       collection_id: null,
     },

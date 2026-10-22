@@ -413,6 +413,9 @@ def test_migration_is_additive_idempotent_and_reversible(env, setup):
             migration.upgrade()
             migration.downgrade()
             migration.upgrade()
+            importlib.import_module(
+                "backend.migrations.versions.0042_research_workflows"
+            ).upgrade()
     item = create(env, setup)
     assert (
         env[1].post(f"{BASE}/{item['id']}/run", json={}).json()["status"] == "succeeded"

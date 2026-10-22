@@ -8,6 +8,7 @@ import { refreshResearchNavigation } from "./navigation-api";
 import { useResearchNavigation } from "./ResearchNavigation";
 import { resumeProject, startProject } from "./research-api";
 import { Composer } from "./talk/Composer";
+import { WorkflowPicker } from "../workflows/WorkflowPicker";
 import { ModelPicker } from "./talk/Pickers";
 import { WorkspacePicker } from "./WorkspaceDialogs";
 import { uploadToWorkspace, mention } from "./files/files-api";
@@ -154,6 +155,7 @@ function FirstMessage({
     () => stored(draftKey) || stored(legacyDraftKey),
   );
   const migratedDraft = useRef(stored(draftKey) ? "" : legacyDraftKey);
+  const [workflowId, setWorkflowId] = useState("research");
   const [models, setModels] = useState<ModelRow[]>([]);
   const [modelId, setModelId] = useState(() => stored(`${draftKey}:model`));
   const [modelKnown, setModelKnown] = useState(false);
@@ -226,6 +228,7 @@ function FirstMessage({
           (files.length
             ? "\n" + files.map((file) => mention(file.name)).join(" ")
             : ""),
+        workflow_id: workflowId,
         workspace_id: workspaceId,
         collection_id: collectionId,
         model_config_id: modelId,
@@ -303,6 +306,11 @@ function FirstMessage({
               onClick={() => picker.current?.click()}
             />
             {context}
+            <WorkflowPicker
+              value={workflowId}
+              onChange={setWorkflowId}
+              disabled={busy}
+            />
           </>
         }
         tools={

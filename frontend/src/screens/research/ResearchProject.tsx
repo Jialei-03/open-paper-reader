@@ -130,6 +130,7 @@ export function ResearchProject({
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState("");
   const [record, setRecord] = useState(false);
+  const [outputFile, setOutputFile] = useState("");
   const [filesOpen, setFilesOpen] = useState(false);
   const [forking, setForking] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
@@ -153,6 +154,7 @@ export function ResearchProject({
 
   useEffect(() => {
     setRecord(false);
+    setOutputFile("");
     setFilesOpen(false);
     setRun("");
   }, [id]);
@@ -261,6 +263,10 @@ export function ResearchProject({
 
   const actions: ThreadActions = {
     busy,
+    openOutput: (path) => {
+      setOutputFile(path);
+      setRecord(true);
+    },
     fork: (sprintId) => setForking(sprintId || ""),
     changed: refresh,
     approvePlan: async (version) => {
@@ -658,6 +664,8 @@ export function ResearchProject({
         </div>
         {record && (
           <RecordPanel
+            outputFile={outputFile}
+            onOutputFile={setOutputFile}
             detail={detail}
             computes={computes}
             run={run}

@@ -424,6 +424,50 @@ RESEARCH_TOOLS.append(
         ["hypotheses", "metric", "summary"],
     )
 )
+RESEARCH_TOOLS.extend(
+    [
+        _research(
+            "finish_step",
+            "Complete the current agent step with a summary and output paths or cards.",
+            {
+                "summary": {"type": "string", "minLength": 1, "maxLength": 8000},
+                "outputs": {
+                    "type": "array",
+                    "maxItems": 30,
+                    "items": {
+                        "oneOf": [
+                            {"type": "string", "maxLength": 500},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "path": {"type": "string", "maxLength": 500},
+                                    "title": {"type": "string", "maxLength": 300},
+                                    "content": {"type": "string", "maxLength": 100000},
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": ["card", "idea"],
+                                    },
+                                },
+                                "required": ["title", "content"],
+                                "additionalProperties": False,
+                            },
+                        ]
+                    },
+                },
+            },
+            ["summary", "outputs"],
+        ),
+        _research(
+            "review_step",
+            "Review the preceding step, passing it or returning revision notes.",
+            {
+                "pass": {"type": "boolean"},
+                "notes": {"type": "string", "minLength": 1, "maxLength": 8000},
+            },
+            ["pass", "notes"],
+        ),
+    ]
+)
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
 # What the advisor may use: it looks and judges; it does not do.
 ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
@@ -448,6 +492,9 @@ LEAD_TOOLS = CHAT_TOOLS | LEAD_WRITES
 # map, the literature, the plan card, and reading the project like a chat.
 SCOPING_TOOLS = {"research_map_read", "propose_plan"} | LEAD_TOOLS
 WORKSPACE_READ = {"read", "ls", "find", "grep"}
+WORKFLOW_READ = CHAT_TOOLS | LITERATURE | WORKSPACE_READ | {"research_map_read"}
+WORKFLOW_TOOLS = WORKFLOW_READ | {"bash", "write", "edit", "finish_step"}
+REVIEW_TOOLS = WORKFLOW_READ | {"review_step"}
 CHAT_REFUSED = (
     "项目对话是只读的：可以查看项目里的研究、实验和日志，但不能做实验或改动研究。"
     "要推进研究，请研究者在研究页面里说"
@@ -478,9 +525,35 @@ def _blocked(d, project, sprint, tool_name, reason, message, node=None):
     raise ValueError(message)
 
 
-def gate(app, research, name):
+def gate(app, research, name, owner=None):
     """Refuses a step that does something before saying which live node it advances."""
     role = research.get("role", "executor")
+    if role in {"workflow", "review"}:
+        if name not in (WORKFLOW_TOOLS if role == "workflow" else REVIEW_TOOLS):
+            raise ValueError("当前工作流步骤不能调用这个工具")
+        with app.state.maker() as d:
+            from .research_workflows import current
+
+            project, sprint = _context(d, research)
+            if owner is not None and project.owner != owner:
+                raise ValueError("研究任务不存在")
+            spec = current(project)
+            if (
+                not spec
+                or spec["type"] != ("agent" if role == "workflow" else "review")
+                or sprint.role != role
+            ):
+                raise ValueError("工作流步骤已经更新")
+            state = project.workflow_state
+            if (
+                research.get("workflow_index") != state["current"]
+                or research.get("workflow_attempt")
+                != state["steps"][state["current"]]["attempt"]
+            ):
+                raise ValueError("工作流步骤已经更新")
+        return
+    if name in {"finish_step", "review_step"}:
+        raise ValueError("当前步骤不能结束工作流步骤")
     if role == "lead":
         if name not in LEAD_TOOLS | LITERATURE:
             raise ValueError(
@@ -611,7 +684,9 @@ def _record(app, d, owner, project, sprint, args):
         "refuted"
         if args["kill_triggered"] == "yes" and node.kind == "hypothesis"
         # A node with a result is under way, as focusing on it would make it.
-        else "active" if node.status == "open" else None
+        else "active"
+        if node.status == "open"
+        else None
     )
     doubts = None
     if args["kill_triggered"] == "unsure":
@@ -786,7 +861,8 @@ def _chat(app, owner, research, name, args):
 
     allowed = (
         LEAD_TOOLS
-        if research.get("role") in {"lead", "scoping", "discussion"}
+        if research.get("role")
+        in {"lead", "scoping", "discussion", "workflow", "review"}
         else CHAT_TOOLS
     )
     if name not in allowed:
@@ -804,7 +880,7 @@ def _chat(app, owner, research, name, args):
         ):
             raise ValueError("项目主会话不可用")
         source = None
-        if research.get("role") in {"scoping", "discussion"}:
+        if research.get("role") in {"scoping", "discussion", "workflow", "review"}:
             source, _ = _context(d, research)
             if source.owner != owner or source.workspace_id != workspace.id:
                 raise ValueError("项目对话不可用")
@@ -865,13 +941,17 @@ def _chat(app, owner, research, name, args):
 
 def _run(app, owner, research, name, args):
     settings = app.state.settings
-    if research.get("role") in {"chat", "lead", "discussion"} or (
-        research.get("role") == "scoping" and name in LEAD_TOOLS
+    if (
+        research.get("role") in {"chat", "lead", "discussion"}
+        or (research.get("role") == "scoping" and name in LEAD_TOOLS)
+        or (research.get("role") in {"workflow", "review"} and name in CHAT_TOOLS)
     ):
         return _chat(app, owner, research, name, args)
     with app.state.maker() as d:
         project, sprint = _context(d, research)
-        if name in {"end_sprint", "advise", "distill"}:
+        if project.owner != owner:
+            raise ValueError("研究任务不存在")
+        if name in {"end_sprint", "advise", "distill", "finish_step", "review_step"}:
             from . import research_chat, research_workspaces
             from .models import AgentSession, ResearchWorkspace
 
@@ -898,7 +978,14 @@ def _run(app, owner, research, name, args):
                 "spent": project.spent,
                 "focus": sprint.focus_node_id,
             }
-        if name == "focus":
+        if name in {"finish_step", "review_step"}:
+            from .research_workflows import finish_step, review_step
+
+            workflow_index = project.workflow_state["current"]
+            result = (finish_step if name == "finish_step" else review_step)(
+                settings, d, project, sprint, args
+            )
+        elif name == "focus":
             result = _focus(d, project, sprint, args)
         elif name == "add_node":
             parent = research_map.node_by_prefix(d, project, args["parent_id"])
@@ -1064,10 +1151,18 @@ def _run(app, owner, research, name, args):
             )
         else:
             raise ValueError("不支持的研究工具")
-        if name in {"end_sprint", "advise", "distill"}:
+        if name in {"end_sprint", "advise", "distill", "finish_step", "review_step"}:
             from .research_worker import capture_handoff
 
-            capture_handoff(settings, d, project, sprint)
+            captured = capture_handoff(settings, d, project, sprint)
+            if name in {"finish_step", "review_step"} and not captured:
+                raise ValueError("步骤检查点提交失败")
+            if name in {"finish_step", "review_step"}:
+                from copy import deepcopy
+
+                state = deepcopy(project.workflow_state)
+                state["steps"][workflow_index]["commit_sha"] = sprint.commit_sha
+                project.workflow_state = state
         d.commit()
         return result
 

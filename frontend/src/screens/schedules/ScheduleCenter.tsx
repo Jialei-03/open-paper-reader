@@ -38,6 +38,7 @@ import {
   type ScheduleDetail,
   type ScheduleInput,
 } from "./schedules-api";
+import { WorkflowPicker } from "../workflows/WorkflowPicker";
 import { frequencyLabel, nextLabel, weekdays } from "./schedule-time";
 import styles from "./ScheduleCenter.module.css";
 import layout from "../Management.module.css";
@@ -275,6 +276,7 @@ function ScheduleEditor({
       prompt: name ? t(`schedules.prompt.${name}`) : "",
       workspace_id: projects[0]?.id || "",
       destination: "new",
+      workflow_id: "research",
       research_id: null,
       frequency:
         name === "weekly"
@@ -357,6 +359,7 @@ function ScheduleEditor({
         prompt: draft.prompt,
         workspace_id: draft.workspace_id,
         destination: draft.destination,
+        workflow_id: draft.workflow_id || "research",
         research_id: draft.research_id,
         frequency: draft.frequency,
         local_time: draft.local_time,
@@ -556,6 +559,15 @@ function ScheduleEditor({
                   </option>
                 </select>
               </label>
+              {draft.destination === "new" && (
+                <div>
+                  <WorkflowPicker
+                    value={draft.workflow_id || "research"}
+                    onChange={(value) => edit("workflow_id", value)}
+                    disabled={busy}
+                  />
+                </div>
+              )}
               {draft.destination === "existing" && (
                 <label className={styles.field}>
                   <span>{t("schedules.conversation")}</span>

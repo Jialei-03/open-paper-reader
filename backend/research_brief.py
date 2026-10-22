@@ -155,7 +155,11 @@ def _location(d, project, settings):
     if workspace is None or workspace.owner != project.owner:
         return ""
     location = research_location(settings, workspace, project)
-    device = f"SSH {location.get('connection_id', '')}" if location.get("kind") == "ssh" else "本机"
+    device = (
+        f"SSH {location.get('connection_id', '')}"
+        if location.get("kind") == "ssh"
+        else "本机"
+    )
     return (
         f"## 已绑定的工作区\n{workspace.name} · {device}\n实际工作目录：{location.get('path', '')}\n"
         "文件和命令工具已绑定此目录，直接使用，无需另建一份工作区。项目分类不改变目录和机器。"
@@ -638,3 +642,44 @@ def executor_brief(d, project, sprint_number, settings=None):
         "本轮结束前必须调用 end_sprint。"
     )
     return "\n\n".join(parts)
+
+
+def workflow_context(project):
+    from .research_workflows import current
+
+    spec = current(project)
+    if not spec:
+        return ""
+    state = project.workflow_state
+    index = state["current"]
+    item = state["steps"][index]
+    previous = state["steps"][index - 1] if index else {}
+    return "## 当前工作流步骤\n" + json.dumps(
+        {
+            "name": spec["name"],
+            "type": spec["type"],
+            "instructions": spec["instructions"],
+            "outputs": spec["outputs"],
+            "round": item["rounds"] + 1,
+            "max_rounds": spec["max_rounds"],
+            "previous_summary": previous.get("summary", ""),
+            "previous_outputs": previous.get("outputs", []),
+            "revision_notes": item.get("review_notes", ""),
+            "human_note": item.get("human_note", ""),
+            "last_round": item.get("last_round", ""),
+        },
+        ensure_ascii=False,
+        indent=1,
+    )
+
+
+def workflow_brief(d, project, sprint_number, settings=None):
+    return "\n\n".join(
+        [
+            f"# 工作流 · 第 {sprint_number} 轮",
+            project.question,
+            _language_part(project),
+            *_context_parts(d, project, settings),
+            workflow_context(project),
+        ]
+    )

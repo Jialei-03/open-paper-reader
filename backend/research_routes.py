@@ -58,6 +58,7 @@ class ProjectInput(BaseModel):
     workspace_id: str = Field(default="", max_length=64)
     collection_id: str | None = Field(default=None, max_length=36)
     defer_start: bool = False
+    workflow_id: str = Field(default="research", max_length=64)
 
     @field_validator("message", "question")
     @classmethod
@@ -140,7 +141,10 @@ class PlanApproval(BaseModel):
 
 
 def project_out(p, *, location=None):
+    from .research_workflows import view
+
     return {
+        "workflow": view(p),
         "id": p.id,
         "question": p.question,
         "title": p.title or p.question,
@@ -360,6 +364,9 @@ def install_research_routes(app, settings, db, auth, human, owned):
     install_schedule_routes(
         app, settings, db, auth, allowed, owned, workspace_of, project_of
     )
+    from .research_workflows import install_workflow_routes
+
+    install_workflow_routes(app, settings, db, auth, allowed, owned)
 
     @app.get("/api/v1/research/workspaces")
     def workspaces(a=Depends(auth), d=Depends(db)):
@@ -683,6 +690,11 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 if body.defer_start:
                     p.status = "paused"
                 research_stages.say(d, p, "human", body.message or body.question)
+            from .research_workflows import snapshot
+
+            snapshot(d, p, body.workflow_id)
+            if body.defer_start:
+                p.status = "paused"
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         d.commit()

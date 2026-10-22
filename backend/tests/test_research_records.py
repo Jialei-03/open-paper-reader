@@ -294,7 +294,7 @@ def test_run_job_is_refused_while_scoping(world):
         d.commit()
         research = {"project_id": p.id, "sprint_id": sprint.id, "role": "executor"}
     with pytest.raises(ValueError, match="实验阶段"):
-        _run(world.app, "o", research, "run_job", {"command": "ls"})
+        _run(world.app, p.owner, research, "run_job", {"command": "ls"})
 
 
 def test_the_ora_module_prints_what_it_records(tmp_path, monkeypatch, capsys):
