@@ -126,8 +126,6 @@ def test_conversation_workspace_reads_have_valid_readonly_schemas_and_dispatch(
         "add_node",
         "update_node",
         "record_result",
-        "start_research",
-        "message_research",
     }
     for name, args in (
         ("read", {"path": "README.md", "offset": 1, "limit": 20}),

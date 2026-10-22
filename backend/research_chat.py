@@ -539,12 +539,13 @@ def start_research(
     cfg = read_config(settings, owner, model_id)
     if not cfg.get("api_key"):
         raise ValueError("请先添加并选择可用模型")
-    compute_id = (
-        workspace.compute_id or research_settings.load(settings)["default_compute"]
-    )
+    from .research_locations import compute_for
+
+    compute_id = compute_for(settings, workspace)
     research_settings.compute(settings, compute_id)
     project = research_map.create_project(d, owner, question, background, model_id)
     project.workspace_id = workspace.id
+    d.get(AgentSession, project.session_id).workspace_id = workspace.id
     project.compute_id = compute_id
     project.spawned_by = "lead"
     project.stage = "scoping"

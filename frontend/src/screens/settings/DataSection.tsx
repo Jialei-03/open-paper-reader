@@ -41,7 +41,7 @@ export function DataSection() {
     : 0;
 
   return (
-    <Section title={t("settings.data.title")} lead={t("settings.data.lead")}>
+    <Section title={t("settings.data.title")}>
       {error ? (
         <p role="alert" className={styles.error}>
           {error}
@@ -99,9 +99,6 @@ export function DataSection() {
       <div className={styles.setting}>
         <div className={styles.rowText}>
           <span>{t("settings.data.export")}</span>
-          <span className={styles.rowMeta}>
-            {t("settings.data.exportHint")}
-          </span>
         </div>
         <Button
           size="sm"

@@ -518,7 +518,6 @@ export function ResearchSection({
             <TextField
               label={t("settings.research.name")}
               value={draft.name}
-              placeholder={t("settings.research.namePlaceholder")}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
             <TextField

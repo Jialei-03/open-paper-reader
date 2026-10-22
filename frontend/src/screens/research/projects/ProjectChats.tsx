@@ -326,12 +326,7 @@ export function ProjectChat({
       <header className={styles.chatBar}>
         <div className={styles.chatHeading}>
           <h2>{chatTitle}</h2>
-          <span>
-            {t(main ? "projects.lead" : "projects.kind.chat")}
-            {live &&
-              ` · ${t(stopping || active?.runtime.phase === "stopping" ? "projects.sessions.stopping" : "projects.sessions.running")}`}
-            {session?.archived_at && ` · ${t("projects.sessions.archived")}`}
-          </span>
+
           {session?.source_session_id && (
             <a
               className={styles.sourceLink}
@@ -456,12 +451,12 @@ export function ProjectChat({
       </div>
       <div className={talk.dock}>
         <Composer
+          placeholder={t("research.composer.continue")}
           value={draft.text}
           onChange={(text) => saveDraft({ text })}
           busy={sending || stopRequested || (live && !canSteer)}
           disabled={!canSend}
           label={t(main ? "projects.lead" : "projects.chats.more")}
-          placeholder={t(main ? "projects.lead" : "projects.newChat")}
           sendLabel={t("research.home.send")}
           commands={commands}
           status={contextStatus(t, lastContext)}

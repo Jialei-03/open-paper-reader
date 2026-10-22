@@ -22,6 +22,7 @@ export type AppRoute =
       collectionId?: string;
       redirect?: string;
     }
+  | { screen: "scheduled"; redirect?: string }
   | { screen: "research-board"; redirect?: string }
   | {
       screen: "research-tasks";
@@ -66,7 +67,9 @@ const HOME: AppRoute = { screen: "home" };
  */
 export function parseAppRoute(hash: string): AppRoute {
   const path = hash.split("?")[0];
-  if (path === "" || path === "home") return HOME;
+  if (path === "") return { screen: "new-research" };
+  if (path === "home") return HOME;
+  if (path === "scheduled") return { screen: "scheduled" };
   if (path === "library") return { screen: "library" };
   if (path === "discover") return { screen: "discover" };
   if (path === "settings") return { screen: "settings" };
@@ -113,7 +116,7 @@ export function parseAppRoute(hash: string): AppRoute {
       ...(uuid(collectionId) ? { collectionId } : {}),
     };
   }
-  if (path === "board") return { screen: "research-board" };
+  if (path === "board") return { screen: "workspaces", redirect: "workspaces" };
   if (path === "workspaces") return { screen: "workspaces" };
   if (path.startsWith("workspaces/")) {
     const [workspaceId, tab] = path.slice("workspaces/".length).split("/");
@@ -121,7 +124,7 @@ export function parseAppRoute(hash: string): AppRoute {
       ? {
           screen: "workspaces",
           workspaceId,
-          ...(tab === "results" ? { tab } : {}),
+          ...(["results", "board", "about"].includes(tab) ? { tab } : {}),
         }
       : { screen: "workspaces", redirect: "workspaces" };
   }
@@ -143,7 +146,13 @@ export function parseAppRoute(hash: string): AppRoute {
     // Older ordinary chats remain readable by their saved address.
     if (tab === "chats" && uuid(item))
       return { screen: "projects", workspaceId, tab, item };
-    if (tab === "board") return { screen: "research-board", redirect: "board" };
+    if (tab === "board")
+      return {
+        screen: "workspaces",
+        workspaceId,
+        tab,
+        redirect: `workspaces/${workspaceId}/board`,
+      };
     return {
       screen: "workspaces",
       workspaceId,

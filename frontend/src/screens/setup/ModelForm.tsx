@@ -183,15 +183,6 @@ export function ModelForm({
               { value: "lmstudio", label: t("model.local.lmstudio") },
             ]}
           />
-          <p className={styles.hint}>
-            {t("model.local.hint", {
-              app: t(
-                app === "ollama"
-                  ? "model.local.ollama"
-                  : "model.local.lmstudio",
-              ),
-            })}
-          </p>
         </div>
       )}
       <TextField
@@ -202,7 +193,6 @@ export function ModelForm({
         spellCheck={false}
         value={draft.base_url}
         placeholder={kind === "local" ? LOCAL_APPS[app] : placeholder}
-        description={kind === "key" ? t("model.baseUrl.hint") : undefined}
         disabled={locked}
         onChange={(event) => change({ base_url: event.target.value }, true)}
       />
@@ -214,7 +204,6 @@ export function ModelForm({
           spellCheck={false}
           value={draft.api_key}
           placeholder={t("model.key.placeholder")}
-          description={t("model.key.hint")}
           disabled={locked}
           onChange={(event) => change({ api_key: event.target.value }, true)}
         />
@@ -227,11 +216,6 @@ export function ModelForm({
           placeholder={t("model.name.placeholder")}
           disabled={locked}
           error={listError || undefined}
-          description={
-            models && !listError
-              ? tn("model.fetched", models.length)
-              : undefined
-          }
           onChange={(model) => change({ model })}
         />
         <div>

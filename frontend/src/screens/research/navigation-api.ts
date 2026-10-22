@@ -13,6 +13,8 @@ export interface WorkspaceLocation {
 }
 export interface NavigationResearch extends ResearchSummary {
   title: string;
+  unread?: boolean;
+  archived_at?: string | null;
   session_id: string;
   workspace_id: string;
   collection_id: string | null;

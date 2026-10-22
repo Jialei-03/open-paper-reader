@@ -11,9 +11,10 @@ describe("local app sections", () => {
       "read/p1?page=2",
     ])
       expect(localSection(parseAppRoute(hash))).toBe("materials");
-    expect(localSection(parseAppRoute("tasks/waiting"))).toBe("tasks");
+    expect(localSection(parseAppRoute("scheduled"))).toBe("tasks");
+    expect(localSection(parseAppRoute("tasks/waiting"))).toBe("research");
     expect(localSection(parseAppRoute("customize/models"))).toBe("customize");
-    expect(localSection(parseAppRoute("board"))).toBe("board");
+    expect(localSection(parseAppRoute("board"))).toBe("research");
     expect(localSection(parseAppRoute("new"))).toBe("research");
   });
   it("does not remember action URLs, settings overlays or redirects as section destinations", () => {
@@ -21,6 +22,7 @@ describe("local app sections", () => {
       validSectionAddress("materials", "library?view=reading&q=memory"),
     ).toBe(true);
     expect(validSectionAddress("materials", "library?import=1")).toBe(false);
+    expect(validSectionAddress("materials", "home")).toBe(false);
     expect(
       validSectionAddress("materials", "open?url=https://arxiv.org/abs/1"),
     ).toBe(false);

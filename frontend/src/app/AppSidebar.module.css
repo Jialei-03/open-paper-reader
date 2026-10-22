@@ -271,3 +271,15 @@
 .researchSidebar[data-collapsed] .researchRail {
   border-radius: 12px;
 }
+
+.scheduledNew {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 10px;
+  background: transparent;
+  color: var(--ui-fg-3);
+  font: inherit;
+  opacity: 0.5;
+}

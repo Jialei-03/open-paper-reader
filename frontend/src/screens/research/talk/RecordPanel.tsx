@@ -1,271 +1,211 @@
-import { Download } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import type { MessageKey } from "../../../i18n/i18n";
-import { Button } from "../../../ui";
-import { buildConversation } from "../conversation";
+import { Button, Dialog, IconButton } from "../../../ui";
+import { followLink } from "../../../reader/route";
 import {
   jobSeries,
-  reportUrl,
+  readChanges,
+  type CheckpointChanges,
   type Compute,
   type ProjectDetail,
-  type ResearchEvent,
   type ResearchJob,
   type SeriesPoint,
 } from "../research-api";
+import { useResearchNavigation, ResearchState } from "../ResearchNavigation";
+import { ChangeNumbers, DiffDialog } from "../ChangeCards";
+import { MergeDialog } from "../ResearchChanges";
 import { FilesPanel } from "../files/FilesPanel";
 import { settledKey } from "../files/files-api";
-import { ResearchScene } from "../scene/ResearchScene";
-import { mainMetric, plainCommand } from "../process/model";
-import { JobState, Prose, trackerLink, type ThreadActions } from "./ThreadView";
-import { ComputePicker } from "./Pickers";
+import { plainCommand } from "../process/model";
+import { RunCard, trackerLink, type ThreadActions } from "./ThreadView";
 import styles from "./Talk.module.css";
 
-export type RecordTab =
-  | "plan"
-  | "runs"
-  | "setup"
-  | "answer"
-  | "files"
-  | "scene";
-const TABS: RecordTab[] = ["plan", "runs", "setup", "answer", "files", "scene"];
-
-const TONE: Record<string, string> = {
-  supported: "good",
-  refuted: "bad",
-  abandoned: "bad",
-  active: "strong",
-  parked: "warn",
-};
-
-/** What the project has on record, beside the conversation that made it. */
 export function RecordPanel({
   detail,
-  events,
   computes,
-  tab,
-  onTab,
   run,
   onRun,
   actions,
+  go,
 }: {
   detail: ProjectDetail;
-  events: ResearchEvent[];
   computes: Compute[];
-  tab: RecordTab;
-  onTab(tab: RecordTab): void;
   run: string;
   onRun(id: string): void;
   actions: ThreadActions;
+  go(hash: string): void;
 }) {
   const { t } = useI18n();
+  const { data } = useResearchNavigation();
+  const [changes, setChanges] = useState<CheckpointChanges | null>(null);
+  const [diff, setDiff] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const [sources, setSources] = useState(false);
+  const p = detail.project;
+  useEffect(() => {
+    let cancelled = false;
+    readChanges(p.id).then(
+      (value) => {
+        if (!cancelled) setChanges(value);
+      },
+      () => {
+        if (!cancelled) setChanges(null);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [p.id, p.updated_at]);
+  const children = data.workspaces
+    .flatMap((w) => w.researches)
+    .filter((r) => r.parent_id === p.id && !r.archived_at);
+  const nodes = detail.nodes.filter((n) => n.parent_id);
+  const selected = detail.jobs.find((j) => j.id === run);
   return (
     <aside className={styles.record} aria-label={t("research.record.title")}>
-      <div className={styles.recordHead}>
-        <div className={styles.recordTitleRow}>
-          <h2>{t("research.record.title")}</h2>
-          <span title={detail.project.question}>
-            {detail.project.title || detail.project.question}
-          </span>
-        </div>
-        <div
-          className={styles.recordTabs}
-          role="tablist"
-          aria-label={t("research.record.title")}
-          onKeyDown={(event) => {
-            if (
-              event.altKey ||
-              event.ctrlKey ||
-              event.metaKey ||
-              event.nativeEvent.isComposing
-            )
-              return;
-            const index = TABS.indexOf(tab);
-            const next =
-              event.key === "ArrowRight"
-                ? (index + 1) % TABS.length
-                : event.key === "ArrowLeft"
-                  ? (index - 1 + TABS.length) % TABS.length
-                  : event.key === "Home"
-                    ? 0
-                    : event.key === "End"
-                      ? TABS.length - 1
-                      : -1;
-            if (next < 0) return;
-            event.preventDefault();
-            onTab(TABS[next]);
-            event.currentTarget
-              .querySelectorAll<HTMLButtonElement>('[role="tab"]')
-              [next]?.focus();
-          }}
-        >
-          {TABS.map((value) => (
-            <button
-              key={value}
-              type="button"
-              role="tab"
-              id={`record-${value}-tab`}
-              aria-controls={`record-${value}`}
-              aria-selected={value === tab}
-              tabIndex={value === tab ? 0 : -1}
-              onClick={() => onTab(value)}
-            >
-              {t(`research.record.${value}` as MessageKey)}
-            </button>
-          ))}
-        </div>
+      <div className={styles.recordTitleRow}>
+        <h2>
+          {data.workspaces.find((w) => w.id === p.workspace_id)?.name ||
+            p.title}
+        </h2>
       </div>
-      <div
-        className={styles.recordBody}
-        data-tab={tab}
-        id={`record-${tab}`}
-        role="tabpanel"
-        aria-labelledby={`record-${tab}-tab`}
-      >
-        {tab === "plan" && <PlanTab detail={detail} />}
-        {tab === "runs" && (
-          <RunsTab detail={detail} run={run} onRun={onRun} actions={actions} />
+      <div className={styles.recordBody}>
+        {(!!changes?.files.length || !!p.conclusion_record?.summary) && (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>
+              {t("research.panel.changes")}
+              {!!changes?.files.length && <ChangeNumbers changes={changes} />}
+            </h3>
+            <div className={styles.tags}>
+              {!!changes?.files.length && (
+                <Button size="sm" variant="ghost" onClick={() => setDiff(true)}>
+                  {t("research.changes.compare")}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setMerging(true)}
+              >
+                {t("research.merge.action")}
+              </Button>
+            </div>
+          </section>
         )}
-        {tab === "setup" && (
-          <SetupTab
-            detail={detail}
-            computes={computes}
-            onMove={actions.moveCompute}
-          />
+        {!!children.length && (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>
+              {t("research.panel.children")}
+              <span>
+                {t("research.panel.completed", {
+                  n: children.filter((r) => r.status === "finished").length,
+                })}
+              </span>
+            </h3>
+            {children.map((r) => (
+              <a
+                key={r.id}
+                className={styles.childResearch}
+                href={`#research/${r.id}`}
+                onClick={followLink(go, `research/${r.id}`)}
+              >
+                <span>{r.title || r.question}</span>
+                <ResearchState research={r} />
+              </a>
+            ))}
+          </section>
         )}
-        {tab === "answer" && <AnswerTab detail={detail} />}
-        {tab === "files" && (
-          <>
-            {detail.project.location?.kind === "ssh" && (
-              <p className={styles.fileSnapshot}>
-                {t("research.files.remoteSnapshot")}
-              </p>
-            )}
-            <FilesPanel
-              key={detail.project.id}
-              projectId={detail.project.id}
-              settled={settledKey(detail.sprints, detail.jobs)}
-            />
-          </>
+        {!!detail.jobs.length && (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t("research.record.runs")}</h3>
+            {detail.jobs.slice(0, 10).map((job) => (
+              <RunCard
+                key={job.id}
+                job={job}
+                computes={computes}
+                actions={actions}
+              />
+            ))}
+          </section>
         )}
-        {tab === "scene" && (
-          <SceneTab detail={detail} events={events} actions={actions} />
+        {(!!p.plan?.hypotheses?.length || !!nodes.length) && (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>{t("research.record.plan")}</h3>
+            {nodes.length
+              ? nodes.map((node) => (
+                  <div key={node.id} className={styles.nodeRow}>
+                    <span>{node.title}</span>
+                    <small>
+                      {t(`research.node.${node.status}` as MessageKey)}
+                    </small>
+                  </div>
+                ))
+              : p.plan.hypotheses.map((h) => (
+                  <div key={h.title} className={styles.nodeRow}>
+                    {h.title}
+                  </div>
+                ))}
+          </section>
         )}
-      </div>
-    </aside>
-  );
-}
-
-function PlanTab({ detail }: { detail: ProjectDetail }) {
-  const { t } = useI18n();
-  const plan = detail.project.plan;
-  const nodes = detail.nodes.filter((n) => n.parent_id !== null);
-  return (
-    <>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t("research.record.question")}</h3>
-        <p className={styles.prose}>{detail.project.question}</p>
-        {"metric" in plan && plan.metric && (
-          <dl className={styles.kv}>
-            <dt>{t("research.plan.metric")}</dt>
-            <Long text={plan.metric} />
-            {plan.baseline && (
-              <>
-                <dt>{t("research.plan.baseline")}</dt>
-                <Long text={plan.baseline} />
-              </>
-            )}
-            {plan.goal && (
-              <>
-                <dt>{t("research.plan.goal")}</dt>
-                <Long text={plan.goal} />
-              </>
-            )}
-          </dl>
-        )}
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t("research.record.map")}</h3>
-        {nodes.length === 0 ? (
-          <p className={styles.empty}>
-            {detail.project.stage === "scoping"
-              ? t("research.record.mapScoping")
-              : t("research.record.mapEmpty")}
-          </p>
-        ) : (
-          <div>
-            {nodes.map((n) => (
-              <div key={n.id} className={styles.nodeRow}>
-                <span>{n.title}</span>
-                <span className={styles.tag} data-tone={TONE[n.status]}>
-                  {t(`research.node.${n.status}` as MessageKey)}
-                </span>
-                {n.kill_if && (
-                  <small>
-                    {t("research.plan.killIf", { text: n.kill_if })}
-                  </small>
-                )}
+        {!!detail.datasets.length && (
+          <section className={styles.section}>
+            <h3 className={styles.sectionTitle}>
+              {t("research.panel.sources")}
+              <IconButton
+                icon={Plus}
+                label={t("research.attach")}
+                size="sm"
+                onClick={() => setSources(true)}
+              />
+            </h3>
+            {detail.datasets.map((source) => (
+              <div key={source.id} className={styles.nodeRow}>
+                <span>{source.name}</span>
+                <small>
+                  {t(`research.data.${source.status}` as MessageKey)}
+                </small>
+                {source.files.map((file) => (
+                  <small key={file.name}>{file.name}</small>
+                ))}
               </div>
             ))}
-          </div>
+          </section>
         )}
-      </section>
-    </>
-  );
-}
-
-function RunsTab({
-  detail,
-  run,
-  onRun,
-  actions,
-}: {
-  detail: ProjectDetail;
-  run: string;
-  onRun(id: string): void;
-  actions: ThreadActions;
-}) {
-  const { t } = useI18n();
-  const titles = new Map(detail.nodes.map((n) => [n.id, n.title]));
-  const selected = detail.jobs.find((j) => j.id === run);
-  if (detail.jobs.length === 0)
-    return <p className={styles.empty}>{t("research.record.noRuns")}</p>;
-  return (
-    <>
-      {selected && (
-        <RunDetail
-          projectId={detail.project.id}
-          job={selected}
-          actions={actions}
+      </div>
+      {diff && changes && (
+        <DiffDialog changes={changes} onClose={() => setDiff(false)} />
+      )}{" "}
+      {merging && (
+        <MergeDialog
+          project={p}
+          onClose={() => setMerging(false)}
+          onChanged={() => actions.changed?.()}
         />
       )}
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>
-          {t("research.record.runCount", { n: detail.jobs.length })}
-        </h3>
-        {detail.jobs.map((job) => (
-          <button
-            key={job.id}
-            type="button"
-            className={styles.runRow}
-            data-selected={job.id === run || undefined}
-            onClick={() => onRun(job.id)}
-          >
-            <span className={styles.runHead}>
-              <span className={styles.status} data-status={job.status}>
-                <JobState job={job} />
-              </span>
-              <span className={styles.command}>
-                {(typeof job.config?.tag === "string" && job.config.tag) ||
-                  titles.get(job.node_id) ||
-                  plainCommand(job.command)}
-              </span>
-              <MainNumber metrics={job.metrics ?? {}} />
-            </span>
-          </button>
-        ))}
-      </section>
-    </>
+      <Dialog
+        open={sources}
+        title={t("research.panel.sources")}
+        onClose={() => setSources(false)}
+        size="lg"
+      >
+        <FilesPanel
+          projectId={p.id}
+          settled={settledKey(detail.sprints, detail.jobs)}
+        />
+      </Dialog>
+      <Dialog
+        open={!!selected}
+        title={t("research.record.run")}
+        onClose={() => onRun("")}
+        size="lg"
+      >
+        {selected && (
+          <RunDetail projectId={p.id} job={selected} actions={actions} />
+        )}
+      </Dialog>
+    </aside>
   );
 }
 
@@ -402,221 +342,5 @@ function Curve({ points }: { points: number[] }) {
         <span>{hi.toPrecision(4)}</span>
       </div>
     </>
-  );
-}
-
-function SetupTab({
-  detail,
-  computes,
-  onMove,
-}: {
-  detail: ProjectDetail;
-  computes: Compute[];
-  onMove(id: string): void;
-}) {
-  const { t } = useI18n();
-  const compute = computes.find((c) => c.id === detail.project.compute_id);
-  const env = detail.project.environment?.[detail.project.compute_id];
-  return (
-    <>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t("research.setup.compute")}</h3>
-        {computes.length > 1 && detail.project.status !== "finished" && (
-          <div className={styles.tags}>
-            <ComputePicker
-              computes={computes}
-              value={detail.project.compute_id}
-              onChange={(id) => id !== detail.project.compute_id && onMove(id)}
-              label={t("research.setup.move")}
-            />
-          </div>
-        )}
-        <dl className={styles.kv}>
-          <dt>{t("research.setup.where")}</dt>
-          <dd>
-            {compute?.name ?? detail.project.compute_id}
-            {compute?.kind === "ssh" ? ` (${compute.host})` : ""}
-          </dd>
-          {env ? (
-            <>
-              <dt>Python</dt>
-              <dd>{env.python}</dd>
-              <dt>{t("research.setup.machine")}</dt>
-              <dd>
-                {[
-                  env.platform,
-                  env.cpus && `${env.cpus} CPU`,
-                  env.memory_gb && `${env.memory_gb} GB`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </dd>
-              <dt>GPU</dt>
-              <dd>
-                {env.gpus?.length
-                  ? env.gpus.join(", ")
-                  : env.mps
-                    ? t("research.setup.appleGpu")
-                    : t("research.setup.noGpu")}
-              </dd>
-              {Object.entries(env.packages ?? {}).map(([k, v]) => (
-                <Fragment key={k} k={k} v={v} />
-              ))}
-            </>
-          ) : (
-            <>
-              <dt />
-              <dd className={styles.empty}>{t("research.setup.notProbed")}</dd>
-            </>
-          )}
-        </dl>
-        {!detail.docker.available && compute?.kind === "docker" && (
-          <p className={styles.empty}>{detail.docker.reason}</p>
-        )}
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t("research.setup.data")}</h3>
-        {detail.datasets.length === 0 ? (
-          <p className={styles.empty}>{t("research.setup.noData")}</p>
-        ) : (
-          detail.datasets.map((d) => (
-            <div key={d.id} className={styles.nodeRow}>
-              <span>{d.name}</span>
-              <span
-                className={styles.tag}
-                data-tone={
-                  d.status === "ready"
-                    ? "good"
-                    : d.status === "failed"
-                      ? "bad"
-                      : "warn"
-                }
-              >
-                {t(`research.data.${d.status}` as MessageKey)}
-              </span>
-              <small>
-                {d.status !== "ready"
-                  ? d.note
-                  : d.files
-                      .map(
-                        (f) =>
-                          `${f.name} · ${(f.bytes / 1e6).toFixed(1)} MB · sha256 ${f.sha256.slice(0, 10)}`,
-                      )
-                      .join("\n")}
-              </small>
-            </div>
-          ))
-        )}
-      </section>
-    </>
-  );
-}
-
-function AnswerTab({ detail }: { detail: ProjectDetail }) {
-  const { t } = useI18n();
-  const c = detail.project.conclusion_record;
-  return (
-    <>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t("research.answer.title")}</h3>
-        {"summary" in c && c.summary ? (
-          <>
-            <div className={styles.tags}>
-              <span
-                className={styles.tag}
-                data-tone={c.status === "refuted" ? "warn" : "good"}
-              >
-                {t(`research.end.${c.status}` as MessageKey)}
-              </span>
-              <span className={styles.tag}>
-                {c.accepted === true
-                  ? t("research.answer.accepted")
-                  : c.accepted === false
-                    ? t("research.answer.sentBack")
-                    : t("research.answer.pending")}
-              </span>
-            </div>
-            <Prose text={c.summary} />
-            {c.note && (
-              <p className={styles.empty}>
-                {t("research.answer.note", { text: c.note })}
-              </p>
-            )}
-          </>
-        ) : (
-          <p className={styles.empty}>{t("research.answer.none")}</p>
-        )}
-      </section>
-      <section className={styles.section}>
-        <h3 className={styles.sectionTitle}>{t("research.answer.report")}</h3>
-        <div className={styles.tags}>
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={Download}
-            onClick={() => window.open(reportUrl(detail.project.id, "zh"))}
-          >
-            {t("research.answer.reportZh")}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={Download}
-            onClick={() => window.open(reportUrl(detail.project.id, "en"))}
-          >
-            {t("research.answer.reportEn")}
-          </Button>
-        </div>
-      </section>
-    </>
-  );
-}
-
-function SceneTab({
-  detail,
-  events,
-  actions,
-}: {
-  detail: ProjectDetail;
-  events: ResearchEvent[];
-  actions: ThreadActions;
-}) {
-  const turns = useMemo(
-    () =>
-      buildConversation(events, [...detail.sprints].reverse(), detail.nodes),
-    [events, detail],
-  );
-  return (
-    <ResearchScene
-      turns={turns}
-      nodes={detail.nodes}
-      live={detail.project.status === "active"}
-      onLog={actions.openLog}
-    />
-  );
-}
-
-/** A long fact: three lines, the rest on a click. */
-function Long({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <dd
-      className={open ? undefined : styles.clamp}
-      title={open ? undefined : text}
-      onClick={() => setOpen(!open)}
-    >
-      {text}
-    </dd>
-  );
-}
-
-function MainNumber({ metrics }: { metrics: Record<string, unknown> }) {
-  const main = mainMetric(metrics);
-  if (!main) return null;
-  return (
-    <span className={styles.runMain}>
-      <span>{main[0]}</span>
-      <strong>{main[1].toPrecision(4)}</strong>
-    </span>
   );
 }

@@ -10,11 +10,16 @@ from .models import (
     ResearchCollection,
     ResearchProject,
     ResearchWorkspace,
+    ResearchEvent,
     now,
 )
 from .schemas import Strict
 
 BASE = "/api/v1/research"
+
+
+class ReadInput(Strict):
+    event_id: str = Field(default="", max_length=36)
 
 
 class CollectionInput(Strict):
@@ -71,6 +76,27 @@ def research_out(d, project):
     session = d.get(AgentSession, project.session_id)
     return research_workspaces.summary(d, project) | {
         "archived_at": session.archived_at if session else None,
+        "unread": bool(
+            session
+            and d.scalar(
+                select(ResearchEvent.id)
+                .where(
+                    ResearchEvent.project_id == project.id,
+                    ResearchEvent.actor != "human",
+                    ResearchEvent.created_at > (session.read_at or project.created_at),
+                    ResearchEvent.action.in_(
+                        (
+                            "message",
+                            "decision_requested",
+                            "plan_proposed",
+                            "concluded",
+                            "paused",
+                        )
+                    ),
+                )
+                .limit(1)
+            )
+        ),
         "title": project.title or project.question,
         "session_id": project.session_id,
         "workspace_id": project.workspace_id,
@@ -163,6 +189,28 @@ def install_hub_routes(app, settings, db, auth, human, owned, project_of, projec
     def get_navigation(a=Depends(auth), d=Depends(db)):
         allowed(a)
         return navigation(settings, d, a["id"])
+
+    @app.post(BASE + "/projects/{id}/read")
+    def mark_read(id: str, body: ReadInput, a=Depends(auth), d=Depends(db)):
+        allowed(a)
+        project = project_of(d, id, a)
+        session = owned(d, AgentSession, project.session_id, a)
+        event = (
+            d.get(ResearchEvent, body.event_id)
+            if body.event_id
+            else d.scalar(
+                select(ResearchEvent)
+                .where(ResearchEvent.project_id == project.id)
+                .order_by(ResearchEvent.created_at.desc())
+                .limit(1)
+            )
+        )
+        if body.event_id and (event is None or event.project_id != project.id):
+            raise HTTPException(404, "Not found")
+        through = event.created_at if event else project.created_at
+        session.read_at = max(session.read_at or "", through)
+        d.commit()
+        return {"read_at": session.read_at}
 
     @app.get(BASE + "/board")
     def get_board(a=Depends(auth), d=Depends(db)):

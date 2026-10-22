@@ -309,10 +309,7 @@ export function CreateWorkspaceDialog({
               onClick={() => kind !== "local" && chooseDevice("local")}
             >
               <Laptop size={18} aria-hidden />
-              <span>
-                <strong>{t("workspace.local")}</strong>
-                <small>{t("workspace.localFolderHint")}</small>
-              </span>
+
               {kind === "local" && <Check size={15} aria-hidden />}
             </button>
             {connections.map((connection) => (
@@ -371,7 +368,6 @@ export function CreateWorkspaceDialog({
         )}
         <TextField
           label={t("workspace.nameOptional")}
-          description={t("workspace.nameHint")}
           value={name}
           placeholder={folderName}
           disabled={busy}
@@ -491,7 +487,6 @@ function FolderBrowser({
         </Button>
       </div>
       <div className={styles.folderBrowserOptions}>
-        <p className={styles.muted}>{t("workspace.openPathHint")}</p>
         <label className={styles.hiddenToggle}>
           <input
             type="checkbox"
@@ -649,7 +644,7 @@ export function ConnectionsDialog({
           disabled={busy}
           onChange={(event) => setIdentity(event.target.value)}
         />
-        <p className={styles.muted}>{t("workspace.sshHint")}</p>
+
         {error && (
           <p role="alert" className={styles.error}>
             {error}

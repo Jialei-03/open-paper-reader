@@ -1,4 +1,4 @@
-import { Check, EyeOff, Eye, Plus, RefreshCw } from "lucide-react";
+import { Compass, Check, EyeOff, Eye, Plus, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import type { Paper } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -106,10 +106,10 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
     </CardHeader>
   );
 
-  const message = (title: string, body: string, action?: React.ReactNode) => (
+  const message = (title: string, action?: React.ReactNode) => (
     <div className={styles.message} role="status">
+      <Compass size={30} aria-hidden />
       <p className={styles.messageTitle}>{title}</p>
-      <p className={styles.messageBody}>{body}</p>
       {action}
     </div>
   );
@@ -125,7 +125,6 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
   } else if (recs.status === "failed" || !data) {
     body = message(
       t("discover.failed", { reason: recs.error }),
-      "",
       <Button size="sm" onClick={recs.reload}>
         {t("common.retry")}
       </Button>,
@@ -133,17 +132,15 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
   } else if (data.state === "no_seeds") {
     body = message(
       t("discover.noSeeds.title"),
-      t("discover.noSeeds.body"),
       <Button size="sm" onClick={() => go("library")}>
         {t("discover.noSeeds.action")}
       </Button>,
     );
   } else if (data.state === "offline") {
-    body = message(t("discover.offline.title"), t("discover.offline.body"));
+    body = message(t("discover.offline.title"));
   } else if (data.state === "unavailable") {
     body = message(
       t("discover.unavailable.title"),
-      t("discover.unavailable.body"),
       <Button size="sm" onClick={recs.refresh} loading={recs.refreshing}>
         {t("common.retry")}
       </Button>,
@@ -294,10 +291,7 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
     <Card as="main" className={styles.root} aria-labelledby="discover-title">
       <div className={styles.frame}>
         {header}
-        <div className={styles.body}>
-          <p className={styles.intro}>{t("discover.intro")}</p>
-          {body}
-        </div>
+        <div className={styles.body}>{body}</div>
       </div>
       {preview && (
         <PreviewPanel

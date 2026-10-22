@@ -30,16 +30,14 @@ export function DownloadDialog({
   const name = useId();
   const [kind, setKind] = useState<DownloadKind>("original");
   const [busy, setBusy] = useState(false);
-  const choices: { value: DownloadKind; label: string; hint: string }[] = [
+  const choices: { value: DownloadKind; label: string }[] = [
     {
       value: "original",
       label: t("reader.download.original"),
-      hint: t("reader.download.originalHint"),
     },
     {
       value: "annotated",
       label: t("reader.download.annotated"),
-      hint: t("reader.download.annotatedHint"),
     },
     ...translated.map((engine) => ({
       value: `translated:${engine}` as const,
@@ -51,7 +49,6 @@ export function DownloadDialog({
               name: t(`reader.engine.${engine}.name`),
             })
           : t("reader.download.translated"),
-      hint: t("reader.download.translatedHint"),
     })),
   ];
 
@@ -72,7 +69,6 @@ export function DownloadDialog({
       onClose={onClose}
       size="sm"
       title={t("reader.download.title")}
-      description={t("reader.download.description")}
       dismissible={!busy}
       footer={
         <>
@@ -100,7 +96,6 @@ export function DownloadDialog({
               type="radio"
               name={name}
               aria-labelledby={`${name}-${choice.value}`}
-              aria-describedby={`${name}-${choice.value}-hint`}
               value={choice.value}
               checked={kind === choice.value}
               disabled={busy}
@@ -110,9 +105,6 @@ export function DownloadDialog({
             <span className={styles.text}>
               <span id={`${name}-${choice.value}`} className={styles.label}>
                 {choice.label}
-              </span>
-              <span id={`${name}-${choice.value}-hint`} className={styles.hint}>
-                {choice.hint}
               </span>
             </span>
           </label>

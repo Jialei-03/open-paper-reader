@@ -183,7 +183,7 @@ export function LayoutPanel({ layout }: { layout: Layout }) {
     <section className={styles.panel} aria-label={t("reader.layout.region")}>
       <div className={styles.inner}>
         <h2 className={styles.title}>{t("reader.engine.title")}</h2>
-        <p className={styles.about}>{t("reader.engine.intro")}</p>
+
         {!layout.hasModel && (
           <p className={styles.note}>
             {t("reader.layout.noModel")}{" "}

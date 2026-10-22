@@ -3,15 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import { followLink } from "../../reader/route";
-import {
-  Button,
-  Dialog,
-  IconButton,
-  Menu,
-  SegmentedControl,
-  Spinner,
-  TextArea,
-} from "../../ui";
+import { Button, Dialog, SegmentedControl, Spinner, TextArea } from "../../ui";
 import { Prose } from "./talk/ThreadView";
 import {
   applyMerge,
@@ -37,116 +29,13 @@ import { workspaceMachine } from "./workspace-machine";
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-export function ResearchChanges({
-  project,
-  go,
-  onChanged,
-  refreshKey,
-}: {
-  project: ResearchProject;
-  refreshKey: number;
-  go(hash: string): void;
-  onChanged(): void;
-}) {
-  const { t } = useI18n();
-  const [forking, setForking] = useState(false);
-  const [merging, setMerging] = useState(false);
-  const [forkCapability, setForkCapability] = useState<{
-    can_fork: boolean;
-    reason: string;
-    rounds: ForkRound[];
-  } | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    forkOptions(project.id).then(
-      (value) => !cancelled && setForkCapability(value),
-      () => !cancelled && setForkCapability(null),
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [project.id, project.updated_at, refreshKey]);
-  const canFork =
-    !!forkCapability?.can_fork &&
-    !!forkCapability.rounds?.some((round) => round.available);
-  const forkReason = canFork
-    ? undefined
-    : forkCapability?.reason || t("research.fork.noRounds");
-  return (
-    <>
-      <Button
-        className={styles.toolbarButton}
-        aria-label={t("research.fork.action")}
-        size="sm"
-        variant="ghost"
-        icon={GitFork}
-        disabled={!canFork}
-        title={forkReason}
-        onClick={() => setForking(true)}
-      >
-        {t("research.fork.action")}
-      </Button>
-      <Button
-        className={styles.toolbarButton}
-        aria-label={t("research.merge.action")}
-        size="sm"
-        variant="ghost"
-        icon={GitMerge}
-        onClick={() => setMerging(true)}
-      >
-        {t("research.merge.action")}
-      </Button>
-      <Menu
-        label={t("research.changes.actions")}
-        items={[
-          {
-            id: "fork",
-            label: t("research.fork.action"),
-            icon: GitFork,
-            disabled: !canFork,
-            hint: forkReason,
-            onSelect: () => setForking(true),
-          },
-          {
-            id: "merge",
-            label: t("research.merge.action"),
-            icon: GitMerge,
-            onSelect: () => setMerging(true),
-          },
-        ]}
-        trigger={(props) => (
-          <IconButton
-            className={styles.overflowTrigger}
-            icon={GitFork}
-            size="sm"
-            label={t("research.changes.actions")}
-            {...props}
-          />
-        )}
-      />
-      {forking && (
-        <ForkDialog
-          project={project}
-          onClose={() => setForking(false)}
-          go={go}
-        />
-      )}
-      {merging && (
-        <MergeDialog
-          project={project}
-          onClose={() => setMerging(false)}
-          onChanged={onChanged}
-        />
-      )}
-    </>
-  );
-}
-
-function ForkDialog({
+export function ForkDialog({
   project,
   onClose,
   go,
+  initialSprintId,
 }: {
+  initialSprintId?: string;
   project: ResearchProject;
   onClose(): void;
   go(hash: string): void;
@@ -157,7 +46,7 @@ function ForkDialog({
     reason: string;
     rounds: ForkRound[];
   } | null>(null);
-  const [selected, setSelected] = useState("");
+  const [selected, setSelected] = useState(initialSprintId || "");
   const [change, setChange] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -170,13 +59,15 @@ function ForkDialog({
         if (cancelled) return;
         setOptions(value);
         setSelected((old) =>
-          value.rounds.some(
-            (round) => round.sprint_id === old && round.available,
-          )
-            ? old
-            : [...value.rounds]
-                .sort((a, b) => b.number - a.number)
-                .find((round) => round.available)?.sprint_id || "",
+          initialSprintId
+            ? initialSprintId
+            : value.rounds.some(
+                  (round) => round.sprint_id === old && round.available,
+                )
+              ? old
+              : [...value.rounds]
+                  .sort((a, b) => b.number - a.number)
+                  .find((round) => round.available)?.sprint_id || "",
         );
         setError("");
       },
@@ -278,7 +169,7 @@ function ForkDialog({
           onChange={(event) => setChange(event.target.value)}
           disabled={busy}
         />
-        <p className={styles.boundary}>{t("research.fork.pausedBoundary")}</p>
+
         {error && (
           <p className={styles.error} role="alert">
             {error}
@@ -297,7 +188,7 @@ function ForkDialog({
   );
 }
 
-function MergeDialog({
+export function MergeDialog({
   project,
   onClose,
   onChanged,
@@ -721,13 +612,6 @@ export function ResearchOrigin({
       </div>
       <p>{source.change}</p>
       <div className={styles.originFoot}>
-        <span>
-          {t(
-            detail.project.stage === "scoping"
-              ? "research.fork.independent"
-              : "research.fork.independentResearch",
-          )}
-        </span>
         {detail.project.status === "paused" &&
           detail.project.stage === "scoping" && (
             <Button size="sm" variant="secondary" onClick={onResume}>
@@ -743,9 +627,6 @@ export function ResearchOrigin({
           <summary>{t("research.fork.history")}</summary>
           {historyOpen && (
             <>
-              <p className={styles.boundary}>
-                {t("research.fork.historyBoundary")}
-              </p>
               {history.events
                 .filter((event) =>
                   [

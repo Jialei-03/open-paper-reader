@@ -317,7 +317,6 @@ export function LibraryScreen({
                 {tn("library.count", papers.length)}
               </span>
             </div>
-            <p className={styles.subtitle}>{t("library.subtitle")}</p>
           </div>
           <div
             className={styles.search}

@@ -120,10 +120,7 @@ export function AccessSection({ go }: { go(hash: string): void }) {
 
   const title = (paper: Paper) => paper.title || t("reader.untitled");
   return (
-    <Section
-      title={t("settings.access.title")}
-      lead={t("settings.access.lead")}
-    >
+    <Section title={t("settings.access.title")}>
       <h3 className={styles.subTitle}>{t("settings.shares.title")}</h3>
       {shareError ? (
         <p role="alert" className={styles.error}>

@@ -23,7 +23,6 @@ export function CustomizeScreen({
           <>
             <header className={styles.header}>
               <h1 id="customize-title">{t("customize.playbook")}</h1>
-              <span>{t("customize.description")}</span>
             </header>
             <div className={styles.body}>
               <PlaybookPanel />

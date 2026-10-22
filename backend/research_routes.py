@@ -57,6 +57,7 @@ class ProjectInput(BaseModel):
     compute_id: str = Field(default="", max_length=64)
     workspace_id: str = Field(default="", max_length=64)
     collection_id: str | None = Field(default=None, max_length=36)
+    defer_start: bool = False
 
     @field_validator("message", "question")
     @classmethod
@@ -320,9 +321,11 @@ def install_research_routes(app, settings, db, auth, human, owned):
     research_files.install_research_files(app, settings, db, auth, project_of)
     from .research_branches import install_branch_routes
     from .research_merge import install_merge_routes
+    from .research_changes import install_change_routes
 
     install_branch_routes(app, settings, db, auth, project_of, project_out)
     install_merge_routes(app, settings, db, auth, human, owned)
+    install_change_routes(app, settings, db, auth, project_of)
     from .research_hub import install_hub_routes
     from .research_locations import install_location_routes
 
@@ -671,6 +674,8 @@ def install_research_routes(app, settings, db, auth, human, owned):
             if not (budget or {}).get("auto_decide"):
                 # The plan is talked through first; nothing runs until it is approved.
                 p.stage = "scoping"
+                if body.defer_start:
+                    p.status = "paused"
                 research_stages.say(d, p, "human", body.message or body.question)
         except ValueError as e:
             raise HTTPException(422, str(e)) from None

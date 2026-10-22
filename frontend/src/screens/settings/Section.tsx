@@ -3,16 +3,14 @@ import { Button, Dialog } from "../../ui";
 import { useI18n } from "../../i18n/I18nProvider";
 import styles from "./Settings.module.css";
 
-/** One part of the settings: a heading, a sentence under it, an action beside it. */
+/** One settings section with its actions. */
 export function Section({
   title,
-  lead,
   action,
   children,
   headingLevel = 2,
 }: {
   title: string;
-  lead?: string;
   action?: ReactNode;
   children: ReactNode;
   headingLevel?: 1 | 2;
@@ -26,7 +24,6 @@ export function Section({
           <Heading id={id} className={styles.sectionTitle}>
             {title}
           </Heading>
-          {lead && <p className={styles.sectionLead}>{lead}</p>}
         </div>
         {action}
       </div>
@@ -47,7 +44,7 @@ export function ConfirmDialog({
 }: {
   open: boolean;
   title: string;
-  description: string;
+  description?: string;
   confirm: string;
   busy: boolean;
   onConfirm(): void;

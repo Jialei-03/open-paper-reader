@@ -35,7 +35,7 @@ def test_create_project_makes_root_and_session(db):
     assert root.kind == "question" and root.title == "Does L2 help?"
     assert root.parent_id is None
     session = d.get(AgentSession, project.session_id)
-    assert session.owner == owner and session.title.startswith("研究：")
+    assert session.owner == owner and session.title == project.title
 
 
 def test_hypothesis_requires_kill_if(db):

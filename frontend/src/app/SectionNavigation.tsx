@@ -4,8 +4,6 @@ import {
   Circle,
   Compass,
   FileText,
-  History,
-  LayoutGrid,
   Library,
   Plus,
   Settings2,
@@ -14,7 +12,6 @@ import {
 import { useI18n } from "../i18n/I18nProvider";
 import { followLink, readerHash } from "../reader/route";
 import { SidebarItem, SidebarSection } from "../ui";
-import { useResearchNavigation } from "../screens/research/ResearchNavigation";
 import type { AppRoute } from "./routes";
 import type { LocalSection } from "./local-sections";
 import styles from "./AppSidebar.module.css";
@@ -34,7 +31,6 @@ export function SectionNavigation({
   go(hash: string): void;
 }) {
   const { t } = useI18n();
-  const { data } = useResearchNavigation();
   const view =
     new URLSearchParams(hash.split("?")[1] || "").get("view") || "all";
   const importParams = new URLSearchParams(
@@ -93,7 +89,6 @@ export function SectionNavigation({
             "discover",
             route.screen === "discover",
           )}
-          {item(History, t("app.home"), "home", route.screen === "home")}
         </div>
         {!!reading.length && (
           <div className={styles.sectionGroup}>
@@ -132,26 +127,14 @@ export function SectionNavigation({
         )}
       </div>
     );
-  if (section === "board") {
-    const rows = data.workspaces
-      .filter((w) => !w.archived)
-      .flatMap((w) => w.researches)
-      .filter((r) => r.on_board);
+  if (section === "tasks")
     return (
-      <>
-        {item(LayoutGrid, t("projects.view.board"), "board", true)}
-        <div className={styles.sectionGroup}>
-          <SidebarSection title={t("app.section.selected")}>
-            {rows.map((row) =>
-              item(FileText, row.title || row.question, `research/${row.id}`),
-            )}
-            {!rows.length && (
-              <p className={styles.sectionHint}>{t("app.section.boardHint")}</p>
-            )}
-          </SidebarSection>
-        </div>
-      </>
+      <div className={styles.researchActions}>
+        <button className={styles.scheduledNew} disabled>
+          <Plus size={16} aria-hidden />
+          {t("scheduled.new")}
+        </button>
+      </div>
     );
-  }
   return null;
 }

@@ -1,11 +1,6 @@
 import { parseAppRoute, type AppRoute } from "./routes";
 
-export type LocalSection =
-  | "research"
-  | "materials"
-  | "tasks"
-  | "customize"
-  | "board";
+export type LocalSection = "research" | "materials" | "tasks" | "customize";
 
 export function localSection(route: AppRoute): LocalSection {
   switch (route.screen) {
@@ -15,12 +10,12 @@ export function localSection(route: AppRoute): LocalSection {
     case "reader":
     case "open":
       return "materials";
-    case "research-tasks":
+    case "scheduled":
       return "tasks";
     case "customize":
       return "customize";
     case "research-board":
-      return "board";
+      return "research";
     default:
       return "research";
   }
@@ -36,6 +31,7 @@ export function validSectionAddress(
   return (
     !route.redirect &&
     route.screen !== "settings" &&
+    route.screen !== "home" &&
     route.screen !== "open" &&
     !new URLSearchParams(hash.split("?")[1] || "").has("import") &&
     localSection(route) === section
@@ -51,15 +47,7 @@ export function readSectionAddresses(
     );
     if (!saved || typeof saved !== "object") return {};
     return Object.fromEntries(
-      (
-        [
-          "research",
-          "materials",
-          "tasks",
-          "customize",
-          "board",
-        ] as LocalSection[]
-      )
+      (["research", "materials", "tasks", "customize"] as LocalSection[])
         .filter((section) => validSectionAddress(section, saved[section]))
         .map((section) => [section, saved[section]]),
     );

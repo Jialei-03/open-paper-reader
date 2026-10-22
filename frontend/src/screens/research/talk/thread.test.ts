@@ -67,9 +67,10 @@ describe("buildThread", () => {
       const messages = items.filter((item) => item.kind === "message");
       expect(messages.map((item) => [item.who, item.text])).toEqual([
         ["human", "解释结论适用范围"],
-        ["discussion", reply],
       ]);
-      expect(messages.filter((item) => item.text === reply)).toHaveLength(1);
+      expect(
+        items.filter((item) => item.kind === "work" && item.reply === reply),
+      ).toHaveLength(1);
       expect(events[2].actor).toBe("advisor");
       expect(turn.summary).toBe(reply);
     },
@@ -90,7 +91,7 @@ describe("buildThread", () => {
     );
     expect(
       items.filter((item) => item.kind === "message").map((item) => item.who),
-    ).toEqual(["advisor", "system", "advisor", "advisor"]);
+    ).toEqual(["system", "advisor", "advisor"]);
   });
 
   it("shows scoping as a round and only the newest plan is on the table", () => {
@@ -112,7 +113,7 @@ describe("buildThread", () => {
       "message",
       "work",
       "plan",
-      "message",
+      "work",
       "plan",
     ]);
     const plans = items.filter((i) => i.kind === "plan");

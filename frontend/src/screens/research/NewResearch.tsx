@@ -1,24 +1,17 @@
-import {
-  Check,
-  Laptop,
-  Plus,
-  Server,
-  Settings2,
-  SquareTerminal,
-} from "lucide-react";
-import { useContext, useEffect, useRef, useState } from "react";
+import { Laptop, Plus, X, Server } from "lucide-react";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppActions } from "../../app/AppSidebar";
 import { useI18n } from "../../i18n/I18nProvider";
-import { Button, IconButton, Menu } from "../../ui";
+import { Button, IconButton, toast } from "../../ui";
 import { readModels, type ModelRow } from "../setup/model-api";
 import { refreshResearchNavigation } from "./navigation-api";
 import { workspaceMachine } from "./workspace-machine";
 import { useResearchNavigation } from "./ResearchNavigation";
-import { startProject } from "./research-api";
+import { resumeProject, startProject } from "./research-api";
 import { Composer } from "./talk/Composer";
 import { ModelPicker } from "./talk/Pickers";
-import { CollectionDialog } from "./ResearchLibrary";
 import { WorkspacePicker } from "./WorkspaceDialogs";
+import { uploadToWorkspace, mention } from "./files/files-api";
 import styles from "./Workspace.module.css";
 
 function stored(key: string) {
@@ -46,13 +39,9 @@ export function NewResearch({
     workspaceId || stored(`research-workspace:${owner}`),
   );
   const [collection, setCollection] = useState(collectionId || "");
-  const [creating, setCreating] = useState(false);
   const pendingWorkspace = useRef("");
   const current = data.workspaces.find(
     (item) => item.id === workspace && !item.archived,
-  );
-  const project = data.collections.find(
-    (item) => item.id === collection && !item.archived,
   );
   const unavailable =
     ready &&
@@ -117,108 +106,36 @@ export function NewResearch({
   return (
     <main className={styles.newPage} data-testid="new-research">
       <div className={styles.newHeading}>
-        <SquareTerminal
-          className={styles.newHeadingIcon}
-          size={46}
-          strokeWidth={1.25}
-          aria-hidden
-        />
-        <h1>
-          {current
-            ? t("workspace.startInQuestion", { name: current.name })
-            : t("workspace.startQuestion")}
-        </h1>
+        <h1>{t("workspace.startQuestion")}</h1>
       </div>
       <div className={styles.startArea}>
-        {!current && ready && (
-          <section className={styles.workspaceStart}>
-            {unavailable && <p role="alert">{t("workspace.notFound")}</p>}
-            <p>{t("workspace.startHint")}</p>
-            <ol>
-              <li>{t("workspace.stepFolder")}</li>
-              <li>{t("workspace.stepQuestion")}</li>
-            </ol>
-            <WorkspacePicker
-              prominent
-              value={workspace}
-              onChange={(next) => chooseContext(next, collection)}
-            />
-          </section>
-        )}
-        <div className={styles.contextBar}>
-          <div
-            className={styles.newContextWorkspace}
-            title={
-              current
-                ? `${current.name}\n${current.location.path}`
-                : t("workspace.choose")
-            }
-          >
-            <WorkspacePicker
-              value={workspace}
-              onChange={(next) => chooseContext(next, collection)}
-            />
-          </div>
-          {current && (
-            <span
-              className={styles.device}
-              title={`${machine.title}\n${current.location.path}`}
-            >
-              {current.location.kind === "ssh" ? (
-                <Server size={14} aria-hidden />
-              ) : (
-                <Laptop size={14} aria-hidden />
-              )}
-              <span>{machine.label}</span>
-            </span>
-          )}
-          <Menu
-            label={t("workspace.classify")}
-            items={[
-              {
-                id: "none",
-                label: t("workspace.unclassified"),
-                icon: !collection ? Check : undefined,
-                onSelect: () => chooseContext(workspace, ""),
-              },
-              ...data.collections
-                .filter((item) => !item.archived)
-                .map((item) => ({
-                  id: item.id,
-                  label: item.name,
-                  icon: collection === item.id ? Check : undefined,
-                  onSelect: () => chooseContext(workspace, item.id),
-                })),
-              {
-                id: "create",
-                label: t("workspace.addCollection"),
-                icon: Plus,
-                onSelect: () => setCreating(true),
-              },
-            ]}
-            trigger={(props) => (
-              <IconButton
-                className={styles.newContextSettings}
-                icon={Settings2}
-                size="sm"
-                label={t("workspace.classify")}
-                title={
-                  project
-                    ? `${t("workspace.classify")}: ${project.name}`
-                    : t("workspace.optionalCollection")
-                }
-                {...props}
-              />
-            )}
-          />
-        </div>
+        {unavailable && <p role="alert">{t("workspace.notFound")}</p>}
         <FirstMessage
           key={owner}
           draftKey={`research-draft:${owner}:new`}
           legacyDraftKey={`research-draft:${owner}:new:${workspace}:${collection}`}
           workspaceId={current?.id || ""}
           collectionId={collection || null}
+          defaultModelId={current?.model_config_id || ""}
           go={go}
+          context={
+            <>
+              <WorkspacePicker
+                value={workspace}
+                onChange={(next) => chooseContext(next, collection)}
+              />
+              {current && (
+                <span className={styles.device} title={machine.title}>
+                  {current.location.kind === "ssh" ? (
+                    <Server size={14} aria-hidden />
+                  ) : (
+                    <Laptop size={14} aria-hidden />
+                  )}
+                  <span>{machine.label}</span>
+                </span>
+              )}
+            </>
+          }
         />
         {error && (
           <p className={styles.error} role="alert">
@@ -229,15 +146,6 @@ export function NewResearch({
           </p>
         )}
       </div>
-      {creating && (
-        <CollectionDialog
-          onClose={() => setCreating(false)}
-          onCreated={(item) => {
-            chooseContext(workspace, item.id);
-            setCreating(false);
-          }}
-        />
-      )}
     </main>
   );
 }
@@ -248,7 +156,11 @@ function FirstMessage({
   workspaceId,
   collectionId,
   go,
+  context,
+  defaultModelId,
 }: {
+  defaultModelId: string;
+  context: ReactNode;
   draftKey: string;
   legacyDraftKey: string;
   workspaceId: string;
@@ -263,6 +175,16 @@ function FirstMessage({
   const [models, setModels] = useState<ModelRow[]>([]);
   const [modelId, setModelId] = useState(() => stored(`${draftKey}:model`));
   const [modelKnown, setModelKnown] = useState(false);
+  const explicitModel = useRef(!!stored(`${draftKey}:model`));
+  useEffect(() => {
+    if (
+      !explicitModel.current &&
+      models.some((model) => model.id === defaultModelId)
+    )
+      setModelId(defaultModelId);
+  }, [defaultModelId, models]);
+  const [files, setFiles] = useState<File[]>([]);
+  const picker = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -314,13 +236,25 @@ function FirstMessage({
     if (!workspaceId || !modelId || !text.trim() || busy) return;
     setBusy(true);
     setError("");
+    let createdId = "";
     try {
       const research = await startProject({
-        message: text.trim(),
+        message:
+          text.trim() +
+          (files.length
+            ? "\n" + files.map((file) => mention(file.name)).join(" ")
+            : ""),
         workspace_id: workspaceId,
         collection_id: collectionId,
         model_config_id: modelId,
+        ...(files.length ? { defer_start: true } : {}),
       });
+      createdId = research.id;
+      for (const file of files) {
+        await uploadToWorkspace(research.id, "", file);
+        setFiles((old) => old.filter((item) => item !== file));
+      }
+      if (files.length) await resumeProject(research.id);
       try {
         localStorage.removeItem(draftKey);
         localStorage.removeItem(legacyDraftKey);
@@ -330,26 +264,73 @@ function FirstMessage({
       refreshResearchNavigation();
       go(`research/${research.id}`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      const message = reason instanceof Error ? reason.message : String(reason);
+      if (createdId) {
+        toast.show({ message, tone: "error" });
+        refreshResearchNavigation();
+        go(`research/${createdId}`);
+      } else setError(message);
       setBusy(false);
     }
   };
   return (
     <div className={styles.firstMessage}>
+      <input
+        type="file"
+        multiple
+        hidden
+        ref={picker}
+        onChange={(event) => {
+          setFiles((old) => [...old, ...Array.from(event.target.files || [])]);
+          event.target.value = "";
+        }}
+      />
+      {!!files.length && (
+        <div className={styles.attachments}>
+          {files.map((file, index) => (
+            <span key={index}>
+              {file.name}
+              <IconButton
+                icon={X}
+                label={t("common.remove")}
+                size="sm"
+                onClick={() =>
+                  setFiles((old) => old.filter((_, i) => i !== index))
+                }
+              />
+            </span>
+          ))}
+        </div>
+      )}
       <Composer
         value={text}
         onChange={setText}
         onSend={send}
         label={t("workspace.firstMessage")}
-        placeholder={t("workspace.firstPlaceholder")}
+        placeholder=""
         sendLabel={t("research.home.send")}
         busy={busy}
-        disabled={!workspaceId || !modelId}
+        disabled={busy}
+        sendDisabled={!workspaceId || !modelId}
+        leading={
+          <>
+            <IconButton
+              icon={Plus}
+              label={t("research.attach")}
+              size="sm"
+              onClick={() => picker.current?.click()}
+            />
+            {context}
+          </>
+        }
         tools={
           <ModelPicker
             models={models}
             value={modelId}
-            onChange={setModelId}
+            onChange={(id) => {
+              explicitModel.current = true;
+              setModelId(id);
+            }}
             label={t("research.home.model")}
           />
         }
@@ -359,9 +340,6 @@ function FirstMessage({
         <Button size="sm" variant="ghost" onClick={() => go("settings/models")}>
           {t("workspace.configureModel")}
         </Button>
-      )}
-      {!workspaceId && (
-        <p className={styles.muted}>{t("workspace.selectFirst")}</p>
       )}
       {error && (
         <p className={styles.error} role="alert">

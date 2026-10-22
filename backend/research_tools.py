@@ -446,7 +446,7 @@ LEAD_WRITES = {"start_research", "message_research"}
 LEAD_TOOLS = CHAT_TOOLS | LEAD_WRITES
 # What the advisor may use while a conversation has no approved plan: the
 # map, the literature, the plan card, and reading the project like a chat.
-SCOPING_TOOLS = {"research_map_read", "propose_plan"} | CHAT_TOOLS
+SCOPING_TOOLS = {"research_map_read", "propose_plan"} | LEAD_TOOLS
 WORKSPACE_READ = {"read", "ls", "find", "grep"}
 CHAT_REFUSED = (
     "项目对话是只读的：可以查看项目里的研究、实验和日志，但不能做实验或改动研究。"
@@ -487,10 +487,12 @@ def gate(app, research, name):
                 "项目导师只能读项目、派出研究和带话，不能批准事项、做实验或修改研究文件"
             )
         return
-    if name in LEAD_WRITES:
-        raise ValueError("只有项目导师可以派出研究或带话")
+    if name in LEAD_WRITES and role not in {"scoping", "discussion"}:
+        raise ValueError("只能在项目对话中派出研究或带话")
     if role in {"chat", "discussion"}:
-        if name not in CHAT_TOOLS | LITERATURE | (WORKSPACE_READ if role == "discussion" else set()):
+        if name not in (
+            LEAD_TOOLS if role == "discussion" else CHAT_TOOLS
+        ) | LITERATURE | (WORKSPACE_READ if role == "discussion" else set()):
             raise ValueError(CHAT_REFUSED)
         if role == "discussion":
             with app.state.maker() as d:
@@ -747,7 +749,9 @@ def _wait(settings, d, job, seconds):
         deadline = begun + seconds if job.status == "running" else None
         while job.status in research_sandbox.ACTIVE:
             clock = time.monotonic()
-            if (deadline is not None and clock >= deadline) or clock - begun >= WAIT_MAX:
+            if (
+                deadline is not None and clock >= deadline
+            ) or clock - begun >= WAIT_MAX:
                 break
             time.sleep(WAIT_POLL)
             d.refresh(job)
@@ -778,9 +782,13 @@ def _wait(settings, d, job, seconds):
 
 def _chat(app, owner, research, name, args):
     from . import research_chat
-    from .models import ResearchWorkspace
+    from .models import AgentSession, ResearchWorkspace
 
-    allowed = LEAD_TOOLS if research.get("role") == "lead" else CHAT_TOOLS
+    allowed = (
+        LEAD_TOOLS
+        if research.get("role") in {"lead", "scoping", "discussion"}
+        else CHAT_TOOLS
+    )
     if name not in allowed:
         raise ValueError("项目对话不能调用这个工具")
     settings = app.state.settings
@@ -795,8 +803,14 @@ def _chat(app, owner, research, name, args):
             and research.get("session_id") != workspace.session_id
         ):
             raise ValueError("项目主会话不可用")
-        if name in LEAD_WRITES and research.get("role") != "lead":
-            raise ValueError("只有项目导师可以派出研究或带话")
+        source = None
+        if research.get("role") in {"scoping", "discussion"}:
+            source, _ = _context(d, research)
+            if source.owner != owner or source.workspace_id != workspace.id:
+                raise ValueError("项目对话不可用")
+            session = d.get(AgentSession, source.session_id)
+            if session is None or session.archived_at or workspace.archived:
+                raise ValueError("请先恢复项目或对话")
         if name == "start_research":
             project = research_chat.start_research(
                 settings,
@@ -805,8 +819,14 @@ def _chat(app, owner, research, name, args):
                 workspace,
                 args["question"],
                 args.get("background", ""),
-                research.get("model_config_id", ""),
+                (
+                    source.model_config_id
+                    if source
+                    else research.get("model_config_id", "")
+                ),
             )
+            if source:
+                project.parent_id = source.id
             d.commit()
             return {
                 "research_id": project.id,
@@ -846,7 +866,7 @@ def _chat(app, owner, research, name, args):
 def _run(app, owner, research, name, args):
     settings = app.state.settings
     if research.get("role") in {"chat", "lead", "discussion"} or (
-        research.get("role") == "scoping" and name in CHAT_TOOLS
+        research.get("role") == "scoping" and name in LEAD_TOOLS
     ):
         return _chat(app, owner, research, name, args)
     with app.state.maker() as d:

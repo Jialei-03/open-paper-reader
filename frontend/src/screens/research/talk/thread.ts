@@ -36,6 +36,8 @@ export type ThreadItem =
       kind: "work";
       id: string;
       sprint: ResearchSprint;
+      reply?: string;
+      replyAt?: string;
       steps: Step[];
       jobs: ResearchJob[];
       at: string;
@@ -93,6 +95,30 @@ export function buildThread(
     if (HIDDEN.has(event.action)) continue;
     const at = event.created_at;
     const sprint = event.sprint_id ? bySprint.get(event.sprint_id) : undefined;
+    if (
+      event.action === "message" &&
+      event.actor !== "human" &&
+      event.actor !== "lead" &&
+      event.actor !== "system" &&
+      sprint
+    ) {
+      let block = blocks.get(sprint.id);
+      if (!block) {
+        block = {
+          kind: "work",
+          id: sprint.id,
+          sprint,
+          steps: [],
+          jobs: inOrder(jobs, sprint.id),
+          at,
+        };
+        blocks.set(sprint.id, block);
+        items.push(block);
+      }
+      block.reply = str(event.detail.text);
+      block.replyAt = at;
+      continue;
+    }
     if (event.action === "message") {
       items.push({
         kind: "message",
@@ -108,6 +134,18 @@ export function buildThread(
         at,
       });
       continue;
+    }
+    if (sprint && !blocks.has(sprint.id)) {
+      const block: Extract<ThreadItem, { kind: "work" }> = {
+        kind: "work",
+        id: sprint.id,
+        sprint,
+        steps: [],
+        jobs: inOrder(jobs, sprint.id),
+        at,
+      };
+      blocks.set(sprint.id, block);
+      items.push(block);
     }
     if (event.action === "plan_proposed") {
       items.push({

@@ -270,6 +270,7 @@ export const getProject = (id: string, signal?: AbortSignal) =>
 
 /** A project starts from what the researcher says; the plan is talked through. */
 export const startProject = (body: {
+  defer_start?: boolean;
   message: string;
   model_config_id: string;
   compute_id?: string;
@@ -871,3 +872,30 @@ export const controlChat = (
     text,
     client_id: crypto.randomUUID(),
   }) as Promise<ChatControl>;
+
+export interface CheckpointChanges {
+  base_commit?: string;
+  commit_sha?: string;
+  added: number;
+  removed: number;
+  can_undo?: boolean;
+  files: {
+    path: string;
+    added: number;
+    removed: number;
+    diff: string;
+    truncated?: boolean;
+    binary?: boolean;
+  }[];
+}
+export const readChanges = (id: string, sprintId?: string) =>
+  api<CheckpointChanges>(
+    `${BASE}/${id}${sprintId ? `/rounds/${sprintId}` : ""}/changes`,
+  );
+export const undoRound = (
+  id: string,
+  sprintId: string,
+  expected_commit: string,
+) => send(`${BASE}/${id}/rounds/${sprintId}/undo`, { expected_commit });
+export const markResearchRead = (id: string, event_id: string) =>
+  send(`${BASE}/${id}/read`, { event_id });

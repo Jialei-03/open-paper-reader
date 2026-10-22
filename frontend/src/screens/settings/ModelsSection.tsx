@@ -83,7 +83,6 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
     <Section
       headingLevel={page ? 1 : 2}
       title={t("settings.models.title")}
-      lead={t("settings.models.lead")}
       action={
         <div className={styles.rowActions}>
           <Button size="sm" onClick={() => setImporting(true)}>
@@ -265,7 +264,6 @@ export function ModelsSection({ page = false }: { page?: boolean } = {}) {
         open={adding}
         onClose={() => setAdding(false)}
         title={t("settings.models.dialog")}
-        description={t("settings.models.dialogLead")}
       >
         {adding && (
           <ModelForm

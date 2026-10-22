@@ -47,14 +47,14 @@ import { parseAppRoute, type AppRoute } from "./routes";
 import { ProjectPage } from "../screens/research/projects/ProjectPage";
 import { NewResearch } from "../screens/research/NewResearch";
 import {
-  ResearchBoard,
   WorkspaceScreen,
   CollectionScreen,
 } from "../screens/research/ResearchLibrary";
 import { ResearchNavigationProvider } from "../screens/research/ResearchNavigation";
 import { LocalOnly } from "../screens/research/LocalOnly";
 import { ResearchProject } from "../screens/research/ResearchProject";
-import { TaskCenter } from "../screens/tasks/TaskCenter";
+import { Clock3 } from "lucide-react";
+import { Button } from "../ui";
 import { CustomizeScreen } from "../screens/customize/CustomizeScreen";
 
 // The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
@@ -98,14 +98,14 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
   const [route, setRoute] = useState(readRoute);
   // The settings are a window over what was open: that stays drawn beneath.
   const under = useRef<{ route: AppRoute; hash: string }>({
-    route: { screen: "home" },
-    hash: "home",
+    route: { screen: "new-research" },
+    hash: "new",
   });
   // The address is read only when it still says what is drawn: a click on the
   // settings link changes it a moment before this renders with the new route.
   const here = location.hash.slice(1);
   if (route.screen !== "settings" && !here.startsWith("settings"))
-    under.current = { route, hash: here || "home" };
+    under.current = { route, hash: here || "new" };
   const [papers, setPapers] = useState<Paper[]>([]);
   const [tick, setTick] = useState(0);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -221,8 +221,15 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
     [user.id, screenKey, quickOpen],
   );
 
+  useEffect(() => {
+    if (local === true && route.screen === "home") go("new");
+  }, [local, route.screen, go]);
   const shown: AppRoute =
-    route.screen === "settings" ? under.current.route : route;
+    route.screen === "settings"
+      ? under.current.route
+      : local === true && route.screen === "home"
+        ? { screen: "new-research" }
+        : route;
   const category = (
     route.screen === "settings" &&
     CATEGORIES.includes(route.category as SettingsCategory)
@@ -346,6 +353,13 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
               go={go}
             />
           )}
+          {shown.screen === "scheduled" && (
+            <main className={styles.scheduled}>
+              <Clock3 size={42} strokeWidth={1.25} aria-hidden />
+              <h1>{t("scheduled.title")}</h1>
+              <Button disabled>{t("scheduled.new")}</Button>
+            </main>
+          )}
           {local !== false &&
             shown.screen === "research-tasks" &&
             (shown.projectId ? (
@@ -356,13 +370,10 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
                 go={go}
               />
             ) : (
-              <TaskCenter filter={shown.filter} go={go} />
+              <NewResearch go={go} />
             ))}
           {local !== false && shown.screen === "customize" && (
             <CustomizeScreen section={shown.section} />
-          )}
-          {local !== false && shown.screen === "research-board" && (
-            <ResearchBoard go={go} />
           )}
           {local !== false && shown.screen === "workspaces" && (
             <WorkspaceScreen

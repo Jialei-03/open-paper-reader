@@ -157,7 +157,6 @@ export function ProjectsHome({ go }: { go(hash: string): void }) {
         open={making}
         onClose={() => setMaking(false)}
         title={t("projects.new")}
-        description={t("projects.newLead")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setMaking(false)}>

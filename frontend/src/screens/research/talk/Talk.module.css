@@ -1449,3 +1449,210 @@
     font-size: 11px;
   }
 }
+
+.body {
+  position: relative;
+  gap: 12px;
+}
+.record {
+  align-self: flex-start;
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  width: 320px;
+  max-height: calc(100% - 24px);
+  margin: 8px 16px 16px 0;
+  border: 0;
+  border-radius: 20px;
+  background: var(--ui-bg-2);
+  overflow: hidden;
+}
+.recordTitleRow {
+  margin: 0;
+  padding: 20px 20px 8px;
+}
+.recordBody {
+  padding: 0 20px 12px;
+  gap: 0;
+}
+.recordBody > .section {
+  padding: 18px 0;
+  border: 0;
+  border-bottom: 1px solid var(--ui-edge-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+.recordBody > .section:last-child {
+  border-bottom: 0;
+}
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sectionTitle > span {
+  font-size: 12px;
+  font-weight: 400;
+}
+.childResearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  color: var(--ui-fg);
+  text-decoration: none;
+  font-size: 13px;
+}
+.childResearch > span:first-child {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composerContext {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--ui-fg-2);
+}
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.message[data-human] {
+  align-items: flex-end;
+}
+.messageActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ui-fg-3);
+  opacity: 0;
+  transition: opacity 0.12s;
+  height: 28px;
+  font-size: 11px;
+}
+.message:hover .messageActions,
+.message:focus-within .messageActions,
+section:hover > .messageActions,
+.messageActions:focus-within {
+  opacity: 1;
+}
+.messageActions time {
+  margin-left: 6px;
+}
+.checkpointCard {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 16px;
+  background: var(--ui-bg-2);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: 14px;
+  font-size: 13px;
+}
+.checkpointCard > div:first-of-type {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.checkpointActions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.changeNumbers {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.changeNumbers > span:first-child {
+  color: var(--ui-success-text, #26834a);
+}
+.changeNumbers > span:last-child {
+  color: var(--ui-danger-text);
+}
+.diffFiles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.diffFiles summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.diffFiles pre {
+  max-height: 55vh;
+  overflow: auto;
+  background: var(--ui-bg-2);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+}
+.threadSkeleton {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 40px;
+}
+.threadSkeleton > div {
+  height: 14px;
+  border-radius: 6px;
+  width: 80%;
+  background: var(--ui-bg-2);
+}
+.threadSkeleton > div:first-child {
+  height: 60px;
+  width: 42%;
+  align-self: flex-end;
+}
+.threadSkeleton > div:last-child {
+  width: 64%;
+}
+@media (max-width: 1100px) {
+  .record {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: auto;
+    z-index: 5;
+    width: min(340px, calc(100% - 24px));
+    max-height: calc(100% - 16px);
+    box-shadow: var(--ui-elev-2);
+    margin: 8px 12px;
+  }
+}
+@media (max-width: 600px) {
+  .composerContext {
+    max-width: 80px;
+  }
+  .checkpointActions {
+    width: 100%;
+  }
+}
+@media (hover: none) {
+  .messageActions {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .messageActions {
+    transition: none;
+  }
+}

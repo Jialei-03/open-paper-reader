@@ -38,7 +38,7 @@ export function UsageSection() {
 
   const count = (value: number) => formatCount(value, locale);
   return (
-    <Section title={t("settings.usage.title")} lead={t("settings.usage.lead")}>
+    <Section title={t("settings.usage.title")}>
       {error ? (
         <p role="alert" className={styles.error}>
           {error}

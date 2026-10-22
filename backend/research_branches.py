@@ -80,7 +80,13 @@ def capture_round(settings, d, project, sprint, *, allow_capture=True):
     workspace = d.get(ResearchWorkspace, project.workspace_id)
     if workspace is None or workspace.owner != project.owner:
         return False
-    research_repo.adopt(settings, workspace, project)
+    if sprint.role == "discussion":
+        if not (
+            research_repo.thread_dir(settings, workspace.id, project.id) / ".git"
+        ).exists():
+            return False
+    else:
+        research_repo.adopt(settings, workspace, project)
     if sprint.role == "executor":
         from . import research_remote
         from .research_locations import execution_compute
@@ -104,7 +110,13 @@ def capture_round(settings, d, project, sprint, *, allow_capture=True):
                 raise ValueError(
                     "远程代码同步超时，本轮没有可用于分叉的检查点"
                 ) from None
-    commit = research_repo.commit_round(settings, project, sprint)
+    if sprint.role == "discussion":
+        commit = research_repo.head(
+            research_repo.thread_dir(settings, workspace.id, project.id)
+        )
+        sprint.commit_sha = commit
+    else:
+        commit = research_repo.commit_round(settings, project, sprint)
     if not commit:
         return False
     history = project.inherited_history or {}
@@ -153,8 +165,6 @@ def capture_round(settings, d, project, sprint, *, allow_capture=True):
 
 
 def _reason(d, sprint):
-    if sprint.role == "discussion":
-        return "讨论轮次不产生新的文件检查点，请选择已保存的研究轮次"
     if sprint.status not in {"ended", "abnormal"}:
         return "这一轮尚未结束"
     snapshot = sprint.snapshot or {}

@@ -416,11 +416,6 @@ export function NoteEditor({
             ? "reader.notes.formula.new"
             : "reader.notes.formula.title",
         )}
-        description={
-          formula && formula.pos < 0
-            ? undefined
-            : t("reader.notes.formula.description")
-        }
         footer={
           <>
             <Button onClick={() => setFormula(null)}>

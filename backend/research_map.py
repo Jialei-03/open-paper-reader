@@ -26,18 +26,26 @@ DEAD = {"refuted", "abandoned"}
 PREFIX = 8
 
 
+def short_title(question):
+    import re
+
+    text = re.sub(r"\s+", " ", question).strip().lstrip("# ")
+    text = re.split(r"[。！？\n]", text, maxsplit=1)[0]
+    return text[:16].rstrip("，,、:：;； ") or "新对话"
+
+
 def create_project(d, owner, question, background, model_config_id, budget=None):
     """A new project, its root question and the session its runs belong to."""
     question = question.strip()
     if not question:
         raise ValueError("研究问题不能为空")
-    session = AgentSession(owner=owner, title=("研究：" + question)[:100], kind="research")
+    session = AgentSession(owner=owner, title=short_title(question), kind="research")
     d.add(session)
     d.flush()
     project = ResearchProject(
         owner=owner,
         question=question,
-        title=question[:300],
+        title=short_title(question),
         background=background or "",
         model_config_id=model_config_id,
         session_id=session.id,

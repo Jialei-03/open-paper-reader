@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { parseAppRoute } from "./routes";
 
 describe("parseAppRoute", () => {
-  it("reads the screens, home by default", () => {
-    expect(parseAppRoute("")).toEqual({ screen: "home" });
+  it("reads the screens, new research by default", () => {
+    expect(parseAppRoute("")).toEqual({ screen: "new-research" });
     expect(parseAppRoute("home")).toEqual({ screen: "home" });
     expect(parseAppRoute("library?q=x")).toEqual({ screen: "library" });
     expect(parseAppRoute("settings")).toEqual({ screen: "settings" });
@@ -113,7 +113,10 @@ describe("research navigation", () => {
       screen: "research-collections",
       collectionId: "unclassified",
     });
-    expect(parseAppRoute("board")).toEqual({ screen: "research-board" });
+    expect(parseAppRoute("board")).toEqual({
+      screen: "workspaces",
+      redirect: "workspaces",
+    });
   });
   it("maps old projects to folders and preserves saved ordinary-chat links", () => {
     expect(parseAppRoute("projects")).toEqual({
@@ -132,8 +135,10 @@ describe("research navigation", () => {
       redirect: `workspaces/${id}/results`,
     });
     expect(parseAppRoute(`projects/${id}/board`)).toEqual({
-      screen: "research-board",
-      redirect: "board",
+      screen: "workspaces",
+      workspaceId: id,
+      tab: "board",
+      redirect: `workspaces/${id}/board`,
     });
     expect(parseAppRoute(`projects/${id}/chats/${id}`)).toEqual({
       screen: "projects",

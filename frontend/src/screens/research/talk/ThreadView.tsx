@@ -1,5 +1,7 @@
 import {
   Check,
+  Copy,
+  GitFork,
   ChevronRight,
   Clock,
   Cpu,
@@ -13,7 +15,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useI18n } from "../../../i18n/I18nProvider";
 import type { MessageKey } from "../../../i18n/i18n";
-import { Button, Spinner } from "../../../ui";
+import { Button, IconButton, Spinner, toast } from "../../../ui";
 import { describeStep } from "../describe";
 import type {
   Compute,
@@ -26,6 +28,7 @@ import { Mascot } from "../scene/Mascot";
 import { mainMetric, plainCommand, type ResearchRun } from "../process/model";
 import { RunTurn } from "../process/Process";
 import type { ThreadItem } from "./thread";
+import { CheckpointCard } from "../ChangeCards";
 import styles from "./Talk.module.css";
 
 const ROLE_AGENT: Record<string, Agent> = {
@@ -75,6 +78,8 @@ export interface ThreadActions {
   openRun(jobId: string): void;
   moveCompute(computeId: string): void;
   busy: boolean;
+  fork?(sprintId?: string): void;
+  changed?(): void;
 }
 
 export function ThreadView({
@@ -93,11 +98,24 @@ export function ThreadView({
 }) {
   return (
     <>
-      {items.map((item) => {
+      {items.map((item, index) => {
+        const boundary = items
+          .slice(0, index)
+          .reverse()
+          .find((row) => row.kind === "work" && row.sprint.commit_sha);
+        const sprintId =
+          boundary?.kind === "work" ? boundary.sprint.id : undefined;
         switch (item.kind) {
           case "message":
             return (
-              <MessageItem key={item.id} who={item.who} text={item.text} />
+              <MessageItem
+                key={item.id}
+                who={item.who}
+                text={item.text}
+                at={item.at}
+                sprintId={sprintId}
+                actions={actions}
+              />
             );
           case "plan":
             return (
@@ -125,6 +143,7 @@ export function ThreadView({
               <WorkBlock
                 key={item.id}
                 item={item}
+                project={project}
                 computes={computes}
                 actions={actions}
                 run={runs.get(item.sprint.id)}
@@ -138,13 +157,74 @@ export function ThreadView({
   );
 }
 
-function MessageItem({ who, text }: { who: string; text: string }) {
-  if (who === "human") return <div className={styles.mine}>{text}</div>;
+export function MessageActions({
+  text,
+  at,
+  sprintId,
+  actions,
+}: {
+  text: string;
+  at: string;
+  sprintId?: string;
+  actions: ThreadActions;
+}) {
+  const { t, locale } = useI18n();
+  return (
+    <div className={styles.messageActions}>
+      <IconButton
+        icon={Copy}
+        label={t("research.message.copy")}
+        size="sm"
+        onClick={() =>
+          navigator.clipboard
+            .writeText(text)
+            .catch((error) =>
+              toast.show({ message: String(error), tone: "error" }),
+            )
+        }
+      />
+      <IconButton
+        icon={GitFork}
+        label={t("research.message.fork")}
+        size="sm"
+        disabled={!sprintId || !actions.fork}
+        onClick={() => actions.fork?.(sprintId)}
+      />
+      <time dateTime={at} title={new Date(at).toLocaleString(locale)}>
+        {new Date(at).toLocaleTimeString(locale, {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </time>
+    </div>
+  );
+}
+
+function MessageItem({
+  who,
+  text,
+  at,
+  sprintId,
+  actions,
+}: {
+  who: string;
+  text: string;
+  at: string;
+  sprintId?: string;
+  actions: ThreadActions;
+}) {
   if (who === "system") return <p className={styles.systemLine}>{text}</p>;
   return (
-    <div className={styles.theirs}>
-      <Speaker role={who} />
-      <Prose text={text} />
+    <div className={styles.message} data-human={who === "human" || undefined}>
+      <div className={who === "human" ? styles.mine : styles.theirs}>
+        {who === "human" ? text : <Prose text={text} />}
+      </div>
+      <MessageActions
+        text={text}
+        at={at}
+        sprintId={sprintId}
+        actions={actions}
+      />
     </div>
   );
 }
@@ -367,20 +447,6 @@ function PlanCard({
       )}
       {current && !approved && (
         <footer className={styles.cardFoot}>
-          <p>
-            {plan.inherited ? (
-              t("research.fork.inheritedPlan")
-            ) : unready ? (
-              <>
-                {t("research.plan.notReady", { name: compute?.name ?? "" })}{" "}
-                <a href="#settings/environments">
-                  {t("research.plan.prepare")}
-                </a>
-              </>
-            ) : (
-              t("research.plan.hint")
-            )}
-          </p>
           <Button
             variant="primary"
             size="sm"
@@ -473,13 +539,6 @@ function DecisionCard({
             className={styles.note}
             rows={question ? 3 : 2}
             value={note}
-            placeholder={t(
-              conclusion
-                ? "research.ask.notePlaceholderMore"
-                : question
-                  ? "research.ask.answerPlaceholder"
-                  : "research.ask.notePlaceholder",
-            )}
             aria-label={t("research.ask.note")}
             onChange={(event) => setNote(event.target.value)}
           />
@@ -488,7 +547,6 @@ function DecisionCard({
       <footer className={styles.cardFoot}>
         {item.open && question ? (
           <>
-            <p>{t("research.ask.questionHint")}</p>
             <Button
               size="sm"
               variant="primary"
@@ -501,13 +559,6 @@ function DecisionCard({
           </>
         ) : item.open ? (
           <>
-            <p>
-              {t(
-                conclusion
-                  ? "research.ask.conclusionHint"
-                  : "research.ask.hint",
-              )}
-            </p>
             <Button
               size="sm"
               variant="secondary"
@@ -588,6 +639,7 @@ export function JobState({ job }: { job: ResearchJob }) {
 /** One experiment, as one line: how it went, what it is, its number, how long. */
 export function RunCard({
   job,
+  computes,
   actions,
 }: {
   job: ResearchJob;
@@ -627,6 +679,9 @@ export function RunCard({
           <JobState job={job} />
         </span>
       ) : null}
+      <span className={styles.workMeta}>
+        {computes.find((c) => c.id === job.compute_id)?.name || job.compute_id}
+      </span>
       <span className={styles.workMeta}>{duration(job)}</span>
     </button>
   );
@@ -634,18 +689,20 @@ export function RunCard({
 
 function WorkBlock({
   item,
+  project,
   computes,
   actions,
   run,
 }: {
   item: Extract<ThreadItem, { kind: "work" }>;
+  project: ResearchProject;
   computes: Compute[];
   actions: ThreadActions;
   run: ResearchRun | undefined;
 }) {
   const { t } = useI18n();
   const role = item.sprint.role;
-  const conversational = role === "scoping" || role === "discussion";
+
   if (item.sprint.number === 0) {
     // A note by the system between sprints: one line.
     const said = item.steps
@@ -664,7 +721,7 @@ function WorkBlock({
       ? t("research.work.executor", { n: item.sprint.number })
       : role === "advisor"
         ? t("research.work.advisor", { n: item.sprint.number })
-        : conversational
+        : ["scoping", "discussion"].includes(role)
           ? t("research.role.discussion")
           : t("research.work.distiller");
   return (
@@ -672,13 +729,36 @@ function WorkBlock({
       run={run}
       role={role}
       title={title}
-      // Conversation replies already appear as advisor messages in the thread.
       final={
-        conversational || item.sprint.status !== "ended"
+        item.sprint.status === "running"
           ? ""
-          : item.sprint.summary
+          : item.reply || run?.response || item.sprint.summary
+      }
+      elapsed={Math.max(
+        0,
+        (Date.parse(item.sprint.updated_at) -
+          Date.parse(item.sprint.created_at)) /
+          1000,
+      )}
+      footer={
+        item.sprint.status !== "running" && (
+          <MessageActions
+            text={item.reply || run?.response || item.sprint.summary}
+            at={item.replyAt || item.sprint.updated_at}
+            sprintId={item.sprint.commit_sha ? item.sprint.id : undefined}
+            actions={actions}
+          />
+        )
       }
     >
+      {item.sprint.commit_sha && item.sprint.status !== "running" && (
+        <CheckpointCard
+          id={project.id}
+          sprintId={item.sprint.id}
+          refreshKey={project.updated_at + project.status}
+          onChanged={actions.changed}
+        />
+      )}
       {item.jobs.map((job) => (
         <RunCard key={job.id} job={job} computes={computes} actions={actions} />
       ))}

@@ -20,8 +20,10 @@ export function Composer({
   sendLabel,
   busy = false,
   disabled = false,
+  sendDisabled = false,
   autoFocus = false,
   tools,
+  leading,
   focusKey = 0,
   commands,
   status,
@@ -36,9 +38,11 @@ export function Composer({
   sendLabel: string;
   busy?: boolean;
   disabled?: boolean;
+  sendDisabled?: boolean;
   autoFocus?: boolean;
   /** Pickers beside the send button (model, compute). */
   tools?: ReactNode;
+  leading?: ReactNode;
   /** Changing it puts the cursor at the end of the text (after a starter was picked). */
   focusKey?: number;
   /** What "/" offers here; a message that is one of them runs it instead of being sent. */
@@ -78,7 +82,12 @@ export function Composer({
     window.addEventListener(INSERT_EVENT, take);
     return () => window.removeEventListener(INSERT_EVENT, take);
   }, [acceptInserts]);
-  const ready = value.trim().length > 0 && !busy && !disabled && !commandsOnly;
+  const ready =
+    value.trim().length > 0 &&
+    !busy &&
+    !disabled &&
+    !sendDisabled &&
+    !commandsOnly;
   // Actions that need text stay in the slash palette. These run without
   // replacing an unsent draft, and model choices already have their picker.
   const actions = (commands ?? []).filter(
@@ -121,7 +130,8 @@ export function Composer({
       />
       <div className={styles.composerFoot}>
         <div className={styles.composerStart}>
-          {actions.length > 0 && (
+          {leading}
+          {!leading && actions.length > 0 && (
             <Menu
               label={t("research.composer.actions")}
               placement={{ side: "top", align: "start" }}

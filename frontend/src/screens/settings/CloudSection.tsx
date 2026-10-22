@@ -86,7 +86,7 @@ export function CloudSection() {
 
   const last = link?.last_sync;
   return (
-    <Section title={t("settings.cloud.title")} lead={t("settings.cloud.lead")}>
+    <Section title={t("settings.cloud.title")}>
       {error ? (
         <p role="alert" className={styles.error}>
           {error}
@@ -125,7 +125,6 @@ export function CloudSection() {
             type="password"
             value={password}
             autoComplete="current-password"
-            description={t("settings.cloud.passwordHint")}
             onChange={(e) => setPassword(e.target.value)}
             required
           />

@@ -78,7 +78,11 @@ def test_idle_messages_open_readonly_discussion_without_resuming_experiments(
         assert run.runtime["research"]["role"] == "discussion"
         assert run.prompt == "What does that result establish?"
         assert f"{status} / {stage}" in run.context
-        assert all(not tool["write"] for tool in research_tools("discussion"))
+        assert all(
+            not tool["write"]
+            for tool in research_tools("discussion")
+            if tool["name"] not in {"start_research", "message_research"}
+        )
         assert d.scalar(select(func.count(ResearchJob.id))) == 0
         run.status, run.response = "completed", "It supports a bounded conclusion."
         d.commit()

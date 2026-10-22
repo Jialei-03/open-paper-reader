@@ -1,6 +1,10 @@
 import {
   ArrowLeft,
   Folder,
+  Plus,
+  Pencil,
+  GitFork,
+  Archive,
   Monitor,
   Server,
   MoreHorizontal,
@@ -19,7 +23,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { followLink } from "../../reader/route";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
 import {
@@ -27,14 +30,13 @@ import {
   Dialog,
   IconButton,
   Menu,
-  Spinner,
   TextArea,
   TextField,
   toast,
 } from "../../ui";
 import {
-  approvePlan,
   controlChat,
+  approvePlan,
   decide,
   getProject,
   jobLog,
@@ -49,6 +51,8 @@ import {
   resumeProject,
   sendMessage,
   stopProject,
+  updateChatSession,
+  markResearchRead,
   type Compute,
   type LogLines,
   type ProjectDetail,
@@ -63,12 +67,14 @@ import { readModels, type ModelRow } from "../setup/model-api";
 import { copyCommand, modelCommands } from "../../lib/composer-commands";
 import { Composer } from "./talk/Composer";
 import { ModelPicker } from "./talk/Pickers";
-import { RecordPanel, type RecordTab } from "./talk/RecordPanel";
+import { RecordPanel } from "./talk/RecordPanel";
 import { buildThread, working } from "./talk/thread";
 import { ThreadView, type ThreadActions } from "./talk/ThreadView";
-import { ResearchChanges, ResearchOrigin } from "./ResearchChanges";
+import { ForkDialog, ResearchOrigin } from "./ResearchChanges";
 import { AppActions } from "../../app/AppSidebar";
-import { ResearchOrganization } from "./ResearchLibrary";
+import { organizeResearch } from "./navigation-api";
+import { FilesPanel } from "./files/FilesPanel";
+import { settledKey } from "./files/files-api";
 import { refreshResearchNavigation } from "./navigation-api";
 import { useResearchNavigation } from "./ResearchNavigation";
 import { workspaceMachine } from "./workspace-machine";
@@ -129,7 +135,10 @@ export function ResearchProject({
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState("");
   const [record, setRecord] = useState(false);
-  const [tab, setTab] = useState<RecordTab | null>(null);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [forking, setForking] = useState<string | null>(null);
+  const [naming, setNaming] = useState(false);
+  const [title, setTitle] = useState("");
   const [run, setRun] = useState("");
   const [log, setLog] = useState<{ jobId: string; lines: LogLines } | null>(
     null,
@@ -149,15 +158,14 @@ export function ResearchProject({
 
   useEffect(() => {
     setRecord(false);
-    setTab(null);
+    setFilesOpen(false);
     setRun("");
   }, [id]);
 
   // The /files command, or anything else, asks for the files panel.
   useEffect(() => {
     const show = () => {
-      setRecord(true);
-      setTab("files");
+      setFilesOpen(true);
     };
     window.addEventListener(OPEN_FILES_EVENT, show);
     return () => window.removeEventListener(OPEN_FILES_EVENT, show);
@@ -178,10 +186,16 @@ export function ResearchProject({
       listRuns(id),
     ]).then(
       ([value, rows, recent]) => {
+        if (controller.signal.aborted) return;
         setDetail(value);
         setEvents(rows);
         setRuns(recent);
         setFailed("");
+        if (!document.hidden && rows.length)
+          void markResearchRead(id, rows[rows.length - 1].id).then(
+            refreshResearchNavigation,
+            () => undefined,
+          );
       },
       (error: unknown) => {
         if (!controller.signal.aborted)
@@ -252,6 +266,8 @@ export function ResearchProject({
 
   const actions: ThreadActions = {
     busy,
+    fork: (sprintId) => setForking(sprintId || ""),
+    changed: refresh,
     approvePlan: async (version) => {
       setBusy(true);
       try {
@@ -291,7 +307,6 @@ export function ResearchProject({
     },
     openRun: (jobId) => {
       setRun(jobId);
-      setTab("runs");
       setRecord(true);
     },
   };
@@ -328,7 +343,22 @@ export function ResearchProject({
           />
         </div>
         <div className={styles.thread}>
-          {failed ? <p className={styles.empty}>{failed}</p> : <Spinner />}
+          {failed ? (
+            <p className={styles.empty} role="alert">
+              {failed}
+            </p>
+          ) : (
+            <div
+              className={styles.threadSkeleton}
+              role="status"
+              aria-label={t("common.loading")}
+            >
+              <div />
+              <div />
+              <div />
+              <div />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -357,8 +387,6 @@ export function ResearchProject({
   const fetchNote =
     detail.datasets.find((d) => d.status === "pending" && d.note)?.note ?? "";
   const finished = p.status === "finished" && p.stage === "done";
-  const recordTab =
-    tab ?? (p.stage === "conclusion" || p.stage === "done" ? "answer" : "plan");
   // What "/" offers on a research: how it runs, its report, its model.
   const commands: SlashCommand[] = [
     ...(p.status === "paused"
@@ -391,8 +419,7 @@ export function ResearchProject({
       name: "files",
       description: t("commands.files"),
       run: () => {
-        setTab("files");
-        setRecord(true);
+        setFilesOpen(true);
       },
     },
     ...(p.status !== "finished"
@@ -422,8 +449,6 @@ export function ResearchProject({
       ? []
       : modelCommands(t, models, p.model_config_id, chooseModel)),
   ];
-  const hours = (p.spent.job_seconds ?? 0) / 3600;
-  const maxHours = (p.budget.max_job_seconds ?? 0) / 3600;
   const pendingPlan = items.find(
     (item) =>
       item.kind === "plan" &&
@@ -458,119 +483,32 @@ export function ResearchProject({
     });
     card.focus({ preventScroll: true });
   };
-  const status =
-    p.status === "paused"
-      ? "paused"
-      : liveRun
-        ? "running"
-        : p.status === "finished"
-          ? p.end_reason === "stopped"
-            ? "stopped"
-            : "finished"
-          : p.status === "waiting" || pendingPlan
-            ? "waiting"
-            : detail.jobs.some((job) =>
-                  ["queued", "running"].includes(job.status),
-                ) || waitingData
-              ? "running"
-              : "ready";
-  const statusTitle = [
-    t(`research.stage.${p.stage}` as MessageKey),
-    p.budget.max_sprints
-      ? t("research.budget.line", {
-          sprints: p.spent.sprints,
-          max: p.budget.max_sprints,
-          hours: hours.toFixed(1),
-          maxHours: maxHours.toFixed(1),
-        })
-      : t("research.budget.rounds", { sprints: p.spent.sprints }),
-  ].join(" · ");
-
-  const placeholder: MessageKey =
-    p.status === "finished"
-      ? "research.composer.finished"
-      : p.status === "paused"
-        ? "research.composer.paused"
-        : status === "waiting"
-          ? "research.composer.waiting"
-          : status === "running" && p.stage !== "scoping"
-            ? "research.composer.experiments"
-            : "research.composer.scoping";
-
   return (
     <div className={styles.page}>
       <header className={styles.head}>
-        <IconButton
-          icon={ArrowLeft}
-          label={t("research.back")}
-          size="sm"
-          onClick={() =>
-            go(
-              backHash ||
-                (detail?.project.workspace_id
-                  ? `workspaces/${detail.project.workspace_id}`
-                  : "new"),
-            )
-          }
-        />
+        <Folder size={17} aria-hidden />
         <h1 className={styles.headTitle}>
-          <span title={p.question}>{p.title || p.question}</span>
+          <span title={p.question}>{p.title || p.question.slice(0, 16)}</span>
         </h1>
-        <span
-          className={styles.researchStatus}
-          data-status={status}
-          title={statusTitle}
-          role="status"
-        >
-          {t(`research.status.${status}` as MessageKey)}
-        </span>
         <div className={styles.headTools}>
-          {p.status === "paused" && (
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={Play}
-              onClick={() => move(resumeProject)}
-            >
-              {t("research.resume")}
-            </Button>
-          )}
-          {liveRun &&
-            ["scoping", "discussion"].includes(busyNow?.role || "") && (
-              <IconButton
-                icon={Square}
-                label={t("projects.sessions.stop")}
-                size="sm"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await controlChat(p.session_id, liveRun.id, "abort");
-                    refresh();
-                  } catch (error) {
-                    fail(error);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              />
-            )}
-          <ResearchOrganization project={p} onChanged={refresh} />
-          <div
-            className={styles.headChanges}
-            role="group"
-            aria-label={t("research.changes.actions")}
-          >
-            <ResearchChanges
-              project={p}
-              go={go}
-              onChanged={refresh}
-              refreshKey={reads}
-            />
-          </div>
           <Menu
             label={t("research.actions")}
             items={[
+              {
+                id: "rename",
+                label: t("projects.sessions.rename"),
+                icon: Pencil,
+                onSelect: () => {
+                  setTitle(p.title || p.question);
+                  setNaming(true);
+                },
+              },
+              {
+                id: "fork",
+                label: t("research.fork.action"),
+                icon: GitFork,
+                onSelect: () => setForking(""),
+              },
               p.status === "paused"
                 ? {
                     id: "resume",
@@ -589,8 +527,30 @@ export function ResearchProject({
                 id: "stop",
                 label: t("research.stop"),
                 icon: Square,
-                onSelect: () => move(stopProject),
-                disabled: p.status === "finished",
+                onSelect: () =>
+                  liveRun &&
+                  ["scoping", "discussion"].includes(busyNow?.role || "")
+                    ? void controlChat(p.session_id, liveRun.id, "abort").then(
+                        refresh,
+                        fail,
+                      )
+                    : move(stopProject),
+                disabled: p.status === "finished" && !liveRun,
+              },
+              {
+                id: "archive",
+                label: t("projects.sessions.archive"),
+                icon: Archive,
+                disabled: p.status !== "finished" || !!busyNow,
+                onSelect: async () => {
+                  try {
+                    await updateChatSession(p.session_id, { archived: true });
+                    refreshResearchNavigation();
+                    go(`workspaces/${p.workspace_id}`);
+                  } catch (error) {
+                    fail(error);
+                  }
+                },
               },
             ]}
             trigger={(props) => (
@@ -607,7 +567,6 @@ export function ResearchProject({
             label={t(record ? "research.record.hide" : "research.record.show")}
             size="sm"
             onClick={() => {
-              setTab(recordTab);
               setRecord(!record);
             }}
           />
@@ -682,33 +641,41 @@ export function ResearchProject({
                 )}
               />
             )}
-            {p.location && (
-              <div className={styles.locationBar}>
-                <a
-                  href={`#workspaces/${p.workspace_id}`}
-                  onClick={followLink(go, `workspaces/${p.workspace_id}`)}
-                  title={p.location.path}
-                >
-                  <Folder size={14} aria-hidden />
-                  <span>{workspaceName}</span>
-                </a>
-                <span className={styles.locationMachine} title={machine.title}>
-                  {p.location.kind === "ssh" ? (
-                    <Server size={14} aria-hidden />
-                  ) : (
-                    <Monitor size={14} aria-hidden />
-                  )}
-                  <span>{machine.label}</span>
-                </span>
-              </div>
-            )}
             <Composer
               value={text}
               onChange={changeText}
               onSend={say}
               busy={!!pending}
               label={t("research.composer.label")}
-              placeholder={t(placeholder)}
+              placeholder={t("research.composer.continue")}
+              leading={
+                <>
+                  <IconButton
+                    icon={Plus}
+                    label={t("research.attach")}
+                    size="sm"
+                    onClick={() => setFilesOpen(true)}
+                  />
+                  <span
+                    className={styles.composerContext}
+                    title={p.location?.path}
+                  >
+                    <Folder size={14} aria-hidden />
+                    {workspaceName}
+                  </span>
+                  <span
+                    className={styles.composerContext}
+                    title={machine.title}
+                  >
+                    {p.location?.kind === "ssh" ? (
+                      <Server size={14} aria-hidden />
+                    ) : (
+                      <Monitor size={14} aria-hidden />
+                    )}
+                    {machine.label}
+                  </span>
+                </>
+              }
               sendLabel={t("research.home.send")}
               commands={commands}
               acceptInserts
@@ -729,21 +696,74 @@ export function ResearchProject({
         {record && (
           <RecordPanel
             detail={detail}
-            events={events}
             computes={computes}
-            tab={recordTab}
-            onTab={setTab}
             run={run}
             onRun={setRun}
             actions={actions}
+            go={go}
           />
         )}
       </div>
+      {forking !== null && (
+        <ForkDialog
+          project={p}
+          initialSprintId={forking || undefined}
+          go={go}
+          onClose={() => setForking(null)}
+        />
+      )}
+      <Dialog
+        open={filesOpen}
+        title={t("research.panel.sources")}
+        onClose={() => {
+          setFilesOpen(false);
+          refresh();
+        }}
+        size="lg"
+      >
+        <FilesPanel
+          projectId={id}
+          settled={settledKey(detail.sprints, detail.jobs)}
+        />
+      </Dialog>
+      <Dialog
+        open={naming}
+        title={t("projects.sessions.rename")}
+        onClose={() => setNaming(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setNaming(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!title.trim()}
+              onClick={async () => {
+                try {
+                  await organizeResearch(id, { title: title.trim() });
+                  setNaming(false);
+                  refreshResearchNavigation();
+                  refresh();
+                } catch (error) {
+                  fail(error);
+                }
+              }}
+            >
+              {t("projects.save")}
+            </Button>
+          </>
+        }
+      >
+        <TextField
+          label={t("workspace.researchTitle")}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </Dialog>
       <Dialog
         open={!!editing}
         onClose={() => setEditing(null)}
         title={t("research.question.edit")}
-        description={t("research.question.lead")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>
@@ -785,7 +805,6 @@ export function ResearchProject({
             <TextField
               label={t("research.question.note")}
               value={editing.note}
-              placeholder={t("research.question.notePlaceholder")}
               onChange={(e) => setEditing({ ...editing, note: e.target.value })}
             />
           </div>

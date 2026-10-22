@@ -24,7 +24,7 @@
 
 ## 按轮次分叉
 
-可分叉的研究轮次保存 `ResearchSprint.snapshot` 和匹配的 `commit_sha`。工具交接、导师判断、提炼与运行结束后的系统交接在下一轮开始前保存边界；只读 discussion 不拍摄文件检查点。快照包含当时的问题、背景、地图、计划、预算、事件、轮次摘要和数据集来源。Git 失败时原交接仍保存，并记录检查点不可用；这样的轮次不能分叉。
+可分叉的研究轮次保存 `ResearchSprint.snapshot` 和匹配的 `commit_sha`。工具交接、导师判断、提炼与运行结束后的系统交接在下一轮开始前保存边界；只读 discussion 复用分支上已保存的代码检查点来封存对话快照，不对实际执行目录拍摄新的文件快照。快照包含当时的问题、背景、地图、计划、预算、事件、轮次摘要和数据集来源。Git 失败时原交接仍保存，并记录检查点不可用；这样的轮次不能分叉。
 
 - `GET /research/projects/{id}/forks/options` 列出可选轮次及不可用原因。旧数据缺少真实历史快照时不可分叉；正在收尾的轮次也不可选。
 - `POST /research/projects/{id}/forks` 接收 `sprint_id`、`expected_commit`、`change` 和幂等 UUID `client_id`。

@@ -322,7 +322,11 @@ export function RunTurn({
   title,
   final,
   children,
+  elapsed,
+  footer,
 }: {
+  elapsed?: number;
+  footer?: ReactNode;
   run: ResearchRun | undefined;
   role: string;
   title: string;
@@ -342,14 +346,16 @@ export function RunTurn({
       : "";
   return (
     <section className={styles.turn} data-live={live || undefined}>
-      <header className={styles.who}>
-        <Mascot
-          agent={AGENT[role] ?? "executor"}
-          size={20}
-          pose={live ? "work" : "idle"}
-        />
-        <span>{title}</span>
-      </header>
+      {live && (
+        <header className={styles.who}>
+          <Mascot
+            agent={AGENT[role] ?? "executor"}
+            size={20}
+            pose={live ? "work" : "idle"}
+          />
+          <span>{title}</span>
+        </header>
+      )}
       {live ? (
         <>
           <Trail steps={steps} live />
@@ -366,14 +372,25 @@ export function RunTurn({
         </>
       ) : (
         <>
-          {steps.length > 0 && (
-            <SummaryLine
-              steps={steps}
-              status={run?.status}
-              open={open}
-              onToggle={() => setOpen(!open)}
-            />
-          )}
+          <button
+            type="button"
+            className={styles.summary}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {t("research.turn.elapsed", {
+              time: clock(
+                run?.runtime?.execution_seconds ??
+                  elapsed ??
+                  (run
+                    ? (Date.parse(run.updated_at) -
+                        Date.parse(run.created_at)) /
+                      1000
+                    : 0),
+              ),
+            })}
+            <ChevronRight size={13} className={styles.chevron} aria-hidden />
+          </button>
           {open && <Trail steps={steps} live={false} />}
           {final && <Words text={final} live={false} />}
           {steps.length === 0 &&
@@ -392,6 +409,7 @@ export function RunTurn({
           )}
         </>
       )}
+      {footer}
       {children}
     </section>
   );

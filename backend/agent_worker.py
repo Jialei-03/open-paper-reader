@@ -42,7 +42,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 RESEARCH_SKILLS = {
     role: agent_runtime_dir() / "skills" / f"research-{role}" / "SKILL.md"
-    for role in ("executor", "advisor", "distiller", "scoping", "discussion", "chat", "lead")
+    for role in (
+        "executor",
+        "advisor",
+        "distiller",
+        "scoping",
+        "discussion",
+        "chat",
+        "lead",
+    )
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
 RESEARCH_BASE = {
@@ -80,7 +88,8 @@ def research_tools(role="executor"):
             for t in TOOLS
             if (
                 t.get("research")
-                and t["name"] in (LEAD_TOOLS if role == "lead" else CHAT_TOOLS)
+                and t["name"]
+                in (LEAD_TOOLS if role in {"lead", "discussion"} else CHAT_TOOLS)
             )
             or t["name"] in RESEARCH_BASE
             or (role == "discussion" and t["name"] in WORKSPACE_READ)
@@ -170,7 +179,8 @@ def _process(app, job_id, cfg):
         history = []
         # A conversation in a project remembers its turns; a round does not.
         keeps = not (r.runtime or {}).get("reading_artifact_id") and not (
-            research and research.get("role") not in {"chat", "lead", "scoping", "discussion"}
+            research
+            and research.get("role") not in {"chat", "lead", "scoping", "discussion"}
         )
         # What Pi kept of this conversation; while there is none, its history is rebuilt below.
         entries = (

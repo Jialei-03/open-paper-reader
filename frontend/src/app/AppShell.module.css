@@ -82,3 +82,18 @@
   height: var(--app-height, 100dvh);
   background: var(--ui-bg-1);
 }
+
+.scheduled {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  color: var(--ui-fg-2);
+}
+.scheduled h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+}

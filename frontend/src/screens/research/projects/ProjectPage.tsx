@@ -62,6 +62,8 @@ import { Mascot } from "../scene/Mascot";
 import { Composer } from "../talk/Composer";
 import { ComputePicker, ModelPicker } from "../talk/Pickers";
 import { ProjectChat } from "./ProjectChats";
+import { useResearchNavigation } from "../ResearchNavigation";
+import { workspaceMachine } from "../workspace-machine";
 import { ProjectResults } from "./ProjectResults";
 import styles from "./Projects.module.css";
 
@@ -205,12 +207,16 @@ export function ProjectPage({
     let cancelled = false;
     setSelected((old) => (old?.id === chatId ? old : null));
     getChatSession(chatId).then((session) => {
-      if (!cancelled && session.workspace_id === id) setSelected(session);
+      if (!cancelled && session.workspace_id === id) {
+        if (session.kind === "research" && session.research_id)
+          go(`research/${session.research_id}`);
+        else setSelected(session);
+      }
     }, fail);
     return () => {
       cancelled = true;
     };
-  }, [chatId, id, conversation, reads]);
+  }, [chatId, id, conversation, reads, go]);
 
   const newChat = async () => {
     setOpening(true);
@@ -1111,7 +1117,7 @@ function SessionList({
 }
 
 /** Beside the conversations: what every agent in the project is told, and its defaults. */
-function About({
+export function About({
   workspace,
   onSaved,
 }: {
@@ -1119,6 +1125,13 @@ function About({
   onSaved(): void;
 }) {
   const { t } = useI18n();
+  const { connections } = useResearchNavigation();
+  const machine = workspaceMachine(
+    workspace.location,
+    connections,
+    t("workspace.local"),
+    t("workspace.remote"),
+  );
   const [draft, setDraft] = useState(workspace);
   const [editing, setEditing] = useState(false);
   const [models, setModels] = useState<ModelRow[]>([]);
@@ -1150,7 +1163,6 @@ function About({
           hideLabel
           rows={6}
           value={draft.instructions}
-          placeholder={t("projects.instructionsPlaceholder")}
           onChange={(e) => setDraft({ ...draft, instructions: e.target.value })}
           onBlur={() =>
             draft.instructions !== workspace.instructions &&
@@ -1167,12 +1179,17 @@ function About({
             onChange={(model_config_id) => save({ model_config_id })}
             label={t("research.home.model")}
           />
-          <ComputePicker
-            computes={computes}
-            value={draft.compute_id}
-            onChange={(compute_id) => save({ compute_id })}
-            label={t("research.home.compute")}
-          />
+          {workspace.location?.kind === "local" ||
+          workspace.location?.kind === "ssh" ? (
+            <span title={workspace.location.path}>{machine.label}</span>
+          ) : (
+            <ComputePicker
+              computes={computes}
+              value={draft.compute_id}
+              onChange={(compute_id) => save({ compute_id })}
+              label={t("research.home.compute")}
+            />
+          )}
         </div>
       </section>
       <section className={styles.aboutActions}>

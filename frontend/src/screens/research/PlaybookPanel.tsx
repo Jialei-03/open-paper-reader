@@ -90,7 +90,7 @@ export function PlaybookPanel() {
       <h2 id="playbook-title" className={styles.sectionTitle}>
         {t("research.playbook.title", { version: book.version })}
       </h2>
-      <p className={styles.hint}>{t("research.playbook.intro")}</p>
+
       {rules.length === 0 ? (
         <p className={styles.hint}>{t("research.playbook.empty")}</p>
       ) : (

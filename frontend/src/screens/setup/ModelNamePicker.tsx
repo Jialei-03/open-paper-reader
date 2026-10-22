@@ -123,7 +123,6 @@ export function ModelNamePicker({
         placeholder={placeholder}
         disabled={disabled}
         error={error}
-        description={description}
         onFocus={() => setOpen(true)}
         // A field focused before the list arrived opens it with a click.
         onClick={() => setOpen(true)}

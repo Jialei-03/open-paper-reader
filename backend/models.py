@@ -311,6 +311,7 @@ class AgentSession(Base):
     source_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     pinned_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     archived_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    read_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     paper_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     # A conversation inside a research project (research_chat); none for the reader's.
     workspace_id: Mapped[str | None] = mapped_column(

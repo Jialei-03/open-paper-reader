@@ -2,7 +2,6 @@ import {
   Compass,
   FlaskConical,
   SquarePen,
-  LayoutGrid,
   Folder,
   FileText,
   House,
@@ -52,10 +51,10 @@ import {
   validSectionAddress,
 } from "./local-sections";
 import { SectionNavigation } from "./SectionNavigation";
-import { TaskNavigation } from "../screens/tasks/TaskCenter";
 import styles from "./AppSidebar.module.css";
 import { useLocal } from "./edition";
 import {
+  ResearchNotifications,
   ResearchTree,
   useResearchNavigation,
 } from "../screens/research/ResearchNavigation";
@@ -340,16 +339,10 @@ function AppResearchSidebar({
     {
       research: newResearchHash,
       materials: "library",
-      tasks: "tasks/active",
+      tasks: "scheduled",
       customize: "customize/playbook",
-      board: "board",
     }[key];
-  const title =
-    section === "research"
-      ? "ORA"
-      : section === "board"
-        ? t("projects.view.board")
-        : t(`app.section.${section}`);
+  const title = section === "research" ? "ORA" : t(`app.section.${section}`);
   const nav = useRef<HTMLElement>(null);
   const sizing = useResizableWidth({
     key: `research-sidebar-width:${owner || ""}`,
@@ -457,13 +450,6 @@ function AppResearchSidebar({
             destination("customize"),
             section === "customize",
           )}
-          <span className={styles.railDivider} />
-          {railLink(
-            LayoutGrid,
-            t("projects.view.board"),
-            "board",
-            section === "board",
-          )}
           {collapsed &&
             railLink(
               SquarePen,
@@ -535,12 +521,6 @@ function AppResearchSidebar({
                       icon: Folder,
                       onSelect: () => choose("workspaces"),
                     },
-                    {
-                      id: "collections",
-                      label: t("workspace.manageCollections"),
-                      icon: Folder,
-                      onSelect: () => choose("collections"),
-                    },
                     { kind: "separator", id: "settings-divider" },
                     {
                       id: "settings",
@@ -553,6 +533,7 @@ function AppResearchSidebar({
               ) : (
                 <h2 className={styles.sectionTitle}>{title}</h2>
               )}
+              {section === "research" && <ResearchNotifications go={choose} />}
               {quickOpen && (
                 <IconButton
                   className={styles.researchSearch}
@@ -566,47 +547,29 @@ function AppResearchSidebar({
                 />
               )}
             </div>
-            {section === "tasks" && route.screen === "research-tasks" ? (
-              <div className={styles.taskNavigation}>
-                <div className={styles.taskNew}>
-                  <SidebarItem
-                    icon={SquarePen}
-                    label={t("projects.newResearch")}
-                    href={`#${newResearchHash}`}
-                    onClick={followLink(choose, newResearchHash)}
-                  />
-                </div>
-                <TaskNavigation
-                  filter={route.filter}
-                  currentId={route.projectId}
+            <div className={styles.researchScroll}>
+              {section === "research" ? (
+                <>
+                  <div className={styles.researchActions}>
+                    <SidebarItem
+                      icon={SquarePen}
+                      label={t("projects.newResearch")}
+                      href={`#${newResearchHash}`}
+                      onClick={followLink(choose, newResearchHash)}
+                    />
+                  </div>
+                  <ResearchTree currentId={researchId} go={choose} />
+                </>
+              ) : (
+                <SectionNavigation
+                  section={section}
+                  route={route}
+                  hash={contextHash}
+                  reading={reading}
                   go={choose}
                 />
-              </div>
-            ) : (
-              <div className={styles.researchScroll}>
-                {section === "research" ? (
-                  <>
-                    <div className={styles.researchActions}>
-                      <SidebarItem
-                        icon={SquarePen}
-                        label={t("projects.newResearch")}
-                        href={`#${newResearchHash}`}
-                        onClick={followLink(choose, newResearchHash)}
-                      />
-                    </div>
-                    <ResearchTree currentId={researchId} go={choose} />
-                  </>
-                ) : (
-                  <SectionNavigation
-                    section={section}
-                    route={route}
-                    hash={contextHash}
-                    reading={reading}
-                    go={choose}
-                  />
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
           {!floating && (
             <Resizer
