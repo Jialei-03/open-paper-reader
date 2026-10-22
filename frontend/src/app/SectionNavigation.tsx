@@ -44,6 +44,18 @@ export function SectionNavigation({
     route.screen === "library" ? hash.split("?")[1] || "" : "",
   );
   importParams.set("import", "1");
+  // Switching between the library's lists keeps what was typed in its search.
+  const query =
+    route.screen === "library"
+      ? new URLSearchParams(hash.split("?")[1] || "").get("q") || ""
+      : "";
+  const listPath = (view?: string) => {
+    const params = new URLSearchParams();
+    if (view) params.set("view", view);
+    if (query) params.set("q", query);
+    const text = params.toString();
+    return text ? `library?${text}` : "library";
+  };
   const item = (
     Icon: typeof Library,
     label: string,
@@ -69,25 +81,25 @@ export function SectionNavigation({
           {item(
             Library,
             t("library.filter.all"),
-            "library",
+            listPath(),
             route.screen === "library" && view === "all",
           )}
           {item(
             BookOpen,
             t("library.status.reading"),
-            "library?view=reading",
+            listPath("reading"),
             route.screen === "library" && view === "reading",
           )}
           {item(
             Circle,
             t("library.status.unread"),
-            "library?view=unread",
+            listPath("unread"),
             route.screen === "library" && view === "unread",
           )}
           {item(
             BookCheck,
             t("library.status.read"),
-            "library?view=read",
+            listPath("read"),
             route.screen === "library" && view === "read",
           )}
           {item(
