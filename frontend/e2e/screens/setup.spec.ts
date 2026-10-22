@@ -76,7 +76,7 @@ test("a model is kept only once its connection test passes", async ({
 
   // Nothing filled in: it says what is missing and sends nothing.
   await page.getByRole("button", { name: "测试连接" }).click();
-  await expect(page.getByRole("alert")).toHaveText("请填写服务地址和模型。");
+  await expect(page.getByRole("alert")).toHaveText("缺少服务地址或模型");
 
   await page
     .getByLabel("服务地址", { exact: true })

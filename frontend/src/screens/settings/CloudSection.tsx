@@ -86,13 +86,17 @@ export function CloudSection() {
 
   const last = link?.last_sync;
   return (
-    <Section title={t("settings.cloud.title")}>
+    <Section hideHeading title={t("settings.cloud.title")}>
       {error ? (
         <p role="alert" className={styles.error}>
           {error}
         </p>
       ) : !link ? (
-        <p className={styles.muted}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : !link.connected ? (
         <form
           className={styles.cloudForm}
@@ -129,7 +133,7 @@ export function CloudSection() {
             required
           />
           <div>
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" variant="primary" loading={busy}>
               {t("settings.cloud.connect")}
             </Button>
           </div>
@@ -145,6 +149,7 @@ export function CloudSection() {
           </p>
           <div className={styles.cloudActions}>
             <Button
+              variant="primary"
               disabled={busy}
               loading={running}
               onClick={() =>
@@ -191,7 +196,6 @@ export function CloudSection() {
               ))}
             </div>
           )}
-          <p className={styles.muted}>{t("settings.cloud.scope")}</p>
         </>
       )}
     </Section>

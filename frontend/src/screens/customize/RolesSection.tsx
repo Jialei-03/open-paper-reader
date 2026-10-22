@@ -1,4 +1,4 @@
-import { MoreHorizontal, Users } from "lucide-react";
+import { Eye, MoreHorizontal, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -79,7 +79,11 @@ export function RolesSection() {
           </Button>
         </div>
       ) : !roles ? (
-        <p className={styles.status}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : (
         <ul className={styles.list}>
           {rows?.map((role) => (
@@ -98,6 +102,7 @@ export function RolesSection() {
                 items={[
                   {
                     id: "view",
+                    icon: Eye,
                     label: t("customize.view"),
                     onSelect: () => setSelected(role),
                   },
@@ -131,7 +136,11 @@ export function RolesSection() {
             </Button>
           </div>
         ) : body === null ? (
-          <p className={styles.status}>{t("common.loading")}</p>
+          <div
+            className={styles.skeleton}
+            role="status"
+            aria-label={t("common.loading")}
+          />
         ) : (
           <article className={styles.markdown}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>

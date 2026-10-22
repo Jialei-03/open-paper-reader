@@ -28,7 +28,7 @@ export function Button({
   ref,
   ...rest
 }: ButtonProps) {
-  const iconSize = size === "sm" ? 14 : 16;
+  const iconSize = 16;
   return (
     <button
       {...rest}

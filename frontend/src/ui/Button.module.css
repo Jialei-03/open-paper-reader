@@ -33,7 +33,7 @@
 .md {
   height: var(--ui-control-md);
   padding: 0 var(--ui-space-12);
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
   font-size: var(--ui-text-13);
 }
 
@@ -41,7 +41,7 @@
   height: var(--ui-control-sm);
   padding: 0 var(--ui-space-10);
   border-radius: var(--ui-r-8);
-  font-size: var(--ui-text-12);
+  font-size: var(--ui-text-13);
 }
 
 .primary {
@@ -112,18 +112,18 @@
 
 /* The square button with only an icon. */
 .iconButton {
-  --icon-button-size: 30px;
+  --icon-button-size: var(--ui-control-md);
   /* A square never gives way in a crowded row. */
   flex-shrink: 0;
   width: var(--icon-button-size);
   height: var(--icon-button-size);
   padding: 0;
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
   color: var(--ui-fg-2);
 }
 
 .iconButton.sm {
-  --icon-button-size: 26px;
+  --icon-button-size: var(--ui-control-sm);
 }
 
 .iconButton:hover:not(:disabled) {

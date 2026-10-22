@@ -4,7 +4,7 @@ import {
   Download,
   LayoutGrid,
   List,
-  Plus,
+  FileUp,
   Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -418,15 +418,19 @@ export function LibraryScreen({
         <div className={styles.list}>
           {papers.length === 0 ? (
             <div className={styles.message}>
-              <BookOpen size={36} aria-hidden />
+              <BookOpen size={32} aria-hidden />
               <p>{t("library.empty")}</p>
-              <Button size="sm" icon={Plus} onClick={() => setImporting(true)}>
-                {t("library.import.title")}
+              <Button
+                size="sm"
+                icon={FileUp}
+                onClick={() => setImporting(true)}
+              >
+                {t("library.import")}
               </Button>
             </div>
           ) : shown.length === 0 ? (
             <div className={styles.message}>
-              <Search size={30} aria-hidden />
+              <Search size={32} aria-hidden />
               <p>{t("library.noMatch")}</p>
               <Button
                 variant="ghost"

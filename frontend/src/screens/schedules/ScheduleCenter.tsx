@@ -4,6 +4,8 @@ import {
   FileText,
   FlaskConical,
   Moon,
+  MoreHorizontal,
+  Search,
   Newspaper,
   Pause,
   Play,
@@ -13,7 +15,14 @@ import {
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { followLink } from "../../reader/route";
-import { Button, Dialog, TextArea, TextField } from "../../ui";
+import {
+  Button,
+  Dialog,
+  IconButton,
+  Menu,
+  TextArea,
+  TextField,
+} from "../../ui";
 import { useResearchNavigation } from "../research/ResearchNavigation";
 import { refreshResearchNavigation } from "../research/navigation-api";
 import {
@@ -31,6 +40,7 @@ import {
 } from "./schedules-api";
 import { frequencyLabel, nextLabel, weekdays } from "./schedule-time";
 import styles from "./ScheduleCenter.module.css";
+import layout from "../Management.module.css";
 
 const TEMPLATES = ["papers", "weekly", "experiments", "night"] as const;
 const ICONS = {
@@ -42,15 +52,7 @@ const ICONS = {
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
-export function ScheduleNavigation({
-  currentId,
-  go,
-}: {
-  currentId?: string;
-  go(hash: string): void;
-}) {
-  const i18n = useI18n();
-  const { t } = i18n;
+function useSchedules() {
   const [items, setItems] = useState<Schedule[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -80,6 +82,19 @@ export function ScheduleNavigation({
       window.removeEventListener("focus", load);
     };
   }, [reads]);
+  return { items, ready, error, retry: () => setReads((n) => n + 1) };
+}
+
+export function ScheduleNavigation({
+  currentId,
+  go,
+}: {
+  currentId?: string;
+  go(hash: string): void;
+}) {
+  const i18n = useI18n();
+  const { t } = i18n;
+  const { items, ready, error, retry } = useSchedules();
   return (
     <nav className={styles.navigation} aria-label={t("schedules.title")}>
       <div className={styles.navigationHeading}>{t("schedules.upcoming")}</div>
@@ -87,12 +102,7 @@ export function ScheduleNavigation({
         <div className={styles.skeleton} aria-label={t("common.loading")} />
       )}
       {error && (
-        <Button
-          variant="ghost"
-          size="sm"
-          title={error}
-          onClick={() => setReads((n) => n + 1)}
-        >
+        <Button variant="ghost" size="sm" title={error} onClick={retry}>
           {t("common.retry")}
         </Button>
       )}
@@ -141,12 +151,87 @@ export function ScheduleCenter({
           go={go}
         />
       ) : (
-        <div className={styles.landing}>
-          <Clock3 size={46} strokeWidth={1.25} aria-hidden />
-          <h1>{t("schedules.arrange")}</h1>
-          <Button icon={Plus} onClick={() => go("schedules/new")}>
+        <ScheduleList go={go} />
+      )}
+    </section>
+  );
+}
+
+function ScheduleList({ go }: { go(hash: string): void }) {
+  const i18n = useI18n();
+  const { t } = i18n;
+  const { items, ready, error, retry } = useSchedules();
+  const [query, setQuery] = useState("");
+  const shown = items.filter((item) =>
+    item.title.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+  return (
+    <div className={layout.content}>
+      <header className={layout.header}>
+        <h1 className={layout.heading}>{t("schedules.title")}</h1>
+        <div className={layout.actions}>
+          <label className={layout.search}>
+            <Search size={16} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("customize.search")}
+              aria-label={t("customize.search")}
+            />
+          </label>
+          <Button
+            variant="primary"
+            icon={Plus}
+            onClick={() => go("schedules/new")}
+          >
             {t("schedules.new")}
           </Button>
+        </div>
+      </header>
+      {error ? (
+        <div className={styles.error} role="alert">
+          {error}
+          <Button onClick={retry}>{t("common.retry")}</Button>
+        </div>
+      ) : !ready ? (
+        <div
+          className={layout.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
+      ) : items.length ? (
+        <ul className={styles.list}>
+          {shown.map((item) => (
+            <li key={item.id}>
+              <Clock3 size={16} aria-hidden />
+              <a
+                href={`#schedules/${item.id}`}
+                onClick={followLink(go, `schedules/${item.id}`)}
+              >
+                {item.title}
+              </a>
+              <span className={styles.status}>
+                {item.paused
+                  ? t("schedules.paused")
+                  : t("schedules.nextAt", {
+                      time: nextLabel(item.next_run_at, item.timezone, i18n),
+                    })}
+              </span>
+            </li>
+          ))}
+          {!shown.length && (
+            <li className={styles.empty}>{t("customize.empty")}</li>
+          )}
+        </ul>
+      ) : query ? (
+        <div className={styles.empty}>{t("customize.empty")}</div>
+      ) : (
+        <>
+          <div className={styles.landing}>
+            <Clock3 size={32} aria-hidden />
+            <p>{t("schedules.arrange")}</p>
+          </div>
           <div className={styles.suggestions}>
             {TEMPLATES.map((name) => {
               const Icon = ICONS[name];
@@ -155,19 +240,16 @@ export function ScheduleCenter({
                   key={name}
                   onClick={() => go(`schedules/new?template=${name}`)}
                 >
-                  <Icon size={24} strokeWidth={1.5} aria-hidden />
-                  <span>
-                    <strong>{t(`schedules.template.${name}`)}</strong>
-                    <small>{t(`schedules.prompt.${name}`)}</small>
-                  </span>
+                  <Icon size={16} aria-hidden />
+                  <span>{t(`schedules.template.${name}`)}</span>
                   <ArrowUpRight size={16} aria-hidden />
                 </button>
               );
             })}
           </div>
-        </div>
+        </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -302,20 +384,87 @@ function ScheduleEditor({
   );
   return (
     <div className={styles.content}>
-      <header className={styles.header}>
-        <h1>
-          {detail?.title ||
-            t(id === "new" ? "schedules.new" : "schedules.title")}
-        </h1>
-        {detail && (
-          <span className={styles.status}>
-            {detail.paused
-              ? t("schedules.paused")
-              : t("schedules.nextAt", {
-                  time: nextLabel(detail.next_run_at, detail.timezone, i18n),
-                })}
-          </span>
-        )}
+      <header className={layout.header}>
+        <div className={styles.heading}>
+          <h1 className={layout.heading}>
+            {detail?.title ||
+              t(id === "new" ? "schedules.new" : "schedules.title")}
+          </h1>
+          {detail && (
+            <span className={styles.status}>
+              {detail.paused
+                ? t("schedules.paused")
+                : t("schedules.nextAt", {
+                    time: nextLabel(detail.next_run_at, detail.timezone, i18n),
+                  })}
+            </span>
+          )}
+        </div>
+        <div className={layout.actions}>
+          {detail && (
+            <Menu
+              label={t("reader.more.menu")}
+              placement={{ side: "bottom", align: "end" }}
+              items={[
+                {
+                  id: "run",
+                  icon: Play,
+                  label: t("schedules.run"),
+                  disabled: busy,
+                  onSelect: () =>
+                    void act(async () => {
+                      await runSchedule(id);
+                      setDetail(await readSchedule(id));
+                      refreshSchedules();
+                      refreshResearchNavigation();
+                    }),
+                },
+                {
+                  id: "pause",
+                  icon: detail.paused ? Play : Pause,
+                  label: t(
+                    detail.paused ? "schedules.resume" : "schedules.pause",
+                  ),
+                  disabled: busy,
+                  onSelect: () =>
+                    void act(async () => {
+                      const value = await updateSchedule(id, {
+                        paused: !detail.paused,
+                      });
+                      setDetail(value);
+                      edit("paused", value.paused);
+                      refreshSchedules();
+                    }),
+                },
+                { kind: "separator", id: "delete-divider" },
+                {
+                  id: "delete",
+                  icon: Trash2,
+                  label: t("schedules.delete"),
+                  danger: true,
+                  disabled: busy,
+                  onSelect: () => setDeleting(true),
+                },
+              ]}
+              trigger={(props) => (
+                <IconButton
+                  {...props}
+                  icon={MoreHorizontal}
+                  label={t("reader.more.menu")}
+                />
+              )}
+            />
+          )}
+          <Button
+            type="submit"
+            form="schedule-form"
+            variant="primary"
+            loading={busy}
+            disabled={!draft || !projectsReady || !draft.workspace_id}
+          >
+            {t(id === "new" ? "schedules.create" : "schedules.save")}
+          </Button>
+        </div>
       </header>
       {error && (
         <div className={styles.error} role="alert">
@@ -336,52 +485,8 @@ function ScheduleEditor({
       )}
       {draft && (
         <>
-          {detail && (
-            <div className={styles.actions}>
-              <Button
-                size="sm"
-                icon={Play}
-                disabled={busy}
-                onClick={() =>
-                  void act(async () => {
-                    await runSchedule(id);
-                    setDetail(await readSchedule(id));
-                    refreshSchedules();
-                    refreshResearchNavigation();
-                  })
-                }
-              >
-                {t("schedules.run")}
-              </Button>
-              <Button
-                size="sm"
-                icon={detail.paused ? Play : Pause}
-                disabled={busy}
-                onClick={() =>
-                  void act(async () => {
-                    const value = await updateSchedule(id, {
-                      paused: !detail.paused,
-                    });
-                    setDetail(value);
-                    edit("paused", value.paused);
-                    refreshSchedules();
-                  })
-                }
-              >
-                {t(detail.paused ? "schedules.resume" : "schedules.pause")}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={Trash2}
-                disabled={busy}
-                onClick={() => setDeleting(true)}
-              >
-                {t("schedules.delete")}
-              </Button>
-            </div>
-          )}
           <form
+            id="schedule-form"
             onSubmit={(event) => {
               event.preventDefault();
               void save();
@@ -554,14 +659,6 @@ function ScheduleEditor({
               <div className={styles.save}>
                 <Button variant="ghost" onClick={() => go("schedules")}>
                   {t("common.cancel")}
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  loading={busy}
-                  disabled={!projectsReady || !draft.workspace_id}
-                >
-                  {t(id === "new" ? "schedules.create" : "schedules.save")}
                 </Button>
               </div>
             </fieldset>

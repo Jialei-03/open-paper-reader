@@ -9,17 +9,19 @@ export function Section({
   action,
   children,
   headingLevel = 2,
+  hideHeading = false,
 }: {
   title: string;
   action?: ReactNode;
   children: ReactNode;
   headingLevel?: 1 | 2;
+  hideHeading?: boolean;
 }) {
   const id = useId();
   const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
     <section className={styles.section} aria-labelledby={id}>
-      <div className={styles.sectionHead}>
+      <div className={styles.sectionHead} hidden={hideHeading}>
         <div>
           <Heading id={id} className={styles.sectionTitle}>
             {title}
@@ -36,7 +38,6 @@ export function Section({
 export function ConfirmDialog({
   open,
   title,
-  description,
   confirm,
   busy,
   onConfirm,
@@ -44,7 +45,6 @@ export function ConfirmDialog({
 }: {
   open: boolean;
   title: string;
-  description?: string;
   confirm: string;
   busy: boolean;
   onConfirm(): void;
@@ -56,7 +56,6 @@ export function ConfirmDialog({
       open={open}
       onClose={() => !busy && onClose()}
       title={title}
-      description={description}
       size="sm"
       footer={
         <>

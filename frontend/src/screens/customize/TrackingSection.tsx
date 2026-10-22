@@ -1,5 +1,5 @@
-import { LineChart, MoreHorizontal } from "lucide-react";
-import { useEffect, useState } from "react";
+import { LineChart, MoreHorizontal, Pencil } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
   Button,
@@ -29,6 +29,9 @@ export function TrackingSection() {
   const [data, setData] = useState<ResearchSettings | null>(null);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState(false);
+  const formId = useId();
+  const [mode, setMode] = useState<"local" | "cloud">("local");
+  const [project, setProject] = useState("");
   const [key, setKey] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -67,6 +70,18 @@ export function TrackingSection() {
     }
   };
   const tracker = data?.tracker;
+  const edit = () => {
+    if (!tracker) return;
+    setMode(tracker.mode);
+    setProject(tracker.project);
+    setKey("");
+    setEditing(true);
+  };
+  const close = () => {
+    if (busy) return;
+    setEditing(false);
+    setKey("");
+  };
   const rows = providers.filter((p) =>
     p.name.toLowerCase().includes(query.trim().toLowerCase()),
   );
@@ -85,7 +100,11 @@ export function TrackingSection() {
           </Button>
         </div>
       ) : !tracker ? (
-        <p className={styles.status}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : (
         <ul className={styles.list}>
           {rows.map((provider) => {
@@ -115,6 +134,8 @@ export function TrackingSection() {
                   onChange={async () => {
                     if (await save({ kind: enabled ? "none" : provider.id })) {
                       setKey("");
+                      setMode(tracker.mode);
+                      setProject(tracker.project);
                       setEditing(!enabled);
                     }
                   }}
@@ -126,8 +147,9 @@ export function TrackingSection() {
                     items={[
                       {
                         id: "edit",
+                        icon: Pencil,
                         label: t("settings.research.edit"),
-                        onSelect: () => setEditing(true),
+                        onSelect: edit,
                       },
                     ]}
                     trigger={(props) => (
@@ -149,67 +171,77 @@ export function TrackingSection() {
       )}
       <Dialog
         open={editing && !!tracker && tracker.kind !== "none"}
-        onClose={() => {
-          setEditing(false);
-          setKey("");
-        }}
+        onClose={close}
         title={
           providers.find((p) => p.id === tracker?.kind)?.name ||
           t("customize.tracking")
         }
+        footer={
+          <>
+            <Button variant="ghost" disabled={busy} onClick={close}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              form={formId}
+              variant="primary"
+              loading={busy}
+            >
+              {t("settings.research.save")}
+            </Button>
+          </>
+        }
       >
         {tracker && (
-          <div className={styles.fields}>
+          <form
+            id={formId}
+            className={styles.fields}
+            onSubmit={async (event) => {
+              event.preventDefault();
+              if (
+                await save({
+                  mode,
+                  project: project.trim(),
+                  ...(mode === "cloud" && key.trim()
+                    ? { api_key: key.trim() }
+                    : {}),
+                })
+              ) {
+                setEditing(false);
+                setKey("");
+              }
+            }}
+          >
             <SegmentedControl
               kind="radio"
-              size="sm"
               label={t("settings.research.mode")}
-              value={tracker.mode}
-              onChange={(mode) => {
-                if (!busy) void save({ mode });
-              }}
+              value={mode}
+              onChange={(value) => !busy && setMode(value)}
               options={[
                 { value: "local", label: t("settings.research.local") },
                 { value: "cloud", label: t("settings.research.cloud") },
               ]}
             />
             <TextField
-              key={tracker.kind}
               label={t("settings.research.project")}
-              defaultValue={tracker.project}
+              value={project}
               disabled={busy}
-              onBlur={(event) => {
-                if (event.target.value.trim() !== tracker.project)
-                  void save({ project: event.target.value.trim() });
-              }}
+              onChange={(event) => setProject(event.target.value)}
             />
-            {tracker.mode === "cloud" && (
-              <form
-                className={styles.fields}
-                onSubmit={async (event) => {
-                  event.preventDefault();
-                  if (key.trim() && (await save({ api_key: key.trim() })))
-                    setKey("");
-                }}
-              >
-                <TextField
-                  label={t("settings.research.key")}
-                  type="password"
-                  autoComplete="off"
-                  value={key}
-                  onChange={(event) => setKey(event.target.value)}
-                />
-                {tracker.has_key && (
-                  <span className={styles.status}>
-                    {t("customize.keySaved")}
-                  </span>
-                )}
-                <Button type="submit" size="sm" disabled={!key.trim() || busy}>
-                  {t("settings.research.save")}
-                </Button>
-              </form>
+            {mode === "cloud" && (
+              <TextField
+                label={t("settings.research.key")}
+                type="password"
+                autoComplete="off"
+                value={key}
+                disabled={busy}
+                onChange={(event) => setKey(event.target.value)}
+              />
             )}
-          </div>
+            {mode === "cloud" && tracker.has_key && (
+              <span className={styles.status}>{t("customize.keySaved")}</span>
+            )}
+          </form>
         )}
       </Dialog>
     </>

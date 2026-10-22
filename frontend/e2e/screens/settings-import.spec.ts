@@ -86,9 +86,10 @@ test("a provider's models are fetched, several are added in one go, and the key 
   const { added, tested } = await mockService(page);
   await page.goto("/#settings/models");
   const section = page.getByRole("region", { name: "模型" });
-  await expect(section.getByText("无条目")).toBeVisible();
+  await expect(section.getByText("暂无条目")).toBeVisible();
 
-  await section.getByRole("button", { name: "导入", exact: true }).click();
+  await section.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "导入", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "导入模型" });
   await dialog.getByRole("button", { name: /OpenAI/ }).click();
   await page.getByRole("menuitem", { name: "DeepSeek" }).click();
@@ -162,7 +163,8 @@ test("a first model that does not answer leaves nothing behind", async ({
   );
   await page.goto("/#settings/models");
   const section = page.getByRole("region", { name: "模型" });
-  await section.getByRole("button", { name: "导入", exact: true }).click();
+  await section.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "导入", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "导入模型" });
   await dialog.getByLabel("API 密钥").fill(KEY);
   await dialog.getByRole("button", { name: "获取模型列表" }).click();
@@ -170,5 +172,5 @@ test("a first model that does not answer leaves nothing behind", async ({
   await dialog.getByRole("button", { name: "添加 1 个模型" }).click();
   await expect(dialog.getByRole("alert")).toContainText("第一个模型没有回应");
   await dialog.getByRole("button", { name: "关闭" }).click();
-  await expect(section.getByText("无条目")).toBeVisible();
+  await expect(section.getByText("暂无条目")).toBeVisible();
 });

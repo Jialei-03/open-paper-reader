@@ -1,4 +1,4 @@
-import { Monitor, Server, MoreHorizontal, Plus } from "lucide-react";
+import { Monitor, Server, MoreHorizontal, Pencil, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
@@ -142,7 +142,7 @@ export function MachinesSection() {
       onQuery={setQuery}
       action={
         <Button
-          size="sm"
+          variant="primary"
           icon={Plus}
           disabled={!data}
           onClick={() =>
@@ -171,7 +171,11 @@ export function MachinesSection() {
             </Button>
           </div>
         ) : (
-          <p className={layout.status}>{t("common.loading")}</p>
+          <div
+            className={layout.skeleton}
+            role="status"
+            aria-label={t("common.loading")}
+          />
         )}
       </>
     );
@@ -275,6 +279,7 @@ export function MachinesSection() {
           ? [
               {
                 id: "edit",
+                icon: Pencil,
                 label: t("settings.research.edit"),
                 onSelect: () =>
                   setDraft({

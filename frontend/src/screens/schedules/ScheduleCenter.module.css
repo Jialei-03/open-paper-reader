@@ -1,105 +1,102 @@
 .page {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   overflow-y: auto;
   background: var(--ui-bg-1);
-  color: var(--ui-fg);
+  container: management / inline-size;
+  scrollbar-gutter: stable;
 }
 
 .navigation {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
   min-height: 0;
-  padding: 12px 10px;
+  padding: var(--ui-space-12) var(--ui-space-10);
+  overflow-y: auto;
 }
 
 .navigationHeading {
-  padding: 8px 10px 12px;
+  padding: var(--ui-space-8) var(--ui-space-10) var(--ui-space-12);
   color: var(--ui-fg-3);
-  font-size: 12px;
+  font-size: var(--ui-text-12);
 }
 
 .tasks {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
+  gap: var(--ui-space-4);
 }
 
 .tasks a {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  padding: 10px;
-  border-radius: 8px;
-  text-decoration: none;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  min-height: var(--ui-control-md);
+  padding: var(--ui-space-10);
+  border-radius: var(--ui-r-8);
   color: var(--ui-fg-1);
-  font-size: 13px;
+  font-size: var(--ui-text-13);
+  text-decoration: none;
 }
 
 .tasks a:hover {
   background: var(--ui-hover);
 }
-.tasks a[aria-current="page"] {
+.tasks a[aria-current] {
   background: var(--ui-selected);
+  color: var(--ui-fg);
 }
-.tasks span,
-.tasks small {
+.tasks a span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .tasks small {
-  color: var(--ui-fg-3);
-  font-size: 11px;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
 }
 
 .landing {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: min(800px, 100%);
-  margin: 0 auto;
-  padding: clamp(70px, 18vh, 180px) 32px 48px;
-  box-sizing: border-box;
+  justify-content: center;
+  gap: var(--ui-space-16);
+  min-height: var(--ui-empty-height);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-14);
 }
-
 .landing > svg {
   color: var(--ui-fg-3);
 }
-.landing h1 {
-  margin: 20px 0 24px;
-  font-size: 24px;
-  font-weight: 400;
+.landing p {
+  margin: 0;
 }
 
 .suggestions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  width: 100%;
-  gap: 18px;
-  margin-top: 48px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-16);
 }
-
 .suggestions button {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--ui-space-16);
   min-width: 0;
-  padding: 26px 22px;
-  border: 1px dashed var(--ui-edge);
-  border-radius: 20px;
+  min-height: var(--ui-control-lg);
+  padding: var(--ui-space-24);
+  border: 1px solid var(--ui-edge);
+  border-radius: var(--ui-r-12);
   background: transparent;
   color: var(--ui-fg-1);
+  font: inherit;
+  font-size: var(--ui-text-13);
   text-align: left;
   cursor: pointer;
 }
-
 .suggestions button:hover {
   background: var(--ui-hover);
-  border-style: solid;
 }
 .suggestions button > svg {
   flex: none;
@@ -108,63 +105,71 @@
 .suggestions button > span {
   flex: 1;
   min-width: 0;
-}
-.suggestions strong {
-  display: block;
-  font-size: 14px;
-  font-weight: 400;
-}
-.suggestions small {
-  display: block;
-  margin-top: 8px;
-  color: var(--ui-fg-3);
-  font-size: 12px;
-  line-height: 1.6;
-}
-.suggestions button:focus-visible,
-.field select:focus-visible,
-.checkbox input:focus-visible,
-.tasks a:focus-visible {
-  outline: 2px solid var(--ui-fg-3);
-  outline-offset: 3px;
+  overflow-wrap: anywhere;
 }
 
 .content {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  width: min(760px, 100%);
-  margin: 0 auto;
-  padding: 48px 40px;
-  box-sizing: border-box;
+  composes: content from "../Management.module.css";
 }
-
-.header {
+.heading {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 12px 20px;
-}
-.header h1 {
-  flex: 1;
-  margin: 0;
-  font-size: 22px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
+  gap: var(--ui-space-8);
+  min-width: 0;
 }
 .status {
-  color: var(--ui-fg-3);
-  font-size: 12px;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  overflow-wrap: anywhere;
 }
-.actions {
+.list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.list > li:not(.empty) {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-16);
+  min-height: var(--ui-control-lg);
+  padding: var(--ui-space-12) 0;
+  border-bottom: 1px solid var(--ui-edge-subtle);
+}
+.list > li > svg {
+  flex: none;
+  color: var(--ui-fg-2);
+}
+.list a {
+  flex: 1;
+  min-width: 0;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.list a:hover {
+  text-decoration: underline;
+}
+.empty {
+  composes: empty from "../Management.module.css";
+}
+
+.suggestions button:focus-visible,
+.field select:focus-visible,
+.checkbox input:focus-visible,
+.tasks a:focus-visible,
+.list a:focus-visible,
+.run a:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
 }
 .form {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--ui-space-24);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -173,40 +178,43 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--ui-space-6);
   min-width: 0;
 }
 .field > span {
   color: var(--ui-fg-1);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
 }
 .field select {
   width: 100%;
   min-width: 0;
   height: var(--ui-control-lg);
-  padding: 0 12px;
+  padding: 0 var(--ui-space-12);
   border: 1px solid var(--ui-edge-subtle);
-  border-radius: 10px;
-  background: var(--ui-fill);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
   color: var(--ui-fg);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--ui-text-13);
 }
 .field select:disabled {
   opacity: 0.45;
 }
 .timing {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--ui-skeleton-height)), 1fr)
+  );
+  gap: var(--ui-space-16);
 }
 .checkbox {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--ui-space-8);
   color: var(--ui-fg-1);
-  font-size: 13px;
+  font-size: var(--ui-text-13);
 }
 .checkbox input {
   accent-color: var(--ui-primary);
@@ -214,35 +222,35 @@
 .save {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--ui-space-8);
 }
 .history {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 12px;
-  padding-top: 28px;
+  gap: var(--ui-space-16);
+  margin-top: var(--ui-space-24);
+  padding-top: var(--ui-space-24);
   border-top: 1px solid var(--ui-edge-subtle);
 }
 .history h2 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
 }
 .run {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px 0;
+  gap: var(--ui-space-10);
+  padding: var(--ui-space-16) 0;
   border-bottom: 1px solid var(--ui-edge-subtle);
-  font-size: 12px;
+  font-size: var(--ui-text-12);
 }
 .run > div {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  gap: 8px;
-  color: var(--ui-fg-3);
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-2);
 }
 .run [data-failed] {
   color: var(--ui-danger-text);
@@ -250,50 +258,48 @@
 .run a {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--ui-space-4);
   align-self: flex-start;
   color: var(--ui-fg-1);
-  text-underline-offset: 3px;
+  text-underline-offset: var(--ui-space-2);
 }
 .error {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  margin: 0;
+  gap: var(--ui-space-8);
+  margin: 0 0 var(--ui-space-16);
   color: var(--ui-danger-text);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading);
   overflow-wrap: anywhere;
 }
-.skeleton,
+.skeleton {
+  composes: skeleton from "../Management.module.css";
+}
 .formSkeleton div {
-  min-height: 48px;
-  border-radius: 10px;
+  min-height: var(--ui-space-48);
+  border-radius: var(--ui-r-12);
   background: var(--ui-fill);
 }
 .formSkeleton {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--ui-space-24);
 }
 .formSkeleton div:nth-child(2) {
-  height: 140px;
+  height: var(--ui-skeleton-height);
 }
 
-@media (max-width: 700px) {
-  .content {
-    padding: 32px 20px;
-  }
-  .landing {
-    padding: 70px 20px 32px;
-  }
+@container management (max-width: 720px) {
   .suggestions {
     grid-template-columns: 1fr;
-    gap: 12px;
-    margin-top: 32px;
   }
-  .suggestions button {
-    padding: 22px;
+  .list > li:not(.empty) {
+    flex-wrap: wrap;
+  }
+  .list .status {
+    flex-basis: 100%;
+    padding-left: var(--ui-space-32);
   }
 }

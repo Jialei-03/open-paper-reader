@@ -185,14 +185,14 @@ export function PaperRow(props: PaperItemProps) {
           onClick={followLink(go, hash.slice(1))}
         >
           <span className={styles.rowFileIcon} aria-hidden>
-            <FileText size={19} strokeWidth={1.5} />
+            <FileText size={16} />
           </span>
           <span className={styles.rowCopy}>
             <span className={styles.rowTitle}>
               {paper.favorite && (
                 <Star
                   className={styles.rowStar}
-                  size={13}
+                  size={14}
                   aria-label={t("library.favorite")}
                   role="img"
                 />

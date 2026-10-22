@@ -45,29 +45,12 @@
 
 /* Local research has a dedicated app rail and a calm, independent thread list. */
 .researchSidebar {
-  --research-rail-bg: #e7e7e7;
-  --research-pane-bg: #f3f3f3;
-  --ui-fg: #202020;
-  --ui-fg-1: #414141;
-  --ui-fg-2: #626262;
-  --ui-fg-3: #747474;
-  --ui-hover: rgb(0 0 0 / 5%);
-  --ui-selected: rgb(0 0 0 / 8%);
+  --research-rail-bg: var(--ora-chrome, var(--ui-bg-3));
+  --research-pane-bg: var(--ui-bg-2);
   display: flex;
   flex: none;
   min-width: 0;
   color: var(--ui-fg-1);
-}
-
-:root[data-theme="dark"] .researchSidebar {
-  --research-rail-bg: #343535;
-  --research-pane-bg: #222222;
-  --ui-fg: #ededed;
-  --ui-fg-1: #cecece;
-  --ui-fg-2: #ababab;
-  --ui-fg-3: #929292;
-  --ui-hover: rgb(255 255 255 / 5%);
-  --ui-selected: rgb(255 255 255 / 8%);
 }
 
 .researchRail {
@@ -75,22 +58,22 @@
   flex: none;
   flex-direction: column;
   align-items: center;
-  width: 52px;
-  padding: 10px 4px;
-  border-radius: 12px 0 0 12px;
+  width: var(--ui-rail-width);
+  padding: var(--ui-space-10) var(--ui-space-4);
+  border-radius: var(--ui-r-12) 0 0 var(--ui-r-12);
   background: var(--research-rail-bg);
 }
 
 .railToggle {
   flex: none;
-  margin-bottom: 20px;
+  margin-bottom: var(--ui-space-20);
   color: var(--ui-fg-2);
 }
 
 :global(html[data-desktop]) .railToggle {
   position: fixed;
-  top: 7px;
-  left: 160px;
+  top: var(--ui-space-6);
+  left: calc(var(--ui-space-40) * 4);
   z-index: 2147483647;
   margin: 0;
   -webkit-app-region: no-drag;
@@ -102,23 +85,23 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
+  gap: var(--ui-space-8);
 }
 
 .railFooter {
   margin-top: auto;
-  padding-top: 16px;
+  padding-top: var(--ui-space-16);
 }
 
 .railItem {
   display: grid;
   flex: none;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: var(--ui-space-40);
+  height: var(--ui-space-40);
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--ui-r-10);
   background: transparent;
   color: var(--ui-fg-3);
   text-decoration: none;
@@ -134,7 +117,7 @@
   display: flex;
   flex: none;
   flex-direction: column;
-  width: var(--research-sidebar-width, 288px);
+  width: var(--research-sidebar-width, var(--ui-sidebar-width));
   min-width: 0;
   border-right: 1px solid var(--ui-edge-subtle);
   background: var(--research-pane-bg);
@@ -150,23 +133,23 @@
   flex: none;
   align-items: center;
   justify-content: space-between;
-  height: 56px;
-  padding: 0 16px 0 18px;
+  height: var(--ui-sidebar-top);
+  padding: 0 var(--ui-space-16);
 }
 
 .researchBrand {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  padding: 4px 2px;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-4) var(--ui-space-2);
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--ui-r-6);
   background: transparent;
   color: var(--ui-fg);
   font: inherit;
-  font-size: 19px;
-  font-weight: 600;
-  letter-spacing: -0.5px;
+  font-size: var(--ui-text-20);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: normal;
   cursor: pointer;
 }
 
@@ -180,66 +163,59 @@
 
 .researchScroll {
   min-height: 0;
-  padding: 8px 10px 24px;
+  padding: var(--ui-space-8) var(--ui-space-10) var(--ui-space-24);
   overflow: auto;
   scrollbar-width: thin;
 }
 
 .researchActions {
   display: grid;
-  gap: 4px;
-  margin-bottom: 24px;
+  gap: var(--ui-space-4);
+  margin-bottom: var(--ui-space-24);
 }
 
 .researchActions a {
-  height: 36px;
-  gap: 10px;
-  padding-inline: 10px;
-  font-size: 14px;
+  height: var(--ui-control-md);
+  gap: var(--ui-space-10);
+  padding-inline: var(--ui-space-10);
+  font-size: var(--ui-text-13);
 }
 
 .researchReading {
-  margin-top: 28px;
-  padding-top: 16px;
+  margin-top: var(--ui-control-sm);
+  padding-top: var(--ui-space-16);
   border-top: 1px solid var(--ui-edge-subtle);
 }
 
 .railDivider {
-  width: 24px;
+  width: var(--ui-space-24);
   height: 1px;
-  margin: 12px 0;
+  margin: var(--ui-space-12) 0;
   background: var(--ui-edge-subtle);
 }
 
 .sectionTitle {
   margin: 0;
-  font-size: 19px;
-  font-weight: 600;
+  font-size: var(--ui-text-20);
+  font-weight: var(--ui-weight-strong);
   color: var(--ui-fg);
 }
 
 .sectionLinks {
   display: grid;
-  gap: 3px;
+  gap: var(--ui-space-4);
 }
 
 .sectionLinks a,
 .sectionGroup a,
 .taskNew a {
-  height: 36px;
-  padding-inline: 10px;
-  font-size: 14px;
+  height: var(--ui-control-md);
+  padding-inline: var(--ui-space-10);
+  font-size: var(--ui-text-13);
 }
 
 .sectionGroup {
-  margin-top: 28px;
-}
-
-.sectionHint {
-  margin: 8px 10px;
-  color: var(--ui-fg-3);
-  font-size: 13px;
-  line-height: 1.6;
+  margin-top: var(--ui-control-sm);
 }
 
 .taskNavigation {
@@ -250,36 +226,32 @@
 }
 
 .taskNew {
-  padding: 8px 10px 20px;
+  padding: var(--ui-space-8) var(--ui-space-10) var(--ui-space-20);
 }
 
 .researchSidebar[data-floating] {
-  width: 52px;
+  width: var(--ui-rail-width);
 }
 
 .researchSidebar[data-floating] .researchPane {
   position: fixed;
   z-index: 20;
-  top: 8px;
-  bottom: 8px;
-  left: 60px;
-  width: min(var(--research-sidebar-width, 288px), calc(100vw - 76px));
-  border-radius: 0 12px 12px 0;
+  top: var(--ui-space-8);
+  bottom: var(--ui-space-8);
+  left: calc(var(--ui-rail-width) + var(--ui-space-8));
+  width: min(
+    var(--research-sidebar-width, var(--ui-sidebar-width)),
+    calc(100vw - calc(var(--ui-rail-width) + var(--ui-space-24)))
+  );
+  border-radius: 0 var(--ui-r-12) var(--ui-r-12) 0;
   box-shadow: var(--ui-elev-2);
 }
 
 .researchSidebar[data-collapsed] .researchRail {
-  border-radius: 12px;
+  border-radius: var(--ui-r-12);
 }
 
-.scheduledNew {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  padding: 10px;
-  background: transparent;
-  color: var(--ui-fg-3);
-  font: inherit;
-  opacity: 0.5;
+.railItem:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
 }

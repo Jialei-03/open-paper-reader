@@ -4,9 +4,9 @@ import {
   Circle,
   Compass,
   FileText,
+  FileUp,
   History,
   Library,
-  Plus,
   Settings2,
   Sparkles,
   Users,
@@ -63,7 +63,7 @@ export function SectionNavigation({
     return (
       <>
         <div className={styles.researchActions}>
-          {item(Plus, t("library.import"), `library?${importParams}`)}
+          {item(FileUp, t("library.import"), `library?${importParams}`)}
         </div>
         <div className={styles.sectionLinks}>
           {item(
@@ -156,15 +156,6 @@ export function SectionNavigation({
             route.screen === "customize" && route.section === "models",
           )}
         </SidebarSection>
-      </div>
-    );
-  if (section === "tasks")
-    return (
-      <div className={styles.researchActions}>
-        <button className={styles.scheduledNew} disabled>
-          <Plus size={16} aria-hidden />
-          {t("scheduled.new")}
-        </button>
       </div>
     );
   return null;

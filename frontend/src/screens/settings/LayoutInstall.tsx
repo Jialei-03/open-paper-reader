@@ -124,7 +124,6 @@ export function LayoutInstall({
               </span>
             )}
           </div>
-          <p className={styles.about}>{t("settings.layoutInstall.about")}</p>
         </>
       )}
       {running ? (
@@ -183,7 +182,7 @@ export function LayoutInstall({
           )}
           <div className={styles.actions}>
             <Button
-              variant="primary"
+              variant="secondary"
               loading={busy}
               onClick={() => act("/layout-install")}
             >
@@ -192,7 +191,6 @@ export function LayoutInstall({
                 : t("settings.layoutInstall.start")}
             </Button>
           </div>
-          <p className={styles.note}>{t("settings.layoutInstall.sizeNote")}</p>
         </>
       )}
       {error && (

@@ -6,7 +6,7 @@
   gap: var(--ui-space-12);
   min-width: 0;
   padding: var(--ui-space-10) var(--ui-space-10) var(--ui-space-16);
-  border-radius: var(--ui-r-16);
+  border-radius: var(--ui-r-12);
   border: 1px solid var(--ui-edge-subtle);
   background: var(--ui-bg);
   transition:
@@ -36,9 +36,9 @@
 .title {
   margin: 0;
   font-family: var(--ui-font-sans);
-  font-size: var(--ui-text-15);
+  font-size: var(--ui-text-13);
   font-weight: var(--ui-weight-strong);
-  line-height: 1.5;
+  line-height: var(--ui-leading);
 }
 
 .link {
@@ -55,7 +55,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: var(--ui-r-16);
+  border-radius: var(--ui-r-12);
 }
 
 .link:focus-visible {
@@ -86,11 +86,11 @@
   top: var(--ui-space-12);
   right: var(--ui-space-12);
   padding: var(--ui-space-2);
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
   background: var(--ui-elev);
   box-shadow: var(--ui-elev-1);
   opacity: 0;
-  transform: translateY(-2px);
+  transform: translateY(calc(-1 * var(--ui-space-2)));
   transition:
     opacity var(--ui-dur-1) var(--ui-ease-out),
     transform var(--ui-dur-1) var(--ui-ease-out);
@@ -148,21 +148,21 @@
   z-index: 2;
   top: var(--ui-space-16);
   left: var(--ui-space-16);
-  width: 16px;
-  height: 16px;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
 }
 
 .card[data-selected] {
   background: var(--ui-bg-2);
-  box-shadow: inset 0 0 0 1.5px var(--ui-fg-3);
+  box-shadow: inset 0 0 0 1px var(--ui-fg-3);
 }
 
 .pickRow {
   position: absolute;
   top: 50%;
   left: var(--ui-space-8);
-  width: 15px;
-  height: 15px;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
   transform: translateY(-50%);
 }
 
@@ -183,14 +183,14 @@
 }
 
 .cellDate {
-  width: 120px;
+  width: var(--ui-library-date-width);
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
   white-space: nowrap;
 }
 
 .cellActions {
-  width: 40px;
+  width: var(--ui-space-40);
 }
 
 .cellActions .actions {
@@ -224,8 +224,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 34px;
-  height: 40px;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
   border-radius: var(--ui-r-8);
   background: var(--ui-bg-2);
   color: var(--ui-fg-3);
@@ -249,7 +249,7 @@
 .rowName {
   overflow: hidden;
   font-family: var(--ui-font-sans);
-  font-size: var(--ui-text-14);
+  font-size: var(--ui-text-13);
   font-weight: var(--ui-weight-regular);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -276,8 +276,8 @@
   }
 
   .rowFileIcon {
-    width: 28px;
-    height: 34px;
+    width: var(--ui-space-16);
+    height: var(--ui-space-16);
   }
 
   .cellDate {

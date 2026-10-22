@@ -122,7 +122,6 @@ export function LatexInstall({
               </span>
             )}
           </div>
-          <p className={styles.about}>{t("settings.latexInstall.about")}</p>
         </>
       )}
       {running ? (
@@ -181,7 +180,7 @@ export function LatexInstall({
           )}
           <div className={styles.actions}>
             <Button
-              variant={compact ? "secondary" : "primary"}
+              variant="secondary"
               loading={busy}
               onClick={() => act("/latex-install")}
             >
@@ -190,7 +189,6 @@ export function LatexInstall({
                 : t("settings.latexInstall.start")}
             </Button>
           </div>
-          <p className={styles.note}>{t("settings.latexInstall.sizeNote")}</p>
         </>
       )}
       {error && (

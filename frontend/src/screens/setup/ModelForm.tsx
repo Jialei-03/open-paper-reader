@@ -30,6 +30,7 @@ export interface ModelFormProps {
   /** Once connected, the form stays filled in and stops taking changes. */
   connected?: boolean;
   compact?: boolean;
+  onCancel?(): void;
 }
 
 /**
@@ -42,6 +43,7 @@ export function ModelForm({
   onConnected,
   connected = false,
   compact = false,
+  onCancel,
 }: ModelFormProps) {
   const i18n = useI18n();
   const { t, tn } = i18n;
@@ -244,6 +246,11 @@ export function ModelForm({
         </p>
       )}
       <div className={styles.actions}>
+        {onCancel && (
+          <Button variant="ghost" disabled={testing} onClick={onCancel}>
+            {t("common.cancel")}
+          </Button>
+        )}
         {connected ? (
           <p role="status" className={styles.success}>
             <Check size={14} aria-hidden="true" />
@@ -252,7 +259,7 @@ export function ModelForm({
         ) : (
           <Button
             type="submit"
-            variant="secondary"
+            variant={compact ? "primary" : "secondary"}
             icon={Plug}
             loading={testing}
           >

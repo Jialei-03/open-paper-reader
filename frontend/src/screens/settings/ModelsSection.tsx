@@ -1,4 +1,12 @@
-import { MoreHorizontal, Plus, Sparkles } from "lucide-react";
+import {
+  FileUp,
+  MoreHorizontal,
+  Pencil,
+  Plug,
+  Plus,
+  Sparkles,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, Dialog, IconButton, Menu, TextField, toast } from "../../ui";
@@ -94,10 +102,29 @@ export function ModelsSection() {
         onQuery={setQuery}
         action={
           <>
-            <Button size="sm" onClick={() => setImporting(true)}>
-              {t("settings.models.import")}
-            </Button>
-            <Button size="sm" icon={Plus} onClick={() => setAdding(true)}>
+            <Menu
+              label={t("reader.more.menu")}
+              items={[
+                {
+                  id: "import",
+                  icon: FileUp,
+                  label: t("settings.models.import"),
+                  onSelect: () => setImporting(true),
+                },
+              ]}
+              trigger={(props) => (
+                <IconButton
+                  {...props}
+                  icon={MoreHorizontal}
+                  label={t("reader.more.menu")}
+                />
+              )}
+            />
+            <Button
+              variant="primary"
+              icon={Plus}
+              onClick={() => setAdding(true)}
+            >
               {t("settings.models.add")}
             </Button>
           </>
@@ -109,7 +136,11 @@ export function ModelsSection() {
           <Button onClick={() => void load()}>{t("common.retry")}</Button>
         </div>
       ) : !settings ? (
-        <p className={styles.status}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : (
         <ul className={styles.list} aria-label={t("customize.models")}>
           {models.map((row) => {
@@ -160,6 +191,7 @@ export function ModelsSection() {
                       ? [
                           {
                             id: "test",
+                            icon: Plug,
                             label: t("settings.models.test"),
                             disabled: !!busy,
                             onSelect: () => {
@@ -175,6 +207,7 @@ export function ModelsSection() {
                           },
                           {
                             id: "rename",
+                            icon: Pencil,
                             label: t("settings.models.renameTitle"),
                             disabled: !!busy,
                             onSelect: () => {
@@ -184,6 +217,7 @@ export function ModelsSection() {
                           },
                           {
                             id: "remove",
+                            icon: Trash2,
                             label: t("settings.models.removeConfirm"),
                             danger: true,
                             disabled: !!busy,
@@ -228,33 +262,51 @@ export function ModelsSection() {
         onClose={() => setRenaming(null)}
         title={t("settings.models.renameTitle")}
         footer={
-          <Button
-            variant="primary"
-            disabled={!newName.trim() || !!busy}
-            onClick={async () => {
-              if (!renaming) return;
-              const row = renaming;
-              const name = newName.trim();
-              const ok = await act(
+          <>
+            <Button
+              variant="ghost"
+              disabled={!!busy}
+              onClick={() => setRenaming(null)}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!newName.trim() || !!busy}
+              type="submit"
+              form="rename-model-form"
+            >
+              {t("settings.models.renameSave")}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="rename-model-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (!renaming || !newName.trim() || busy) return;
+            const row = renaming;
+            const name = newName.trim();
+            if (
+              await act(
                 row,
                 () => renameModel(row, name),
                 t("settings.models.renamed", { name }),
                 "settings.models.renameError",
-              );
-              if (ok) setRenaming(null);
-            }}
-          >
-            {t("settings.models.renameSave")}
-          </Button>
-        }
-      >
-        <TextField
-          label={t("settings.models.renameLabel")}
-          value={newName}
-          maxLength={100}
-          autoComplete="off"
-          onChange={(event) => setNewName(event.target.value)}
-        />
+              )
+            )
+              setRenaming(null);
+          }}
+        >
+          <TextField
+            label={t("settings.models.renameLabel")}
+            value={newName}
+            maxLength={100}
+            autoComplete="off"
+            onChange={(event) => setNewName(event.target.value)}
+          />
+        </form>
       </Dialog>
       <Dialog
         open={adding}
@@ -264,6 +316,7 @@ export function ModelsSection() {
         {adding && (
           <ModelForm
             compact
+            onCancel={() => setAdding(false)}
             local={allowsLocal(settings)}
             onConnected={({ settings: next, model }) => {
               setSettings(next);
@@ -279,7 +332,6 @@ export function ModelsSection() {
       <ConfirmDialog
         open={!!removing}
         title={t("settings.models.removeTitle")}
-        description={removing ? displayName(removing) : ""}
         confirm={t("settings.models.removeConfirm")}
         busy={!!removing && busy === removing.id}
         onClose={() => setRemoving(null)}

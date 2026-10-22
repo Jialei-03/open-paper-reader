@@ -192,20 +192,24 @@ test("the details sheet shows a paper, stars it and edits its title", async ({
   await expect(sheet.getByText("3 页")).toBeVisible();
   await expect(sheet.getByText("高亮")).toBeVisible();
   await expect(sheet.getByText("添加时间")).toBeVisible();
-  await expect(sheet.getByText("还没开始读")).toBeVisible();
+  await expect(sheet.getByText("未读", { exact: true }).first()).toBeVisible();
 
   // Star.
-  await sheet.getByRole("button", { name: "收藏", exact: true }).click();
+  await sheet.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "收藏", exact: true }).click();
+  await sheet.getByRole("button", { name: "更多", exact: true }).click();
   await expect(
-    sheet.getByRole("button", { name: "已收藏", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    page.getByRole("menuitem", { name: "已收藏", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   expect(
     (await (await page.request.get(`/api/v1/papers/${paper.paperId}`)).json())
       .favorite,
   ).toBe(true);
 
   // Edit the title.
-  await sheet.getByRole("button", { name: "编辑", exact: true }).click();
+  await sheet.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "编辑", exact: true }).click();
   const renamed = `Renamed ${stamp}`;
   await sheet.getByRole("textbox", { name: "标题" }).fill(renamed);
   await sheet.getByRole("button", { name: "保存", exact: true }).click();

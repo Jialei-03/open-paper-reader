@@ -1,9 +1,11 @@
 /* The card sets what a reset would give it (the new screens do not load one). */
 .root {
-  --card-min: 220px;
+  --card-min: var(--ui-card-min);
   min-width: 0;
   flex: 1;
   container: paper-library / inline-size;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   border-radius: 0;
   background: var(--ui-bg-1);
   box-shadow: none;
@@ -23,7 +25,7 @@
   flex-direction: column;
   min-height: 0;
   width: 100%;
-  max-width: 1220px;
+  max-width: var(--ui-page-width);
   margin: 0 auto;
   padding: var(--ui-space-32) var(--ui-space-32) 0;
   box-sizing: border-box;
@@ -39,7 +41,7 @@
   flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: var(--ui-space-16);
+  gap: var(--ui-space-24);
   margin-bottom: var(--ui-space-24);
 }
 
@@ -57,16 +59,16 @@
 
 .heading {
   margin: 0;
-  font-size: clamp(24px, 2.3vw, 30px);
+  font-size: var(--ui-text-24);
   font-weight: var(--ui-weight-strong);
-  line-height: 1.3;
+  line-height: var(--ui-leading-tight);
 }
 
 .search {
   position: relative;
-  flex: 0 1 280px;
-  width: 280px;
-  min-width: 160px;
+  flex: 0 1 var(--ui-search-width);
+  width: var(--ui-search-width);
+  min-width: 0;
 }
 
 .searchIcon {
@@ -80,7 +82,7 @@
 }
 
 .search input {
-  height: 36px;
+  height: var(--ui-control-md);
   padding-left: var(--ui-space-40);
   border: 1px solid var(--ui-edge-subtle);
   border-radius: var(--ui-r-pill);
@@ -106,7 +108,7 @@
 }
 
 .resultCount {
-  color: var(--ui-fg-3);
+  color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
   white-space: nowrap;
 }
@@ -117,23 +119,23 @@
 
 .viewSwitch [role="radio"] {
   justify-content: center;
-  width: 32px;
+  width: var(--ui-control-md);
   padding-right: 0;
   padding-left: 0;
 }
 
 .viewSwitch [role="radio"] > span {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: var(--ui-sr-only);
+  height: var(--ui-sr-only);
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
 }
 
 .viewSwitch svg {
-  width: 15px;
-  height: 15px;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
 }
 
 .jobs {
@@ -157,7 +159,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--ui-space-16);
-  min-height: 260px;
+  min-height: var(--ui-empty-height);
   padding: var(--ui-space-24);
   color: var(--ui-fg-2);
   text-align: center;
@@ -165,13 +167,14 @@
 
 .message > svg {
   color: var(--ui-fg-3);
-  opacity: 0.7;
+  width: var(--ui-space-32);
+  height: var(--ui-space-32);
 }
 
 .message p {
-  max-width: 380px;
+  max-width: 100%;
   margin: 0;
-  line-height: 1.7;
+  line-height: var(--ui-leading);
 }
 
 .grid {
@@ -214,18 +217,18 @@
 }
 
 .opened {
-  width: 140px;
+  width: var(--ui-library-date-width);
 }
 
 .actions {
-  width: 40px;
+  width: var(--ui-space-40);
   text-align: right;
 }
 
 .visuallyHidden {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: var(--ui-sr-only);
+  height: var(--ui-sr-only);
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
@@ -238,7 +241,7 @@
 
 @container paper-library (max-width: 720px) {
   .frame {
-    padding: var(--ui-space-24) var(--ui-space-20) 0;
+    padding: var(--ui-space-32) var(--ui-space-32) 0;
   }
 
   .header {
@@ -260,13 +263,13 @@
   }
 
   .opened {
-    width: 115px;
+    width: var(--ui-library-date-width);
   }
 }
 
 @container paper-library (max-width: 420px) {
   .frame {
-    padding: var(--ui-space-20) var(--ui-space-12) 0;
+    padding: var(--ui-space-32) var(--ui-space-32) 0;
   }
 
   .header {
@@ -278,7 +281,7 @@
   }
 
   .opened {
-    width: 95px;
+    width: calc(var(--ui-space-48) * 2);
   }
 
   .tools {

@@ -1,12 +1,7 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "./ui/dialog";
+import { useI18n } from "../i18n/I18nProvider";
+import { Button, Dialog } from "../ui";
+import styles from "./FileDownloadDialog.module.css";
 import {
   closeFileDownload,
   downloadFile,
@@ -17,6 +12,7 @@ import {
 } from "../lib/file-download";
 
 export function FileDownloadDialog() {
+  const { t, locale } = useI18n();
   const transfer = useSyncExternalStore(
     subscribeFileDownload,
     fileDownloadSnapshot,
@@ -63,51 +59,64 @@ export function FileDownloadDialog() {
   return (
     <Dialog
       open={!!transfer}
-      onOpenChange={(open) => {
-        if (!open) closeFileDownload();
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {transfer?.file
-              ? "保存文件"
-              : transfer?.error
-                ? "下载失败"
-                : "正在准备下载"}
-          </DialogTitle>
-          <DialogDescription>{transfer?.name}</DialogDescription>
-        </DialogHeader>
-        {transfer?.error && <p role="alert">{transfer.error}</p>}
-        {transfer?.file ? (
-          <>
-            <p className="text-sm text-muted-foreground">
-              文件已准备好。点击下方按钮，在系统面板中选择“存储到文件”或保存到其他应用。
-            </p>
-            <Button onClick={sharePreparedFile} disabled={transfer.sharing}>
-              保存到文件
+      onClose={closeFileDownload}
+      title={t(
+        transfer?.file
+          ? "fileDownload.save"
+          : transfer?.error
+            ? "fileDownload.failed"
+            : "fileDownload.preparing",
+      )}
+      footer={
+        <>
+          <Button variant="ghost" onClick={closeFileDownload}>
+            {t(
+              transfer?.file || transfer?.error
+                ? "common.close"
+                : "fileDownload.cancel",
+            )}
+          </Button>
+          {transfer?.file && (
+            <Button
+              variant="primary"
+              loading={transfer.sharing}
+              onClick={sharePreparedFile}
+            >
+              {t("fileDownload.save")}
             </Button>
-          </>
-        ) : (
-          !transfer?.error && (
-            <div className="space-y-2" role="status">
-              <progress
-                className="w-full"
-                aria-label="文件下载进度"
-                max={100}
-                value={percent}
-              />
-              <p className="text-sm text-muted-foreground">
-                {percent === undefined ? "正在接收文件…" : `${percent}%`} ·{" "}
-                {((transfer?.loaded || 0) / 1048576).toFixed(1)} MB
-              </p>
-            </div>
-          )
+          )}
+        </>
+      }
+    >
+      <div className={styles.body}>
+        {transfer?.name && <p className={styles.name}>{transfer.name}</p>}
+        {transfer?.error && (
+          <p className={styles.error} role="alert">
+            {transfer.error}
+          </p>
         )}
-        <Button variant="outline" onClick={closeFileDownload}>
-          {transfer?.file || transfer?.error ? "关闭" : "取消下载"}
-        </Button>
-      </DialogContent>
+        {!transfer?.file && !transfer?.error && (
+          <div className={styles.body} role="status">
+            <progress
+              className={styles.progress}
+              aria-label={t("fileDownload.progress")}
+              max={100}
+              value={percent}
+            />
+            <p className={styles.status}>
+              {percent === undefined
+                ? t("fileDownload.receiving")
+                : `${percent}%`}{" "}
+              ·{" "}
+              {new Intl.NumberFormat(locale, {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+              }).format((transfer?.loaded || 0) / 1048576)}{" "}
+              MB
+            </p>
+          </div>
+        )}
+      </div>
     </Dialog>
   );
 }

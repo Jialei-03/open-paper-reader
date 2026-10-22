@@ -92,7 +92,7 @@ export function SegmentedControl<V extends string>({
   const selected = options.findIndex((option) => option.value === value);
   // With nothing chosen the first item is the way in, or the keyboard could not reach the control.
   const entry = Math.max(selected, 0);
-  const iconSize = size === "sm" ? 12 : 14;
+  const iconSize = 16;
 
   // Before the paint, so that the thumb is never seen in a wrong place. Only a change
   // of the value slides it; the first place and a new size jump.

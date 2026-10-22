@@ -20,14 +20,14 @@
   gap: var(--ui-space-16);
   box-sizing: border-box;
   width: 100%;
-  max-width: 440px;
+  max-width: var(--ui-sheet-width);
   padding: var(--ui-space-32);
 }
 
 .title {
   margin: 0;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-20);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-24);
   font-weight: var(--ui-weight-strong);
   line-height: var(--ui-leading-tight);
 }
@@ -49,7 +49,7 @@
 
 .error {
   margin: 0;
-  color: var(--ui-danger, var(--ui-fg));
+  color: var(--ui-danger-text);
   font-size: var(--ui-text-14);
 }
 
