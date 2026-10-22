@@ -446,7 +446,7 @@ test("the measurements are the design's", async ({ page }) => {
   const widthOf = async (target: Locator) =>
     (await target.boundingBox())!.width;
   expect(await widthOf(dialog)).toBe(520);
-  expect(await cssOf(dialog, "border-top-left-radius")).toBe("20px");
+  expect(await cssOf(dialog, "border-top-left-radius")).toBe("16px");
   expect(await cssOf(dialog, "background-color")).toBe(
     await resolved(page, "background-color", "var(--ui-elev)"),
   );
