@@ -234,7 +234,7 @@ def _safe_path(path):
         raise ValueError("合并文件路径不合法")
     if str(PurePosixPath(path)) != path:
         raise ValueError("合并文件路径不合法")
-    if parts[0] == "memory" or path == "PROJECT.md":
+    if parts[0] == "memory" or path in {"PROJECT.md", "AGENTS.md"}:
         raise ValueError("项目记忆和项目说明不能通过代码合并覆盖")
     return path
 
@@ -341,7 +341,7 @@ def _candidates(repo, main, source):
     return base, sorted(
         name
         for name in names
-        if name and name != "PROJECT.md" and not name.startswith("memory/")
+        if name and name not in {"PROJECT.md", "AGENTS.md"} and not name.startswith("memory/")
     )
 
 

@@ -140,7 +140,9 @@ def _instructions(d, project):
     from .models import ResearchWorkspace
 
     w = d.get(ResearchWorkspace, project.workspace_id) if project.workspace_id else None
-    text = (w.instructions or "").strip() if w and w.owner == project.owner else ""
+    from .agent_files import workspace_instructions
+
+    text = workspace_instructions(w).strip() if w and w.owner == project.owner else ""
     return [f"## 项目说明（研究者为整个项目写的，必须遵守）\n{text}"] if text else []
 
 

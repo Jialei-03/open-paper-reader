@@ -11,11 +11,11 @@
 
 ## 迁移
 
-应用启动前执行 `alembic upgrade head`（Docker 镜像与 systemd 单元已经自动做了）；应用本身不会悄悄建表。迁移文件是写死的显式建表语句，不是动态导入当前模型。
+应用启动前执行 `alembic -c pyproject.toml upgrade head`（Docker 镜像与 systemd 单元已经自动做了）；应用本身不会悄悄建表。迁移文件是写死的显式建表语句，不是动态导入当前模型。
 
 - 之后要改表结构：新增一个经过审阅的 Alembic 版本，先在恢复出来的副本上演练，做一份验证过的备份，停掉写入者，再迁移。不要修改已经应用过的迁移。
-- `alembic current` 查看当前版本，`alembic check` 对比模型和数据库。
-- 迁移是单向的：回滚应用需要恢复升级前的备份。`alembic downgrade base` 会删除所有表，只用于一次性的测试库。
+- `alembic -c pyproject.toml current` 查看当前版本，`alembic -c pyproject.toml check` 对比模型和数据库。
+- 迁移是单向的：回滚应用需要恢复升级前的备份。`alembic -c pyproject.toml downgrade base` 会删除所有表，只用于一次性的测试库。
 - 备份格式的 `schema_version` 和论文的版本、内容的 revision 是三件不同的事。表结构变化时必须同时提供兼容的备份转换。
 
 ## 备份与恢复
@@ -37,7 +37,7 @@ set -a; source .env; set +a
 export APP_ENV=development            # 这个演练用 SQLite；真实恢复请保持 production + PostgreSQL
 export DATABASE_URL=sqlite:////absolute/path/to/restored.db
 export STORAGE_DIR=/absolute/path/to/restored-files
-.venv/bin/alembic upgrade head
+.venv/bin/alembic -c pyproject.toml upgrade head
 .venv/bin/python -m backend.cli restore /secure/location/paper-backup.zip --offline
 # 启动前把 APP_ORIGIN 等设置指向目标环境
 ```
@@ -70,5 +70,5 @@ export STORAGE_DIR=/absolute/path/to/restored-files
 
 - 磁盘：`STORAGE_MIN_FREE_MB` 只是最后一道保险，请监控磁盘；数据库与文件卷一起备份。
 - 健康检查：`GET /api/v1/health`。任务一直排队时先看 `worker` 进程。
-- 升级之前做一次备份，升级之后确认 `alembic current` 与新版本一致。
+- 升级之前做一次备份，升级之后确认 `alembic -c pyproject.toml current` 与新版本一致。
 - 更多检查项见 [部署的检查清单](DEPLOYMENT.md#生产检查清单)；对公网实例，还建议在真实域名上走一遍：两个账户互相看不到对方的数据、上传与下载、注册（或邀请）、登录退出、导出、重启服务后数据还在，以及一次恢复演练。

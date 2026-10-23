@@ -4,7 +4,7 @@ about: 软件没有按预期工作
 labels: bug
 ---
 
-**安全问题请不要在这里报告**，见 [SECURITY](https://github.com/Jialei-03/open-paper-reader/blob/main/SECURITY.md)。
+**安全问题请不要在这里报告**，见 [SECURITY](https://github.com/Jialei-03/open-paper-reader/blob/main/.github/SECURITY.md)。
 
 ## 发生了什么
 
@@ -24,4 +24,4 @@ labels: bug
 
 ## 日志
 
-<!-- `docker compose logs --tail 100 web worker`。请先抹掉密钥、令牌和你的论文内容。 -->
+<!-- `docker compose --env-file .env -f deploy/docker-compose.yml logs --tail 100 web worker`。请先抹掉密钥、令牌和你的论文内容。 -->

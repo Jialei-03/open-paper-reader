@@ -131,7 +131,7 @@ const lastModel = entries => entries.filter(e => e.type === 'model_change').at(-
 
 async function run({run_id, config, session: saved = {}, history = [], command = 'prompt', instructions = '', prompt = '', context, tools = [], images = [], limits = {}, system_prompt = '', tool_cwd = ''}) {
   activeRun = run_id;
-  const outputTokens = limits.output_tokens || 8192, maxCalls = limits.tool_calls || 64, maxTurns = limits.model_turns || 32;
+  const outputTokens = limits.output_tokens || 8192, maxCalls = limits.tool_calls === 0 ? Infinity : (limits.tool_calls ?? 64), maxTurns = limits.model_turns === 0 ? Infinity : (limits.model_turns ?? 32);
   // Model requests may only reach the configured service, never this machine's network.
   const send = providerFetch(config.base_url, process.env.NODE_ENV === 'test', process.env.OPR_LOCAL_MODELS === '1');
   globalThis.fetch = async (input, options) => {
@@ -271,7 +271,7 @@ async function run({run_id, config, session: saved = {}, history = [], command =
   usage();
   // What this run added to the conversation, for the backend to keep.
   flushEntries();
-  emit({type:'done', session_id:session.sessionId, aborted, limited:turns >= maxTurns || calls >= maxCalls});
+  emit({type:'done', session_id:session.sessionId, aborted, limited:turns >= maxTurns || calls >= maxCalls, limit_reason:turns >= maxTurns ? 'turns' : 'tools'});
   session.dispose();
   process.stdout.write('', () => process.exit(0));
 }

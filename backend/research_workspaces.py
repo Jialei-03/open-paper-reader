@@ -188,6 +188,10 @@ def update(d, workspace, body):
             if key == "name" and not value:
                 raise ValueError("项目名称不能为空")
             setattr(workspace, key, value[: 200 if key == "name" else 20000])
+    if body.get("instructions") is not None:
+        from .agent_files import save_instructions
+
+        save_instructions(workspace, workspace.instructions)
     if "archived" in body and body["archived"] is not None:
         workspace.archived = bool(body["archived"])
     workspace.updated_at = now()
@@ -529,12 +533,14 @@ def overview(d, owner):
 
 
 def workspace_out(w):
+    from .agent_files import workspace_instructions
+
     return {
         "id": w.id,
         "name": w.name,
         "description": w.description,
         "location": w.location or {},
-        "instructions": w.instructions,
+        "instructions": workspace_instructions(w),
         "kind": w.kind,
         "compute_id": w.compute_id,
         "model_config_id": w.model_config_id,

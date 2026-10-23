@@ -43,7 +43,6 @@ import styles from "./AppShell.module.css";
 import { useLocal } from "./edition";
 import { QuickOpen } from "./QuickOpen";
 import { parseAppRoute, type AppRoute } from "./routes";
-import { ProjectPage } from "../screens/research/projects/ProjectPage";
 import { NewResearch } from "../screens/research/NewResearch";
 import {
   WorkspaceScreen,
@@ -51,6 +50,7 @@ import {
 } from "../screens/research/ResearchLibrary";
 import { ResearchNavigationProvider } from "../screens/research/ResearchNavigation";
 import { LocalOnly } from "../screens/research/LocalOnly";
+import { TeamScreen } from "../screens/research/TeamScreen";
 import { ResearchProject } from "../screens/research/ResearchProject";
 import { ScheduleCenter } from "../screens/schedules/ScheduleCenter";
 import { CustomizeScreen } from "../screens/customize/CustomizeScreen";
@@ -322,6 +322,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
           )}
           {[
             "research",
+            "team",
             "projects",
             "new-research",
             "research-board",
@@ -334,6 +335,16 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
             !(shown.screen === "customize" && shown.section === "models") && (
               <LocalOnly />
             )}
+          {shown.screen === "team" && local !== false && (
+            <TeamScreen
+              key={shown.workspaceId}
+              id={shown.workspaceId}
+              channelId={shown.channelId}
+              threadId={shown.threadId}
+              full={shown.full}
+              go={go}
+            />
+          )}
           {shown.screen === "research" &&
             local !== false &&
             shown.projectId && (
@@ -379,11 +390,10 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
           {local !== false &&
             shown.screen === "projects" &&
             shown.workspaceId && (
-              <ProjectPage
+              <TeamScreen
                 key={shown.workspaceId}
                 id={shown.workspaceId}
-                tab={shown.tab}
-                item={shown.item}
+                channelId="dm:advisor"
                 go={go}
               />
             )}

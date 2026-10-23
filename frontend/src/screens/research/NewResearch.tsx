@@ -6,6 +6,7 @@ import { Button, IconButton, toast } from "../../ui";
 import { readModels, type ModelRow } from "../setup/model-api";
 import { refreshResearchNavigation } from "./navigation-api";
 import { useResearchNavigation } from "./ResearchNavigation";
+import { getTeam, teamHash } from "./team-api";
 import { resumeProject, startProject } from "./research-api";
 import { Composer } from "./talk/Composer";
 import { WorkflowPicker } from "../workflows/WorkflowPicker";
@@ -156,6 +157,19 @@ function FirstMessage({
   );
   const migratedDraft = useRef(stored(draftKey) ? "" : legacyDraftKey);
   const [workflowId, setWorkflowId] = useState("research");
+  useEffect(() => {
+    if (!workspaceId) return;
+    let stale = false;
+    getTeam(workspaceId).then(
+      (team) => {
+        if (!stale) setWorkflowId(team.workflow?.id || "research");
+      },
+      () => undefined,
+    );
+    return () => {
+      stale = true;
+    };
+  }, [workspaceId]);
   const [models, setModels] = useState<ModelRow[]>([]);
   const [modelId, setModelId] = useState(() => stored(`${draftKey}:model`));
   const [modelKnown, setModelKnown] = useState(false);
@@ -247,7 +261,14 @@ function FirstMessage({
         /* Optional cache. */
       }
       refreshResearchNavigation();
-      go(`research/${research.id}`);
+      const team = await getTeam(workspaceId);
+      go(
+        teamHash(
+          workspaceId,
+          team.channels.find((c) => c.key === "experiments")!.id,
+          `research:${research.id}`,
+        ),
+      );
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
       if (createdId) {
@@ -307,6 +328,7 @@ function FirstMessage({
             />
             {context}
             <WorkflowPicker
+              workspaceId={workspaceId || undefined}
               value={workflowId}
               onChange={setWorkflowId}
               disabled={busy}

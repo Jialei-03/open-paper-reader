@@ -5,7 +5,7 @@ role="${1:-web}"
 case "$role" in
   web)
     # Create or update the schema first; the application never creates tables itself.
-    alembic upgrade head
+    alembic -c pyproject.toml upgrade head
     exec uvicorn backend.main:app --host 0.0.0.0 --port "${APP_PORT:-8765}" --workers 1 --proxy-headers --no-access-log
     ;;
   worker)

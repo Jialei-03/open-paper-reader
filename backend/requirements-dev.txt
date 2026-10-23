@@ -1,5 +1,5 @@
 # Everything needed to run the tests.
 -r requirements.txt
 pytest==9.1.1
-# Runs the tests in parallel (pytest.ini: -n 4): every test has its own database and folders.
+# Runs the tests in parallel (pyproject.toml: -n 4): every test has its own database and folders.
 pytest-xdist==3.8.0

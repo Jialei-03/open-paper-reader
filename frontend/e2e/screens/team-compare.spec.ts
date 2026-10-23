@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "../reader/fixtures";
+import { mockTeam } from "../fixtures/team";
 
 test.use({ locale: "zh-CN" });
 
@@ -150,6 +151,7 @@ test("evaluation matrix and rerun preserve the selected workflow", async ({
       return route.fulfill({ json: { files: [], added: 0, removed: 0 } });
     return route.fulfill({ json: [] });
   });
+  await mockTeam(page);
   await signIn(page);
   await page.goto(`/#workspaces/${wid}/compare`);
   await page.getByRole("button", { name: "新建评测", exact: true }).click();

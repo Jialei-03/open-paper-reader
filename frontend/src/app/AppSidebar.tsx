@@ -9,7 +9,6 @@ import {
   LogOut,
   Search,
   Settings,
-  ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
   Clock3,
@@ -39,12 +38,15 @@ import {
   SidebarSection,
   useSidebarWidth,
   IconButton,
-  Menu,
   Resizer,
   Tooltip,
   matchesShortcut,
   useResizableWidth,
 } from "../ui";
+import {
+  TeamNavigation,
+  TeamSwitcher,
+} from "../screens/research/TeamNavigation";
 import { parseAppRoute, type AppScreen } from "./routes";
 import {
   localSection,
@@ -57,7 +59,6 @@ import styles from "./AppSidebar.module.css";
 import { useLocal } from "./edition";
 import {
   ResearchNotifications,
-  ResearchTree,
   useResearchNavigation,
 } from "../screens/research/ResearchNavigation";
 
@@ -119,15 +120,22 @@ export function AppSidebar({
   const { t } = useI18n();
   const local = useLocal();
   const { data: researchNavigation } = useResearchNavigation();
-  const currentResearch = researchId
+  const route = parseAppRoute(contextHash ?? window.location.hash.slice(1));
+  const currentResearchId =
+    researchId ||
+    (route.screen === "team" && route.threadId?.startsWith("research:")
+      ? route.threadId.slice(9)
+      : "");
+  const currentResearch = currentResearchId
     ? researchNavigation.workspaces
         .flatMap((workspace) => workspace.researches)
-        .find((research) => research.id === researchId)
+        .find((research) => research.id === currentResearchId)
     : undefined;
-  const route = parseAppRoute(contextHash ?? window.location.hash.slice(1));
   const workspaceId =
     currentResearch?.workspace_id ||
-    (route.screen === "workspaces" || route.screen === "new-research"
+    (route.screen === "workspaces" ||
+    route.screen === "team" ||
+    route.screen === "new-research"
       ? route.workspaceId
       : undefined);
   const collectionId =
@@ -324,7 +332,6 @@ function AppResearchSidebar({
   collapsed,
   onCollapsedChange,
   screen,
-  researchId,
   newResearchHash,
   reading,
   contextHash,
@@ -526,33 +533,7 @@ function AppResearchSidebar({
           >
             <div className={styles.researchBrandRow}>
               {section === "research" ? (
-                <Menu
-                  label="ORA"
-                  trigger={(props) => (
-                    <button
-                      {...props}
-                      type="button"
-                      className={styles.researchBrand}
-                    >
-                      ORA <ChevronDown size={13} aria-hidden />
-                    </button>
-                  )}
-                  items={[
-                    {
-                      id: "workspaces",
-                      label: t("workspace.manage"),
-                      icon: Folder,
-                      onSelect: () => choose("workspaces"),
-                    },
-                    { kind: "separator", id: "settings-divider" },
-                    {
-                      id: "settings",
-                      label: t("reader.sidebar.settings"),
-                      icon: Settings,
-                      onSelect: () => choose("settings"),
-                    },
-                  ]}
-                />
+                <TeamSwitcher hash={contextHash} go={choose} />
               ) : (
                 <h2 className={styles.sectionTitle}>{title}</h2>
               )}
@@ -602,7 +583,7 @@ function AppResearchSidebar({
                         onClick={followLink(choose, newResearchHash)}
                       />
                     </div>
-                    <ResearchTree currentId={researchId} go={choose} />
+                    <TeamNavigation hash={contextHash} go={choose} />
                   </>
                 ) : (
                   <SectionNavigation

@@ -11,28 +11,30 @@ Open Paper Reader 是一个 Python（FastAPI）服务加一个 Node.js 研究助
 
 ## 一、Docker Compose（推荐）
 
-**前提**：Docker 和 Compose v2.24 或更新（`docker compose version` 查看；`docker-compose.yml` 用到了 `env_file` 的 `required` 选项）；约 2 GB 空闲内存；足够放论文的磁盘。
+**前提**：Docker 和 Compose v2.24 或更新（`docker compose version` 查看；`deploy/docker-compose.yml` 用到了 `env_file` 的 `required` 选项）；约 2 GB 空闲内存；足够放论文的磁盘。
+
+下面的命令都在仓库根目录执行；`.env` 仍放在根目录，构建上下文也是仓库根目录。
 
 ```bash
 git clone https://github.com/Jialei-03/open-paper-reader.git
 cd open-paper-reader
-cp .env.example .env
+cp deploy/.env.example .env
 # 把 POSTGRES_PASSWORD 换成一串随机的字母数字：
 sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$(openssl rand -hex 24)/" .env    # macOS 用 sed -i ''
-docker compose up -d --build
-docker compose ps        # db、web、worker 都应该是 running，web 是 healthy
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml ps        # db、web、worker 都应该是 running，web 是 healthy
 ```
 
 打开 <http://localhost:8765>，注册第一个账户，然后在「设置 → 模型」添加你的模型（OpenAI 兼容或 Anthropic 协议）。导入论文、阅读、批注和笔记不需要模型；解释、翻译、导读和助手需要。
 
-数据在两个具名卷里：`open-paper-reader_db`（PostgreSQL）和 `open-paper-reader_data`（`/data`：论文文件、笔记图片、模型配置）。`docker compose down` 不会删除它们；`docker compose down -v` 会。
+数据在两个具名卷里：`open-paper-reader_db`（PostgreSQL）和 `open-paper-reader_data`（`/data`：论文文件、笔记图片、模型配置）。`docker compose --env-file .env -f deploy/docker-compose.yml down` 不会删除它们；`docker compose --env-file .env -f deploy/docker-compose.yml down -v` 会。
 
 ### 管理员账户（可选）
 
 管理员只多一项能力：生成邀请码。要创建管理员，必须在**还没有任何人注册之前**运行：
 
 ```bash
-docker compose exec web python -m backend.cli bootstrap --username admin
+docker compose --env-file .env -f deploy/docker-compose.yml exec web python -m backend.cli bootstrap --username admin
 ```
 
 密码在隐藏输入里填（至少 8 个字符）。已经有用户之后这条命令会拒绝执行。
@@ -42,8 +44,8 @@ docker compose exec web python -m backend.cli bootstrap --username admin
 想让所有账户都能直接用一个模型，把[共享模型文件](CONFIGURATION.md#共享模型文件)放进数据卷：
 
 ```bash
-docker compose cp platform-model.json web:/data/platform-model.json
-docker compose exec -u root web sh -c 'chown paper:paper /data/platform-model.json && chmod 600 /data/platform-model.json'
+docker compose --env-file .env -f deploy/docker-compose.yml cp platform-model.json web:/data/platform-model.json
+docker compose --env-file .env -f deploy/docker-compose.yml exec -u root web sh -c 'chown paper:paper /data/platform-model.json && chmod 600 /data/platform-model.json'
 ```
 
 `web` 和 `worker` 共用这个卷，不需要重启。
@@ -64,27 +66,27 @@ docker compose exec -u root web sh -c 'chown paper:paper /data/platform-model.js
    `APP_ENV=production` 要求 HTTPS 的 `APP_ORIGIN`，并启用 `Secure` Cookie 与 HSTS。
 3. 启动反向代理。最省事的是 Caddy，它自己申请并续期证书：把 [`deploy/Caddyfile.example`](../deploy/Caddyfile.example) 的域名改成你的，`caddy run --config Caddyfile.example`。nginx 见 [`deploy/nginx.example.conf`](../deploy/nginx.example.conf)。缓存头由应用自己设置（私人数据一律不缓存，只有按内容命名的静态文件可以长期缓存），所以代理保持默认就好，**不要加共享缓存**：页面里有私人数据。
 4. 反向代理在 Docker 宿主机上时，容器看到的来源是 Docker 网关，所以要让应用信任它转发的 `X-Forwarded-*` 头，否则登录限流会把所有用户算成同一个来源。端口只发布在 `127.0.0.1`（默认）时，在 `.env` 里加 `FORWARDED_ALLOW_IPS=*` 是安全的；否则写成 Docker 网关地址（`docker network inspect open-paper-reader_default`）。
-5. `docker compose up -d`。
+5. `docker compose --env-file .env -f deploy/docker-compose.yml up -d`。
 
 ### 升级
 
 ```bash
 git pull
-docker compose up -d --build     # 新的迁移在 web 启动时自动执行
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --build     # 新的迁移在 web 启动时自动执行
 ```
 
-升级之前先备份（下面）。迁移是单向的：回滚需要恢复升级前的备份，不能 `alembic downgrade`。
+升级之前先备份（下面）。迁移是单向的：回滚需要恢复升级前的备份，不能 `alembic -c pyproject.toml downgrade`。
 
 ### 备份与恢复
 
 先停掉写入者，再备份数据库和文件，这样两者对应同一个时间点：
 
 ```bash
-docker compose stop web preparation worker
+docker compose --env-file .env -f deploy/docker-compose.yml stop web preparation worker
 # 如果另行安装了翻译 worker，也必须先停掉它。
-docker compose exec db pg_dump -U paper paper > paper-$(date +%F).sql
+docker compose --env-file .env -f deploy/docker-compose.yml exec db pg_dump -U paper paper > paper-$(date +%F).sql
 docker run --rm -v open-paper-reader_data:/data -v "$PWD":/backup alpine tar czf /backup/paper-data-$(date +%F).tgz -C /data .
-docker compose start worker preparation web
+docker compose --env-file .env -f deploy/docker-compose.yml start worker preparation web
 ```
 
 应用自己也有可移植的备份格式（含用户、密码哈希和全部记录，不含会话和令牌），见 [运维](OPERATIONS.md)。无论用哪种，都要放到另一台机器上保存，并且演练过恢复才算有备份。
@@ -93,9 +95,9 @@ docker compose start worker preparation web
 
 | 现象 | 看哪里 |
 | --- | --- |
-| 打不开 / 502 | `docker compose logs web`；`curl http://127.0.0.1:8765/api/v1/health` |
+| 打不开 / 502 | `docker compose --env-file .env -f deploy/docker-compose.yml logs web`；`curl http://127.0.0.1:8765/api/v1/health` |
 | 登录后马上掉线、注册提示来源不受信任 | `APP_ORIGIN` 必须和浏览器地址栏里的完全一致（协议、域名、端口） |
-| 任务一直「排队中」 | `docker compose ps` 看 `worker` 在不在运行；没有可用的模型也不会开始 |
+| 任务一直「排队中」 | `docker compose --env-file .env -f deploy/docker-compose.yml ps` 看 `worker` 在不在运行；没有可用的模型也不会开始 |
 | 上传大文件失败 | 反向代理的请求体上限要不小于 `UPLOAD_LIMIT_MB`（Caddy 示例是 60 MB） |
 | 「请使用支持的 HTTPS 模型地址」 | 模型服务必须是 HTTPS、443 端口、主机名在白名单里，见[配置](CONFIGURATION.md#模型) |
 
@@ -125,8 +127,8 @@ npm --prefix frontend ci --ignore-scripts && npm --prefix frontend run build
 npm --prefix agent-runtime ci --omit=dev --ignore-scripts
 AGENT_NODE=$(command -v node) sh scripts/check-agent-runtime.sh      # 确认助手运行时能加载
 
-# 配置（参考 .env.example；生产需要 PostgreSQL 与 HTTPS）
-install -m 0600 -o root .env.example /etc/paper-platform/app.env
+# 配置（参考 deploy/.env.example；生产需要 PostgreSQL 与 HTTPS）
+install -m 0600 -o root deploy/.env.example /etc/paper-platform/app.env
 $EDITOR /etc/paper-platform/app.env
 #   APP_ENV=production
 #   APP_ORIGIN=https://reader.example.com
@@ -140,7 +142,7 @@ systemctl enable --now paper-platform paper-agent-worker
 curl -fsS http://127.0.0.1:8765/api/v1/health
 ```
 
-`paper-platform.service` 在每次启动前执行 `alembic upgrade head`。反向代理见上面的 Caddy 或 nginx 示例。**只运行一个 web 进程**（`--workers 1`）：登录限流在进程内；需要多进程时，先在边缘加共享限流。
+`paper-platform.service` 在每次启动前执行 `alembic -c pyproject.toml upgrade head`。反向代理见上面的 Caddy 或 nginx 示例。**只运行一个 web 进程**（`--workers 1`）：登录限流在进程内；需要多进程时，先在边缘加共享限流。
 
 升级：`git pull`、重新安装依赖与构建前端、`systemctl restart paper-platform paper-agent-worker`。
 
@@ -211,7 +213,7 @@ docker build -t paper-layout -f deploy/translation/Dockerfile.layout .
 # .env：PDF_LAYOUT_IMAGE=paper-layout
 ```
 
-需要上面的翻译 worker。BabelDOC 及其依赖有各自的许可证，见 [NOTICE.md](../NOTICE.md)。
+需要上面的翻译 worker。BabelDOC 及其依赖有各自的许可证，见 [NOTICE.md](NOTICE.md)。
 
 ### 图表与公式识别
 

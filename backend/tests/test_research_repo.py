@@ -57,12 +57,12 @@ def test_a_research_moves_into_its_worktree_and_keeps_its_path(world):
     assert (path / "train.py").read_text() == "print(1)\n"
     assert (path / "data" / "x.csv").exists() and (path / "weights.bin").exists()
     tracked = rr.git(path, "ls-files").stdout.split()
-    assert "train.py" in tracked and "PROJECT.md" in tracked
+    assert "train.py" in tracked and "AGENTS.md" in tracked
     # Data, and files too large for history, stay out of it.
     assert not any(t.startswith("data/") for t in tracked)
     assert "weights.bin" not in tracked
     assert "outputs/" in (path / ".gitignore").read_text()
-    assert "只用公开数据" in (path / "PROJECT.md").read_text()
+    assert "只用公开数据" in (path / "AGENTS.md").read_text()
     assert rr.owner(path) == pid
     assert rr.git(path, "branch", "--show-current").stdout.strip() == rr.branch_of(pid)
     # Once is enough.
@@ -144,4 +144,4 @@ def test_a_missing_worktree_falls_back_to_a_plain_folder(world):
     # Its branch comes back in a new worktree, with what was committed.
     rr.settle(settings, maker)
     again = rs.workdir(settings, pid)
-    assert again.is_symlink() is False and (again / "PROJECT.md").exists()
+    assert again.is_symlink() is False and (again / "AGENTS.md").exists()

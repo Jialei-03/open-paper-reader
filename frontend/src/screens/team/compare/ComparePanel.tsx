@@ -198,7 +198,7 @@ function BatchDialog({
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    Promise.all([readWorkflows(), readModels()]).then(
+    Promise.all([readWorkflows(workspaceId), readModels()]).then(
       ([flows, configs]) => {
         if (!cancelled) {
           setWorkflows(flows);
@@ -213,7 +213,7 @@ function BatchDialog({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspaceId]);
   const lines = questions
     .split("\n")
     .map((line) => line.trim())

@@ -9,10 +9,12 @@ export function WorkflowPicker({
   value,
   onChange,
   disabled = false,
+  workspaceId,
 }: {
   value: string;
   onChange(id: string): void;
   disabled?: boolean;
+  workspaceId?: string;
 }) {
   const { t } = useI18n();
   const [items, setItems] = useState<Workflow[]>([]);
@@ -20,7 +22,7 @@ export function WorkflowPicker({
   const [reads, setReads] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    readWorkflows().then(
+    readWorkflows(workspaceId).then(
       (value) => {
         if (!cancelled) {
           setItems(value);
@@ -34,7 +36,7 @@ export function WorkflowPicker({
     return () => {
       cancelled = true;
     };
-  }, [reads]);
+  }, [reads, workspaceId]);
   const current = items.find((item) => item.id === value);
   return (
     <Menu

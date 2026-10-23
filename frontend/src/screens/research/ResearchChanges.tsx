@@ -65,7 +65,9 @@ export function ForkDialog({
     let cancelled = false;
     Promise.all([
       forkOptions(project.id),
-      rerun ? readWorkflows() : Promise.resolve([]),
+      rerun
+        ? readWorkflows(project.workspace_id || undefined)
+        : Promise.resolve([]),
     ]).then(
       ([value, items]) => {
         if (cancelled) return;

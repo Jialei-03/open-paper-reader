@@ -3,12 +3,16 @@
 from sqlalchemy import func, select
 
 from . import research_brief, research_map, research_stages
-from .models import AgentRun, ResearchSprint, now
+from .models import AgentRun, ResearchSprint, TeamMember, now
 from .translation_settings import read_config
 
 
-def post(settings, d, project, text):
-    research_stages.say(d, project, "human", text)
+def post(settings, d, project, text, *, actor="human"):
+    research_stages.say(d, project, actor, text)
+    from .team_workflows import research_event, pending
+
+    if actor == "human" and not pending(project):
+        research_event(d, project, "message", role="owner", kind="text")
     active = d.scalar(
         select(AgentRun.id)
         .where(
@@ -31,7 +35,22 @@ def post(settings, d, project, text):
 
 def answer(settings, d, project, text):
     """Queue an answer to recorded messages, without repeating their events."""
-    cfg = read_config(settings, project.owner, project.model_config_id)
+    from .research_team import available
+
+    if not available(d, project, "advisor"):
+        return
+    from .team_workflows import pending
+
+    action = pending(project)
+    if not action:
+        return
+    member = d.get(TeamMember, action["member"])
+    chosen = (
+        member.model_config_id
+        if member and member.model_config_id
+        else project.model_config_id
+    )
+    cfg = read_config(settings, project.owner, chosen)
     if not cfg.get("model") or not cfg.get("api_key"):
         raise ValueError("请先选择可用模型")
     number = (
@@ -59,24 +78,33 @@ def answer(settings, d, project, text):
     run = AgentRun(
         owner=project.owner,
         session_id=project.session_id,
-        model_config_id=project.model_config_id,
+        model_config_id=chosen,
         model=cfg["model"],
         prompt=text.strip(),
         context=brief,
         writable=False,
         lane="research",
         runtime={
+            "rule": {
+                k: action[k]
+                for k in ("rule", "workflow", "workflow_version")
+                if k in action
+            },
             "research": {
                 "project_id": project.id,
                 "sprint_id": sprint.id,
                 "workspace_id": project.workspace_id,
                 "role": "discussion",
-            }
+                **({"member_id": member.id} if member else {}),
+            },
         },
     )
     d.add(run)
     d.flush()
     sprint.run_id = run.id
+    from .team_workflows import consumed
+
+    consumed(project)
     research_map.event(
         d,
         project,

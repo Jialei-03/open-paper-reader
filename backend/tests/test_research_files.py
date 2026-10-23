@@ -19,7 +19,7 @@ def env(cloud_env):  # noqa: F811
 
 BASE = "/api/v1/research/projects"
 # What every research's worktree starts with from its project (research_repo).
-PROJECT_FILES = {".gitignore", "PROJECT.md", "memory", "shared"}
+PROJECT_FILES = {".gitignore", "AGENTS.md", "memory", "shared", ".ora"}
 
 
 def mine(entries):

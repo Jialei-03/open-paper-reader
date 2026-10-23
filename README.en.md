@@ -103,4 +103,4 @@ Getting started on a new machine, the code map, how the research system runs, te
 
 ## License
 
-[MIT](LICENSE). Third-party licenses are in [NOTICE](NOTICE.md). This project is not affiliated with Anthropic or OpenAI.
+[MIT](LICENSE). Third-party licenses are in [NOTICE](docs/NOTICE.md). This project is not affiliated with Anthropic or OpenAI.

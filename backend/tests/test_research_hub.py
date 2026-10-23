@@ -71,7 +71,14 @@ def test_new_workspaces_have_no_hidden_lead_and_new_research_scopes_real_pi(env)
         == 410
     )
     with app.state.maker() as d:
-        assert d.scalar(select(func.count(AgentSession.id))) == 0
+        assert (
+            d.scalar(
+                select(func.count(AgentSession.id)).where(
+                    AgentSession.kind != "team_member"
+                )
+            )
+            == 0
+        )
     p = create(env, w["id"])
     assert p["collection_id"] is None and p["on_board"] is False
     assert p["stage"] == "scoping" and p["status"] == "active"
@@ -229,6 +236,7 @@ def test_collection_owner_archival_and_location_validation(env, tmp_path):
     nav = a.get(BASE + "/navigation").json()
     assert nav["workspaces"][0]["location"]["path"] == str(folder.resolve())
     assert not (folder / "PROJECT.md").exists()
+    assert not (folder / "AGENTS.md").exists()
 
 
 def test_legacy_migration_retains_research_ids_and_pi_history_without_starting_chat(
@@ -355,11 +363,22 @@ def test_real_0038_to_0039_upgrade_adds_columns_and_preserves_legacy_rows(
         testing=True,
     )
     monkeypatch.setattr(Settings, "env", classmethod(lambda cls: settings))
-    command.upgrade(Config("alembic.ini"), "0038")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0038")
     engine, maker = database(settings)
     # Use current ORM factories to seed the historical data, then remove all
     # future fields before testing the real upgrade below.
     with engine.begin() as c:
+        # Current workspace factories also map the unrelated 0045 rule fields.
+        # Keep these compatibility columns while exercising the 0039 upgrade.
+        for column in ("workflow", "workflow_state"):
+            if column not in {
+                col["name"] for col in inspect(c).get_columns("research_workspaces")
+            }:
+                c.execute(
+                    text(
+                        f"ALTER TABLE research_workspaces ADD COLUMN {column} JSON NOT NULL DEFAULT '{{}}'"
+                    )
+                )
         if "location" not in {
             col["name"] for col in inspect(c).get_columns("research_workspaces")
         }:
@@ -418,7 +437,7 @@ def test_real_0038_to_0039_upgrade_adds_columns_and_preserves_legacy_rows(
         for name in ("title", "collection_id", "on_board"):
             c.execute(text(f"ALTER TABLE research_projects DROP COLUMN {name}"))
         c.execute(text("ALTER TABLE research_workspaces DROP COLUMN location"))
-    command.upgrade(Config("alembic.ini"), "0039")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0039")
     with maker() as d:
         assert d.get(ResearchProject, pid).id == pid
         assert d.get(ResearchProject, pid).on_board is False
@@ -470,9 +489,9 @@ def test_real_0038_to_0039_upgrade_adds_columns_and_preserves_legacy_rows(
                 select(ResearchSprint.id).where(ResearchSprint.project_id == legacy_pid)
             )
         )
-    command.downgrade(Config("alembic.ini"), "0038")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0038")
     assert "research_collections" in inspect(engine).get_table_names()
-    command.upgrade(Config("alembic.ini"), "0039")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0039")
     with maker() as d:
         assert d.get(ResearchWorkspace, wid).location == location
         assert d.get(ResearchWorkspace, new_wid).location["kind"] == "ssh"

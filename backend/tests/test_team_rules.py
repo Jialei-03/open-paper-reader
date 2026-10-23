@@ -234,10 +234,13 @@ def test_wait_has_priority_even_when_last_and_event_mentions_someone(members):
     assert brief(actions) == [("wait_for_owner", None)]
 
 
-def test_six_hop_relay_including_mentions_and_jobs(members):
-    flow = workflow(rule(), rule("job", trigger="job_finished"))
+def test_agent_handoffs_are_never_capped(members):
+    many = {"per_thread": 1000}
+    flow = workflow(
+        rule(limit=many), rule("job", trigger="job_finished", limit=many)
+    )
     state = {}
-    for index in range(6):
+    for index in range(40):
         item = (
             event(members, "advisor", mentions=["m-executor"])
             if index % 2
@@ -245,29 +248,6 @@ def test_six_hop_relay_including_mentions_and_jobs(members):
         )
         actions, state = run(flow, item, state, members)
         assert brief(actions) == [("wake", "m-executor")]
-    actions, state = run(flow, event(members, "advisor"), state, members)
-    assert brief(actions) == [("wait_for_owner", None)]
-    assert scope(state)["relay"] == 6
-    assert (
-        run(
-            flow, event(members, "advisor", mentions=["m-writer"]), state, members
-        ).actions
-        == []
-    )
-    actions, state = run(flow, event(members), state, members)
-    assert brief(actions) == [("wake", "m-executor")] and scope(state)["relay"] == 1
-
-
-def test_relay_is_shared_between_workflows_and_does_not_count_posts(members):
-    flow = workflow(rule(action="post"))
-    state = {}
-    for _ in range(8):
-        _, state = run(flow, event(members, "advisor"), state, members)
-    assert scope(state)["relay"] == 0
-    for index in range(7):
-        flow = {**workflow(rule()), "id": f"flow-{index}"}
-        actions, state = run(flow, event(members, "advisor"), state, members)
-    assert brief(actions) == [("wait_for_owner", None)]
 
 
 @pytest.mark.parametrize("maximum", [0, 1, 3])
@@ -278,7 +258,7 @@ def test_review_returns_at_most_n_times(maximum, members):
     flow = workflow(spec)
     state = {}
     for attempt in range(maximum + 1):
-        # The owner can resume a long review series past the six-hop cap.
+        # The owner can resume a long review series past the relay cap.
         _, state = run(flow, event(members), state, members)
         actions, state = run(
             flow, event(members, "executor", kind="result"), state, members
@@ -286,11 +266,7 @@ def test_review_returns_at_most_n_times(maximum, members):
         assert brief(actions) == [("review", "m-advisor")]
         failed = event(members, "advisor", type="review_failed", kind="review")
         actions, state = run(flow, failed, state, members)
-        expected = (
-            [("wake", "m-executor")]
-            if attempt < maximum
-            else [("wait_for_owner", None)]
-        )
+        expected = [("wake", "m-executor")] if attempt < maximum else [("limit", None)]
         assert brief(actions) == expected
         assert all(a["rule"] == "r" for a in actions)
         assert run(flow, failed, state, members).actions == []
@@ -372,21 +348,6 @@ def test_returns_obey_rule_limit(members):
         ).actions
         == []
     )
-
-
-def test_relay_exhaustion_does_not_count_an_unperformed_review_return(members):
-    review = rule(action="review")
-    review["when"].update(from_role="executor", kind="result")
-    flow = workflow(review, rule("job", trigger="job_finished"))
-    _, state = run(flow, event(members, "executor", kind="result"), {}, members)
-    for _ in range(5):
-        _, state = run(flow, event(members, None, type="job_finished"), state, members)
-    actions, state = run(
-        flow, event(members, "advisor", type="review_failed"), state, members
-    )
-    assert brief(actions) == [("wait_for_owner", None)]
-    execution = next(iter(scope(state)["workflows"].values()))
-    assert execution["reviews"]["r"]["returns"] == 0
 
 
 def test_pure_deterministic_detached_and_json_serializable(members):
@@ -682,7 +643,7 @@ def test_research_planning_and_job_handoff(members):
         "research",
         [
             ("owner", "message", "text"),
-            ("executor", "message", "plan"),
+            ("advisor", "message", "plan"),
             ("owner", "plan_approved", "plan"),
             (None, "job_finished", "result"),
             ("executor", "message", "result"),
@@ -691,7 +652,7 @@ def test_research_planning_and_job_handoff(members):
         members,
     )
     assert actual == [
-        [("wake", "m-executor")],
+        [("wake", "m-advisor")],
         [("wait_for_owner", None)],
         [("wake", "m-executor")],
         [("wake", "m-executor")],
@@ -828,7 +789,7 @@ def test_builtin_accepts_additional_rules_without_linear_cursor_conditions(membe
     flow = rules.builtin_workflows()["research"]
     flow["rules"].append(rule("announce", action="post"))
     actions, state = run(flow, event(members), {}, members)
-    assert brief(actions) == [("wake", "m-executor"), ("post", None)]
+    assert brief(actions) == [("wake", "m-advisor"), ("post", None)]
     actions, _ = run(flow, event(members, "guest"), state, members)
     assert brief(actions) == [("post", None)]
 
@@ -896,7 +857,7 @@ def test_custom_linear_cursor_and_retry_return_to_previous_step(members):
     actions, _ = run(
         flow, event(members, "advisor", type="review_failed"), state, members
     )
-    assert brief(actions) == [("wait_for_owner", None)]
+    assert brief(actions) == [("limit", None)]
 
 
 @pytest.mark.parametrize(

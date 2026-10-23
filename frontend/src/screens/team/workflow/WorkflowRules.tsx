@@ -30,6 +30,7 @@ export function WorkflowRules({
   onChange,
   onEdit,
   query = "",
+  readOnly = false,
 }: WorkflowRulesProps) {
   const { t } = useI18n();
   const dragged = useRef<string | null>(null);
@@ -55,15 +56,16 @@ export function WorkflowRules({
               }}
               onDrop={(event) => {
                 event.preventDefault();
-                if (dragged.current)
+                if (!readOnly && dragged.current)
                   onChange(moveRule(workflow, dragged.current, index));
                 dragged.current = null;
               }}
             >
               <IconButton
+                disabled={readOnly}
                 icon={GripVertical}
                 label={t("workflows.reorder")}
-                draggable
+                draggable={!readOnly}
                 onDragStart={(event) => {
                   dragged.current = rule.id;
                   event.dataTransfer.setData("text/plain", rule.id);
@@ -93,6 +95,7 @@ export function WorkflowRules({
               </button>
               <button
                 type="button"
+                disabled={readOnly}
                 role="switch"
                 aria-checked={rule.enabled}
                 aria-label={t("teamWorkflow.enable")}
@@ -118,7 +121,7 @@ export function WorkflowRules({
                     id: "up",
                     icon: ArrowUp,
                     label: t("workflows.moveUp"),
-                    disabled: index === 0,
+                    disabled: readOnly || index === 0,
                     onSelect: () =>
                       onChange(moveRule(workflow, rule.id, index - 1)),
                   },
@@ -126,12 +129,13 @@ export function WorkflowRules({
                     id: "down",
                     icon: ArrowDown,
                     label: t("workflows.moveDown"),
-                    disabled: index === workflow.rules.length - 1,
+                    disabled: readOnly || index === workflow.rules.length - 1,
                     onSelect: () =>
                       onChange(moveRule(workflow, rule.id, index + 1)),
                   },
                   {
                     id: "delete",
+                    disabled: readOnly,
                     icon: Trash2,
                     label: t("teamWorkflow.delete"),
                     danger: true,

@@ -111,8 +111,8 @@ export function ScheduleNavigation({
         {items.map((item) => (
           <a
             key={item.id}
-            href={`#schedules/${item.id}`}
-            onClick={followLink(go, `schedules/${item.id}`)}
+            href={`#${item.editor_url || `schedules/${item.id}`}`}
+            onClick={followLink(go, item.editor_url || `schedules/${item.id}`)}
             aria-current={currentId === item.id ? "page" : undefined}
           >
             <span>{item.title}</span>
@@ -207,8 +207,11 @@ function ScheduleList({ go }: { go(hash: string): void }) {
             <li key={item.id}>
               <Clock3 size={16} aria-hidden />
               <a
-                href={`#schedules/${item.id}`}
-                onClick={followLink(go, `schedules/${item.id}`)}
+                href={`#${item.editor_url || `schedules/${item.id}`}`}
+                onClick={followLink(
+                  go,
+                  item.editor_url || `schedules/${item.id}`,
+                )}
               >
                 {item.title}
               </a>
@@ -562,6 +565,7 @@ function ScheduleEditor({
               {draft.destination === "new" && (
                 <div>
                   <WorkflowPicker
+                    workspaceId={draft.workspace_id}
                     value={draft.workflow_id || "research"}
                     onChange={(value) => edit("workflow_id", value)}
                     disabled={busy}

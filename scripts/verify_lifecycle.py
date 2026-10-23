@@ -45,7 +45,7 @@ def main():
                 text=True,
             ).stdout
 
-        command("-m", "alembic", "upgrade", "head")
+        command("-m", "alembic", "-c", "pyproject.toml", "upgrade", "head")
         password = secrets.token_urlsafe(32)
         bootstrap(
             Settings(database_url=env["DATABASE_URL"], storage=env["STORAGE_DIR"]),
@@ -170,7 +170,7 @@ def main():
             subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "examples/agent_client.py"),
+                    str(ROOT / "docs/examples/agent_client.py"),
                     base,
                     p["id"],
                     str(source / "source/latex-v1/sec/method.tex"),
@@ -209,7 +209,7 @@ def main():
             )
             env["DATABASE_URL"] = "sqlite:///" + str(directory / "restored.db")
             env["STORAGE_DIR"] = str(directory / "restored-files")
-            command("-m", "alembic", "upgrade", "head")
+            command("-m", "alembic", "-c", "pyproject.toml", "upgrade", "head")
             restored = json.loads(
                 command(
                     "-m",

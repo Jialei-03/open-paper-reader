@@ -60,4 +60,4 @@ Python、Shell 和文件工具不在宿主机上执行，而是在每轮一个�
 - 运行时在 [`agent-runtime/`](../agent-runtime)（`runner.mjs`、`sandbox-tools.mjs`、`model-lease.mjs`、`network.mjs`），测试用 `npm --prefix agent-runtime test`，会用真实的 Pi 对接本地模拟的 OpenAI/Anthropic SSE 服务。
 - 助手的行为说明写在 [`agent-runtime/skills/paper-workspace/SKILL.md`](../agent-runtime/skills/paper-workspace/SKILL.md)，系统提示只保留身份、安全和技能入口。
 - Python 一侧：[`agent_tools.py`](../backend/agent_tools.py)（工具定义与执行）、[`agent_worker.py`](../backend/agent_worker.py)、[`agent_sandbox.py`](../backend/agent_sandbox.py)、[`agent_receipts.py`](../backend/agent_receipts.py)（回读凭证）、[`agent_checkpoint.py`](../backend/agent_checkpoint.py)（续接）。
-- 外部程序也可以用 API 凭据读写你的工作区，见 [API](API.md) 与 [`examples/agent_client.py`](../examples/agent_client.py)。
+- 外部程序也可以用 API 凭据读写你的工作区，见 [API](API.md) 与 [`docs/examples/agent_client.py`](examples/agent_client.py)。

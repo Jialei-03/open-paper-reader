@@ -286,10 +286,10 @@ def fork(settings, d, source, body):
         return existing
     from .research_workflows import definition
 
-    workflow = definition(d, source.owner, body.workflow_id)
     workspace = (
         d.get(ResearchWorkspace, source.workspace_id) if source.workspace_id else None
     )
+    workflow = definition(d, source.owner, body.workflow_id, workspace=workspace)
     session = d.get(AgentSession, source.session_id)
     if workspace is None or workspace.owner != source.owner:
         raise ValueError("研究尚未关联项目")

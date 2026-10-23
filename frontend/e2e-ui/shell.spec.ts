@@ -525,6 +525,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openKit(page, { theme, locale: "en" });
     await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    // Measure after the theme's color transitions finish.
+    await settled(page);
     const nav = sidebar(page);
     const shell = await cssOf(page.locator("body"), "background-color");
     const colorOf = (locator: Locator) => cssOf(locator, "color");

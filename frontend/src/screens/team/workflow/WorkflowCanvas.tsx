@@ -103,6 +103,7 @@ const nodeTypes = { workflow: CanvasNode };
 
 function Canvas({
   workflow,
+  readOnly = false,
   members,
   channels,
   runtime,
@@ -224,16 +225,20 @@ function Canvas({
                   : "teamWorkflow.channels",
               )}
             </h2>
-            {(kind === "member" ? members : channels).map((entity) => (
+            {(kind === "member"
+              ? members
+              : channels.filter((c) => c.kind !== "dm")
+            ).map((entity) => (
               <Button
                 key={entity.id}
                 variant="ghost"
                 icon={kind === "channel" ? Hash : Plus}
-                draggable
+                draggable={!readOnly}
                 aria-label={t("teamWorkflow.addNode", { name: entity.name })}
-                disabled={nodes.some(
-                  (node) => node.id === nodeId(kind, entity.id),
-                )}
+                disabled={
+                  readOnly ||
+                  nodes.some((node) => node.id === nodeId(kind, entity.id))
+                }
                 onClick={() => addNode({ kind, id: entity.id })}
                 onDragStart={(event) => {
                   event.dataTransfer.setData(
@@ -270,6 +275,7 @@ function Canvas({
             event.stopPropagation();
             openNode(node);
           } else if (
+            !readOnly &&
             node?.draggable !== false &&
             node &&
             ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
@@ -310,6 +316,8 @@ function Canvas({
         <ReactFlow<WorkflowNode, WorkflowEdge>
           nodes={nodes.map((node) => ({
             ...node,
+            draggable: readOnly ? false : node.draggable,
+            connectable: !readOnly,
             ariaLabel:
               node.data.kind === "trigger"
                 ? `${t(`teamWorkflow.event.${node.data.event ?? "message"}`)} ${node.data.name}`
@@ -330,14 +338,24 @@ function Canvas({
           minZoom={0.25}
           maxZoom={2}
           nodesFocusable
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
           edgesFocusable
           connectOnClick
           deleteKeyCode={null}
           colorMode="system"
           onNodesChange={(changes) => {
-            setNodes(updateCanvasNodes(workflow, nodes, changes, onChange));
+            setNodes(
+              updateCanvasNodes(
+                workflow,
+                nodes,
+                changes,
+                readOnly ? () => undefined : onChange,
+              ),
+            );
           }}
           onConnect={(connection) => {
+            if (readOnly) return;
             const rule = connectionToRule(
               connection,
               nodes,
@@ -369,6 +387,7 @@ function Canvas({
           }}
           onDrop={(event) => {
             event.preventDefault();
+            if (readOnly) return;
             try {
               const value: unknown = JSON.parse(
                 event.dataTransfer.getData(DRAG_TYPE),
@@ -446,6 +465,7 @@ function Canvas({
               )}
             <Button
               variant="primary"
+              disabled={readOnly}
               onClick={() => {
                 if (!selected) return;
                 const rule = newRule(`r-${crypto.randomUUID()}`);

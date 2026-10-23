@@ -58,7 +58,7 @@ class ProjectInput(BaseModel):
     workspace_id: str = Field(default="", max_length=64)
     collection_id: str | None = Field(default=None, max_length=36)
     defer_start: bool = False
-    workflow_id: str = Field(default="research", max_length=64)
+    workflow_id: str | None = Field(default=None, max_length=64)
 
     @field_validator("message", "question")
     @classmethod
@@ -368,6 +368,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
 
     install_workflow_routes(app, settings, db, auth, allowed, owned)
 
+    from .research_team_routes import install_team_routes
+
+    install_team_routes(app, settings, db, auth, workspace_of)
+
     @app.get("/api/v1/research/workspaces")
     def workspaces(a=Depends(auth), d=Depends(db)):
         from . import research_workspaces
@@ -423,6 +427,9 @@ def install_research_routes(app, settings, db, auth, human, owned):
             w = research_workspaces.create(
                 d, a["id"], body.name, body.description, location=location
             )
+            from .research_team import ensure as ensure_team
+
+            ensure_team(d, w)
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
         d.commit()
@@ -940,7 +947,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
             "role": (runtime.get("research") or {}).get("role", ""),
             "runtime": {
                 k: runtime.get(k)
-                for k in ("phase", "execution_seconds", "waiting_seconds")
+                for k in ("phase", "execution_seconds", "waiting_seconds", "rule")
                 if k in runtime
             },
             "created_at": run.created_at,
@@ -1075,7 +1082,10 @@ def install_research_routes(app, settings, db, auth, human, owned):
         )
         return {
             "project": project_out(
-                p, location=research_location(settings, workspace, p) if workspace else None
+                p,
+                location=(
+                    research_location(settings, workspace, p) if workspace else None
+                ),
             ),
             "inherited_history": p.inherited_history or {"events": [], "sprints": []},
             "nodes": [node_out(n) for n in research_map.nodes(d, p)],

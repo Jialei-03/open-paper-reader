@@ -97,8 +97,8 @@ def test_ink_migration_preserves_existing_file(tmp_path, monkeypatch):
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
         conn.execute(text("INSERT INTO alembic_version VALUES ('0013')"))
-    command.upgrade(Config("alembic.ini"), "head")
+    command.upgrade(Config(toml_file="pyproject.toml"), "head")
     with engine.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM ink_strokes")).scalar() == 0
-    command.downgrade(Config("alembic.ini"), "0013")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0013")
     engine.dispose()

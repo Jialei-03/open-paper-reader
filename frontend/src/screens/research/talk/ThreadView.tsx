@@ -1,3 +1,5 @@
+import { ruleHash } from "../team-api";
+import settingStyles from "../../team/TeamSettings.module.css";
 import {
   Check,
   Copy,
@@ -47,7 +49,9 @@ const ROLE_AGENT: Record<string, Agent> = {
 export function Prose({ text }: { text: string }) {
   return (
     <div className={styles.prose}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+        {text.replaceAll("\\n", "\n")}
+      </ReactMarkdown>
     </div>
   );
 }
@@ -790,6 +794,14 @@ function WorkBlock({
         )
       }
     >
+      {run?.runtime.rule && project.workspace_id && (
+        <a
+          className={settingStyles.ruleLink}
+          href={`#${ruleHash(project.workspace_id, run.runtime.rule.workflow, run.runtime.rule.workflow_version, run.runtime.rule.rule)}`}
+        >
+          {run.runtime.rule.rule}
+        </a>
+      )}
       {item.sprint.commit_sha && item.sprint.status !== "running" && (
         <CheckpointCard
           id={project.id}

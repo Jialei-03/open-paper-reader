@@ -1,6 +1,6 @@
 # 配置
 
-Open Paper Reader 全部通过环境变量配置。`docker compose` 读取项目根目录的 `.env`；`scripts/run.sh`（`make run`）会 `source .env`；原生安装用 systemd 的 `EnvironmentFile`。可以从 [`.env.example`](../.env.example) 开始。
+Open Paper Reader 全部通过环境变量配置。`docker compose --env-file .env -f deploy/docker-compose.yml` 读取项目根目录的 `.env`；`scripts/run.sh`（`make run`）会 `source .env`；原生安装用 systemd 的 `EnvironmentFile`。可以从 [`.env.example`](../deploy/.env.example) 开始。
 
 `.env` 已在 `.gitignore` 里。里面会有数据库密码、邮件密码等，不要提交，也不要贴进 issue。
 
@@ -112,7 +112,7 @@ Open Paper Reader 全部通过环境变量配置。`docker compose` 读取项目
 
 ## Docker Compose 专用
 
-`docker-compose.yml` 会把 `.env` 里的**所有**变量传给 `web` 和 `worker` 容器，所以上面的设置在 Docker 里和不用 Docker 时写法一样（改完 `docker compose up -d` 生效）。只有这几项由 compose 固定，写在 `.env` 里也不起作用：`DATABASE_URL`（指向 compose 里的 PostgreSQL，密码取自 `POSTGRES_PASSWORD`）、`STORAGE_DIR`（`/data/files`）、容器内的监听端口（`APP_PORT` 在这里只决定发布到宿主机的端口）。共享模型文件放在数据卷里的 `/data/platform-model.json`，见 [部署](DEPLOYMENT.md#共享模型可选)。
+`deploy/docker-compose.yml` 会把 `.env` 里的**所有**变量传给 `web` 和 `worker` 容器，所以上面的设置在 Docker 里和不用 Docker 时写法一样（改完 `docker compose --env-file .env -f deploy/docker-compose.yml up -d` 生效）。只有这几项由 compose 固定，写在 `.env` 里也不起作用：`DATABASE_URL`（指向 compose 里的 PostgreSQL，密码取自 `POSTGRES_PASSWORD`）、`STORAGE_DIR`（`/data/files`）、容器内的监听端口（`APP_PORT` 在这里只决定发布到宿主机的端口）。共享模型文件放在数据卷里的 `/data/platform-model.json`，见 [部署](DEPLOYMENT.md#共享模型可选)。
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |

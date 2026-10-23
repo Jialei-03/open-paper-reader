@@ -51,12 +51,12 @@ def test_runtime_migration_preserves_existing_runs(tmp_path, monkeypatch):
         connection.execute("INSERT INTO alembic_version VALUES ('0009')")
     monkeypatch.setenv("DATABASE_URL", "sqlite:///" + str(db))
     monkeypatch.setenv("APP_ENV", "development")
-    command.upgrade(Config("alembic.ini"), "0012")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0012")
     with sqlite3.connect(db) as connection:
         assert connection.execute(
             "SELECT response, runtime FROM agent_runs"
         ).fetchone() == ("existing response", "{}")
-    command.downgrade(Config("alembic.ini"), "0009")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0009")
     with sqlite3.connect(db) as connection:
         assert connection.execute("SELECT response FROM agent_runs").fetchone() == (
             "existing response",

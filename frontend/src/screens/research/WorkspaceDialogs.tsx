@@ -39,10 +39,12 @@ export function WorkspacePicker({
   value,
   onChange,
   prominent = false,
+  label,
 }: {
   value: string;
   onChange(id: string): void;
   prominent?: boolean;
+  label?: string;
 }) {
   const { t } = useI18n();
   const { data, connections } = useResearchNavigation();
@@ -98,7 +100,7 @@ export function WorkspacePicker({
           type="button"
           ref={anchor}
           className={styles.chip}
-          aria-label={t("workspace.choose")}
+          aria-label={label || t("workspace.choose")}
           aria-expanded={open}
           aria-haspopup="dialog"
           onClick={toggle}

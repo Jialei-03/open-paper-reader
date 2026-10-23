@@ -12,6 +12,11 @@ import type {
   Workspace,
 } from "../../src/screens/research/research-api";
 import { createPaperWithPdf, signIn } from "../reader/fixtures";
+import { advisorDM, experiments, mockTeam } from "../fixtures/team";
+import {
+  teamHash,
+  type TeamMessage,
+} from "../../src/screens/research/team-api";
 
 const at = "2026-10-22T08:00:00Z";
 const wid = "11111111-1111-4111-8111-111111111111";
@@ -564,6 +569,39 @@ async function project(page: Page) {
     }
     return route.fulfill({ json: chat });
   });
+  await mockTeam(page, {
+    researches: (id) =>
+      state.researches.filter((r) => (r.workspace_id || wid) === id),
+    history: () =>
+      Object.values(state.turns).flatMap((turns) =>
+        turns.flatMap((run): TeamMessage[] => [
+          {
+            id: `legacy-user:${run.id}`,
+            channel_id: advisorDM,
+            thread_id: null,
+            author_id: "human",
+            text: run.prompt,
+            kind: "legacy",
+            mentions: [],
+            data: {},
+            created_at: run.created_at,
+            replies: 0,
+          },
+          {
+            id: `legacy:${run.id}`,
+            channel_id: advisorDM,
+            thread_id: null,
+            author_id: "advisor",
+            text: run.response,
+            kind: "legacy",
+            mentions: [],
+            data: {},
+            created_at: run.updated_at,
+            replies: 0,
+          },
+        ]),
+      ),
+  });
   await signIn(page);
   await page.goto(`/#new?workspace=${wid}`);
   await expect(
@@ -817,8 +855,16 @@ test("global quick open searches project sessions and keeps papers first for key
   });
   await page.goto(`/#projects/${wid}/chats/${old}`);
   await expect(
-    page.getByTestId("project-history-chat").getByRole("textbox"),
+    page
+      .getByTestId("team-screen")
+      .getByRole("textbox", { name: "消息", exact: true }),
   ).toBeEnabled();
+  await expect(
+    page.getByRole("region", { name: "advisor", exact: true }),
+  ).toContainText("以前的问题");
+  await expect(
+    page.getByRole("region", { name: "advisor", exact: true }),
+  ).toContainText("以前的回答");
   await expect(
     page.getByRole("button", { name: "搜索论文、项目与会话", exact: true }),
   ).toBeVisible();
@@ -938,7 +984,13 @@ test("new research stays empty until the first message chooses a physical worksp
     path: testInfo.outputPath("new-research-zh-desktop.png"),
   });
   await start.getByRole("button", { name: "发送", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`#research/${direct}$`));
+  await expect(page).toHaveURL(
+    (url) =>
+      url.hash === `#${teamHash(wid, experiments, `research:${direct}`)}`,
+  );
+  await expect(
+    page.getByRole("region", { name: "线程", exact: true }),
+  ).toBeVisible();
   expect(state.direct).toEqual([
     {
       message: "比较两个维度的表示质量",
@@ -957,7 +1009,7 @@ test("new research keeps the workspace and classification of the open research",
   page,
 }) => {
   const state = await project(page);
-  await page.goto(`/#research/${rid}`);
+  await page.goto(`/#${teamHash(wid, experiments, `research:${rid}`)}`);
   const start = page
     .getByRole("navigation", { name: "侧栏" })
     .getByRole("link", { name: "新研究", exact: true });
@@ -990,7 +1042,10 @@ test("a missing explicit workspace asks for a folder instead of silently changin
   await expect(
     page.getByRole("button", { name: "发送", exact: true }),
   ).toBeDisabled();
-  await page.getByRole("button", { name: "选择项目", exact: true }).click();
+  await page
+    .getByTestId("new-research")
+    .getByRole("button", { name: "选择项目", exact: true })
+    .click();
   // An ordinary navigation refresh must not unmount the recovery picker.
   await expect(
     page.getByRole("dialog", { name: "选择项目", exact: true }),
@@ -1007,7 +1062,10 @@ test("workspace chooser searches real folders and creates a workspace without an
   page,
 }) => {
   const state = await project(page);
-  await page.getByRole("button", { name: "选择项目", exact: true }).click();
+  await page
+    .getByTestId("new-research")
+    .getByRole("button", { name: "选择项目", exact: true })
+    .click();
   const chooser = page.getByRole("dialog", { name: "选择项目", exact: true });
   await chooser
     .getByRole("searchbox", { name: "搜索项目" })
@@ -1079,7 +1137,10 @@ test("workspace folders hide dot directories by default and still open a hidden 
       },
     });
   });
-  await page.getByRole("button", { name: "选择项目", exact: true }).click();
+  await page
+    .getByTestId("new-research")
+    .getByRole("button", { name: "选择项目", exact: true })
+    .click();
   await page
     .getByRole("dialog", { name: "选择项目", exact: true })
     .getByRole("button", { name: "新建项目", exact: true })
@@ -1211,7 +1272,14 @@ test("SSH connections validate before a remote folder can become a workspace", a
     "实验服务器 · /home/runner/lab",
   );
   await expect(
-    page.getByRole("link", { name: "远端实验", exact: true }),
+    page
+      .getByRole("navigation", { name: "侧栏", exact: true })
+      .getByRole("button", { name: "切换团队", exact: true }),
+  ).toHaveText("远端实验");
+  await expect(
+    page
+      .getByRole("main")
+      .getByRole("heading", { name: "远端实验", exact: true }),
   ).toBeVisible();
   await page.goto("/#new?workspace=bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   await expect(
@@ -1226,7 +1294,10 @@ test("SSH connections validate before a remote folder can become a workspace", a
       .getByTestId("new-research")
       .getByRole("button", { name: "选择项目", exact: true }),
   ).toHaveText("远端实验");
-  await page.getByRole("button", { name: "选择项目", exact: true }).click();
+  await page
+    .getByTestId("new-research")
+    .getByRole("button", { name: "选择项目", exact: true })
+    .click();
   const folderPicker = page.getByRole("dialog", {
     name: "选择项目",
     exact: true,
@@ -1258,10 +1329,7 @@ test("SSH connections validate before a remote folder can become a workspace", a
   ).toBeVisible();
   await expect(page.getByRole("tab")).toHaveCount(0);
   await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
-  await page
-    .getByRole("navigation", { name: "侧栏", exact: true })
-    .getByRole("link", { name: "远端实验", exact: true })
-    .click();
+  await page.goto("/#workspaces/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   await expect(page.getByRole("main")).toContainText(
     "实验服务器 · /home/runner/lab",
   );
@@ -1308,10 +1376,12 @@ test("notifications open pending conversations and sidebar entries expose real s
   state.researches[0].status = "waiting";
   await page.reload();
   const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
-  const pending = sidebar.locator(`a[href="#research/${rid}"]`).first();
-  await expect(pending).toHaveAttribute("aria-description", "等你确认");
+  const advisor = sidebar.getByRole("group", { name: "私信", exact: true });
   await expect(
-    pending.getByRole("img", { name: "等你确认", exact: true }),
+    advisor.getByRole("link", { name: "advisor", exact: true }),
+  ).toBeVisible();
+  await expect(
+    advisor.getByRole("img", { name: "等你", exact: true }),
   ).toBeVisible();
   await sidebar.getByRole("button", { name: "通知", exact: true }).click();
   const notifications = page.getByRole("dialog", { name: "通知", exact: true });
@@ -1319,15 +1389,21 @@ test("notifications open pending conversations and sidebar entries expose real s
   await notifications
     .getByRole("button", { name: new RegExp(research.question) })
     .click();
-  await expect(page).toHaveURL(new RegExp(`#research/${rid}$`));
+  await expect(page).toHaveURL(
+    (url) => url.hash === `#${teamHash(wid, "", `research:${rid}`)}`,
+  );
   await expect(notifications).toHaveCount(0);
+  const thread = page.getByRole("region", { name: "线程", exact: true });
   await expect(
-    page.getByRole("textbox", { name: "研究会话消息" }),
+    thread.getByRole("heading", { name: research.question, exact: true }),
+  ).toBeVisible();
+  await expect(
+    thread.getByRole("textbox", { name: "消息", exact: true }),
   ).toHaveAttribute("placeholder", "接着说");
   expect(state.direct).toEqual([]);
 });
 
-test("projects show five conversations, expand more, and nest derived conversations", async ({
+test("team channels keep every research and derived conversation accessible as a thread", async ({
   page,
 }) => {
   const state = await project(page);
@@ -1339,54 +1415,65 @@ test("projects show five conversations, expand more, and nest derived conversati
     updated_at: `2026-10-22T08:0${n}:00Z`,
     parent_id: n === 5 ? rid : null,
   }));
-  await page.reload();
+  await page.goto(`/#${teamHash(wid, experiments)}`);
   const sidebar = page.getByRole("navigation", { name: "侧栏" });
-  const toggle = sidebar.getByRole("button", {
-    name: "展开 表示学习",
-    exact: true,
-  });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true")
-    await toggle.click();
-  const threads = sidebar.locator('[class*="treeThreads"]').first();
-  await expect(threads.getByRole("link")).toHaveCount(5);
-  await sidebar.getByRole("button", { name: "展开显示", exact: true }).click();
-  await expect(threads.getByRole("link")).toHaveCount(7);
-  const parent = threads.getByRole("link", { name: "研究 0", exact: true });
-  const child = threads.getByRole("link", { name: "研究 5", exact: true });
-  expect(
-    await child.evaluate((el) => parseInt(getComputedStyle(el).paddingLeft)),
-  ).toBeGreaterThan(
-    await parent.evaluate((el) => parseInt(getComputedStyle(el).paddingLeft)),
-  );
   await expect(
-    sidebar.getByRole("link", { name: "表示学习", exact: true }),
+    sidebar.getByRole("group", { name: "频道", exact: true }),
   ).toBeVisible();
   await expect(
-    sidebar.getByRole("button", { name: "按什么分组", exact: true }),
-  ).toHaveCount(0);
+    sidebar.getByRole("group", { name: "私信", exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("button", { name: "切换团队", exact: true }),
+  ).toHaveText(workspace.name);
+  const channel = page.getByRole("region", { name: "实验", exact: true });
+  await expect(channel.getByRole("article")).toHaveCount(7);
+  await expect(
+    channel.getByRole("button", { name: "研究 0", exact: true }),
+  ).toBeVisible();
+  await channel.getByRole("button", { name: "研究 5", exact: true }).click();
+  const thread = page.getByRole("region", { name: "线程", exact: true });
+  await expect(
+    thread.getByRole("heading", { name: "研究 5", exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(
+    (url) =>
+      url.hash ===
+      `#${teamHash(wid, experiments, `research:${state.researches[5].id}`)}`,
+  );
+  await thread.getByRole("button", { name: "关闭", exact: true }).click();
+  await expect(thread).toHaveCount(0);
+  await expect(channel.getByRole("article")).toHaveCount(7);
   expect(state.direct).toEqual([]);
 });
 
-test("recent conversations remain accessible while project folds survive reload", async ({
+test("team thread selection survives reload and remains accessible after visiting materials", async ({
   page,
 }) => {
   const state = await project(page);
   const sidebar = page.getByRole("navigation", { name: "侧栏" });
-  await page.goto(`/#research/${rid}`);
+  await page.goto(`/#${teamHash(wid, experiments)}`);
+  await page
+    .getByRole("button", { name: research.question, exact: true })
+    .click();
+  const thread = page.getByRole("region", { name: "线程", exact: true });
   await expect(
-    page.getByRole("heading", { name: research.question, exact: true }),
+    thread.getByRole("heading", { name: research.question, exact: true }),
   ).toBeVisible();
-  const toggle = sidebar.getByRole("button", {
-    name: "展开 表示学习",
-    exact: true,
-  });
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await toggle.click();
   await page.reload();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await expect(sidebar.getByText("最近", { exact: true })).toBeVisible();
   await expect(
-    sidebar.getByRole("link", { name: research.question, exact: true }),
+    thread.getByRole("heading", { name: research.question, exact: true }),
+  ).toBeVisible();
+  await expect(
+    sidebar.getByRole("link", { name: "实验", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await sidebar.getByRole("link", { name: "资料", exact: true }).click();
+  await sidebar.getByRole("link", { name: "研究", exact: true }).click();
+  await expect(page).toHaveURL(
+    (url) => url.hash === `#${teamHash(wid, experiments, `research:${rid}`)}`,
+  );
+  await expect(
+    thread.getByRole("heading", { name: research.question, exact: true }),
   ).toBeVisible();
   expect(state.direct).toEqual([]);
 });
@@ -1413,7 +1500,7 @@ test("new-research drafts and models survive reading, folder and project changes
     location: { kind: "local", path: "/home/leslie/Other", connection_id: "" },
   });
   await page.reload();
-  await page.getByRole("button", { name: "选择项目", exact: true }).click();
+  await start.getByRole("button", { name: "选择项目", exact: true }).click();
   await expect(
     page.getByRole("dialog", { name: "选择项目", exact: true }),
   ).toBeVisible();

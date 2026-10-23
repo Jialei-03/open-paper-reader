@@ -89,10 +89,12 @@ export function ResearchProject({
   id,
   go,
   backHash,
+  embedded = false,
 }: {
   id: string;
   go(hash: string): void;
   backHash?: string;
+  embedded?: boolean;
 }) {
   const { t, locale } = useI18n();
   const { owner } = useContext(AppActions);
@@ -369,6 +371,19 @@ export function ResearchProject({
       </div>
     );
 
+  const pinnedItems = embedded
+    ? [
+        ...items.filter((item) => item.kind === "plan").slice(-1),
+        ...items
+          .filter(
+            (item) =>
+              item.kind === "decision" &&
+              item.event.detail.kind === "conclusion",
+          )
+          .slice(-1),
+      ]
+    : [];
+  const pinnedIds = new Set(pinnedItems.map((item) => item.id));
   const p = detail.project;
   const busyNow = working(detail.sprints);
   const candidateRun = busyNow ? runsBySprint.get(busyNow.id) : undefined;
@@ -601,8 +616,17 @@ export function ResearchProject({
                   go={go}
                   onResume={() => move(resumeProject)}
                 />
+                {!!pinnedItems.length && (
+                  <ThreadView
+                    items={pinnedItems}
+                    project={p}
+                    computes={computes}
+                    actions={actions}
+                    runs={runsBySprint}
+                  />
+                )}
                 <ThreadView
-                  items={items}
+                  items={items.filter((item) => !pinnedIds.has(item.id))}
                   project={p}
                   computes={computes}
                   actions={actions}
@@ -624,62 +648,64 @@ export function ResearchProject({
             </div>
             <JumpToLatest scroller={scroller} streaming={!!busyNow} />
           </div>
-          <div className={styles.dock}>
-            {attention && (
-              <CardJump
-                key={`${id}-${attention.kind}-${attention.id}`}
-                cardId={`research-${attention.kind}-${attention.id}`}
-                scroller={scroller}
-                onClick={viewAttention}
-                label={t(
-                  attention.kind === "plan"
-                    ? "research.attention.viewPlan"
-                    : "research.attention.viewDecision",
-                )}
+          {!embedded && (
+            <div className={styles.dock}>
+              {attention && (
+                <CardJump
+                  key={`${id}-${attention.kind}-${attention.id}`}
+                  cardId={`research-${attention.kind}-${attention.id}`}
+                  scroller={scroller}
+                  onClick={viewAttention}
+                  label={t(
+                    attention.kind === "plan"
+                      ? "research.attention.viewPlan"
+                      : "research.attention.viewDecision",
+                  )}
+                />
+              )}
+              {liveRun && busyNow && (
+                <LiveCard
+                  run={liveRun}
+                  role={busyNow.role}
+                  name={t(
+                    `research.role.${["scoping", "discussion"].includes(busyNow.role) ? "discussion" : busyNow.role}` as MessageKey,
+                  )}
+                />
+              )}
+              <Composer
+                value={text}
+                onChange={changeText}
+                onSend={say}
+                busy={!!pending}
+                label={t("research.composer.label")}
+                placeholder={t("research.composer.continue")}
+                leading={
+                  <>
+                    <IconButton
+                      icon={Plus}
+                      label={t("research.attach")}
+                      size="sm"
+                      onClick={() => setFilesOpen(true)}
+                    />
+                  </>
+                }
+                sendLabel={t("research.home.send")}
+                commands={commands}
+                acceptInserts
+                tools={
+                  models.length > 0 &&
+                  !finished && (
+                    <ModelPicker
+                      models={models}
+                      value={p.model_config_id}
+                      onChange={(modelId) => void chooseModel(modelId)}
+                      label={t("commands.model")}
+                    />
+                  )
+                }
               />
-            )}
-            {liveRun && busyNow && (
-              <LiveCard
-                run={liveRun}
-                role={busyNow.role}
-                name={t(
-                  `research.role.${["scoping", "discussion"].includes(busyNow.role) ? "discussion" : busyNow.role}` as MessageKey,
-                )}
-              />
-            )}
-            <Composer
-              value={text}
-              onChange={changeText}
-              onSend={say}
-              busy={!!pending}
-              label={t("research.composer.label")}
-              placeholder={t("research.composer.continue")}
-              leading={
-                <>
-                  <IconButton
-                    icon={Plus}
-                    label={t("research.attach")}
-                    size="sm"
-                    onClick={() => setFilesOpen(true)}
-                  />
-                </>
-              }
-              sendLabel={t("research.home.send")}
-              commands={commands}
-              acceptInserts
-              tools={
-                models.length > 0 &&
-                !finished && (
-                  <ModelPicker
-                    models={models}
-                    value={p.model_config_id}
-                    onChange={(modelId) => void chooseModel(modelId)}
-                    label={t("commands.model")}
-                  />
-                )
-              }
-            />
-          </div>
+            </div>
+          )}
         </div>
         {record && (
           <RecordPanel

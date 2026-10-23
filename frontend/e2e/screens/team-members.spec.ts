@@ -1,0 +1,539 @@
+import { expect, test, type Page } from "@playwright/test";
+import { signIn } from "../reader/fixtures";
+import type {
+  LibraryMember,
+  MemberConfig,
+  TeamMember,
+} from "../../src/screens/research/team-api";
+
+// Routes only accept UUID channel ids, as the app's channels have.
+const dmId = (member: string) =>
+  `d0000000-0000-4000-8000-${Buffer.from(member).toString("hex").padStart(12, "0").slice(-12)}`;
+
+const wid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const cid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const defaults = (name: string): MemberConfig => ({
+  name,
+  description: "Checks evidence",
+  wake_minutes: 20,
+  avatar_color: "blue",
+  role_description: "# Skill\nCheck evidence",
+  model_config_id: "",
+  permissions: {
+    papers: true,
+    files: true,
+    commands: false,
+    machines: ["host"],
+    readonly: false,
+  },
+  wake_turns: 32,
+  wake_tokens: 200000,
+});
+function documentSource(
+  config: MemberConfig,
+  previous = "",
+  channels: string[] = [],
+) {
+  const extra = previous.split("\n").find((line) => line.startsWith("future:"));
+  return `---\nname: ${config.name}\ndescription: ${config.description ?? ""}\ntools: [files, web]\nbudget: {turns: ${config.wake_turns}, tokens: ${config.wake_tokens}, minutes: ${config.wake_minutes ?? 20}}\nchannels: ${JSON.stringify(channels)}\n${extra ? `${extra}\n` : ""}---\n\n${config.role_description}`;
+}
+function sourceConfig(source: string): MemberConfig {
+  return {
+    ...defaults(source.match(/^name: (.+)$/m)?.[1] ?? "Ada"),
+    description: source.match(/^description: (.+)$/m)?.[1] ?? "",
+    role_description: source.split("---").slice(2).join("---").trim(),
+  };
+}
+async function setup(page: Page) {
+  let members: TeamMember[] = [
+    {
+      id: "human",
+      role: "human",
+      ...defaults("研究者"),
+      builtin: true,
+      enabled: true,
+      status: "idle",
+      active_run_id: null,
+    },
+    {
+      id: "advisor",
+      role: "advisor",
+      ...defaults("导师"),
+      builtin: true,
+      enabled: true,
+      status: "idle",
+      active_run_id: null,
+    },
+  ];
+  const library: LibraryMember[] = [
+    { id: "library-ada", version: 1, config: defaults("Ada"), teams: [] },
+  ];
+  const saved: Record<string, unknown>[] = [];
+  const channels = () => [
+    { id: cid, key: "general", name: "闲聊", member_id: null, unread: 0 },
+    ...members
+      .filter((m) => m.role !== "human")
+      .map((m) => ({
+        id: dmId(m.id),
+        key: `dm:${m.id}`,
+        name: m.name,
+        member_id: m.id,
+        unread: 0,
+      })),
+  ];
+  await page.route("**/api/v1/health", async (route) => {
+    const real = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...real, mode: "local" } });
+  });
+  await page.route("**/api/v1/translation-settings", (route) =>
+    route.fulfill({
+      json: {
+        configured: true,
+        active_id: "fake",
+        models: [{ id: "fake", model: "Fake", name: "Fake" }],
+      },
+    }),
+  );
+  await page.route("**/api/v1/research/**", async (route) => {
+    const path = new URL(route.request().url()).pathname.replace(
+      "/api/v1/research",
+      "",
+    );
+    const method = route.request().method();
+    if (path === "/navigation")
+      return route.fulfill({
+        json: {
+          workspaces: [
+            {
+              id: wid,
+              name: "团队",
+              kind: "research",
+              archived: false,
+              location: { kind: "managed", path: "", connection_id: "" },
+              researches: [],
+            },
+          ],
+          collections: [],
+        },
+      });
+    if (path === "/settings")
+      return route.fulfill({
+        json: {
+          computes: [{ id: "host", name: "本机", kind: "host" }],
+          states: {},
+        },
+      });
+    if (path.endsWith("/agent-document")) {
+      const body = route.request().postDataJSON();
+      if (!body.config && body.source.includes("tools: broken"))
+        return route.fulfill({
+          status: 422,
+          json: { detail: "第 4 行 / Line 4: Invalid tools" },
+        });
+      const config = body.config ?? sourceConfig(body.source);
+      return route.fulfill({
+        json: {
+          source: body.config
+            ? documentSource(config, body.source, body.channels)
+            : body.source,
+          config: { ...config, channels: body.channels ?? [] },
+          warnings: [],
+        },
+      });
+    }
+    if (path.endsWith("/import-agent")) {
+      const body = route.request().postDataJSON();
+      const config = body.filename.endsWith(".toml")
+        ? {
+            ...defaults("codex-reader"),
+            description: "Codex role",
+            role_description: "Read the evidence",
+          }
+        : {
+            ...defaults("Claude reader"),
+            description: "Claude role",
+            role_description: "Check every source",
+            permissions: { ...defaults("x").permissions, file_readonly: true },
+          };
+      return route.fulfill({
+        json: {
+          source: documentSource(config, "future: keep"),
+          config,
+          warnings: body.filename.endsWith(".md")
+            ? ["未知工具 / Unknown tool: FutureTool"]
+            : [],
+        },
+      });
+    }
+    if (path.endsWith("/team"))
+      return route.fulfill({
+        json: {
+          workspace_id: wid,
+          members,
+          channels: channels(),
+          notifications: [],
+          workflow: {
+            id: "research",
+            name: "Research",
+            builtin: true,
+            version: 1,
+            rules: [],
+            layout: { members: {}, channels: {} },
+          },
+        },
+      });
+    if (path.endsWith("/library")) return route.fulfill({ json: library });
+    if (path.includes("/library/")) {
+      const body = route.request().postDataJSON();
+      saved.push(body);
+      library[0] = {
+        ...library[0],
+        config: body.config,
+        version: library[0].version + 1,
+      };
+      return route.fulfill({ json: library[0] });
+    }
+    if (path.endsWith("/members") && method === "POST") {
+      const body = route.request().postDataJSON();
+      saved.push(body);
+      const config =
+        body.config ||
+        library.find((l) => l.id === body.library_id)?.config ||
+        defaults("导师");
+      const id = `custom-${members.length}`;
+      members = [
+        ...members,
+        {
+          ...config,
+          id,
+          role: `custom_${id}`,
+          builtin: false,
+          library_id: body.library_id || `library-${id}`,
+          enabled: true,
+          status: "idle",
+          active_run_id: null,
+          subscriptions: body.subscriptions || [],
+          source: body.source || documentSource(config),
+          revision: "v1",
+        },
+      ];
+      return route.fulfill({ json: { id } });
+    }
+    if (path.includes("/members/")) {
+      const id = path.split("/").at(-1)!;
+      const member = members.find((m) => m.id === id)!;
+      if (method === "PATCH") {
+        const body = route.request().postDataJSON();
+        saved.push(body);
+        members = members.map((m) =>
+          m.id === id
+            ? {
+                ...m,
+                ...body.config,
+                ...(body.source ? { source: body.source } : {}),
+                revision: "v2",
+                ...(body.enabled !== undefined
+                  ? { enabled: body.enabled }
+                  : {}),
+                ...(body.subscriptions
+                  ? { subscriptions: body.subscriptions }
+                  : {}),
+              }
+            : m,
+        );
+        return route.fulfill({ json: { ok: true } });
+      }
+      if (method === "DELETE") {
+        members = members.filter((m) => m.id !== id);
+        return route.fulfill({ json: { ok: true } });
+      }
+      return route.fulfill({
+        json: {
+          ...member,
+          tokens: 120,
+          activity: "Reading evidence",
+          threads: [{ id: "thread", channel_id: cid, text: "Evidence" }],
+        },
+      });
+    }
+    if (path.endsWith("/messages"))
+      return route.fulfill({
+        json: { messages: [], root: null, research_id: null },
+      });
+    return route.fulfill({ json: [] });
+  });
+  await signIn(page);
+  await page.goto(`/#team/${wid}/settings?thread=members`);
+  return {
+    saved,
+    externalUpdate: (name: string, source: string, error = "") => {
+      members = members.map((m) =>
+        m.name === name
+          ? {
+              ...m,
+              ...(error ? {} : sourceConfig(source)),
+              source,
+              file_error: error,
+              revision: `external-${source.length}`,
+            }
+          : m,
+      );
+    },
+  };
+}
+
+test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
+  const { saved: writes } = await setup(page);
+  await page.getByRole("button", { name: "添加成员", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("名字", { exact: true }).fill("Ada");
+  await dialog
+    .getByLabel("角色说明", { exact: true })
+    .fill("# Ada\nVerify every claim");
+  await dialog.getByLabel("头像颜色", { exact: true }).selectOption("green");
+  await dialog.getByLabel("只读", { exact: true }).check();
+  await expect(dialog.getByLabel("命令行", { exact: true })).toBeDisabled();
+  await dialog.getByLabel("只读", { exact: true }).uncheck();
+  await dialog.getByLabel("网页", { exact: true }).uncheck();
+  await expect(dialog.getByLabel("每次唤醒轮数")).toHaveCount(0);
+  await dialog.getByLabel("#闲聊", { exact: true }).check();
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Ada", exact: true }),
+  ).toBeVisible();
+  expect(writes[0]).toMatchObject({
+    config: {
+      name: "Ada",
+      avatar_color: "green",
+      wake_turns: 0,
+      wake_minutes: 0,
+      wake_tokens: 0,
+    },
+    subscriptions: [cid],
+  });
+  await page.getByRole("button", { name: "Ada", exact: true }).click();
+  await expect(
+    page.getByText("Reading evidence", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Evidence", exact: true }),
+  ).toBeVisible();
+  await page.goto(`/#team/${wid}/${cid}`);
+  const composer = page
+    .getByTestId("team-screen")
+    .getByRole("textbox", { name: "消息", exact: true });
+  await composer.fill("@Ad");
+  await expect(page.getByRole("option", { name: /Ada/ })).toBeVisible();
+  await page.goto(`/#team/${wid}/settings?thread=member%3Acustom-2`);
+  await page.getByRole("button", { name: "发私信", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${dmId("custom-2")}$`));
+});
+
+test("复制内置成员、编辑和停用", async ({ page }) => {
+  await setup(page);
+  await page.getByRole("button", { name: "添加成员", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog
+    .getByLabel("成员来源", { exact: true })
+    .selectOption("m:advisor");
+  await dialog.getByLabel("名字", { exact: true }).fill("Peer");
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await page.getByRole("button", { name: "Peer", exact: true }).click();
+  await page.getByRole("button", { name: "编辑成员", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("名字", { exact: true })
+    .fill("Peer II");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "保存", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Peer II", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "成员", exact: true }).click();
+  const row = page.getByRole("listitem").filter({
+    has: page.getByRole("button", { name: "Peer II", exact: true }),
+  });
+  await row.getByRole("button", { name: "成员操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "停用成员", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "停用成员", exact: true })
+    .click();
+  await expect(row.getByText("已停用", { exact: true })).toBeVisible();
+});
+
+test("成员库加入团队和同步确认", async ({ page }) => {
+  const { saved: writes } = await setup(page);
+  await page.getByRole("button", { name: "添加成员", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("成员来源", { exact: true })
+    .selectOption("l:library-ada");
+  await expect(
+    page.getByRole("dialog").getByLabel("名字", { exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "保存", exact: true })
+    .click();
+  expect(writes[0]).toMatchObject({ library_id: "library-ada" });
+  await page.getByRole("button", { name: "Ada", exact: true }).click();
+  await page.getByRole("button", { name: "编辑库配置", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByLabel("角色说明", { exact: true })
+    .fill("# Revised library skill");
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "保存", exact: true })
+    .click();
+  const confirmation = page.getByRole("dialog", {
+    name: "同步到各团队？",
+    exact: true,
+  });
+  await confirmation.getByRole("button", { name: "同步", exact: true }).click();
+  await expect
+    .poll(() => writes.at(-1))
+    .toMatchObject({
+      sync: true,
+      version: 1,
+      config: { role_description: "# Revised library skill" },
+    });
+});
+
+test("表单、源文件互转保留扩展字段，错误保留当前内容", async ({ page }) => {
+  const { saved } = await setup(page);
+  await page.getByRole("button", { name: "添加成员", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("名字", { exact: true }).fill("Ada");
+  await dialog.getByLabel("简介", { exact: true }).fill("Checks references");
+  await dialog.getByLabel("角色说明", { exact: true }).fill("# Form body");
+  await dialog.getByRole("button", { name: "源文件", exact: true }).click();
+  const editor = dialog.getByLabel("源文件", { exact: true });
+  await expect(editor).toHaveValue(/# Form body/);
+  const source = (await editor.inputValue()).replace(
+    "---\n\n# Form body",
+    "future: keep\n---\n\n# Source body",
+  );
+  await editor.fill(source);
+  await dialog.getByRole("button", { name: "表单", exact: true }).click();
+  await expect(dialog.getByLabel("角色说明", { exact: true })).toHaveValue(
+    "# Source body",
+  );
+  await dialog.getByRole("button", { name: "源文件", exact: true }).click();
+  await expect(editor).toHaveValue(/future: keep/);
+  const valid = await editor.inputValue();
+  await editor.fill(valid.replace("tools: [files, web]", "tools: broken"));
+  await dialog.getByRole("button", { name: "表单", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Line 4");
+  await expect(editor).toHaveValue(/tools: broken/);
+  await editor.fill(valid);
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(() => saved.at(-1))
+    .toMatchObject({
+      source: expect.stringContaining("future: keep"),
+      config: { name: "Ada", role_description: "# Source body" },
+    });
+  await page.getByRole("button", { name: "Ada", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Source body" }),
+  ).toBeVisible();
+});
+
+test("选择 Claude 文件和粘贴 Codex 角色", async ({ page }) => {
+  const { saved } = await setup(page);
+  await page.getByRole("button", { name: "添加成员", exact: true }).click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "导入", exact: true }).click();
+  await dialog.getByLabel("选择文件", { exact: true }).setInputFiles({
+    name: "reader.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from(
+      "---\nname: Claude reader\ntools: Read, FutureTool\n---\nCheck every source",
+    ),
+  });
+  await expect(dialog.getByLabel("名字", { exact: true })).toHaveValue(
+    "Claude reader",
+  );
+  await expect(dialog.getByRole("status")).toContainText("FutureTool");
+  await expect(dialog.getByLabel("文件只读", { exact: true })).toBeChecked();
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Claude reader", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() => saved[0])
+    .toMatchObject({ config: { name: "Claude reader" } });
+  await page.getByRole("button", { name: "添加成员", exact: true }).click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "导入", exact: true }).click();
+  await dialog.getByLabel("格式", { exact: true }).selectOption("agent.toml");
+  await dialog
+    .getByLabel("粘贴内容", { exact: true })
+    .fill(
+      'description = "Codex role"\ndeveloper_instructions = "Read the evidence"',
+    );
+  await dialog
+    .getByRole("button", { name: "导入", exact: true })
+    .last()
+    .click();
+  await expect(dialog.getByLabel("名字", { exact: true })).toHaveValue(
+    "codex-reader",
+  );
+  await expect(dialog.getByLabel("角色说明", { exact: true })).toHaveValue(
+    "Read the evidence",
+  );
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect
+    .poll(() => saved.at(-1))
+    .toMatchObject({
+      config: { name: "codex-reader", role_description: "Read the evidence" },
+      source: expect.stringContaining("future: keep"),
+    });
+  await expect(
+    page.getByRole("button", { name: "codex-reader", exact: true }),
+  ).toBeVisible();
+});
+
+test("重新打开成员读取外部修改，坏文件显示行号和上一份定义", async ({
+  page,
+}) => {
+  const { externalUpdate } = await setup(page);
+  await page.getByRole("button", { name: "添加成员", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("名字", { exact: true }).fill("Ada");
+  await dialog.getByLabel("角色说明", { exact: true }).fill("Last valid body");
+  await dialog.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Ada", exact: true }),
+  ).toBeVisible();
+  externalUpdate(
+    "Ada",
+    documentSource({ ...defaults("Ada"), role_description: "External body" }),
+  );
+  await page.getByRole("button", { name: "Ada", exact: true }).click();
+  await expect(page.getByText("External body", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "成员", exact: true }).click();
+  await expect(
+    page.getByRole("searchbox", { name: "搜索成员", exact: true }),
+  ).toBeVisible();
+  externalUpdate(
+    "Ada",
+    "---\nname: Ada\ntools: broken\n---",
+    "第 3 行 / Line 3: Invalid tools",
+  );
+  await page.getByRole("button", { name: "Ada", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("Line 3");
+  await expect(page.getByText("External body", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "编辑成员", exact: true }).click();
+  await expect(
+    page.getByRole("dialog").getByLabel("源文件", { exact: true }),
+  ).toHaveValue(/tools: broken/);
+});

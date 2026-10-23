@@ -122,7 +122,8 @@ def create_project(
 
 
 def project_budget_default():
-    return {"max_sprints": 30, "max_tokens": 2000000, "max_job_seconds": 36000}
+    # No limits until the researcher sets them in the plan.
+    return {"max_sprints": None, "max_tokens": None, "max_job_seconds": None}
 
 
 def nodes(d, project):

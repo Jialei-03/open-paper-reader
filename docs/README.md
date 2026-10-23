@@ -25,4 +25,4 @@ Open Research Agent 的文档是简体中文的；根目录的 [README.en.md](..
 
 ## 项目
 
-[README](../README.md) · [贡献指南](../CONTRIBUTING.md) · [安全](../SECURITY.md) · [更新日志](../CHANGELOG.md) · [第三方许可](../NOTICE.md) · [许可证](../LICENSE)
+[README](../README.md) · [贡献指南](../.github/CONTRIBUTING.md) · [安全](../.github/SECURITY.md) · [更新日志](../CHANGELOG.md) · [第三方许可](NOTICE.md) · [许可证](../LICENSE)

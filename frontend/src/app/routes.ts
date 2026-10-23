@@ -17,6 +17,14 @@ export type AppRoute =
   | { screen: "settings"; category?: string; redirect?: string }
   | { screen: "research"; projectId?: string; redirect?: string }
   | {
+      screen: "team";
+      workspaceId: string;
+      channelId?: string;
+      threadId?: string;
+      full?: boolean;
+      redirect?: string;
+    }
+  | {
       screen: "new-research";
       workspaceId?: string;
       collectionId?: string;
@@ -133,6 +141,22 @@ export function parseAppRoute(hash: string): AppRoute {
           section: "playbook",
           redirect: "customize/playbook",
         };
+  }
+  if (path.startsWith("team/")) {
+    const [workspaceId, channelId] = path.slice(5).split("/");
+    const params = new URLSearchParams(hash.split("?")[1] || "");
+    return uuid(workspaceId) &&
+      (!channelId ||
+        uuid(channelId) ||
+        ["threads", "mentions", "settings"].includes(channelId))
+      ? {
+          screen: "team",
+          workspaceId,
+          channelId,
+          threadId: params.get("thread") || undefined,
+          full: params.get("full") === "1",
+        }
+      : { screen: "new-research", redirect: "new" };
   }
   if (path === "new") {
     const params = new URLSearchParams(hash.split("?")[1] || "");

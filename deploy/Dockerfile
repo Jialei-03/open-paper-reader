@@ -5,7 +5,7 @@
 #   worker   the research-assistant worker (needs Node)
 #   shell    anything else, e.g. `python -m backend.cli bootstrap`
 #
-#   docker build -t open-paper-reader .
+#   docker build -f deploy/Dockerfile -t open-paper-reader .
 
 # ---------------------------------------------------------------- frontend
 FROM node:22-bookworm-slim AS frontend
@@ -36,7 +36,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY --from=agent /usr/local/bin/node /usr/local/bin/node
 COPY --from=agent /build/agent-runtime/ agent-runtime/
 COPY backend/ backend/
-COPY alembic.ini ./
+COPY pyproject.toml ./
 COPY --from=frontend /build/frontend/dist/ frontend/dist/
 COPY docs/licenses/ licenses/
 COPY deploy/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

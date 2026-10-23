@@ -99,7 +99,8 @@ def test_a_project_has_one_main_session_before_anyone_speaks(env):
         assert (
             d.scalar(
                 select(func.count(AgentSession.id)).where(
-                    AgentSession.workspace_id == workspace["id"]
+                    AgentSession.workspace_id == workspace["id"],
+                    AgentSession.kind != "team_member",
                 )
             )
             == 1
@@ -275,6 +276,7 @@ def test_two_first_visits_do_not_create_a_hidden_main_session(env, monkeypatch):
         d.add(workspace)
         d.commit()
         wid = workspace.id
+
     def together(*args, **kwargs):
         pytest.fail("Opening a physical workspace must not create a mentor")
 
@@ -855,7 +857,7 @@ def test_the_main_session_migration_preserves_existing_projects(tmp_path, monkey
         )
         connection.execute(text("INSERT INTO alembic_version VALUES ('0033')"))
         connection.commit()
-    command.upgrade(Config("alembic.ini"), "0034")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0034")
     with maker() as d:
         workspace = d.get(ResearchWorkspace, wid)
         project = d.get(ResearchProject, pid)

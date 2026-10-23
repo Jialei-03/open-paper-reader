@@ -16,7 +16,6 @@ from pydantic import Field, StrictBool, StrictInt, model_validator
 
 from .schemas import Strict
 
-MAX_RELAY = 6
 EVENTS = Literal[
     "message",
     "mention",
@@ -32,7 +31,9 @@ Text = Annotated[str, Field(min_length=1)]
 
 class Action(TypedDict, total=False):
     rule: str
-    action: Literal["wake", "review", "wait_for_owner", "post"]
+    action: Literal["wake", "review", "wait_for_owner", "post", "limit"]
+    reason: str
+    limit: int
     member: str
     instruction: str
     channel: str
@@ -74,6 +75,7 @@ class When(Strict):
 class Then(Strict):
     action: Literal["wake", "review", "wait_for_owner", "post"]
     member: Text | None = None
+    subscribers: StrictBool | None = None
     role: Text | None = None
     instruction: str = ""
     on_fail: Text | None = None
@@ -84,10 +86,12 @@ class Then(Strict):
     @model_validator(mode="after")
     def fields(self):
         if self.action in {"wake", "review"}:
-            if bool(self.member) == bool(self.role):
+            if sum((bool(self.member), bool(self.role), bool(self.subscribers))) != 1:
                 raise ValueError("wake/review requires exactly one of member or role")
-        elif self.member or self.role:
+        elif self.member or self.role or self.subscribers:
             raise ValueError("member/role requires wake or review")
+        if self.subscribers and self.action != "wake":
+            raise ValueError("subscribers requires wake")
         if self.action == "review":
             if not self.on_fail:
                 raise ValueError("review requires on_fail")
@@ -119,6 +123,12 @@ class RuleInput(Strict):
     then: Then
     limit: Limit = Field(default_factory=Limit)
     position: Position | None = None
+
+    @model_validator(mode="after")
+    def subscribers_event(self):
+        if self.then.subscribers and self.when.event != "message":
+            raise ValueError("subscribers requires a message trigger")
+        return self
 
 
 class Layout(Strict):
@@ -156,7 +166,7 @@ def _resolve(ref, members, *, role=None):
 def _references(rule, members=None, channels=None):
     if members is not None:
         spec = rule["then"]
-        if spec["action"] in {"wake", "review"}:
+        if spec["action"] in {"wake", "review"} and not spec.get("subscribers"):
             _resolve(
                 spec.get("member") or spec["role"],
                 members,
@@ -319,11 +329,30 @@ def _action(rule, event, members):
     return result
 
 
+def _actions(rule, event, members):
+    if not rule["then"].get("subscribers"):
+        return [_action(rule, event, members)]
+    if event["type"] != "message":
+        return []
+    return [
+        _action(
+            {**rule, "then": {**rule["then"], "subscribers": False, "member": m["id"]}},
+            event,
+            members,
+        )
+        for m in members
+        if m["kind"] == "agent"
+        and m.get("enabled", True)
+        and event["channel"] in m.get("subscriptions", [])
+        and m["id"] != (event.get("author") or {}).get("id")
+    ]
+
+
 def match(workflow, event, state, *, members) -> MatchResult:
     """Return (actions, new_state), without mutating any input.
 
     State is scoped by team/channel/thread; null threads use the channel scope.
-    Only the human owner resets the six-hop relay and releases an owner wait.
+    Only the human owner resets the relay and releases an explicit owner wait.
     Review failures correlate with an outstanding review by reviewer and scope.
     """
     workflow = validate_workflow(workflow, members=members)
@@ -339,7 +368,8 @@ def match(workflow, event, state, *, members) -> MatchResult:
             initial_state(workflow).get("linear", {})
         )
     scope_key = json.dumps(
-        [event["team"], event["channel"], event["thread"]], separators=(",", ":")
+        event.get("scope") or [event["team"], event["channel"], event["thread"]],
+        separators=(",", ":"),
     )
     scope = result.setdefault("threads", {}).setdefault(
         scope_key,
@@ -361,6 +391,7 @@ def match(workflow, event, state, *, members) -> MatchResult:
     owner = author.get("kind") == "human" and author.get("role") == "owner"
     if owner:
         scope["relay"], scope["waiting"] = 0, False
+        scope.pop("limit_notified", None)
     if scope["waiting"]:
         return MatchResult([], result)
     actions = []
@@ -377,17 +408,17 @@ def match(workflow, event, state, *, members) -> MatchResult:
 
     def emit(rule, action, *, advance=True):
         if action["action"] in {"wake", "review"}:
+            if any(
+                m["id"] == action["member"] and not m.get("enabled", True)
+                for m in members
+            ):
+                return False
             if scope["waiting"]:
                 return False
-            if scope["relay"] >= MAX_RELAY:
-                action = {
-                    k: v
-                    for k, v in action.items()
-                    if k not in {"member", "instruction"}
-                }
-                action["action"] = "wait_for_owner"
-                advance = False
-            else:
+            target = action["member"]
+            if target in event.get("pending_members", []):
+                pass  # Merge an inbox entry without spending another relay hop.
+            elif not owner:
                 scope["relay"] += 1
         if action["action"] == "wait_for_owner":
             scope["waiting"] = True
@@ -400,7 +431,7 @@ def match(workflow, event, state, *, members) -> MatchResult:
             current["counts"][rid] = current["counts"].get(rid, 0) + 1
             if advance and rid in routing:
                 current["cursor"] = routing[rid]["to"]
-        return action["action"] != "wait_for_owner"
+        return action["action"] not in {"wait_for_owner", "limit"}
 
     # Failures only affect the review actually requested, never an arbitrary rule.
     if event["type"] == "review_failed":
@@ -424,7 +455,9 @@ def match(workflow, event, state, *, members) -> MatchResult:
                 review["pending"] = False
                 action = {
                     "rule": rid,
-                    "action": "wait_for_owner",
+                    "action": "limit",
+                    "reason": "review",
+                    "limit": rule["then"]["max_rounds"],
                     "channel": event["channel"],
                     "thread": event["thread"],
                 }
@@ -434,6 +467,8 @@ def match(workflow, event, state, *, members) -> MatchResult:
                         member=review["on_fail"],
                         instruction="按评审意见修改。 / Revise using the review feedback.",
                     )
+                    action.pop("reason", None)
+                    action.pop("limit", None)
                 if emit(rule, action, advance=False):
                     review["returns"] += 1
                     if rid in routing:
@@ -472,8 +507,9 @@ def match(workflow, event, state, *, members) -> MatchResult:
             if active(r) and _matches(r, event, mention=True)
         ]
         explicit_targets = {
-            _action(r, event, members)["member"]
+            a["member"]
             for r in explicit
+            for a in _actions(r, event, members)
             if r["then"]["action"] in {"wake", "review"}
         }
         # A result @advisor still uses its review rule (and records on_fail),
@@ -482,7 +518,9 @@ def match(workflow, event, state, *, members) -> MatchResult:
             r
             for r in matched
             if r["then"]["action"] in {"wake", "review"}
-            and _action(r, event, members)["member"] not in explicit_targets
+            and any(
+                a["member"] not in explicit_targets for a in _actions(r, event, members)
+            )
         ]
         matched = [
             r for r in candidates if _matches(r, event, mention=True)
@@ -494,38 +532,45 @@ def match(workflow, event, state, *, members) -> MatchResult:
                 and _matches(rule, event)
                 and rule["then"]["action"] in {"wake", "review"}
             ):
-                claimed.add(_action(rule, event, members)["member"])
+                claimed.update(a["member"] for a in _actions(rule, event, members))
     delivered = set()
     for rule in matched:
-        action = _action(rule, event, members)
-        if action["action"] in {"wake", "review"}:
-            target = action["member"]
-            if mentions and target not in mentions:
-                continue
-            if target in delivered:
-                continue
-            if action["action"] == "review" and current["reviews"].get(
-                rule["id"], {}
-            ).get("pending"):
-                continue
-            if not emit(rule, action):
-                break
-            delivered.add(target)
-            if action["action"] == "review":
-                previous = current["reviews"].get(rule["id"], {})
-                current["reviews"][rule["id"]] = {
-                    "reviewer": target,
-                    "on_fail": _resolve(rule["then"]["on_fail"], members),
-                    "returns": previous.get("returns", 0),
-                    "pending": True,
-                }
-        else:
-            emit(rule, action)
-            if scope["waiting"]:
-                break
+        before = current["counts"].get(rule["id"], 0)
+        for action in _actions(rule, event, members):
+            if action["action"] in {"wake", "review"}:
+                target = action["member"]
+                if mentions and target not in mentions:
+                    continue
+                if target in delivered:
+                    continue
+                if action["action"] == "review" and current["reviews"].get(
+                    rule["id"], {}
+                ).get("pending"):
+                    continue
+                if not emit(rule, action):
+                    break
+                delivered.add(target)
+                if action["action"] == "review":
+                    previous = current["reviews"].get(rule["id"], {})
+                    current["reviews"][rule["id"]] = {
+                        "reviewer": target,
+                        "on_fail": _resolve(rule["then"]["on_fail"], members),
+                        "returns": previous.get("returns", 0),
+                        "pending": True,
+                    }
+            else:
+                emit(rule, action)
+                if scope["waiting"]:
+                    break
+        if (
+            rule["then"].get("subscribers")
+            and current["counts"].get(rule["id"], 0) > before
+        ):
+            current["counts"][rule["id"]] = before + 1
     for member in mentions:
         if member not in delivered | claimed and any(
-            m["id"] == member and m["kind"] == "agent" for m in members
+            m["id"] == member and m["kind"] == "agent" and m.get("enabled", True)
+            for m in members
         ):
             action = {
                 "rule": "@mention",

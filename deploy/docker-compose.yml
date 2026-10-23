@@ -1,7 +1,7 @@
 # Open Paper Reader — one command to try it, a short edit to run it for real.
 #
-#   cp .env.example .env      # set POSTGRES_PASSWORD at least
-#   docker compose up -d --build
+#   cp deploy/.env.example .env      # set POSTGRES_PASSWORD at least
+#   docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
 #   open http://localhost:8765 and register the first account
 #
 # Services
@@ -22,7 +22,7 @@ x-app: &app
   # under `environment` take precedence: they are the ones that must differ inside
   # a container (database, storage, the listening port) plus a few with defaults.
   env_file:
-    - path: .env
+    - path: ../.env
       required: false
   environment:
     APP_ENV: ${APP_ENV:-development}
@@ -55,7 +55,9 @@ services:
 
   web:
     <<: *app
-    build: .
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
     depends_on:
       db:
         condition: service_healthy

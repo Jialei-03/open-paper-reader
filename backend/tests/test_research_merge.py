@@ -555,6 +555,7 @@ def test_owner_cross_research_and_invalid_path_checks(world):
         ".git/config",
         "memory/note.md",
         "PROJECT.md",
+        "AGENTS.md",
         ":(glob)**",
         "shared/unknown.py",
     ):
@@ -696,7 +697,7 @@ def test_merge_schema_upgrade_and_downgrade_at_real_previous_revision(
         testing=True,
     )
     monkeypatch.setattr(Settings, "env", classmethod(lambda cls: settings))
-    cfg = Config("alembic.ini")
+    cfg = Config(toml_file="pyproject.toml")
     command.upgrade(cfg, "0037")
     engine = create_engine(settings.database_url)
     assert "research_merges" not in inspect(engine).get_table_names()

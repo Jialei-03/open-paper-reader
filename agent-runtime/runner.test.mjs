@@ -355,6 +355,40 @@ test('our tools run in the parent process and their results reach the model', as
   } finally { model.close(); }
 });
 
+test('member turn budgets are configurable and zero disables the turn cap', async () => {
+  for (const maximum of [1, 0]) {
+    const reply = (_payload, n) => n < 3
+      ? [{tool_calls:[{index:0, id:`c${n}`, type:'function', function:{name:'lookup', arguments:'{}'}}]}]
+      : [{content:'saved result'}];
+    reply.finish = (_payload, n) => n < 3 ? 'tool_calls' : 'stop';
+    const model = await fakeModel(reply);
+    try {
+      const out = await runRunner({config:config(model.base), prompt:'work', limits:{model_turns:maximum},
+        tools:[{name:'lookup', parameters:{type:'object', properties:{}}}]});
+      const done = out.find(e => e.type === 'done');
+      assert.equal(done.limited, maximum === 1);
+      assert.equal(model.seen.length, maximum === 1 ? 1 : 3);
+      if (maximum) assert.equal(done.limit_reason, 'turns');
+      else assert.equal(out.filter(e => e.type === 'answer').at(-1).text, 'saved result');
+    } finally { model.close(); }
+  }
+});
+
+test('team runs can use explicit budgets without a hidden tool count cap', async () => {
+  const reply = (_payload, n) => n === 1
+    ? [{tool_calls:Array.from({length:65}, (_, index) => ({index, id:`c${index}`, type:'function', function:{name:'lookup', arguments:'{}'}}))}]
+    : [{content:'saved result'}];
+  reply.finish = (_payload, n) => n === 1 ? 'tool_calls' : 'stop';
+  const model = await fakeModel(reply);
+  try {
+    const out = await runRunner({config:config(model.base), prompt:'work', limits:{model_turns:0, tool_calls:0},
+      tools:[{name:'lookup', parameters:{type:'object', properties:{}}}]});
+    assert.equal(out.filter(e => e.type === 'tool').length, 65);
+    assert.equal(out.find(e => e.type === 'done').limited, false);
+    assert.equal(out.filter(e => e.type === 'answer').at(-1).text, 'saved result');
+  } finally { model.close(); }
+});
+
 test('a long conversation is compacted by Pi, on its own and when asked', async () => {
   const model = await fakeModel((payload, n) => [{content:`回答 ${n}：` + '很长的内容。'.repeat(200)}]);
   try {

@@ -1,87 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "../reader/fixtures";
 import type { Workflow } from "../../src/screens/workflows/workflows-api";
+import { experiments, mockTeam } from "../fixtures/team";
+import { teamHash } from "../../src/screens/research/team-api";
 
 test.use({ locale: "zh-CN" });
-test("workflows: built-ins are read-only, copies can be reordered and saved", async ({
-  page,
-}) => {
-  const workflows: Workflow[] = [
-    {
-      id: "literature-review",
-      name: "Literature review",
-      version: 1,
-      builtin: true,
-      steps: [
-        {
-          name: "Collect",
-          type: "agent",
-          instructions: "Collect sources",
-          outputs: ["review/sources.md"],
-          confirmation: false,
-          max_rounds: 3,
-          max_retries: 2,
-        },
-        {
-          name: "Read",
-          type: "agent",
-          instructions: "Read sources",
-          outputs: ["review/notes.md"],
-          confirmation: true,
-          max_rounds: 3,
-          max_retries: 2,
-        },
-      ],
-    },
-  ];
-  await page.route("**/api/v1/health", (route) =>
-    route.fulfill({ json: { status: "ok", mode: "local", version: "test" } }),
-  );
-  await page.route("**/api/v1/research/navigation", (route) =>
-    route.fulfill({ json: { workspaces: [], collections: [], recent: [] } }),
-  );
-  await page.route("**/api/v1/research/workflows", async (route) => {
-    if (route.request().method() === "POST") {
-      const body = route.request().postDataJSON();
-      const created = {
-        ...body,
-        id: "11111111-1111-4111-8111-111111111111",
-        builtin: false,
-        version: 1,
-      };
-      workflows.push(created);
-      return route.fulfill({ json: created });
-    }
-    return route.fulfill({ json: workflows });
-  });
-  await signIn(page);
-  await page.goto("/#customize/workflows");
-  await expect(
-    page.getByRole("heading", { name: "工作流", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "文献综述", exact: true }).click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog.getByLabel("名称").first()).toBeDisabled();
-  await dialog.getByRole("button", { name: "复制", exact: true }).click();
-  await expect(dialog.getByLabel("名称").first()).toBeEnabled();
-  await dialog.getByLabel("名称").first().fill("每周综述");
-  await dialog
-    .getByRole("button", { name: "下移", exact: true })
-    .first()
-    .click();
-  await expect(
-    dialog.locator("fieldset").first().getByLabel("名称"),
-  ).toHaveValue("精读要点");
-  await dialog.getByRole("button", { name: "保存", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "每周综述", exact: true }),
-  ).toBeVisible();
-  expect(workflows[1].steps.map((step) => step.outputs[0])).toEqual([
-    "review/notes.md",
-    "review/sources.md",
-  ]);
-});
-
 test("workflows: selection, output preview, progress and confirmation", async ({
   page,
 }) => {
@@ -256,6 +179,7 @@ test("workflows: selection, output preview, progress and confirmation", async ({
     if (path.endsWith("/read")) return route.fulfill({ json: { read_at: at } });
     return route.fulfill({ json: [] });
   });
+  await mockTeam(page, { researches: () => [project] });
   await signIn(page);
   await page.goto("/#new");
   await page.getByRole("button", { name: "工作流", exact: true }).click();
@@ -266,7 +190,12 @@ test("workflows: selection, output preview, progress and confirmation", async ({
   await page
     .locator('[data-testid="new-research"] button[type="submit"]')
     .click();
-  await expect(page).toHaveURL(new RegExp(`#research/${rid}$`));
+  await expect(page).toHaveURL(
+    (url) => url.hash === `#${teamHash(wid, experiments, `research:${rid}`)}`,
+  );
+  await expect(
+    page.getByRole("region", { name: "线程", exact: true }),
+  ).toBeVisible();
   expect(selected).toBe("literature-review");
   await page
     .getByRole("button", { name: "review/sources.md", exact: true })

@@ -663,7 +663,7 @@ def test_session_metadata_migration_preserves_existing_history(tmp_path, monkeyp
         )
         connection.execute(text("INSERT INTO alembic_version VALUES ('0034')"))
         connection.commit()
-    command.upgrade(Config("alembic.ini"), "0035")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0035")
     with maker() as d:
         workspace = d.get(ResearchWorkspace, wid)
         assert d.get(AgentSession, workspace.session_id).kind == "project_lead"

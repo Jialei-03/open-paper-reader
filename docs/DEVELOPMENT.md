@@ -4,7 +4,7 @@
 
 ## 1. 在一台新电脑上开始
 
-需要 Python 3.13（生产与 CI 是 3.11，也要能过）、Node.js 22（`.nvmrc`）和 git；研究的 Docker 环境、助手的代码沙箱、版面翻译才需要 Docker。
+需要 Python 3.13（生产与 CI 是 3.11，也要能过）、Node.js 22（`frontend/.nvmrc`）和 git；研究的 Docker 环境、助手的代码沙箱、版面翻译才需要 Docker。
 
 ```bash
 git clone https://github.com/Jialei-03/open-research-agent.git

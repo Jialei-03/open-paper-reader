@@ -34,6 +34,7 @@ from .models import (
     ResearchProject,
     ResearchSprint,
     ResearchWorkspace,
+    TeamMember,
     now,
 )
 from .parent_watch import watch_parent
@@ -72,7 +73,9 @@ def fallback_summary(run):
         lines.append("用过的工具：" + "、".join(names[:12]))
     for step in failed[-3:]:
         reason = str(step.get("error") or "").strip().splitlines()
-        lines.append(f"- {step.get('name')} 失败：{(reason[0] if reason else '')[:160]}")
+        lines.append(
+            f"- {step.get('name')} 失败：{(reason[0] if reason else '')[:160]}"
+        )
     return "\n".join(lines)
 
 
@@ -97,6 +100,21 @@ def charge(maker, research, tokens):
             **project.spent,
             "tokens": project.spent.get("tokens", 0) + tokens,
         }
+        if project.workspace_id:
+            from .research_team import ensure
+
+            members = ensure(d, d.get(ResearchWorkspace, project.workspace_id))
+            role = {
+                "scoping": "advisor",
+                "discussion": "advisor",
+                "workflow": "executor",
+                "review": "advisor",
+            }.get(sprint.role, sprint.role)
+            member = next(
+                (m for m in members if m.id == research.get("member_id")), None
+            ) or next((m for m in members if m.role == role), None)
+            if member:
+                member.tokens += tokens
         d.commit()
 
 
@@ -123,6 +141,10 @@ def _share(spent, limit):
 def _settle(d, project, sprint):
     """A sprint whose run is over but which never handed over is closed by the system."""
     run = d.get(AgentRun, sprint.run_id)
+    if run is not None:
+        from .research_team import normalize
+
+        run.response = normalize(run.response)
     if run is None or run.status not in DONE:
         return False
     if sprint.role in {"scoping", "discussion"}:
@@ -368,6 +390,7 @@ def next_role(d, project, history):
 def _plan(app, d, project):
     if not _schedulable(d, project, "active"):
         return
+    research_workflows.adopt_project(d, project)
     latest = d.scalars(
         select(ResearchSprint)
         .where(ResearchSprint.project_id == project.id)
@@ -405,14 +428,19 @@ def _plan(app, d, project):
             project.status = "paused"
             event(d, project, None, "system", "paused", {"reason": "模型配置不可用"})
             return
-        _start(
-            app,
-            d,
-            project,
-            latest,
-            "workflow" if spec["type"] == "agent" else "review",
-            config,
+        from .team_workflows import next_research_action, action_role
+
+        history = list(
+            d.scalars(
+                select(ResearchSprint)
+                .where(ResearchSprint.project_id == project.id)
+                .order_by(ResearchSprint.number)
+            )
         )
+        action = next_research_action(d, project, history, "executor")
+        role = action_role(d, project, action, "workflow")
+        if role:
+            _start(app, d, project, latest, role, config, action=action)
         return
     if latest is not None and latest.waiting_on:
         waiting = d.scalars(
@@ -480,7 +508,15 @@ def _plan(app, d, project):
         return
     if outages and _waiting_out(d, project, outages):
         return
-    role = next_role(d, project, history)
+    from .team_workflows import next_research_action, action_role
+
+    action = next_research_action(d, project, history, next_role(d, project, history))
+    role = action_role(d, project, action, "executor")
+    if role is None:
+        return
+    if role not in BRIEFS:
+        _deliver_rule_action(d, project, action)
+        return
     if (
         role == "executor"
         and _local(app, project, d)
@@ -499,7 +535,27 @@ def _plan(app, d, project):
         if said is None or (history and said.created_at < history[-1].created_at):
             event(d, project, None, "system", "docker_unavailable", {"reason": reason})
         return
-    _start(app, d, project, latest, role, config)
+    _start(app, d, project, latest, role, config, action=action)
+
+
+def _deliver_rule_action(d, project, action):
+    from .models import TeamMessage
+    from .research_team import stable
+    from .team_workflows import apply, consumed
+
+    workspace = d.get(ResearchWorkspace, project.workspace_id)
+    if workspace:
+        message = TeamMessage(
+            workspace_id=workspace.id,
+            channel_id=stable(workspace, "experiments"),
+            thread_id=f"research:{project.id}",
+            text=action.get("instruction") or project.question,
+            data={"research_forwarded": True},
+        )
+        d.add(message)
+        d.flush()
+        apply(d, workspace, message, project.workflow, [action])
+        consumed(project)
 
 
 def _local(app, project, d=None):
@@ -563,7 +619,13 @@ def _converse(app, d, project, latest):
         and project.workflow_state["steps"][project.workflow_state["current"]]["rounds"]
         == 0
     )
-    if not research_stages.unanswered(d, project) and not first_step_round:
+    from .team_workflows import pending
+
+    if (
+        not research_stages.unanswered(d, project)
+        and not first_step_round
+        and not pending(project)
+    ):
         return
     config = read_config(app.state.settings, project.owner, project.model_config_id)
     if not config.get("model"):
@@ -573,10 +635,36 @@ def _converse(app, d, project, latest):
             d, project, "system", "模型配置不可用，先在设置里选一个模型。"
         )
         return
-    _start(app, d, project, latest, "scoping", config)
+    from .team_workflows import next_research_action, action_role
+
+    history = list(
+        d.scalars(
+            select(ResearchSprint)
+            .where(ResearchSprint.project_id == project.id)
+            .order_by(ResearchSprint.number)
+        )
+    )
+    action = next_research_action(d, project, history, "advisor", scoping=True)
+    role = action_role(d, project, action, "scoping")
+    if role:
+        # A plan action uses the existing conversational planning runner.
+        _start(
+            app,
+            d,
+            project,
+            latest,
+            "scoping" if role == "executor" else role,
+            config,
+            action=action,
+        )
 
 
-def _start(app, d, project, latest, role, config):
+def _start(app, d, project, latest, role, config, *, action=None):
+    from .research_team import available
+
+    target = d.get(TeamMember, action["member"]) if action else None
+    if not available(d, project, target.role if target else role):
+        return
     number = (latest.number if latest else 0) + 1
     sprint = ResearchSprint(project_id=project.id, number=number, role=role, run_id="")
     d.add(sprint)
@@ -589,11 +677,17 @@ def _start(app, d, project, latest, role, config):
     )
     if spec and role not in {"workflow", "review"}:
         brief += "\n\n" + workflow_context(project)
+    if action and action.get("instruction"):
+        brief += "\n\n" + action["instruction"]
+    chosen = project.model_config_id
+    if target and target.model_config_id:
+        chosen = target.model_config_id
+        config = read_config(app.state.settings, project.owner, chosen)
     research_workflows.round_started(project)
     run = AgentRun(
         owner=project.owner,
         session_id=project.session_id,
-        model_config_id=project.model_config_id,
+        model_config_id=chosen,
         model=config["model"],
         prompt=(
             ("\n\n".join(research_stages.unanswered(d, project)) or "继续讨论这项研究")
@@ -604,10 +698,26 @@ def _start(app, d, project, latest, role, config):
         writable=True,
         lane="research",
         runtime={
+            **(
+                {
+                    "rule": {
+                        k: action[k]
+                        for k in ("rule", "workflow", "workflow_version")
+                        if k in action
+                    }
+                }
+                if action
+                else {}
+            ),
             "research": {
                 "project_id": project.id,
                 "sprint_id": sprint.id,
                 "role": role,
+                **(
+                    {"member_id": action["member"]}
+                    if action and target and (spec or target.library_id)
+                    else {}
+                ),
                 **(
                     {
                         "workflow_index": project.workflow_state["current"],
@@ -625,12 +735,15 @@ def _start(app, d, project, latest, role, config):
                     and project.workspace_id
                     else {}
                 ),
-            }
+            },
         },
     )
     d.add(run)
     d.flush()
     sprint.run_id = run.id
+    from .team_workflows import consumed
+
+    consumed(project)
     if role != "scoping":
         # Talking the plan through is not a research sprint of the budget.
         project.spent = {
@@ -666,14 +779,15 @@ def _start(app, d, project, latest, role, config):
         None,
         "system",
         "sprint_planned",
-        {"number": number, "role": role},
+        {"number": number, "role": role, **(run.runtime.get("rule") or {})},
         sprint.id,
     )
 
 
 def _distill(app, d, project):
     """Once a project is over, one distiller sprint turns it into playbook rules."""
-    if project.workflow and not project.workflow.get("legacy"):
+    research_workflows.adopt_project(d, project)
+    if not research_workflows.is_native(project):
         spec = research_workflows.current(project)
         if not spec or spec.get("action") != "retrospective":
             return
@@ -718,6 +832,31 @@ def _distill(app, d, project):
     config = read_config(app.state.settings, project.owner, project.model_config_id)
     if not config.get("model"):
         return
+    from .research_team import available
+
+    if not available(d, project, "distiller"):
+        return
+    from .team_workflows import pending, research_event, consumed
+
+    action = pending(project)
+    if not action:
+        # Old finished projects and automatic budget stops enter the same rule.
+        research_event(
+            d, project, "conclusion_proposed", role="executor", kind="conclusion"
+        )
+        action = pending(project)
+    if not action:
+        return
+    member = d.get(TeamMember, action["member"])
+    if (member.role if member else action["member"]) != "distiller":
+        _deliver_rule_action(d, project, action)
+        return
+    chosen = (
+        member.model_config_id
+        if member and member.model_config_id
+        else project.model_config_id
+    )
+    config = read_config(app.state.settings, project.owner, chosen)
     number = history[-1].number + 1
     sprint = ResearchSprint(
         project_id=project.id, number=number, role="distiller", run_id=""
@@ -727,23 +866,29 @@ def _distill(app, d, project):
     run = AgentRun(
         owner=project.owner,
         session_id=project.session_id,
-        model_config_id=project.model_config_id,
+        model_config_id=chosen,
         model=config["model"],
         prompt=distiller_brief(d, project, number, app.state.settings),
         context="research/" + project.id,
         writable=True,
         lane="research",
         runtime={
+            "rule": {
+                k: action[k]
+                for k in ("rule", "workflow", "workflow_version")
+                if k in action
+            },
             "research": {
                 "project_id": project.id,
                 "sprint_id": sprint.id,
                 "role": "distiller",
-            }
+            },
         },
     )
     d.add(run)
     d.flush()
     sprint.run_id = run.id
+    consumed(project)
     event(
         d,
         project,
@@ -806,9 +951,10 @@ def _schedulable(d, project, status):
 
 def tick(app):
     """One round of planning over every active project."""
-    from . import research_schedules
+    from . import research_schedules, research_team
 
     for name, step in (
+        ("team", research_team.settle),
         ("schedules", research_schedules.tick),
         ("conversations", research_dialogue.settle),
         ("sweep", research_sandbox.sweep),
@@ -879,7 +1025,9 @@ def main():
         while not stopping.is_set():
             try:
                 tick(app)
-            except Exception as e:  # noqa: BLE001 — the scheduler outlives one bad round
+            except (
+                Exception
+            ) as e:  # noqa: BLE001 — the scheduler outlives one bad round
                 print(
                     json.dumps({"research_worker": "tick", "error": str(e)[:300]}),
                     flush=True,

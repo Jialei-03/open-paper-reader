@@ -224,3 +224,23 @@ describe("buildThread", () => {
     expect(items[0].kind).toBe("work");
   });
 });
+
+it("shows the researcher's answer after the advisor question is decided", () => {
+  const question = ev("decision_requested", "advisor", {
+    kind: "question",
+    reason: "Which metric?",
+  });
+  const answer = ev("human_decision", "human", {
+    request_id: question.id,
+    approve: true,
+    note: "Accuracy\\non held-out data",
+  });
+  const items = buildThread([question, answer], [], [], [], "experiments");
+  expect(items.find((item) => item.kind === "decision")).toMatchObject({
+    open: false,
+  });
+  expect(items.find((item) => item.kind === "message")).toMatchObject({
+    who: "human",
+    text: "Accuracy\non held-out data",
+  });
+});

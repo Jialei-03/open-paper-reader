@@ -2,15 +2,17 @@
 
 import asyncio
 import json
+import math
 import os
+import re
 import selectors
 import signal
 import subprocess
 import sys
 import tempfile
 import threading
-from concurrent.futures import Future
 import time
+from concurrent.futures import Future
 from pathlib import Path
 
 from sqlalchemy import func, select, update
@@ -52,6 +54,9 @@ RESEARCH_SKILLS = {
         "lead",
         "workflow",
         "review",
+        "librarian",
+        "reviewer",
+        "writer",
     )
 }
 # What a research sprint may use besides its own tools: files, shell, literature.
@@ -73,17 +78,40 @@ WORKSPACE_READ = {"read", "ls", "find", "grep"}
 TIME_FACTOR = {"executor": 2}
 
 
+def execution_seconds(run):
+    runtime = run.runtime or {}
+    if runtime.get("team") or runtime.get("research"):
+        from sqlalchemy.orm import object_session
+
+        from .models import TeamMember
+
+        d = object_session(run)
+        info = runtime.get("team")
+        if not info and d:
+            from .research_team import research_context
+
+            info = research_context(d, runtime["research"], run.owner)
+        member = d.get(TeamMember, info["member_id"]) if d and info else None
+        if member:
+            return member.wake_minutes * 60 or math.inf
+    if "max_execution_seconds" in runtime:
+        return runtime["max_execution_seconds"] or math.inf
+    return agent_budget.EXECUTION_SECONDS * TIME_FACTOR.get(
+        runtime.get("research", {}).get("role", ""), 1
+    )
+
+
 def research_tools(role="executor"):
     """The executor works (files, shell, jobs, the map); the advisor only reads and judges."""
     from .research_tools import (
         ADVISOR_TOOLS,
         CHAT_TOOLS,
+        DISTILLER_TOOLS,
         LEAD_TOOLS,
         LEAD_WRITES,
-        DISTILLER_TOOLS,
+        REVIEW_TOOLS,
         SCOPING_TOOLS,
         WORKFLOW_TOOLS,
-        REVIEW_TOOLS,
     )
 
     if role in {"workflow", "review"}:
@@ -139,6 +167,16 @@ def research_tools(role="executor"):
     ]
 
 
+def failure_reason(error, secrets=()):
+    lines = str(error).strip().splitlines()
+    message = lines[-1] if lines else type(error).__name__
+    for secret in secrets:
+        if secret:
+            message = message.replace(secret, "[redacted]")
+    message = re.sub(r"(?i)(bearer\s+)[^\s]+", r"\1[redacted]", message)
+    return f"{type(error).__name__}: {message}"[:500]
+
+
 def duration(seconds):
     """600 -> "10 分钟", 45 -> "45 秒"."""
     return f"{seconds // 60} 分钟" if seconds % 60 == 0 else f"{seconds:g} 秒"
@@ -172,6 +210,8 @@ def _process(app, job_id, cfg):
         attached = list(r.attachment_ids or [])
         # A research sprint starts from its map, not from the session's chat.
         research = (r.runtime or {}).get("research")
+        team = (r.runtime or {}).get("team") if not research else None
+        execution_limit = execution_seconds(r)
         if research and research.get("role") in {"chat", "lead"}:
             from . import research_chat
             from .models import ResearchWorkspace
@@ -190,9 +230,14 @@ def _process(app, job_id, cfg):
             raise ValueError("模型配置已变更，请重新发送任务")
         history = []
         # A conversation in a project remembers its turns; a round does not.
-        keeps = not (r.runtime or {}).get("reading_artifact_id") and not (
-            research
-            and research.get("role") not in {"chat", "lead", "scoping", "discussion"}
+        keeps = (
+            not team
+            and not (r.runtime or {}).get("reading_artifact_id")
+            and not (
+                research
+                and research.get("role")
+                not in {"chat", "lead", "scoping", "discussion"}
+            )
         )
         # What Pi kept of this conversation; while there is none, its history is rebuilt below.
         entries = (
@@ -385,7 +430,9 @@ def _process(app, job_id, cfg):
                 else [
                     t
                     for t in TOOLS
-                    if (writable or not t["write"]) and not t.get("research")
+                    if (writable or not t["write"])
+                    and not t.get("research")
+                    and not t["name"].startswith("team_")
                 ]
             ),
             "limits": {
@@ -394,6 +441,44 @@ def _process(app, job_id, cfg):
                 "model_timeout_seconds": translation_settings.MODEL_TIMEOUT_SECONDS,
             },
         }
+        if team:
+            from .models import TeamMember
+            from .research_team_tools import definitions
+
+            member = d.get(TeamMember, team["member_id"])
+            payload["tools"] = definitions(member.role, TOOLS, member)
+            from .models import ResearchWorkspace
+            from .research_repo import head
+            from .team_workspace import workdir
+
+            workspace = d.get(ResearchWorkspace, team["workspace_id"])
+            from .research_team import context as team_context
+
+            # Queued members may have been edited externally since admission.
+            # Keep attachment context, but replace the old role brief entirely.
+            from .models import TeamMessage
+
+            incoming = d.get(TeamMessage, team["message_id"])
+            payload["context"] = (
+                team_context(d, workspace, incoming)
+                + payload["context"][len(r.context) :]
+            )
+            path = workdir(app.state.settings, workspace)
+            payload["tool_cwd"] = str(path.resolve())
+            r.runtime = {**r.runtime, "team_base": head(path)}
+            d.commit()
+            payload["system_prompt"] = (
+                "\nYou are a team member. Reply in the researcher's language. Outside a research round, "
+                "finish with a normal answer; do not call advise/end_sprint/distill. "
+                "Use team tools to read context and send messages. To hand work to members, "
+                "name them in team_send_message's `to`; @Name in text only refers to someone. "
+                "Name someone in `to` only when they still have work to do; a finished result needs no `to`, the thread shows it. "
+                "Answer what was asked at the length asked; keep verification notes to what the reader needs. "
+                "Reply in the originating thread; follow the user's stated order and workflow. "
+                "When you need the owner's decision, ask explicitly with team_wait_for_owner. "
+                "Write all deliverables under the tool working directory; they are committed and attached when the run ends. "
+                "Start a research thread for experiments; never claim an experiment ran without evidence."
+            )
         if research and research.get("project_id"):
             from .models import ResearchProject
             from .research_locations import tool_cwd
@@ -409,11 +494,36 @@ def _process(app, job_id, cfg):
             # isolated runner context. Bound tools expose their real local/SSH cwd.
             if project.workspace_id:
                 payload["tool_cwd"] = tool_cwd(app.state.settings, d, project)
+        if research and research.get("project_id"):
+            from .research_team import research_context
+            from .research_team_tools import TEAM_TOOLS
+
+            team_context = research_context(d, research, owner)
+            if team_context:
+                team = team_context
+                r.runtime = {**r.runtime, "team": team_context}
+                payload["tools"] = [*payload["tools"], *TEAM_TOOLS]
+                payload["context"] += "\nTeam context: " + json.dumps(team_context)
+                d.commit()
     payload["context"] += selection_context(app, owner, session_id, job_id, snapshot)
     if research:
         payload["system_prompt"] = RESEARCH_SKILLS[
             research.get("role", "executor")
         ].read_text()
+    wake_turns, wake_tokens = None, None
+    if team:
+        from .team_members import apply_runtime
+
+        with maker() as d:
+            current = d.get(AgentRun, job_id)
+            wake_turns, wake_tokens = apply_runtime(
+                d, current, payload, team, app.state.settings
+            )
+            execution_limit = execution_seconds(current)
+            d.commit()
+    wake_used = 0
+    wake_requests = 0
+
     # The pictures asked about go with the question itself, to a model that sees.
     if not resume_from and cfg.get("vision"):
         payload["images"] = prompt_images(
@@ -456,8 +566,7 @@ def _process(app, job_id, cfg):
     image_count = len(payload.get("images", []))
     # Read when the run starts, so the budget is one setting, also in tests.
     budget = RunBudget(
-        agent_budget.EXECUTION_SECONDS
-        * TIME_FACTOR.get((research or {}).get("role", ""), 1),
+        execution_limit,
         agent_budget.WAIT_SECONDS,
     )
 
@@ -495,6 +604,23 @@ def _process(app, job_id, cfg):
                 current.updated_at = now()
             d.commit()
 
+    def check_team_budget():
+        nonlocal failed
+        from .team_budgets import run_limit
+
+        with maker() as d:
+            current = d.get(AgentRun, job_id)
+            reason = run_limit(d, current)
+            if reason:
+                current.runtime = {**current.runtime, "budget_limit": reason}
+                d.commit()
+                failed = (
+                    "成员单次预算已用完 / Member wake budget exhausted"
+                    if reason == "member_tokens"
+                    else "预算已达上限；已完成操作保留 / Budget limit reached; work saved"
+                )
+            return bool(reason)
+
     with tempfile.TemporaryDirectory(prefix="paper-agent-") as work:
         # Never inherit DATABASE_URL, SSH credentials, provider keys, or app env.
         env = {
@@ -511,11 +637,12 @@ def _process(app, job_id, cfg):
         if os.getenv("ELECTRON_RUN_AS_NODE"):
             # The desktop app's own Electron is AGENT_NODE: it runs as Node only so.
             env["ELECTRON_RUN_AS_NODE"] = os.environ["ELECTRON_RUN_AS_NODE"]
+        runner_errors = tempfile.TemporaryFile()
         child = subprocess.Popen(
             [os.getenv("AGENT_NODE", "node"), str(agent_runtime_dir() / "runner.mjs")],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=runner_errors,
             cwd=work,
             env=env,
         )
@@ -544,7 +671,7 @@ def _process(app, job_id, cfg):
 
             phase("tool")
             calls += 1
-            if calls > agent_limits.TOOL_CALLS:
+            if not team and calls > agent_limits.TOOL_CALLS:
                 raise ValueError("达到工具调用次数限制")
             name = event["name"]
             args = event["args"]
@@ -576,7 +703,8 @@ def _process(app, job_id, cfg):
             try:
                 reused = (
                     previous_write(app, owner, resume_from, name, args)
-                    if TOOL_MAP.get(name, {}).get("write")
+                    if not team
+                    and TOOL_MAP.get(name, {}).get("write")
                     and name not in PI_NAMES | {"export_file", "download_file"}
                     else None
                 )
@@ -658,9 +786,7 @@ def _process(app, job_id, cfg):
                     "result": result,
                     "images": images,
                 }
-            except (
-                Exception
-            ) as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
+            except Exception as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
                 message = (
                     str(e)[:500]
                     if isinstance(e, ValueError)
@@ -701,7 +827,7 @@ def _process(app, job_id, cfg):
         buffer = b""
         last = 0
         try:
-            while budget.remaining():
+            while budget.remaining() and not failed:
                 if (
                     controller.stop_started is not None
                     and time.monotonic() - controller.stop_started
@@ -731,8 +857,32 @@ def _process(app, job_id, cfg):
                 while b"\n" in buffer:
                     line, buffer = buffer.split(b"\n", 1)
                     event = json.loads(line)
+                    if team and event["type"] in {"model_acquire", "model_request"}:
+                        from .models import TeamMember
+
+                        with maker() as d:
+                            current_member = d.get(TeamMember, team["member_id"])
+                            if not current_member.enabled or current_member.deleted:
+                                raise ValueError("成员已停用 / Member disabled")
+                        if (wake_turns and wake_requests >= wake_turns) or (
+                            wake_tokens and wake_used >= wake_tokens
+                        ):
+                            with maker() as d:
+                                current = d.get(AgentRun, job_id)
+                                current.runtime = {
+                                    **current.runtime,
+                                    "budget_limit": "turns"
+                                    if wake_turns and wake_requests >= wake_turns
+                                    else "member_tokens",
+                                }
+                                d.commit()
+                            failed = "成员单次预算已用完 / Member wake budget exhausted"
+                            break
+                        wake_requests += 1
                     if event["type"] in {"model_acquire", "model_release"}:
                         if event["type"] == "model_acquire":
+                            if check_team_budget():
+                                break
                             phase("waiting_model")
                             budget.acquire(cfg, cancelled)
                             usage_id = model_usage.start(
@@ -748,6 +898,8 @@ def _process(app, job_id, cfg):
                         # model's slots (shared models have few), and the request
                         # is reserved against the account's budget (raises when spent).
                         budget.release()
+                        if check_team_budget():
+                            break
                         phase("waiting_model")
                         try:
                             budget.acquire(cfg, cancelled)
@@ -764,6 +916,20 @@ def _process(app, job_id, cfg):
                         # The answer is in: its slot is free while tools run.
                         budget.release()
                         phase("preparing")
+                        if team and not event.get("failed"):
+                            from .research_team import charge as charge_team
+
+                            used = event.get("usage") or {}
+                            wake_used += int(used.get("input", 0)) + int(
+                                used.get("output", 0)
+                            )
+                            if not team.get("research_round"):
+                                charge_team(
+                                    maker,
+                                    team,
+                                    int(used.get("input", 0))
+                                    + int(used.get("output", 0)),
+                                )
                         if research and not event.get("failed"):
                             used = event.get("usage") or {}
                             charge(
@@ -780,6 +946,8 @@ def _process(app, job_id, cfg):
                                 "failed" if event.get("failed") else "completed",
                             )
                             usage_id = None
+                        if team and check_team_budget():
+                            break
                     elif event["type"] == "delta":
                         response += event["text"]
                         if len(response) > agent_limits.REPLY_CHARS:
@@ -865,15 +1033,28 @@ def _process(app, job_id, cfg):
                         done = True
                         aborted = bool(event.get("aborted"))
                         if event.get("limited"):
-                            response += "\n\n本轮已达到执行上限，可以继续发送消息。"
+                            if team:
+                                with maker() as d:
+                                    limited = d.get(AgentRun, job_id)
+                                    limited.runtime = {
+                                        **limited.runtime,
+                                        "budget_limit": event.get(
+                                            "limit_reason", "turns"
+                                        ),
+                                    }
+                                    d.commit()
+                                failed = "已到执行上限；已完成操作保留 / Execution limit reached; work saved"
+                            else:
+                                response += "\n\n本轮已达到执行上限，可以继续发送消息。"
                 if time.monotonic() - last > 0.4:
                     store()
                     last = time.monotonic()
             if not budget.remaining():
-                failed = (
-                    f"任务超过 {duration(agent_budget.EXECUTION_SECONDS)}，"
-                    "已停止；已完成操作保留"
-                )
+                failed = f"任务超过 {duration(execution_limit)}，已停止；已完成操作保留"
+                with maker() as d:
+                    limited = d.get(AgentRun, job_id)
+                    limited.runtime = {**limited.runtime, "time_limit_reached": True}
+                    d.commit()
         finally:
             controller.close()
             poll.close()
@@ -884,6 +1065,21 @@ def _process(app, job_id, cfg):
                 except subprocess.TimeoutExpired:
                     child.kill()
                     child.wait()
+            if not done and not failed and not aborted:
+                runner_errors.seek(0)
+                lines = (
+                    runner_errors.read()
+                    .decode("utf-8", errors="replace")
+                    .strip()
+                    .splitlines()
+                )
+                failed = f"Runner exited with code {child.returncode}"
+                if lines:
+                    reason = lines[-1][-300:]
+                    if cfg.get("api_key"):
+                        reason = reason.replace(cfg["api_key"], "[redacted]")
+                    failed += ": " + reason
+            runner_errors.close()
             budget.release()
             store()
             if keeps and added:
@@ -912,7 +1108,9 @@ def _process(app, job_id, cfg):
                 status=(
                     "cancelled"
                     if stopped or aborted
-                    else "completed" if done and not failed else "failed"
+                    else "completed"
+                    if done and not failed
+                    else "failed"
                 ),
                 error=(
                     ""
@@ -1084,7 +1282,7 @@ def main():
                                 error=(
                                     ""
                                     if requested
-                                    else "任务超时或执行进程退出；已完成操作保留"
+                                    else f"Agent process exited with code {child.returncode}"
                                 ),
                                 updated_at=now(),
                             )
@@ -1104,6 +1302,7 @@ def main():
                     r.status = "running"
                     r.updated_at = now()
                     job_id = r.id
+                    wall_limit = execution_seconds(r) + agent_budget.WAIT_SECONDS + 30
                     d.commit()
                 child = subprocess.Popen(
                     [sys.executable, "-m", "backend.agent_worker", "--job", job_id],
@@ -1113,7 +1312,7 @@ def main():
                 )
                 children[job_id] = (
                     child,
-                    time.monotonic() + agent_budget.WALL_SECONDS,
+                    time.monotonic() + wall_limit,
                 )
             time.sleep(0.3)
 
@@ -1125,20 +1324,21 @@ if __name__ == "__main__":
         app = create_app()
         try:
             process(app, sys.argv[2])
-        except (
-            Exception
-        ) as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
+        except Exception as e:  # noqa: BLE001 - isolate tool/provider failures without exposing secrets
             with app.state.maker() as d:
+                run = d.get(AgentRun, sys.argv[2])
+                try:
+                    secret = read_config(
+                        app.state.settings, run.owner, run.model_config_id
+                    ).get("api_key", "")
+                except ValueError:
+                    secret = ""
                 d.execute(
                     update(AgentRun)
                     .where(AgentRun.id == sys.argv[2], AgentRun.status == "running")
                     .values(
                         status="failed",
-                        error=(
-                            str(e)[:300]
-                            if isinstance(e, ValueError)
-                            else "Agent 执行失败，请检查服务与模型配置"
-                        ),
+                        error=failure_reason(e, [secret]),
                         updated_at=now(),
                     )
                 )

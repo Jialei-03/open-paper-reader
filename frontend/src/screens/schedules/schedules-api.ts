@@ -16,6 +16,9 @@ export interface ScheduleInput {
 }
 export interface Schedule extends ScheduleInput {
   id: string;
+  editor_url?: string;
+  rule?: string;
+  cron?: string;
   next_run_at: string;
   created_at: string;
   updated_at: string;
