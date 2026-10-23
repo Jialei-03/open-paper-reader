@@ -179,6 +179,7 @@ def file_out(member):
         "revision": revision(raw),
         "file_path": member.file_path,
         "file_error": getattr(member, "_file_error", ""),
+        "builtin_update_available": getattr(member, "_builtin_update_available", False),
     }
 
 
@@ -318,8 +319,9 @@ def edit(d, workspace, member, body):
         files.atomic_write(
             files.state_path(files.settings_of(member), member.id, "base.md"), original
         )
-    if body.restore_builtin and not member.library_id:
-        original = (files.BUILTINS / f"{member.role}.md").read_text(encoding="utf-8")
+    restore = body.restore_builtin and files.builtin_file(member) is not None
+    if restore:
+        original = files.builtin_file(member).read_bytes().decode("utf-8")
         values = files.parse(original, member.role)
     if body.source is not None:
         original, values = body.source, files.parse(body.source, member.role)
@@ -333,13 +335,15 @@ def edit(d, workspace, member, body):
         values["enabled"] = body.enabled
     source = (
         original
-        if body.source is not None
+        if (body.source is not None or restore)
         and not body.config
         and body.enabled is None
         and body.subscriptions is None
         else files.render(values, original, member.role)
     )
-    files.save_member(member, source, workspace.owner, upload=body.avatar_upload)
+    files.save_member(
+        member, source, workspace.owner, upload=body.avatar_upload, builtin=restore
+    )
     for channel in d.scalars(
         select(TeamChannel).where(TeamChannel.member_id == member.id)
     ):

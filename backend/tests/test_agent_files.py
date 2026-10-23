@@ -1,9 +1,12 @@
 # ruff: noqa: F811
 """File definitions: all tests use temporary app data and no model/network calls."""
 
-import importlib
 import base64
+import hashlib
+import importlib
 import io
+import shutil
+from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -474,18 +477,18 @@ def test_save_renames_and_commits_only_agent_with_actor_and_checks_revision(worl
 
 
 def test_builtin_files_are_copied_and_can_restore(world):
-    _, a, _, _, _, _, _, base, overview = world
+    _, a, _, settings, _, _, wid, base, overview = world
     for member in overview["members"]:
         if member["role"] == "human":
             continue
         path = path_of(world, member["id"])
         assert path.is_file()
-        assert (
-            files.parse(path.read_text())["role_description"]
-            == files.parse((files.BUILTINS / (member["role"] + ".md")).read_text())[
-                "role_description"
-            ]
+        original = (files.BUILTINS / (member["role"] + ".md")).read_bytes()
+        assert path.read_bytes() == original
+        record = repo.repo_dir(settings, wid) / files.builtin_record(
+            SimpleNamespace(role=member["role"])
         )
+        assert record.read_text().strip() == hashlib.sha256(original).hexdigest()
     builtin = next(m for m in overview["members"] if m["role"] == "librarian")
     mid = builtin["id"]
     assert a.patch(base + f"/members/{mid}", json={"source": SOURCE}).status_code == 200
@@ -494,6 +497,207 @@ def test_builtin_files_are_copied_and_can_restore(world):
         == 200
     )
     assert a.get(base + f"/members/{mid}").json()["name"] == "文献员"
+    assert (
+        path_of(world, mid).read_bytes()
+        == (files.BUILTINS / "librarian.md").read_bytes()
+    )
+
+
+def historical_builtin(role, with_length_rule=False):
+    source = (files.BUILTINS / f"{role}.md").read_text()
+    source = source.replace("`wake`", "`to`")
+    if not with_length_rule:
+        source = source.replace(
+            "Match the requested response length (one sentence when asked for one), "
+            "adding brief verification details only when requested or necessary.\n\n",
+            "",
+        )
+    return source
+
+
+def test_builtin_hashes_cover_all_shipped_versions_and_generated_copies():
+    for role, hashes in files.BUILTIN_HASHES.items():
+        current = (files.BUILTINS / f"{role}.md").read_text()
+        for source in (
+            current,
+            historical_builtin(role),
+            historical_builtin(role, True),
+        ):
+            values = files.parse(source, role)
+            for copy in (
+                source,
+                files.render(values, role=role),
+                files.render(values, source, role),
+            ):
+                assert hashlib.sha256(copy.encode()).hexdigest() in hashes
+
+
+@pytest.mark.parametrize("renamed", [False, True])
+def test_builtin_record_auto_updates_and_commits_only_its_files(
+    world, tmp_path, monkeypatch, renamed
+):
+    app, a, _, settings, _, _, wid, base, overview = world
+    member = next(m for m in overview["members"] if m["role"] == "librarian")
+    path = path_of(world, member["id"])
+    bundled = tmp_path / "bundled"
+    shutil.copytree(files.BUILTINS, bundled)
+    monkeypatch.setattr(files, "BUILTINS", bundled)
+    root = repo.repo_dir(settings, wid)
+    (root / "unrelated.txt").write_text("leave staged")
+    repo.git(root, "add", "--", "unrelated.txt")
+    with app.state.maker() as d:
+        row = d.get(TeamMember, member["id"])
+        original = files.read_member(row)[0]
+        # Neither new bundle is in the historical list: the recorded hash is enough.
+        for rule in ("First new rule.", "Second new rule."):
+            updated = original + "\n" + rule + "\n"
+            if renamed:
+                updated = updated.replace("name: 文献员", "name: 新文献员")
+            (bundled / "librarian.md").write_text(updated)
+            assert files.read_member(row)[0] == updated
+            old_path, path = path, root / row.file_path
+            if old_path != path:
+                assert not old_path.exists()
+            assert path.read_bytes() == updated.encode()
+            record = root / files.builtin_record(row)
+            assert (
+                record.read_text().strip()
+                == hashlib.sha256(updated.encode()).hexdigest()
+            )
+            assert (
+                repo.git(root, "log", "-1", "--format=%s").stdout.strip()
+                == f"更新内置成员 {files.parse(updated)['name']}"
+            )
+            changed = repo.git(
+                root, "show", "--format=", "--no-renames", "--name-only", "HEAD"
+            ).stdout.splitlines()
+            expected = {row.file_path, files.builtin_record(row)}
+            if old_path != path:
+                expected.add(str(old_path.relative_to(root)))
+            assert set(changed) == expected
+            assert not getattr(row, "_file_error", "")
+            assert files.state_path(settings, row.id).read_text() == updated
+            head = repo.git(root, "rev-parse", "HEAD").stdout
+            assert files.read_member(row)[0] == updated
+            assert repo.git(root, "rev-parse", "HEAD").stdout == head
+        d.commit()
+        assert not a.get(base + f"/members/{row.id}").json()["builtin_update_available"]
+    assert (
+        repo.git(root, "diff", "--cached", "--name-only").stdout.strip()
+        == "unrelated.txt"
+    )
+
+
+@pytest.mark.parametrize("copy_style", ["original", "initialized", "restored"])
+def test_builtin_legacy_copies_without_record_auto_update(world, copy_style):
+    _, a, _, settings, _, _, wid, base, overview = world
+    root = repo.repo_dir(settings, wid)
+    for member in overview["members"]:
+        role = member["role"]
+        if role == "human":
+            continue
+        source = historical_builtin(role)
+        if copy_style != "original":
+            source = files.render(
+                files.parse(source, role),
+                source if copy_style == "restored" else "",
+                role,
+            )
+        path = path_of(world, member["id"])
+        path.write_bytes(source.encode())
+        record = files.builtin_record(SimpleNamespace(role=role))
+        (root / record).unlink()
+        repo.git(root, "add", "--", member["file_path"], record)
+        repo.git(root, "commit", "-q", "-m", "Old built-in fixture")
+        result = a.get(base + f"/members/{member['id']}")
+        assert result.status_code == 200, result.text
+        assert path.read_bytes() == (files.BUILTINS / f"{role}.md").read_bytes()
+        assert not result.json()["builtin_update_available"]
+        assert (
+            repo.git(root, "log", "-1", "--format=%s").stdout.strip()
+            == f"更新内置成员 {member['name']}"
+        )
+
+
+@pytest.mark.parametrize("recorded", [False, True])
+@pytest.mark.parametrize("change", ["body", "name", "avatar", "newline"])
+def test_builtin_user_edits_are_preserved_until_explicit_restore(
+    world, tmp_path, monkeypatch, recorded, change
+):
+    _, a, _, settings, _, _, wid, base, overview = world
+    member = next(m for m in overview["members"] if m["role"] == "librarian")
+    mid = member["id"]
+    path = path_of(world, mid)
+    if change == "newline":
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+    else:
+        body = (
+            {"source": path.read_text() + "\nMy instructions.\n"}
+            if change == "body"
+            else {
+                "config": {
+                    **{key: member[key] for key in MemberConfig.model_fields},
+                    change: "Ada" if change == "name" else "pixel:custom",
+                }
+            }
+        )
+        result = a.patch(base + f"/members/{mid}", json=body)
+        assert result.status_code == 200, result.text
+        path = path_of(world, mid)
+    customized = path.read_bytes()
+    assert not a.get(base + f"/members/{mid}").json()["builtin_update_available"]
+    root = repo.repo_dir(settings, wid)
+    record = root / files.builtin_record(SimpleNamespace(role="librarian"))
+    if not recorded:
+        record.unlink()
+    bundled = tmp_path / "bundled"
+    shutil.copytree(files.BUILTINS, bundled)
+    new_source = (bundled / "librarian.md").read_bytes() + b"\nNew bundled rule.\n"
+    (bundled / "librarian.md").write_bytes(new_source)
+    monkeypatch.setattr(files, "BUILTINS", bundled)
+    head = repo.git(root, "rev-parse", "HEAD").stdout
+    result = a.get(base + f"/members/{mid}")
+    assert result.status_code == 200, result.text
+    assert result.json()["builtin_update_available"]
+    assert path.read_bytes() == customized
+    assert repo.git(root, "rev-parse", "HEAD").stdout == head
+    result = a.patch(
+        base + f"/members/{mid}",
+        json={"restore_builtin": True, "revision": result.json()["revision"]},
+    )
+    assert result.status_code == 200, result.text
+    assert path_of(world, mid).read_bytes() == new_source
+    assert record.read_text().strip() == hashlib.sha256(new_source).hexdigest()
+    assert not a.get(base + f"/members/{mid}").json()["builtin_update_available"]
+
+
+def test_builtin_auto_update_rechecks_file_under_repo_lock(
+    world, tmp_path, monkeypatch
+):
+    app, _, _, settings, _, _, wid, _, overview = world
+    member = next(m for m in overview["members"] if m["role"] == "librarian")
+    path = path_of(world, member["id"])
+    customized = path.read_text() + "\nConcurrent edit.\n"
+    bundled = tmp_path / "bundled"
+    shutil.copytree(files.BUILTINS, bundled)
+    (bundled / "librarian.md").write_text(path.read_text() + "\nNew bundled rule.\n")
+    monkeypatch.setattr(files, "BUILTINS", bundled)
+    locked = repo._locked
+
+    @contextmanager
+    def edit_before_lock(*args, **kwargs):
+        path.write_text(customized)
+        with locked(*args, **kwargs):
+            yield
+
+    monkeypatch.setattr(repo, "_locked", edit_before_lock)
+    root = repo.repo_dir(settings, wid)
+    head = repo.git(root, "rev-parse", "HEAD").stdout
+    with app.state.maker() as d:
+        row = d.get(TeamMember, member["id"])
+        assert files.read_member(row)[0] == customized
+    assert path.read_text() == customized
+    assert repo.git(root, "rev-parse", "HEAD").stdout == head
 
 
 def test_external_library_and_team_files_are_discovered(world):

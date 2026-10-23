@@ -60,6 +60,17 @@ for (const [locale, theme, width] of [
     );
     const { messages } = await setup(page);
     const reply = changedReply();
+    reply.text = "";
+    reply.run = {
+      id: "file-run",
+      status: "completed",
+      response: "",
+      error: "",
+      steps: [],
+      runtime: {},
+      created_at: stamp,
+      updated_at: stamp,
+    };
     messages.push(reply, {
       ...reply,
       id: "no-changes",
@@ -90,6 +101,12 @@ for (const [locale, theme, width] of [
     });
     await page.reload();
     const row = page.locator('[data-message-id="file-changes"]');
+    await expect(
+      row.getByText(t("team.noContent"), { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      row.getByText(t("team.noAnswer"), { exact: true }),
+    ).toHaveCount(0);
     await expect(
       row.getByText(t("team.changes.files", { n: 2 }), { exact: true }),
     ).toBeVisible();
@@ -947,6 +964,100 @@ test("queued replies become working turns and settle in completion order", async
     .poll(order)
     .toEqual([request.id, "intervening-update", reply.id]);
 });
+
+for (const [locale, theme, width] of [
+  ["zh", "light", 1440],
+  ["en", "dark", 720],
+] as const) {
+  test(`${locale}: completed empty replies become a compact no-content row`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(
+      ({ locale, theme }) => {
+        localStorage.setItem("paper-locale", locale);
+        localStorage.setItem("paper-appearance", theme);
+      },
+      { locale, theme },
+    );
+    const { messages } = await setup(page);
+    const request: TeamMessage = {
+      id: "empty-request",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "human",
+      text: "Read the thread",
+      kind: "text",
+      mentions: [],
+      data: {},
+      replies: 2,
+      created_at: stamp,
+    };
+    const reply: TeamMessage = {
+      ...request,
+      id: "empty-reply",
+      thread_id: request.id,
+      author_id: "librarian",
+      text: "",
+      replies: 0,
+      run: {
+        id: "empty-run",
+        status: "queued",
+        response: "",
+        error: "",
+        steps: [],
+        runtime: {},
+        created_at: stamp,
+        updated_at: stamp,
+      },
+    };
+    messages.push(request, reply, {
+      ...reply,
+      id: "after-empty",
+      text: "Later answer",
+      run: undefined,
+      created_at: "2026-10-23T10:02:00+00:00",
+    });
+    await page.goto(`/#team/${workspace}/${channel}?thread=${request.id}`);
+    const thread = page.getByRole("region", {
+      name: t("team.thread"),
+      exact: true,
+    });
+    const row = thread.locator('[data-message-id="empty-reply"]');
+    await expect(row.getByRole("status")).toHaveText(t("team.queued"));
+    reply.run!.status = "running";
+    reply.run!.steps = [
+      { name: "read", status: "completed", arguments: { path: "notes.md" } },
+    ];
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("research-team-updated")),
+    );
+    await expect(row.locator('[data-live="true"]')).toBeVisible();
+    reply.run!.status = "completed";
+    reply.text = reply.run!.response = " \n\t";
+    reply.created_at = reply.run!.updated_at = "2026-10-23T10:01:00+00:00";
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("research-team-updated")),
+    );
+    await expect(row.getByRole("status")).toHaveText(t("team.noContent"));
+    await expect(
+      row.locator('svg[shape-rendering="crispEdges"]'),
+    ).toBeVisible();
+    await expect(row.getByText("librarian", { exact: true })).toHaveCount(1);
+    await expect(row.getByTestId("team-message-bubble")).toHaveCount(0);
+    await expect(row.locator("time, section, button")).toHaveCount(0);
+    await expect(
+      row.getByText(t("team.noAnswer"), { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      thread.locator('[data-message-id="after-empty"] header strong'),
+    ).toHaveText("librarian");
+    expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true,
+    );
+  });
+}
 
 test("stopping a queued member leaves a stopped reply and failures keep their output", async ({
   page,

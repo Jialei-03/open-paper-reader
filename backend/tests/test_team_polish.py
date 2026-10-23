@@ -645,7 +645,7 @@ def test_old_jobs_stay_silent_and_running_jobs_notify_when_finished(world):
         assert len(notes) == 1 and notes[0].data["job_id"] == "in-flight"
 
 
-def test_finished_empty_placeholder_has_failure_instead_of_spinner(world):
+def test_finished_empty_placeholder_stays_completed(world):
     app, a, _, settings, *_ = world
     root = send(world, "@writer draft")
     finish(app, deliveries(app)[0].run_id, "")
@@ -655,9 +655,10 @@ def test_finished_empty_placeholder_has_failure_instead_of_spinner(world):
         params={"thread_id": root["id"]},
     ).json()["messages"]
     assert len(rows) == 1
-    assert (
-        rows[0]["run"]["status"] == "failed" and rows[0]["run"]["runtime"]["no_answer"]
-    )
+    assert rows[0]["text"] == ""
+    assert rows[0]["run"]["status"] == "completed"
+    assert not rows[0]["run"]["error"]
+    assert not rows[0]["run"]["runtime"].get("no_answer")
 
 
 def test_queued_run_reads_external_file_budget_at_start(world, tmp_path, monkeypatch):

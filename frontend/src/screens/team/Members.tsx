@@ -52,7 +52,7 @@ export function Members({
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState<{
     member: TeamMember;
-    remove: boolean;
+    action: "delete" | "disable" | "restore";
   } | null>(null);
   const [pending, setPending] = useState<{
     config: MemberConfig;
@@ -188,16 +188,12 @@ export function Members({
             <Prose text={member.role_description ?? ""} />
           </div>
           {member.builtin && member.role !== "human" && (
-            <Button
-              onClick={() =>
-                void action(() =>
-                  editTeamMember(team.workspace_id, member.id, {
-                    restore_builtin: true,
-                  }),
-                )
-              }
-            >
-              {t("members.restoreBuiltin")}
+            <Button onClick={() => setConfirm({ member, action: "restore" })}>
+              {t(
+                member.builtin_update_available
+                  ? "members.updateBuiltin"
+                  : "members.restoreBuiltin",
+              )}
             </Button>
           )}
           {member.library_id && (
@@ -361,7 +357,7 @@ export function Members({
                                     enabled: true,
                                   }),
                                 )
-                              : setConfirm({ member: m, remove: false }),
+                              : setConfirm({ member: m, action: "disable" }),
                         },
                         ...(!m.builtin
                           ? [
@@ -370,7 +366,7 @@ export function Members({
                                 label: t("members.delete"),
                                 danger: true,
                                 onSelect: () =>
-                                  setConfirm({ member: m, remove: true }),
+                                  setConfirm({ member: m, action: "delete" }),
                               },
                             ]
                           : []),
@@ -443,7 +439,11 @@ export function Members({
       <Dialog
         open={!!confirm}
         title={t(
-          confirm?.remove ? "members.confirmDelete" : "members.confirmDisable",
+          confirm?.action === "restore"
+            ? "members.confirmRestoreBuiltin"
+            : confirm?.action === "delete"
+              ? "members.confirmDelete"
+              : "members.confirmDisable",
         )}
         onClose={() => setConfirm(null)}
         footer={
@@ -456,7 +456,7 @@ export function Members({
               onClick={() => {
                 if (confirm)
                   void action(async () => {
-                    if (confirm.remove)
+                    if (confirm.action === "delete")
                       await deleteTeamMember(
                         team.workspace_id,
                         confirm.member.id,
@@ -465,13 +465,26 @@ export function Members({
                       await editTeamMember(
                         team.workspace_id,
                         confirm.member.id,
-                        { enabled: false },
+                        confirm.action === "restore"
+                          ? {
+                              restore_builtin: true,
+                              revision: confirm.member.revision,
+                            }
+                          : { enabled: false },
                       );
                     setConfirm(null);
                   });
               }}
             >
-              {t(confirm?.remove ? "members.delete" : "members.disable")}
+              {t(
+                confirm?.action === "restore"
+                  ? confirm.member.builtin_update_available
+                    ? "members.updateBuiltin"
+                    : "members.restoreBuiltin"
+                  : confirm?.action === "delete"
+                    ? "members.delete"
+                    : "members.disable",
+              )}
             </Button>
           </>
         }

@@ -787,6 +787,7 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         )
         if mentions:
             out = [team.message_out(d, m) for m in rows if human in m.mentions]
+            out = [m for m in out if team.has_message_content(m)]
         else:
             roots = {
                 m.thread_id or m.id for m in rows if m.author_id == human or m.thread_id

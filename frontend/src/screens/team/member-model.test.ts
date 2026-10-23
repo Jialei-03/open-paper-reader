@@ -10,6 +10,7 @@ import {
   initials,
 } from "./member-model";
 import { MemberFields, PermissionFields } from "./MemberEditor";
+import { Members } from "./Members";
 import { MemberStatus } from "../research/TeamNavigation";
 import { workflowMembers } from "./TeamSettings";
 import { mentionMatches } from "../research/team-model";
@@ -26,6 +27,44 @@ const ada: TeamMember = {
   status: "idle",
   active_run_id: null,
 };
+
+for (const locale of ["zh", "en"] as const) {
+  it(`labels built-in updates and restores in ${locale}`, () => {
+    for (const available of [false, true]) {
+      const member: TeamMember = {
+        ...ada,
+        role: "librarian",
+        builtin: true,
+        builtin_update_available: available,
+      };
+      const html = renderToStaticMarkup(
+        createElement(I18nProvider, {
+          locale,
+          children: createElement(Members, {
+            team: {
+              workspace_id: "w",
+              members: [member],
+              channels: [],
+              notifications: [],
+            },
+            selected: member.id,
+            go() {},
+          }),
+        }),
+      );
+      const label =
+        locale === "zh"
+          ? available
+            ? "更新到内置新版"
+            : "恢复内置文件"
+          : available
+            ? "Update to latest built-in"
+            : "Restore built-in file";
+      expect(html).toContain(`>${label}</span></button>`);
+    }
+  });
+}
+
 describe("member status", () => {
   for (const locale of ["zh", "en"] as const) {
     it(`labels each state and gives disabled members precedence in ${locale}`, () => {

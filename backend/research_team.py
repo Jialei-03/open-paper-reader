@@ -422,8 +422,7 @@ def message_out(d, message):
         out["run"] = run_out(run)
         out["text"] = normalize(message.text or run.response)
         if (
-            run.status not in ACTIVE
-            and run.status != "cancelled"
+            run.status == "failed"
             and not out["text"]
             and not run.error
             and not message.data.get("links")
@@ -437,6 +436,24 @@ def message_out(d, message):
         )
     )
     return out
+
+
+def has_message_content(message):
+    data = message["data"]
+    run = message.get("run") or {}
+    if not run:
+        # Only a member's run can end with nothing to say; notices always count.
+        return True
+    return bool(
+        message["text"].strip()
+        or data.get("files")
+        or data.get("attachments")
+        or (data.get("changes") or {}).get("files")
+        or data.get("links")
+        or data.get("file_error")
+        or run.get("error")
+        or run.get("status") in {"failed", "cancelled"}
+    )
 
 
 def research_root(project, channel, d):
@@ -747,14 +764,19 @@ def overview(d, workspace):
     unread_messages = [
         m for m in messages if m.author_id != human and not m.data.get("read")
     ]
-    previews = {}
-    for message in messages:
-        previews[message.channel_id] = message
+    unread_values = {m.id: message_out(d, m) for m in unread_messages}
+    unread_messages = [
+        m for m in unread_messages if has_message_content(unread_values[m.id])
+    ]
     last_messages = {}
     names = {m.id: m.name for m in members}
-    for channel_id, message in previews.items():
-        value = message_out(d, message)
-        last_messages[channel_id] = {
+    for message in reversed(messages):
+        if message.channel_id in last_messages:
+            continue
+        value = unread_values.get(message.id) or message_out(d, message)
+        if not has_message_content(value):
+            continue
+        last_messages[message.channel_id] = {
             "author_id": message.author_id,
             "author_name": names.get(message.author_id, ""),
             "text": preview_text(value["text"]),
@@ -763,12 +785,8 @@ def overview(d, workspace):
     unread = []
     for channel in channels:
         count = 0
-        for message in messages:
-            if (
-                message.channel_id != channel.id
-                or message.author_id == human
-                or message.data.get("read")
-            ):
+        for message in unread_messages:
+            if message.channel_id != channel.id:
                 continue
             count += 1
             if (
@@ -776,7 +794,7 @@ def overview(d, workspace):
                 or message.thread_id in participating
                 or channel.member_id
             ):
-                unread.append(message_out(d, message))
+                unread.append(unread_values[message.id])
         channel.unread_count = count
     from .team_budgets import limits, tokens
 

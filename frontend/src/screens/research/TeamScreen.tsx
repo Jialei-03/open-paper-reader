@@ -804,6 +804,18 @@ const systemMessage = (message: TeamMessage) =>
   ["budget", "relay_limit"].includes(message.kind) ||
   (!message.author_id && message.kind !== "research");
 
+const emptyReply = (message: TeamMessage) =>
+  message.run?.status === "completed" &&
+  !message.run.error &&
+  !message.run.runtime?.time_limit_reached &&
+  !message.run.runtime?.budget_limit &&
+  !message.text.trim() &&
+  !message.data.files?.length &&
+  !message.data.attachments?.length &&
+  !message.data.changes?.files.length &&
+  !message.data.links?.length &&
+  !message.data.file_error;
+
 export function groupMessages(
   previous: TeamMessage | undefined,
   message: TeamMessage,
@@ -823,6 +835,8 @@ export function groupMessages(
     message.kind !== "research" &&
     previous.run?.status !== "queued" &&
     message.run?.status !== "queued" &&
+    !emptyReply(previous) &&
+    !emptyReply(message) &&
     gap >= 0 &&
     gap <= 5 * 60 * 1000
   );
@@ -980,7 +994,7 @@ export function MessageRow({
       }
     />
   );
-  if (message.run?.status === "queued")
+  if (message.run?.status === "queued" || emptyReply(message))
     return (
       <article
         className={`${styles.message} ${styles.queuedMessage}`}
@@ -991,9 +1005,11 @@ export function MessageRow({
         {avatar}
         <strong>{name}</strong>
         <span className={styles.messageStatus} role="status">
-          {t("team.queued")}
+          {t(
+            message.run?.status === "queued" ? "team.queued" : "team.noContent",
+          )}
         </span>
-        <div className={styles.hoverActions}>{stop}</div>
+        {stop && <div className={styles.hoverActions}>{stop}</div>}
       </article>
     );
   // Only members are woken; older records may still name the researcher.

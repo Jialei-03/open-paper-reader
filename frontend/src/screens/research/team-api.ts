@@ -52,6 +52,7 @@ export interface TeamMember extends Partial<MemberConfig>, AgentFile {
   avatar_seed?: string;
   library_id?: string | null;
   builtin?: boolean;
+  builtin_update_available?: boolean;
   enabled?: boolean;
   deleted?: boolean;
   subscriptions?: string[];

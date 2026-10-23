@@ -323,6 +323,95 @@ describe("team member replies", () => {
       [],
       [{ name: "read", status: "completed", arguments: { path: "notes.md" } }],
     ]) {
+      it(`${locale} shows only identity and no new content after completing with ${steps.length} steps`, () => {
+        for (const data of [
+          {},
+          { files: [], attachments: [], links: [] },
+          { commit: changes.commit },
+          { changes: { ...changes, files: [] } },
+        ]) {
+          const html = render(
+            {
+              ...message,
+              text: " \n\t",
+              data,
+              run: { ...message.run!, status: "completed", steps },
+            },
+            true,
+          );
+          expect(html).toContain("<strong>Ada</strong>");
+          expect(html).toContain('shape-rendering="crispEdges"');
+          expect(html).toContain(`role="status">${t("team.noContent")}</span>`);
+          expect(html).not.toContain('data-testid="team-message-bubble"');
+          expect(html).not.toContain("<time");
+          expect(html).not.toContain("<section");
+          expect(html).not.toContain("<button");
+          expect(html).not.toContain("offline-model");
+          expect(html).not.toContain("notes.md");
+          expect(html).not.toContain(t("team.noAnswer"));
+          expect(html).not.toContain(t("team.queued"));
+        }
+      });
+    }
+
+    it(`${locale} preserves file cards, deletions, attachments, links and file errors without reply text`, () => {
+      const cases: [TeamMessage["data"], string][] = [
+        [{ files: [{ path: "draft.md", name: "draft.md" }] }, "draft.md"],
+        [{ changes }, t("team.changes.files", { n: 2 })],
+        [
+          {
+            changes: {
+              ...changes,
+              files: [
+                { path: "deleted.md", added: 0, removed: 3, status: "D" },
+              ],
+            },
+          },
+          t("team.changes.files", { n: 1 }),
+        ],
+        [
+          { attachments: [{ id: "file", name: "attached.md", url: "/file" }] },
+          "attached.md",
+        ],
+        [
+          {
+            links: [{ channel_id: "other", thread_id: "post", name: "Other" }],
+          },
+          t("team.resultIn", { name: "Other" }),
+        ],
+        [{ file_error: "File error" }, "File error"],
+      ];
+      for (const [data, content] of cases) {
+        const html = render({
+          ...message,
+          data,
+          run: { ...message.run!, status: "completed" },
+        });
+        expect(html).toContain(content);
+        expect(html).toContain('data-testid="team-message-bubble"');
+        expect(html).not.toContain(t("team.noContent"));
+        expect(html).not.toContain(t("team.noAnswer"));
+      }
+    });
+
+    it(`${locale} keeps empty failures and errors out of the no-content row`, () => {
+      for (const run of [
+        { ...message.run!, status: "failed" },
+        { ...message.run!, status: "failed", error: "Test failure" },
+        { ...message.run!, status: "completed", error: "Test failure" },
+      ]) {
+        const html = render({ ...message, run });
+        expect(html).toContain('data-testid="team-message-bubble"');
+        expect(html).not.toContain(t("team.noContent"));
+        if (run.status === "failed")
+          expect(html).toContain(run.error || t("research.process.failed"));
+      }
+    });
+
+    for (const steps of [
+      [],
+      [{ name: "read", status: "completed", arguments: { path: "notes.md" } }],
+    ]) {
       it(`${locale} shows stopped after cancellation with ${steps.length} steps`, () => {
         const html = render({
           ...message,
@@ -389,7 +478,7 @@ describe("conversation grouping and panel defaults", () => {
       groupMessages(first, { ...next, created_at: "2026-10-23T15:32:01Z" }),
     ).toBe(false);
   });
-  it("breaks at other authors, conversations, queued rows and system rows", () => {
+  it("breaks at other authors, conversations, queued or empty completed rows and system rows", () => {
     expect(groupMessages(undefined, next)).toBe(false);
     for (const patch of [
       { author_id: "writer" },
@@ -401,6 +490,7 @@ describe("conversation grouping and panel defaults", () => {
       { created_at: "invalid" },
       { created_at: "2026-10-23T15:26:59Z" },
       { run: message.run },
+      { run: { ...message.run!, status: "completed" } },
     ]) {
       expect(groupMessages(first, { ...next, ...patch })).toBe(false);
       expect(groupMessages({ ...first, ...patch }, next)).toBe(false);

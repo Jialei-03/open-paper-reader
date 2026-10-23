@@ -19,6 +19,9 @@ export const en = {
   "members.format": "Format",
   "members.paste": "Paste content",
   "members.restoreBuiltin": "Restore built-in file",
+  "members.updateBuiltin": "Update to latest built-in",
+  "members.confirmRestoreBuiltin":
+    "Overwrite your changes with the built-in file?",
   "members.permission.file_readonly": "Read-only files",
   "members.name": "Name",
   "members.avatar": "Avatar",
@@ -100,6 +103,7 @@ export const en = {
   "team.copy": "Copy",
   "team.replies": "{n} replies",
   "team.queued": "Queued",
+  "team.noContent": "No new content",
   "team.sending": "Sending",
   "team.failed": "Failed",
   "team.continue": "Continue",

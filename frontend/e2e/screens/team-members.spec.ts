@@ -277,6 +277,15 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
                 ...(body.subscriptions
                   ? { subscriptions: body.subscriptions }
                   : {}),
+                ...(body.restore_builtin
+                  ? {
+                      ...defaults(m.role === "advisor" ? "导师" : "文献员"),
+                      builtin_update_available: false,
+                      source: documentSource(
+                        defaults(m.role === "advisor" ? "导师" : "文献员"),
+                      ),
+                    }
+                  : {}),
               }
             : m,
         );
@@ -341,6 +350,64 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
       );
     },
   };
+}
+
+for (const locale of ["zh", "en"] as const) {
+  for (const available of [false, true]) {
+    test(`${locale} 内置成员${available ? "更新" : "恢复"}先确认覆盖修改`, async ({
+      page,
+    }) => {
+      const { saved } = await setup(page, [
+        {
+          id: "builtin-customized",
+          role: "librarian",
+          ...defaults("Customized"),
+          builtin: true,
+          builtin_update_available: available,
+          revision: "v1",
+          status: "idle",
+          active_run_id: null,
+        },
+      ]);
+      await page.evaluate(
+        (value) => localStorage.setItem("paper-locale", value),
+        locale,
+      );
+      await page.goto(
+        `/#team/${wid}/settings?thread=member:builtin-customized`,
+      );
+      await page.reload();
+      const t = createTranslator(locale).t;
+      const label = t(
+        available ? "members.updateBuiltin" : "members.restoreBuiltin",
+      );
+      const button = page.getByRole("button", { name: label, exact: true });
+      await expect(button).toBeVisible();
+      await button.click();
+      const dialog = page.getByRole("dialog", {
+        name: t("members.confirmRestoreBuiltin"),
+        exact: true,
+      });
+      await expect(dialog).toBeVisible();
+      expect(saved).toHaveLength(0);
+      await dialog
+        .getByRole("button", { name: t("common.cancel"), exact: true })
+        .click();
+      await expect(dialog).not.toBeVisible();
+      expect(saved).toHaveLength(0);
+      await button.click();
+      await dialog.getByRole("button", { name: label, exact: true }).click();
+      await expect.poll(() => saved.length).toBe(1);
+      expect(saved[0]).toEqual({ restore_builtin: true, revision: "v1" });
+      await expect(dialog).not.toBeVisible();
+      await expect(
+        page.getByRole("button", {
+          name: t("members.restoreBuiltin"),
+          exact: true,
+        }),
+      ).toBeVisible();
+    });
+  }
 }
 
 test("上传头像随成员保存，取消不写入", async ({ page }) => {

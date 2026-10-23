@@ -4,15 +4,15 @@ The old SQL definition columns are migration archives only. Valid snapshots and
 library sync baselines live beside the data directory, never in model prompts.
 """
 
-import hashlib
 import base64
 import binascii
+import hashlib
 import io
 import os
-from pathlib import Path, PureWindowsPath
 import re
 import tempfile
 import tomllib
+from pathlib import Path, PureWindowsPath
 from xml.etree import ElementTree
 
 from PIL import Image
@@ -21,6 +21,8 @@ from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.error import MarkedYAMLError
 from sqlalchemy import select
 from sqlalchemy.orm import object_session
+
+from .builtin_agent_versions import BUILTIN_HASHES
 
 GROUPS = ("literature", "files", "shell", "experiments", "web", "project")
 COLORS = ("blue", "green", "amber", "red", "violet", "slate")
@@ -474,7 +476,14 @@ def ensure_member(member):
     values["max_tokens"] = legacy_limit(member.legacy_max_tokens, 2000000)
     values["channels"] = channels_for(d, member, member.legacy_subscriptions or [])
     source = render(values, role=member.role)
-    save_member(member, source, actor="ORA migration", initialize=True)
+    builtin = builtin_file(member)
+    if builtin:
+        original = builtin.read_bytes().decode("utf-8")
+        if parse(source, member.role) == parse(original, member.role):
+            source = original
+    save_member(
+        member, source, actor="ORA migration", initialize=True, builtin=bool(builtin)
+    )
     if member.library_id:
         from .models import MemberLibrary
 
@@ -513,6 +522,45 @@ def read_valid(settings, row, path, role="custom"):
         raise DefinitionError(1, str(exc)) from None
 
 
+def builtin_file(member):
+    if not member.library_id and member.role in BUILTIN_HASHES:
+        return BUILTINS / f"{member.role}.md"
+    return None
+
+
+def builtin_record(member):
+    return f".ora/builtin-agents/{member.role}.sha256"
+
+
+def update_builtin(member, root, path):
+    """Only an exact bundled copy may follow an updated built-in automatically."""
+    member._builtin_update_available = False
+    builtin = builtin_file(member)
+    if not builtin:
+        return
+    current = builtin.read_bytes()
+    current_hash = hashlib.sha256(current).hexdigest()
+    raw_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    record = safe_path(root, builtin_record(member))
+    baseline = record.read_text(encoding="utf-8").strip() if record.exists() else None
+    member._builtin_update_available = (baseline or raw_hash) != current_hash
+    if raw_hash == current_hash:
+        member._builtin_update_available = False
+        return
+    unchanged = (
+        raw_hash == baseline if baseline else raw_hash in BUILTIN_HASHES[member.role]
+    )
+    if unchanged:
+        saved = save_member(
+            member,
+            current.decode("utf-8"),
+            actor="ORA",
+            builtin=True,
+            expected_hash=raw_hash,
+        )
+        member._builtin_update_available = saved is None
+
+
 def read_member(member):
     ensure_member(member)
     settings = settings_of(member)
@@ -521,7 +569,14 @@ def read_member(member):
     root = member_root(settings, member)
     try:
         path = safe_path(root, member.file_path)
-        return read_valid(settings, member, path, member.role)
+        try:
+            update_builtin(member, root, path)
+        except OSError:
+            # Missing definitions still use the valid snapshot and expose its error.
+            pass
+        return read_valid(
+            settings, member, safe_path(root, member.file_path), member.role
+        )
     except ValueError as exc:
         member._file_error = str(exc)
         snapshot = state_path(settings, member.id)
@@ -584,7 +639,15 @@ def model_identifier(settings, owner, model):
     return match["id"] if match else model
 
 
-def save_member(member, source, actor, initialize=False, upload=None):
+def save_member(
+    member,
+    source,
+    actor,
+    initialize=False,
+    upload=None,
+    builtin=False,
+    expected_hash=None,
+):
     from . import research_repo
 
     values = parse(source, member.role)
@@ -621,12 +684,23 @@ def save_member(member, source, actor, initialize=False, upload=None):
     with research_repo._locked(research_repo.home(settings, member.workspace_id)):
         path = safe_path(repo, relative)
         old = safe_path(repo, member.file_path) if member.file_path else None
+        if expected_hash is not None and (
+            old is None or hashlib.sha256(old.read_bytes()).hexdigest() != expected_hash
+        ):
+            return None
         if (old is None or path != old) and path.exists():
             # An interrupted SQL transaction may have already exported this exact file.
             if not initialize or path.read_text(encoding="utf-8") != source:
                 raise ValueError("同名成员文件已存在 / Agent file already exists")
         atomic_write(path, source)
         paths = [relative]
+        if builtin:
+            record = builtin_record(member)
+            atomic_write(
+                safe_path(repo, record),
+                hashlib.sha256(builtin_file(member).read_bytes()).hexdigest() + "\n",
+            )
+            paths.append(record)
         if image is not None:
             # Commit the image and definition together, only when the member is saved.
             image_path.parent.mkdir(parents=True, exist_ok=True)
@@ -657,7 +731,9 @@ def save_member(member, source, actor, initialize=False, upload=None):
                 "commit",
                 "-q",
                 "-m",
-                f"{actor} 修改成员 {values['name']}",
+                f"更新内置成员 {values['name']}"
+                if expected_hash is not None
+                else f"{actor} 修改成员 {values['name']}",
                 "--",
                 *paths,
             )
