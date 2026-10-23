@@ -862,8 +862,11 @@ def context(d, workspace, message):
             ],
             ensure_ascii=False,
         )
-        + "\nTo have members act, name them in team_send_message's `to`;"
+        + "\nTo have members act, name them in team_send_message's `wake`;"
         " @Name in text only refers to them.\n"
+        # Repeated last: long contexts drift from the first lines.
+        + language_part(d, workspace).strip().splitlines()[-1]
+        + "\n"
     )
 
 

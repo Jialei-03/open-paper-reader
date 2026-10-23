@@ -822,3 +822,20 @@ def test_agent_mentions_only_refer_and_to_wakes(world):
     finish(app, row.run_id, "@librarian found them; ask @reviewer?")
     team.settle(settings, app.state.maker)
     assert len(deliveries(app)) == 1
+
+
+def test_wake_names_who_works_next_and_never_the_researcher(world):
+    app, _, _, settings, *_ = world
+    send(world, "@librarian find a paper")
+    row = deliveries(app)[0]
+    call(
+        world,
+        row.run_id,
+        "team_send_message",
+        {"text": "Found it", "wake": ["writer", "研究者", "human", "librarian"]},
+    )
+    finish(app, row.run_id, "Found it")
+    team.settle(settings, app.state.maker)
+    with app.state.maker() as d:
+        woken = [d.get(TeamMember, r.member_id).role for r in deliveries(app)[1:]]
+    assert woken == ["writer"]

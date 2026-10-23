@@ -49,10 +49,16 @@ TEAM_TOOLS = [
     ),
     tool(
         "team_send_message",
-        "Send a message to a channel or thread in this team. Members named in `to` are woken to act on it; @Name in text only refers to someone. Omit channel_id/thread_id to reply here.",
+        "Send a message to a channel or thread in this team. `wake`: members who must now do more work on it; they are woken. Leave `wake` empty when you report results or answer. @Name in text only refers to someone. Omit channel_id/thread_id to reply here.",
         {
             "text": TEXT,
-            "to": {"type": "array", "items": {"type": "string"}},
+            "wake": {"type": "array", "items": {"type": "string"}},
+            # Older agent files still say `to`.
+            "to": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Same as wake.",
+            },
             "kind": {
                 "type": "string",
                 "enum": ["text", "result", "plan", "conclusion", "draft", "review"],
@@ -230,7 +236,14 @@ def _call(app, owner, info, name, args):
                 if name == "team_wait_for_owner"
                 else args.get("kind", "text")
             )
-            to = team.addressed(d, workspace, args.get("to") or [], member)
+            # `to` is the former name of `wake`.
+            to = [
+                i
+                for i in team.addressed(
+                    d, workspace, args.get("wake") or args.get("to") or [], member
+                )
+                if d.get(TeamMember, i).role != "human"
+            ]
             if response and (channel.id, thread_id) == (
                 info["channel_id"],
                 info.get("thread_id"),
