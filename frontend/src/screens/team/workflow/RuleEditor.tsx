@@ -31,13 +31,19 @@ function SelectField({
   onChange(value: string): void;
   children: ReactNode;
 }) {
+  // Named by its label alone: wrapped, the chosen option would join the name.
+  const id = useId();
   return (
-    <label className={styles.field}>
-      {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+    <div className={styles.field}>
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
         {children}
       </select>
-    </label>
+    </div>
   );
 }
 

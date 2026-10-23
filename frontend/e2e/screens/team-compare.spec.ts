@@ -37,9 +37,10 @@ test("evaluation matrix and rerun preserve the selected workflow", async ({
   let batch: Record<string, unknown> | null = null;
   let createdBody: Record<string, unknown> | null = null;
   let forkBody: Record<string, unknown> | null = null;
-  await page.route("**/api/v1/health", (route) =>
-    route.fulfill({ json: { status: "ok", mode: "local" } }),
-  );
+  await page.route("**/api/v1/health", async (route) => {
+    const real = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...real, mode: "local" } });
+  });
   await page.route("**/api/v1/translation-settings", (route) =>
     route.fulfill({
       json: {
@@ -196,9 +197,10 @@ for (const theme of ["light", "dark"]) {
       (value) => localStorage.setItem("paper-appearance", value),
       theme,
     );
-    await page.route("**/api/v1/health", (route) =>
-      route.fulfill({ json: { status: "ok", mode: "local" } }),
-    );
+    await page.route("**/api/v1/health", async (route) => {
+      const real = await (await route.fetch()).json();
+      await route.fulfill({ json: { ...real, mode: "local" } });
+    });
     await page.route("**/api/v1/research/navigation", (route) =>
       route.fulfill({
         json: {

@@ -19,14 +19,14 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-radius: var(--ui-r-12);
+  border-radius: var(--ui-r-16);
   background: var(--ui-bg);
   box-shadow: var(--ui-elev-1);
   overflow: hidden;
 }
 
 .header {
-  --card-header-height: var(--ui-card-header-height);
+  --card-header-height: 52px;
   display: flex;
   flex: none;
   align-items: center;

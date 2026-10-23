@@ -59,13 +59,13 @@ test("icon button exposes its label", async ({ page }) => {
   await expect(search).toHaveText("");
 });
 
-test("icon button uses the 32px and 28px control tokens", async ({ page }) => {
+test("icon button is a 30px square, 26px when small", async ({ page }) => {
   await openKit(page);
   const box = async (name: string) =>
     section(page).getByRole("button", { name }).boundingBox();
-  expect(await box("Search")).toMatchObject({ width: 32, height: 32 });
-  expect(await box("Adjust")).toMatchObject({ width: 28, height: 28 });
-  expect(await box("Bookmark")).toMatchObject({ width: 32, height: 32 });
+  expect(await box("Search")).toMatchObject({ width: 30, height: 30 });
+  expect(await box("Adjust")).toMatchObject({ width: 26, height: 26 });
+  expect(await box("Bookmark")).toMatchObject({ width: 30, height: 30 });
 });
 
 test("focus ring only for keyboard", async ({ page }) => {

@@ -372,7 +372,9 @@ export function ResearchTree({
         <>
           <div className={styles.treeHeading}>{t("research.recent")}</div>
           {[...all]
-            .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+            .sort((a, b) =>
+              (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
+            )
             .slice(0, 20)
             .map((r) => link(r))}
         </>

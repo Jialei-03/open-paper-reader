@@ -53,7 +53,7 @@ test("cards float on the shell with an 8px gap", async ({ page }) => {
   expect(panel.width).toBeCloseTo(400, 1);
 
   for (const card of [middle(page), side(page)]) {
-    await expect(card).toHaveCSS("border-radius", "12px");
+    await expect(card).toHaveCSS("border-radius", "16px");
     // Lifted off the shell: a surface of its own, and a shadow.
     expect(await cssOf(card, "background-color")).not.toBe(
       await cssOf(page.locator("body"), "background-color"),
@@ -249,7 +249,7 @@ test("a floating sidebar lies over the card instead of pushing it", async ({
   expect(sheet.right).toBeGreaterThan(over.left);
   expect(sheet.bottom).toBeCloseTo(page.viewportSize()!.height - 8, 1);
   await expect(nav).toHaveCSS("position", "fixed");
-  await expect(nav).toHaveCSS("border-radius", "12px");
+  await expect(nav).toHaveCSS("border-radius", "16px");
   expect(await cssOf(nav, "box-shadow")).not.toBe("none");
   expect(await cssOf(nav, "background-color")).not.toBe("rgba(0, 0, 0, 0)");
   // It is above the card, not under it.

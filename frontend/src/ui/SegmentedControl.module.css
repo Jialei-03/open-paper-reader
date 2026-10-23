@@ -4,8 +4,8 @@
  * when the choice moves and jumps on the first place and on a resize.
  */
 .control {
-  --segmented-item-md: var(--ui-control-sm);
-  --segmented-item-sm: var(--ui-space-24);
+  --segmented-item-md: 28px;
+  --segmented-item-sm: 24px;
   --segmented-inset: calc(var(--ui-space-2) + 1px);
   --segmented-item: var(--segmented-item-md);
   --segmented-text: var(--ui-text-13);
@@ -23,7 +23,7 @@
 
 .sm {
   --segmented-item: var(--segmented-item-sm);
-  --segmented-text: var(--ui-text-13);
+  --segmented-text: var(--ui-text-12);
 }
 
 /* The keyboard is always on the chosen item, so the ring goes round the whole pill. */

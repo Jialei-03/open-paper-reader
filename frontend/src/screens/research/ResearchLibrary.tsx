@@ -408,7 +408,7 @@ export function ResearchRows({
     .sort(
       (a, b) =>
         Number(!!b.pinned_at) - Number(!!a.pinned_at) ||
-        b.updated_at.localeCompare(a.updated_at),
+        (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
     );
   return (
     <div className={styles.researchList}>

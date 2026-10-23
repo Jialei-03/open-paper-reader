@@ -2,7 +2,7 @@ import type { NavigationResearch } from "./navigation-api";
 
 export function threadTree(rows: NavigationResearch[]) {
   const sorted = [...rows].sort((a, b) =>
-    b.updated_at.localeCompare(a.updated_at),
+    (b.updated_at ?? "").localeCompare(a.updated_at ?? ""),
   );
   const ids = new Set(rows.map((r) => r.id));
   const seen = new Set<string>();
