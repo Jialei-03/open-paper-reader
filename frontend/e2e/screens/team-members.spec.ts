@@ -6,6 +6,10 @@ import type {
   TeamMember,
 } from "../../src/screens/research/team-api";
 
+// Routes only accept UUID channel ids, as the app's channels have.
+const dmId = (member: string) =>
+  `d0000000-0000-4000-8000-${Buffer.from(member).toString("hex").padStart(12, "0").slice(-12)}`;
+
 const wid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const cid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const defaults = (name: string): MemberConfig => ({
@@ -70,7 +74,7 @@ async function setup(page: Page) {
     ...members
       .filter((m) => m.role !== "human")
       .map((m) => ({
-        id: `dm-${m.id}`,
+        id: dmId(m.id),
         key: `dm:${m.id}`,
         name: m.name,
         member_id: m.id,
@@ -322,7 +326,7 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
   await expect(page.getByRole("option", { name: /Ada/ })).toBeVisible();
   await page.goto(`/#team/${wid}/settings?thread=member%3Acustom-2`);
   await page.getByRole("button", { name: "发私信", exact: true }).click();
-  await expect(page).toHaveURL(/dm-custom-2/);
+  await expect(page).toHaveURL(new RegExp(`${dmId("custom-2")}$`));
 });
 
 test("复制内置成员、编辑和停用", async ({ page }) => {
