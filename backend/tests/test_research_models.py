@@ -91,7 +91,7 @@ def test_research_tables_roundtrip(tmp_path):
         assert project.status == "active"
         assert project.end_reason == ""
         assert project.spent == {"sprints": 0, "tokens": 0, "job_seconds": 0}
-        assert project.budget["max_sprints"] == 30
+        assert project.budget["max_sprints"] is None
         nodes = d.scalars(
             select(ResearchNode).where(ResearchNode.project_id == project_id)
         ).all()

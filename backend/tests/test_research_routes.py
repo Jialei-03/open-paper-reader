@@ -40,7 +40,7 @@ def test_create_and_get_project(env):
     assert project["status"] == "active"
     assert project["spent"]["sprints"] == 0
     assert project["budget"]["max_sprints"] == 5
-    assert project["budget"]["max_tokens"] == 2000000
+    assert project["budget"]["max_tokens"] is None
     detail = a.get(f"{BASE}/{project['id']}").json()
     root = [n for n in detail["nodes"] if n["parent_id"] is None]
     assert len(root) == 1 and root[0]["title"] == "Does L2 regularization help?"

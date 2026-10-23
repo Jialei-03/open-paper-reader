@@ -483,7 +483,8 @@ class ModelUsage(Base):
 
 
 def _research_budget():
-    return {"max_sprints": 30, "max_tokens": 2000000, "max_job_seconds": 36000}
+    # No limits until the researcher sets them in the plan.
+    return {"max_sprints": None, "max_tokens": None, "max_job_seconds": None}
 
 
 def _research_spent():

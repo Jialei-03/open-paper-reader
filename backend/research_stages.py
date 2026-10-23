@@ -271,7 +271,7 @@ def approve_plan(settings, d, project, version, note=""):
     project.budget = {
         **project.budget,
         "max_sprints": project.spent.get("sprints", 0) + sprints if sprints else None,
-        "max_tokens": project.budget.get("max_tokens") if sprints or hours else None,
+        "max_tokens": project.budget.get("max_tokens"),
         "max_job_seconds": int(hours * 3600) if hours else None,
     }
     project.plan = {**plan, "approved_at": now()}
@@ -385,7 +385,17 @@ def request_budget(d, project):
     if open_request(d, project, "budget") is not None:
         return
     max_sprints = int(project.budget.get("max_sprints") or 0)
+    max_seconds = project.budget.get("max_job_seconds") or 0
     extra = max(4, max_sprints // 3)
+    # Only the limits the researcher set are reported.
+    used = []
+    if max_sprints:
+        used.append(f"{project.spent.get('sprints', 0)}/{max_sprints} 轮")
+    if max_seconds:
+        used.append(
+            f"实验 {round(project.spent.get('job_seconds', 0) / 3600, 1)}/"
+            f"{round(max_seconds / 3600, 1)} 小时"
+        )
     research_map.event(
         d,
         project,
@@ -397,9 +407,7 @@ def request_budget(d, project):
             "proposal": "extend_budget",
             "extra_sprints": extra,
             "reason": (
-                f"预算用完了：{project.spent.get('sprints', 0)}/{max_sprints} 轮，"
-                f"实验 {round(project.spent.get('job_seconds', 0) / 3600, 1)}/"
-                f"{round(project.budget.get('max_job_seconds', 0) / 3600, 1)} 小时。"
+                f"预算用完了：{'，'.join(used)}。"
                 f"同意就再给 {extra} 轮继续；不同意就到此为止，进入复盘。"
             ),
         },
@@ -477,10 +485,9 @@ def decide(d, project, request, approve, note):
     if kind == "budget":
         if approve:
             hours = 0.0
-            if project.spent.get("job_seconds", 0) >= project.budget.get(
-                "max_job_seconds", 0
-            ):
-                hours = max(1.0, project.budget.get("max_job_seconds", 0) / 3600 / 3)
+            max_seconds = project.budget.get("max_job_seconds") or 0
+            if max_seconds and project.spent.get("job_seconds", 0) >= max_seconds:
+                hours = max(1.0, max_seconds / 3600 / 3)
             extend(d, project, request.detail.get("extra_sprints", 4), hours, note=note)
         else:
             end_on_budget(d, project, "human")
