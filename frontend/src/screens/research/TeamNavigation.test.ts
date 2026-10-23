@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { I18nProvider } from "../../i18n/I18nProvider";
+import { createTranslator } from "../../i18n/i18n";
 import { TeamConversationList } from "./TeamNavigation";
 import type { Team, TeamChannel } from "./team-api";
 
@@ -108,6 +109,34 @@ describe("team conversation navigation", () => {
   });
 
   for (const locale of ["zh", "en"] as const) {
+    it(`${locale} only shows frequent members with at least three eligible DMs`, () => {
+      const { t } = createTranslator(locale);
+      const eligible = team.channels.filter((c) =>
+        ["dm-0", "dm-1", "dm-2"].includes(c.id),
+      );
+      for (const count of [0, 1, 2, 3]) {
+        const html = render(
+          {
+            ...team,
+            channels: [
+              ...eligible.slice(0, count),
+              ...team.channels.filter((c) =>
+                ["empty-dm", "dm-6", "missing-member", "channel-old"].includes(
+                  c.id,
+                ),
+              ),
+            ],
+          },
+          locale,
+        );
+        expect(html.includes(`aria-label="${t("team.frequentMembers")}"`)).toBe(
+          count >= 3,
+        );
+        for (const c of eligible.slice(0, count))
+          expect(html).toContain(`href="#team/workspace/${c.id}"`);
+      }
+    });
+
     it(`${locale} shows per-conversation work and numeric unread badges`, () => {
       const html = render(
         {

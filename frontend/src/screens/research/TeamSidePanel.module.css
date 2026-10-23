@@ -25,6 +25,16 @@
   overflow: auto;
   padding: var(--ui-space-16);
 }
+.empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  color: var(--ui-fg-3);
+}
+.empty svg {
+  width: var(--ui-space-32);
+  height: var(--ui-space-32);
+}
 .sections section + section {
   margin-top: var(--ui-space-24);
 }

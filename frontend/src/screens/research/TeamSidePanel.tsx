@@ -1,4 +1,4 @@
-import { ArrowUpRight, FileText, Link, X } from "lucide-react";
+import { ArrowUpRight, FileText, Inbox, Link, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { IconButton } from "../../ui";
@@ -141,6 +141,7 @@ export function TeamSidePanel({
   const filesSection = useRef<HTMLElement>(null);
   const { files, sources } = conversationOutputs(messages);
   const progress = conversationProgress(team, messages, deliveries);
+  const empty = !progress.length && !files.length && !sources.length;
   useEffect(() => {
     if (fileRequest) {
       filesSection.current?.scrollIntoView({ block: "nearest" });
@@ -157,7 +158,7 @@ export function TeamSidePanel({
         <h2>{t("team.sidePanel")}</h2>
         <IconButton icon={X} label={t("team.hidePanel")} onClick={onClose} />
       </header>
-      <div className={styles.sections}>
+      <div className={empty ? styles.empty : styles.sections}>
         {progress.length > 0 && (
           <section aria-label={t("team.progress")}>
             <h3>{t("team.progress")}</h3>
@@ -178,20 +179,22 @@ export function TeamSidePanel({
             ))}
           </section>
         )}
-        <section
-          ref={filesSection}
-          tabIndex={-1}
-          aria-label={t("team.deliverables")}
-        >
-          <h3>{t("team.deliverables")}</h3>
-          {files.map((file) => (
-            <TeamFileCard
-              key={file.path || file.url}
-              file={file}
-              onFile={onFile}
-            />
-          ))}
-        </section>
+        {!!files.length && (
+          <section
+            ref={filesSection}
+            tabIndex={-1}
+            aria-label={t("team.deliverables")}
+          >
+            <h3>{t("team.deliverables")}</h3>
+            {files.map((file) => (
+              <TeamFileCard
+                key={file.path || file.url}
+                file={file}
+                onFile={onFile}
+              />
+            ))}
+          </section>
+        )}
         {!!sources.length && (
           <section aria-label={t("team.sources")}>
             <h3>{t("team.sources")}</h3>
@@ -209,6 +212,7 @@ export function TeamSidePanel({
             ))}
           </section>
         )}
+        {empty && <Inbox role="img" aria-label={t("team.noOutputs")} />}
       </div>
     </aside>
   );

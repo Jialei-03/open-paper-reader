@@ -48,6 +48,7 @@ import { RunTurn, SummaryLine, Trail } from "./process/Process";
 import { summary } from "./process/model";
 import { ResearchProject } from "./ResearchProject";
 import { TeamFilePreview } from "./TeamFilePreview";
+import { TeamMessageChanges } from "./TeamMessageChanges";
 import { TeamFileCard, TeamSidePanel } from "./TeamSidePanel";
 import { startProject } from "./research-api";
 import { useResearchNavigation } from "./ResearchNavigation";
@@ -1062,6 +1063,12 @@ export function MessageRow({
           {message.data.attachments?.map((file) => (
             <TeamFileCard key={file.id} file={file} onFile={onFile} />
           ))}
+          {!human && (
+            <TeamMessageChanges
+              workspace={team.workspace_id}
+              message={message}
+            />
+          )}
           {message.data.file_error && (
             <p role="alert">{message.data.file_error}</p>
           )}

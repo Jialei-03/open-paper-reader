@@ -67,6 +67,33 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         except ValueError as error:
             raise HTTPException(404, str(error)) from None
 
+    def thread_activity(d, workspace_id):
+        root = func.coalesce(TeamMessage.thread_id, TeamMessage.id)
+        activity = dict(
+            d.execute(
+                select(root, func.max(TeamMessage.created_at))
+                .where(TeamMessage.workspace_id == workspace_id)
+                .group_by(root)
+            ).all()
+        )
+        # Legacy research replies live in events and sprints as well as team messages.
+        for model, stamp in (
+            (team.ResearchEvent, team.ResearchEvent.created_at),
+            (team.ResearchSprint, team.ResearchSprint.updated_at),
+        ):
+            query = (
+                select(model.project_id, func.max(stamp))
+                .join(team.ResearchProject)
+                .where(team.ResearchProject.workspace_id == workspace_id)
+                .group_by(model.project_id)
+            )
+            if model is team.ResearchEvent:
+                query = query.where(model.action == "message")
+            for project_id, at in d.execute(query):
+                root = f"research:{project_id}"
+                activity[root] = max(activity.get(root, ""), at)
+        return activity
+
     def delivery_out(d, row):
         message = d.get(TeamMessage, row.message_id)
         return dict(
@@ -294,7 +321,12 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                 if t and t.strip()
             )
             threads.append(
-                {"id": thread, "channel_id": message.channel_id, "text": text[:200]}
+                {
+                    "id": thread,
+                    "channel_id": message.channel_id,
+                    "text": text[:200],
+                    "last_message_at": root.created_at,
+                }
             )
         from .models import ResearchProject, ResearchSprint
         from .research_team import research_context
@@ -319,8 +351,15 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                     "id": info["thread_id"],
                     "channel_id": info["channel_id"],
                     "text": sprint.summary[:200] or run.prompt[:200],
+                    "last_message_at": sprint.created_at,
                 }
             )
+        activity = thread_activity(d, id)
+        for thread in threads:
+            thread["last_message_at"] = max(
+                thread["last_message_at"], activity.get(thread["id"], "")
+            )
+        threads.sort(key=lambda t: (t["last_message_at"], t["id"]), reverse=True)
         out["threads"] = threads[:50]
         run = team.active_run(d, member)
         # What the member is working on now; nothing while idle.
@@ -595,6 +634,57 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         d.commit()
         return team.message_out(d, incoming)
 
+    def changed_message(d, workspace, message_id):
+        message = d.get(TeamMessage, message_id)
+        if not message or message.workspace_id != workspace.id:
+            raise HTTPException(404, "Not found")
+        if not message.data.get("commit"):
+            raise HTTPException(409, "没有可用提交 / No commit")
+        run = (
+            d.get(AgentRun, message.data["run_id"])
+            if message.data.get("run_id")
+            else None
+        )
+        if run and (run.runtime or {}).get("team_base") == message.data["commit"]:
+            raise HTTPException(409, "没有可用提交 / No commit")
+        return message
+
+    @app.get(base + "/messages/{message_id}/diff")
+    def message_diff(
+        id: str, message_id: str, path: str, a=Depends(auth), d=Depends(db)
+    ):
+        from . import research_repo, team_workspace
+
+        workspace = workspace_of(d, id, a)
+        message = changed_message(d, workspace, message_id)
+        try:
+            return team_workspace.file_diff(
+                research_repo.repo_dir(settings, workspace.id),
+                message.data["commit"],
+                path,
+            )
+        except FileNotFoundError as error:
+            raise HTTPException(404, str(error)) from None
+        except (ValueError, research_repo.GitError) as error:
+            raise HTTPException(409, str(error)) from None
+
+    @app.post(base + "/messages/{message_id}/revert")
+    def revert_message(id: str, message_id: str, a=Depends(auth), d=Depends(db)):
+        from . import research_repo, team_workspace
+        from .models import User
+
+        workspace = workspace_of(d, id, a)
+        message = changed_message(d, workspace, message_id)
+        try:
+            team_workspace.revert(settings, d, workspace, message, d.get(User, a["id"]))
+        except team_workspace.RevertConflict as error:
+            raise HTTPException(
+                409, {"message": str(error), "conflicts": error.conflicts}
+            ) from None
+        except (ValueError, research_repo.GitError) as error:
+            raise HTTPException(409, str(error)) from None
+        return team.message_out(d, message)
+
     @app.get(base + "/file")
     def read_team_file(
         id: str, path: str, raw: bool = False, a=Depends(auth), d=Depends(db)
@@ -720,26 +810,7 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                 )
             ]
         if not mentions:
-            activity = {}
-            for message in rows:
-                root = message.thread_id or message.id
-                activity[root] = max(activity.get(root, ""), message.created_at)
-            # Legacy research replies live in events and sprints as well as team messages.
-            for model, stamp in (
-                (team.ResearchEvent, team.ResearchEvent.created_at),
-                (team.ResearchSprint, team.ResearchSprint.updated_at),
-            ):
-                query = (
-                    select(model.project_id, func.max(stamp))
-                    .join(team.ResearchProject)
-                    .where(team.ResearchProject.workspace_id == id)
-                    .group_by(model.project_id)
-                )
-                if model is team.ResearchEvent:
-                    query = query.where(model.action == "message")
-                for project_id, at in d.execute(query):
-                    root = f"research:{project_id}"
-                    activity[root] = max(activity.get(root, ""), at)
+            activity = thread_activity(d, id)
             for message in out:
                 message["last_message_at"] = max(
                     message["created_at"], activity.get(message["id"], "")

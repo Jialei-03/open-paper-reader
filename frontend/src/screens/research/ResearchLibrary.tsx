@@ -413,6 +413,14 @@ export function ResearchRows({
   return (
     <div className={styles.researchList}>
       <div className={styles.researchToolbar}>
+        <TextField
+          type="search"
+          label={t("workspace.searchResearch")}
+          hideLabel
+          placeholder={t("workspace.searchResearch")}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
         <SegmentedControl
           kind="radio"
           size="sm"
@@ -423,14 +431,6 @@ export function ResearchRows({
             { value: "unarchived", label: t("research.unarchived") },
             { value: "archived", label: t("projects.sessions.archived") },
           ]}
-        />
-        <TextField
-          type="search"
-          label={t("workspace.searchResearch")}
-          hideLabel
-          placeholder={t("workspace.searchResearch")}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
         />
       </div>
       {filtered.map((item) => (

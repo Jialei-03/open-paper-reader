@@ -137,6 +137,68 @@ describe("team member replies", () => {
       expect(html).toContain(`aria-label="${t("team.reply")}"`);
     });
 
+    const changes = {
+      commit: "a".repeat(40),
+      files: [
+        { path: "draft.md", added: 13, removed: 2, status: "M" },
+        { path: "deleted.md", added: 0, removed: 1, status: "D" },
+      ],
+      added: 13,
+      removed: 3,
+    };
+    it(`${locale} shows file changes after the file cards with view and undo actions`, () => {
+      const html = render({
+        ...message,
+        run: undefined,
+        data: { files: [{ path: "draft.md", name: "draft.md" }], changes },
+      });
+      expect(html).toContain(t("team.changes.files", { n: 2 }));
+      expect(html).toContain("+13");
+      expect(html).toContain("−3");
+      expect(html).toContain(`>${t("team.changes.view")}</span>`);
+      expect(html).toContain(`>${t("research.changes.undo")}</span>`);
+      expect(html.indexOf('aria-label="draft.md"')).toBeLessThan(
+        html.indexOf(t("team.changes.files", { n: 2 })),
+      );
+      expect(html).not.toContain(t("team.changes.confirm"));
+    });
+    it(`${locale} hides empty changes, including commits with no line or file changes`, () => {
+      for (const data of [
+        {},
+        { commit: changes.commit },
+        { changes: { ...changes, files: [], added: 0, removed: 0 } },
+      ]) {
+        const html = render({ ...message, run: undefined, data });
+        expect(html).not.toContain(t("team.changes.view"));
+        expect(html).not.toContain(t("research.changes.undo"));
+      }
+      const binary = render({
+        ...message,
+        run: undefined,
+        data: {
+          changes: {
+            ...changes,
+            files: [{ path: "image.png", added: 0, removed: 0, status: "A" }],
+            added: 0,
+            removed: 0,
+          },
+        },
+      });
+      expect(binary).toContain(t("team.changes.files", { n: 1 }));
+    });
+    it(`${locale} keeps reverted changes reviewable and removes the undo action`, () => {
+      const html = render({
+        ...message,
+        run: undefined,
+        data: { changes, reverted_by: "b".repeat(40) },
+      });
+      expect(html).toContain(
+        `role="status">${t("team.changes.reverted")}</span>`,
+      );
+      expect(html).toContain(`>${t("team.changes.view")}</span>`);
+      expect(html).not.toContain(`>${t("research.changes.undo")}</span>`);
+    });
+
     it(`${locale} centers system statuses without message actions or identity`, () => {
       const html = render({
         ...message,

@@ -1369,7 +1369,7 @@ test("conversation actions rename the title and the project owns list and board 
   expect(state.direct).toEqual([]);
 });
 
-test("the project list puts archive filtering beside search and clamps research summaries", async ({
+test("the project list puts search before archive filtering and clamps research summaries", async ({
   page,
 }) => {
   const state = await project(page);
@@ -1451,6 +1451,15 @@ test("the project list puts archive filtering beside search and clamps research 
       const filterBox = (await filter.boundingBox())!;
       const searchBox = (await search.boundingBox())!;
       expect(Math.abs(filterBox.y - searchBox.y)).toBeLessThan(4);
+      expect(searchBox.x + searchBox.width).toBeLessThan(filterBox.x);
+      const toolbarBox = (await search
+        .locator("xpath=ancestor::div[2]")
+        .boundingBox())!;
+      expect(
+        Math.abs(
+          filterBox.x + filterBox.width - toolbarBox.x - toolbarBox.width,
+        ),
+      ).toBeLessThan(1);
       expect(
         await main.evaluate((el) => el.scrollWidth <= el.clientWidth),
       ).toBe(true);

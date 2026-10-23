@@ -257,7 +257,7 @@ export function TeamConversationList({
   );
   return (
     <div className={nav.navigation}>
-      {frequent.length > 0 && (
+      {frequent.length >= 3 && (
         <div
           className={nav.frequent}
           role="group"

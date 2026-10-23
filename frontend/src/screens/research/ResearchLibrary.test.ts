@@ -28,7 +28,7 @@ describe("research list", () => {
         }),
       );
 
-    it(`${locale} shows archive choices beside search and starts unarchived`, () => {
+    it(`${locale} puts search before archive choices and starts unarchived`, () => {
       const html = render([archived, active]);
       expect(html).toContain(
         `role="radiogroup" aria-label="${t("research.archiveFilter")}"`,
@@ -40,6 +40,9 @@ describe("research list", () => {
       );
       expect(html).toContain(t("projects.sessions.archived"));
       expect(html).toContain('type="search"');
+      expect(html.indexOf('type="search"')).toBeLessThan(
+        html.indexOf('role="radiogroup"'),
+      );
       expect(html).toContain(`placeholder="${t("workspace.searchResearch")}"`);
       expect(html).toContain('href="#research/active"');
       expect(html).not.toContain('href="#research/archived"');

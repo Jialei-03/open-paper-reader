@@ -87,6 +87,17 @@ export type TeamPaperLink =
       url?: string;
       href?: string;
     };
+export interface TeamChanges {
+  commit: string;
+  files: { path: string; added: number; removed: number; status: string }[];
+  added: number;
+  removed: number;
+}
+export interface TeamFileDiff {
+  path: string;
+  diff: string;
+  truncated: boolean;
+}
 export interface TeamMessage {
   id: string;
   channel_id: string;
@@ -110,6 +121,9 @@ export interface TeamMessage {
     research_forwarded?: boolean;
     attachments?: { id: string; name: string; url: string }[];
     files?: { path: string; name: string }[];
+    commit?: string;
+    changes?: TeamChanges;
+    reverted_by?: string;
     links?: { channel_id: string; thread_id: string; name: string }[];
     file_error?: string;
     reason?: string;
@@ -153,6 +167,15 @@ export interface Delivery {
   editable: boolean;
 }
 const base = (id: string) => `/research/workspaces/${id}/team`;
+export const readTeamDiff = (id: string, message: string, path: string) =>
+  api<TeamFileDiff>(
+    `${base(id)}/messages/${encodeURIComponent(message)}/diff?path=${encodeURIComponent(path)}`,
+  );
+export const revertTeamMessage = (id: string, message: string) =>
+  send(
+    `${base(id)}/messages/${encodeURIComponent(message)}/revert`,
+    {},
+  ) as Promise<TeamMessage>;
 export const getTeam = (id: string) => api<Team>(base(id));
 export const saveTeamBudget = (id: string, budget: TeamBudget) =>
   send(`${base(id)}/budget`, budget, "PUT");
@@ -293,7 +316,12 @@ export const deleteTeamMember = (id: string, member: string) =>
   send(`${base(id)}/members/${member}`, {}, "DELETE");
 export interface MemberDetail extends TeamMember {
   activity: string;
-  threads: { id: string; channel_id: string; text: string }[];
+  threads: {
+    id: string;
+    channel_id: string;
+    text: string;
+    last_message_at: string;
+  }[];
 }
 export const readMember = (id: string, member: string) =>
   api<MemberDetail>(`${base(id)}/members/${member}`);

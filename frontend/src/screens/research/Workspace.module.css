@@ -665,9 +665,13 @@
   gap: var(--ui-space-12);
   margin-bottom: var(--ui-space-12);
 }
-.researchToolbar > div:last-child {
+.researchToolbar > div:first-child {
   flex: 1;
   min-width: 0;
+}
+.researchToolbar > [role="radiogroup"] {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .researchToolbar input {
   height: var(--ui-control-md);

@@ -1494,12 +1494,12 @@ section:hover > .messageActions,
 }
 .changeNumbers {
   display: inline-flex;
-  gap: 6px;
-  font-size: 12px;
+  gap: var(--ui-space-6);
+  font-size: var(--ui-text-12);
   font-variant-numeric: tabular-nums;
 }
 .changeNumbers > span:first-child {
-  color: var(--ui-success-text, #26834a);
+  color: var(--ui-success-text);
 }
 .changeNumbers > span:last-child {
   color: var(--ui-danger-text);
@@ -1507,12 +1507,12 @@ section:hover > .messageActions,
 .diffFiles {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--ui-space-12);
 }
 .diffFiles summary {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--ui-space-12);
   cursor: pointer;
   overflow-wrap: anywhere;
 }
@@ -1520,9 +1520,9 @@ section:hover > .messageActions,
   max-height: 55vh;
   overflow: auto;
   background: var(--ui-bg-2);
-  border-radius: 8px;
-  padding: 12px;
-  font-size: 12px;
+  border-radius: var(--ui-r-8);
+  padding: var(--ui-space-12);
+  font-size: var(--ui-text-12);
 }
 .threadSkeleton {
   width: 100%;

@@ -1,11 +1,15 @@
 import { FileDiff, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
-import { Button, Dialog, toast } from "../../ui";
+import { Button, Dialog, Spinner, toast } from "../../ui";
 import { readChanges, undoRound, type CheckpointChanges } from "./research-api";
 import styles from "./talk/Talk.module.css";
 
-export function ChangeNumbers({ changes }: { changes: CheckpointChanges }) {
+export function ChangeNumbers({
+  changes,
+}: {
+  changes: Pick<CheckpointChanges, "added" | "removed">;
+}) {
   return (
     <span className={styles.changeNumbers}>
       <span>+{changes.added}</span>
@@ -17,32 +21,102 @@ export function ChangeNumbers({ changes }: { changes: CheckpointChanges }) {
 export function DiffDialog({
   changes,
   onClose,
+  loadDiff,
 }: {
-  changes: CheckpointChanges;
+  changes: {
+    files: (Pick<
+      CheckpointChanges["files"][number],
+      "path" | "added" | "removed"
+    > & {
+      diff?: string;
+      truncated?: boolean;
+    })[];
+  };
   onClose(): void;
+  loadDiff?(path: string): Promise<{ diff: string; truncated?: boolean }>;
 }) {
   const { t } = useI18n();
   return (
     <Dialog open title={t("research.changes.view")} onClose={onClose} size="lg">
       <div className={styles.diffFiles}>
-        {changes.files.map((file) => (
-          <details key={file.path} open>
-            <summary>
-              <code>{file.path}</code>
-              <ChangeNumbers
-                changes={{
-                  ...changes,
-                  added: file.added,
-                  removed: file.removed,
-                }}
-              />
-            </summary>
-            {file.truncated && <p>{t("research.merge.truncated")}</p>}
-            <pre>{file.diff}</pre>
-          </details>
+        {changes.files.map((file, index) => (
+          <DiffFile
+            key={file.path}
+            file={file}
+            loadDiff={loadDiff}
+            initialOpen={!loadDiff || index === 0}
+          />
         ))}
       </div>
     </Dialog>
+  );
+}
+
+function DiffFile({
+  file,
+  loadDiff,
+  initialOpen,
+}: {
+  file: {
+    path: string;
+    added: number;
+    removed: number;
+    diff?: string;
+    truncated?: boolean;
+  };
+  loadDiff?: (path: string) => Promise<{ diff: string; truncated?: boolean }>;
+  initialOpen: boolean;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(initialOpen);
+  const [patch, setPatch] = useState<{ diff: string; truncated?: boolean }>();
+  const [error, setError] = useState("");
+  const [reads, setReads] = useState(0);
+  useEffect(() => {
+    if (!open || !loadDiff || patch) return;
+    let stale = false;
+    setError("");
+    loadDiff(file.path).then(
+      (value) => !stale && setPatch(value),
+      (reason: unknown) =>
+        !stale &&
+        setError(reason instanceof Error ? reason.message : String(reason)),
+    );
+    return () => {
+      stale = true;
+    };
+  }, [open, file.path, loadDiff, patch, reads]);
+  const value = loadDiff ? patch : file;
+  return (
+    <details
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        <code>{file.path}</code>
+        <ChangeNumbers changes={file} />
+      </summary>
+      {open && (
+        <>
+          {error ? (
+            <p role="alert">
+              {error}{" "}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setReads((n) => n + 1)}
+              >
+                {t("common.retry")}
+              </Button>
+            </p>
+          ) : (
+            !value && <Spinner />
+          )}
+          {value?.truncated && <p>{t("research.changes.truncated")}</p>}
+          {value && <pre>{value.diff}</pre>}
+        </>
+      )}
+    </details>
   );
 }
 

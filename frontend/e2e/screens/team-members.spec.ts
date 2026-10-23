@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { signIn } from "../reader/fixtures";
+import { createTranslator } from "../../src/i18n/i18n";
 import type {
   LibraryMember,
   MemberConfig,
@@ -290,7 +291,14 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
           ...member,
           tokens: 120,
           activity: "Reading evidence",
-          threads: [{ id: "thread", channel_id: cid, text: "Evidence" }],
+          threads: [
+            {
+              id: "thread",
+              channel_id: cid,
+              text: "Evidence",
+              last_message_at: "2026-10-24T00:00:00Z",
+            },
+          ],
         },
       });
     }
@@ -471,7 +479,9 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
     page.getByText("Reading evidence", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Evidence", exact: true }),
+    page
+      .getByRole("list", { name: "参与的线程", exact: true })
+      .getByRole("button", { name: /^Evidence/ }),
   ).toBeVisible();
   await page.goto(`/#team/${wid}/${cid}`);
   const composer = page
@@ -486,6 +496,86 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
   await page.getByRole("button", { name: "发私信", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${dmId("custom-2")}$`));
 });
+
+for (const locale of ["zh", "en"] as const) {
+  test(`${locale}: member threads use regular list rows, ellipsis and activity dates`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await setup(page);
+    await page.clock.setFixedTime(new Date("2026-10-24T07:00:00Z"));
+    await page.evaluate(
+      (value) => localStorage.setItem("paper-locale", value),
+      locale,
+    );
+    const title = "A long thread title with evidence and references. ".repeat(
+      30,
+    );
+    await page.route("**/team/members/advisor", (route) =>
+      route.fulfill({
+        json: {
+          id: "advisor",
+          role: "advisor",
+          ...defaults("导师"),
+          status: "idle",
+          active_run_id: null,
+          activity: "",
+          threads: [
+            {
+              id: "thread",
+              channel_id: cid,
+              text: title,
+              last_message_at: "2025-12-31T12:00:00Z",
+            },
+          ],
+        },
+      }),
+    );
+    await page.goto(`/#team/${wid}/settings?thread=member:advisor`);
+    await page.reload();
+    const list = page.getByRole("list", {
+      name: t("members.threads"),
+      exact: true,
+    });
+    const row = list.getByRole("button");
+    await expect(row.locator("time")).toHaveAttribute(
+      "datetime",
+      "2025-12-31T12:00:00Z",
+    );
+    await expect(row.locator("time")).toHaveText(
+      locale === "zh" ? "2025年12月31日" : "Dec 31, 2025",
+    );
+    await expect(row.locator("svg")).toHaveClass(/lucide-message-square/);
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(
+        (value) => (document.documentElement.dataset.theme = value),
+        theme,
+      );
+      for (const width of [1440, 720]) {
+        await page.setViewportSize({ width, height: 1000 });
+        const name = row.locator(":scope > span");
+        await expect(name).toHaveCSS("font-weight", "400");
+        await expect(name).toHaveCSS("white-space", "nowrap");
+        await expect(name).toHaveCSS("text-overflow", "ellipsis");
+        expect(
+          await name.evaluate((node) => node.scrollWidth > node.clientWidth),
+        ).toBe(true);
+        const timeBox = (await row.locator("time").boundingBox())!;
+        const nameBox = (await name.boundingBox())!;
+        expect(timeBox.x).toBeGreaterThanOrEqual(nameBox.x + nameBox.width);
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        ).toBe(true);
+      }
+    }
+    await row.click();
+    await expect(page).toHaveURL(
+      new RegExp(`#team/${wid}/${cid}\\?thread=thread$`),
+    );
+  });
+}
 
 test("复制内置成员、编辑和停用", async ({ page }) => {
   await setup(page);

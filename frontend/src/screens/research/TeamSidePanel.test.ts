@@ -185,14 +185,14 @@ describe("conversation progress", () => {
 
 for (const locale of ["zh", "en"] as const) {
   const { t } = createTranslator(locale);
-  const render = (messages: TeamMessage[]) =>
+  const render = (messages: TeamMessage[], deliveries = [delivery]) =>
     renderToStaticMarkup(
       createElement(I18nProvider, {
         locale,
         children: createElement(TeamSidePanel, {
           team,
           messages,
-          deliveries: [delivery],
+          deliveries,
           fileRequest: 0,
           onFile() {},
           onLocate() {},
@@ -200,18 +200,62 @@ for (const locale of ["zh", "en"] as const) {
         }),
       }),
     );
-  it(`${locale} labels the panel, progress and files and omits absent sources`, () => {
+  it(`${locale} labels the panel and progress and omits absent files and sources`, () => {
     const html = render([message, working]);
-    for (const key of [
-      "sidePanel",
-      "progress",
-      "deliverables",
-      "hidePanel",
-    ] as const)
+    for (const key of ["sidePanel", "progress", "hidePanel"] as const)
       expect(html).toContain(`aria-label="${t(`team.${key}`)}"`);
     expect(html).not.toContain(t("team.sources"));
+    expect(html).not.toContain(t("team.deliverables"));
+    expect(html).not.toContain(t("team.noOutputs"));
     expect(html).toContain(t("team.status.working"));
     expect(html).toContain(t("team.status.queued"));
+  });
+  it(`${locale} shows only a labeled icon when every section is empty`, () => {
+    for (const messages of [
+      [],
+      [message],
+      [{ ...working, run: { ...run, status: "completed" } }],
+    ]) {
+      const html = render(messages, []);
+      expect(html).not.toContain("<section");
+      expect(html).not.toContain("<h3");
+      expect(html).toContain(`role="img" aria-label="${t("team.noOutputs")}"`);
+      expect(html).not.toContain(`>${t("team.noOutputs")}<`);
+      expect(html).not.toMatch(/<p(?:\s|>)/);
+    }
+  });
+  it(`${locale} shows each section only when it has content`, () => {
+    const cases: ["progress" | "deliverables" | "sources", TeamMessage[]][] = [
+      ["progress", [working]],
+      [
+        "deliverables",
+        [
+          {
+            ...message,
+            data: { files: [{ path: "draft.md", name: "draft.md" }] },
+          },
+        ],
+      ],
+      [
+        "sources",
+        [
+          {
+            ...message,
+            data: {
+              paper: { title: "Paper", url: "https://example.test/paper" },
+            },
+          },
+        ],
+      ],
+    ];
+    for (const [key, messages] of cases) {
+      const html = render(messages, []);
+      for (const section of ["progress", "deliverables", "sources"] as const)
+        expect(html.includes(`<h3>${t(`team.${section}`)}</h3>`)).toBe(
+          section === key,
+        );
+      expect(html).not.toContain(t("team.noOutputs"));
+    }
   });
   it(`${locale} shows file cards and paper links`, () => {
     const html = render([

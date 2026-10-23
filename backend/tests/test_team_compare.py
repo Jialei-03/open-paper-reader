@@ -282,6 +282,95 @@ def test_comparison_team_threads_use_last_message_without_changing_root_time(env
     ]
 
 
+def test_member_threads_use_latest_activity_from_all_authors_and_legacy_research(env):
+    from backend import research_team as team
+
+    app, a, b, _ = env
+    pid, wid, model = project(env)
+    base = f"{API}/workspaces/{wid}/team"
+    with app.state.maker() as d:
+        workspace = d.get(ResearchWorkspace, wid)
+        roster = team.ensure(d, workspace)
+        human = next(m for m in roster if m.role == "human")
+        advisor = next(m for m in roster if m.role == "advisor")
+        channel = team.channel_of(d, workspace, team.stable(workspace, "general"))
+        old = team.post(d, workspace, channel, "Earlier root", author=advisor)
+        old.created_at = "2026-10-01T00:00:00Z"
+        own_reply = team.post(
+            d, workspace, channel, "Own reply", author=advisor, thread_id=old.id
+        )
+        own_reply.created_at = "2026-10-02T00:00:00Z"
+        newer = team.post(d, workspace, channel, "Newer root", author=advisor)
+        newer.created_at = "2026-10-03T00:00:00Z"
+        reply = team.post(
+            d, workspace, channel, "Later reply", author=human, thread_id=old.id
+        )
+        reply.created_at = "2026-10-06T00:00:00Z"
+        p = d.get(ResearchProject, pid)
+        p.created_at = "2026-09-01T00:00:00Z"
+        p.updated_at = "2026-10-30T00:00:00Z"
+        run = AgentRun(
+            owner=workspace.owner,
+            session_id=p.session_id,
+            model_config_id=model,
+            model="Offline",
+            prompt="Legacy research",
+            status="completed",
+            runtime={"research": {"project_id": pid, "role": "advisor"}},
+        )
+        d.add(run)
+        d.flush()
+        sprint = ResearchSprint(
+            project_id=pid,
+            number=1,
+            run_id=run.id,
+            summary="Legacy summary",
+            created_at="2026-09-30T00:00:00Z",
+            updated_at="2026-10-04T00:00:00Z",
+        )
+        d.add(sprint)
+        for action, at in (
+            ("message", "2026-10-05T00:00:00Z"),
+            ("metadata", "2026-10-31T00:00:00Z"),
+        ):
+            d.add(
+                ResearchEvent(
+                    project_id=pid, actor="human", action=action, created_at=at
+                )
+            )
+        old_id, newer_id, advisor_id = old.id, newer.id, advisor.id
+        d.commit()
+    detail = a.get(base + f"/members/{advisor_id}")
+    assert detail.status_code == 200, detail.text
+    assert [
+        (t["id"], t["text"], t["last_message_at"]) for t in detail.json()["threads"]
+    ] == [
+        (old_id, "Earlier root", "2026-10-06T00:00:00Z"),
+        (f"research:{pid}", "Legacy summary", "2026-10-05T00:00:00Z"),
+        (newer_id, "Newer root", "2026-10-03T00:00:00Z"),
+    ]
+    assert b.get(base + f"/members/{advisor_id}").status_code == 404
+    with app.state.maker() as d:
+        workspace = d.get(ResearchWorkspace, wid)
+        channel = team.channel_of(d, workspace, team.stable(workspace, "experiments"))
+        reply = team.post(
+            d,
+            workspace,
+            channel,
+            "Research reply",
+            author=d.get(team.TeamMember, advisor_id),
+            thread_id=f"research:{pid}",
+        )
+        reply.created_at = "2026-10-07T00:00:00Z"
+        d.commit()
+    threads = a.get(base + f"/members/{advisor_id}").json()["threads"]
+    assert len(threads) == 3
+    assert (threads[0]["id"], threads[0]["last_message_at"]) == (
+        f"research:{pid}",
+        "2026-10-07T00:00:00Z",
+    )
+
+
 def test_comparison_is_local_human_only_atomic_and_preserves_order(env):
     app, a, b, settings = env
     first, _, _ = project(env)

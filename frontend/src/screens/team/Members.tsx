@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, MoreHorizontal, Plus } from "lucide-react";
+import { ArrowLeft, MessageSquare, MoreHorizontal, Plus } from "lucide-react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { Button, Dialog, IconButton, Menu, TextField } from "../../ui";
 import {
@@ -25,6 +25,8 @@ import { MemberStatus } from "../research/TeamNavigation";
 import { Prose } from "../research/talk/ThreadView";
 import { MemberAvatar, MemberEditor } from "./MemberEditor";
 import { memberAvatarSeed, memberDraft, memberName } from "./member-model";
+import { threadDate } from "../research/team-model";
+import teamStyles from "../research/Team.module.css";
 import styles from "./Members.module.css";
 
 export function Members({
@@ -36,7 +38,7 @@ export function Members({
   selected?: string;
   go(hash: string): void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const { connections } = useResearchNavigation();
   const [library, setLibrary] = useState<LibraryMember[]>([]);
   const [models, setModels] = useState<ModelRow[]>([]);
@@ -248,19 +250,24 @@ export function Members({
               ))}
           </div>
           <h3>{t("members.threads")}</h3>
-          <ul className={styles.list}>
+          <ul className={styles.list} aria-label={t("members.threads")}>
             {detail?.threads.map((thread) => (
               <li key={`${thread.channel_id}:${thread.id}`}>
-                <Button
-                  variant="ghost"
+                <button
+                  type="button"
+                  className={teamStyles.threadRow}
                   onClick={() =>
                     go(
                       teamHash(team.workspace_id, thread.channel_id, thread.id),
                     )
                   }
                 >
-                  {thread.text || thread.id}
-                </Button>
+                  <MessageSquare aria-hidden />
+                  <span>{thread.text || thread.id}</span>
+                  <time dateTime={thread.last_message_at}>
+                    {threadDate(thread.last_message_at, locale)}
+                  </time>
+                </button>
               </li>
             ))}
           </ul>

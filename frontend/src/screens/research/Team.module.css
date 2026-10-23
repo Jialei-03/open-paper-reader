@@ -20,6 +20,21 @@
   overflow-wrap: anywhere;
   font-size: var(--ui-text-13);
 }
+.messageChanges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-8);
+  margin-top: var(--ui-space-12);
+  font-size: var(--ui-text-12);
+  color: var(--ui-fg-2);
+}
+.changeActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  margin-left: auto;
+}
 .switcher {
   flex: 1;
   min-width: 0;
@@ -165,7 +180,8 @@
   font-weight: var(--ui-weight-strong);
 }
 .messageStatus,
-.list time {
+.list time,
+.threadRow time {
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
 }
@@ -315,7 +331,8 @@
   overflow: auto;
   padding: var(--ui-space-24) var(--ui-space-32);
 }
-.list button {
+.list button,
+.threadRow {
   display: flex;
   align-items: center;
   gap: var(--ui-space-12);
@@ -330,7 +347,21 @@
   text-align: left;
   cursor: pointer;
 }
-.list button span {
+.threadRow {
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-regular);
+}
+.threadRow svg {
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
+  flex-shrink: 0;
+}
+.threadRow time {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.list button span,
+.threadRow > span {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -355,7 +386,8 @@
   gap: var(--ui-space-4);
   font-size: var(--ui-text-12);
 }
-.page :is(button, a, textarea):focus-visible {
+.page :is(button, a, textarea):focus-visible,
+.threadRow:focus-visible {
   outline: none;
   box-shadow: var(--ui-focus-ring);
 }
@@ -365,7 +397,8 @@
 .composer:focus-within {
   box-shadow: var(--ui-focus-ring);
 }
-.page button:hover {
+.page button:hover,
+.threadRow:hover {
   background-color: var(--ui-hover);
 }
 @media (max-width: 960px) {

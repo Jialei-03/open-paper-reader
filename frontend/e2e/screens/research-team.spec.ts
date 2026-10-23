@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "../reader/fixtures";
+import { createTranslator } from "../../src/i18n/i18n";
 import type {
   TeamMember,
   TeamMessage,
@@ -13,6 +14,205 @@ const dm = "10000000-0000-0000-0000-000000000003";
 const research = "10000000-0000-0000-0000-000000000004";
 const otherWorkspace = "10000000-0000-0000-0000-000000000005";
 const stamp = "2026-10-23T10:00:00+00:00";
+
+function changedReply(): TeamMessage {
+  return {
+    id: "file-changes",
+    channel_id: channel,
+    thread_id: null,
+    author_id: "writer",
+    text: "Saved draft",
+    kind: "text",
+    mentions: [],
+    created_at: stamp,
+    replies: 0,
+    data: {
+      files: [{ path: "draft.md", name: "draft.md" }],
+      commit: "a".repeat(40),
+      changes: {
+        commit: "a".repeat(40),
+        files: [
+          { path: "draft.md", added: 13, removed: 0, status: "A" },
+          { path: "deleted.md", added: 0, removed: 2, status: "D" },
+        ],
+        added: 13,
+        removed: 2,
+      },
+    },
+  };
+}
+
+for (const [locale, theme, width] of [
+  ["zh", "light", 1440],
+  ["en", "dark", 720],
+] as const) {
+  test(`${locale} ${theme}: member changes support lazy diffs, confirmation and a persistent revert receipt`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(
+      ({ locale, theme }) => {
+        localStorage.setItem("paper-locale", locale);
+        localStorage.setItem("paper-appearance", theme);
+      },
+      { locale, theme },
+    );
+    const { messages } = await setup(page);
+    const reply = changedReply();
+    messages.push(reply, {
+      ...reply,
+      id: "no-changes",
+      text: "No files",
+      data: {},
+    });
+    const reads: string[] = [];
+    let reverts = 0;
+    await page.route("**/team/messages/file-changes/diff?**", (route) => {
+      const path = new URL(route.request().url()).searchParams.get("path")!;
+      reads.push(path);
+      return route.fulfill({
+        json: {
+          path,
+          diff:
+            path === "draft.md"
+              ? "--- /dev/null\n+++ b/draft.md\n@@ -0,0 +1 @@\n+Saved draft"
+              : "--- a/deleted.md\n+++ /dev/null\n@@ -1 +0,0 @@\n-Old draft",
+          truncated: false,
+        },
+      });
+    });
+    await page.route("**/team/messages/file-changes/revert", (route) => {
+      expect(route.request().method()).toBe("POST");
+      reverts++;
+      reply.data.reverted_by = "b".repeat(40);
+      return route.fulfill({ json: reply });
+    });
+    await page.reload();
+    const row = page.locator('[data-message-id="file-changes"]');
+    await expect(
+      row.getByText(t("team.changes.files", { n: 2 }), { exact: true }),
+    ).toBeVisible();
+    await expect(row.getByText("+13", { exact: true })).toBeVisible();
+    await expect(row.getByText("−2", { exact: true })).toBeVisible();
+    await expect(
+      page
+        .locator('[data-message-id="no-changes"]')
+        .getByRole("button", { name: t("team.changes.view"), exact: true }),
+    ).toHaveCount(0);
+    expect(reads).toEqual([]);
+    const file = await row
+      .getByRole("button", { name: "draft.md", exact: true })
+      .boundingBox();
+    const view = row.getByRole("button", {
+      name: t("team.changes.view"),
+      exact: true,
+    });
+    const actions = await view.boundingBox();
+    expect(actions!.y).toBeGreaterThanOrEqual(file!.y + file!.height);
+    await view.click();
+    const diff = page.getByRole("dialog", {
+      name: t("research.changes.view"),
+      exact: true,
+    });
+    await expect(diff.locator("pre")).toContainText("+Saved draft");
+    expect(reads).toEqual(["draft.md"]);
+    await diff.locator("summary").filter({ hasText: "deleted.md" }).click();
+    await expect(diff.locator("pre").last()).toContainText("-Old draft");
+    expect(reads).toEqual(["draft.md", "deleted.md"]);
+    await diff
+      .getByRole("button", { name: t("common.close"), exact: true })
+      .click();
+    await row
+      .getByRole("button", { name: t("research.changes.undo"), exact: true })
+      .click();
+    const confirmation = page.getByRole("dialog", {
+      name: t("team.changes.confirm"),
+      exact: true,
+    });
+    expect(reverts).toBe(0);
+    await confirmation
+      .getByRole("button", { name: t("common.cancel"), exact: true })
+      .click();
+    expect(reverts).toBe(0);
+    await row
+      .getByRole("button", { name: t("research.changes.undo"), exact: true })
+      .click();
+    await confirmation
+      .getByRole("button", { name: t("research.changes.undo"), exact: true })
+      .click();
+    await expect(row.getByRole("status")).toHaveText(
+      t("team.changes.reverted"),
+    );
+    expect(reverts).toBe(1);
+    await expect(
+      row.getByRole("button", {
+        name: t("research.changes.undo"),
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await expect(view).toBeVisible();
+    await page.reload();
+    await expect(row.getByRole("status")).toHaveText(
+      t("team.changes.reverted"),
+    );
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  });
+}
+
+test("member changes keep conflicts visible and retry diff reads", async ({
+  page,
+}) => {
+  const { messages } = await setup(page);
+  messages.push(changedReply());
+  let reads = 0;
+  await page.route("**/team/messages/file-changes/diff?**", (route) => {
+    reads++;
+    return reads === 1
+      ? route.fulfill({ status: 409, json: { detail: "Diff unavailable" } })
+      : route.fulfill({
+          json: { path: "draft.md", diff: "+partial draft", truncated: true },
+        });
+  });
+  await page.route("**/team/messages/file-changes/revert", (route) =>
+    route.fulfill({
+      status: 409,
+      json: {
+        detail: {
+          message: "撤销冲突 / Revert conflict",
+          conflicts: ["draft.md"],
+        },
+      },
+    }),
+  );
+  await page.reload();
+  const row = page.locator('[data-message-id="file-changes"]');
+  await row.getByRole("button", { name: "查看", exact: true }).click();
+  const diff = page.getByRole("dialog", { name: "查看变更", exact: true });
+  await expect(diff.getByRole("alert")).toContainText("Diff unavailable");
+  await diff.getByRole("button", { name: "重试", exact: true }).click();
+  await expect(diff.locator("pre")).toContainText("+partial draft");
+  await expect(diff.getByText("已截断", { exact: true })).toBeVisible();
+  await diff.getByRole("button", { name: "关闭", exact: true }).click();
+  await row.getByRole("button", { name: "撤销", exact: true }).click();
+  const confirmation = page.getByRole("dialog", {
+    name: "撤销这次改动？",
+    exact: true,
+  });
+  await confirmation.getByRole("button", { name: "撤销", exact: true }).click();
+  await expect(confirmation.getByRole("alert")).toHaveText(
+    "撤销冲突 / Revert conflict · draft.md",
+  );
+  await expect(row.getByText("已撤销", { exact: true })).toHaveCount(0);
+  await confirmation.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(
+    row.getByRole("button", { name: "撤销", exact: true }),
+  ).toBeVisible();
+});
 
 async function setup(page: import("@playwright/test").Page) {
   let working = false;
@@ -1168,5 +1368,127 @@ for (const theme of ["light", "dark"] as const) {
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
+    const allDirects = [...directs];
+    for (const count of [2, 1, 0, 3]) {
+      directs.splice(0, directs.length, ...allDirects.slice(0, count));
+      await expect(frequent).toHaveCount(count >= 3 ? 1 : 0);
+      await expect(conversations.getByRole("link")).toHaveCount(count + 1);
+    }
+  });
+}
+
+for (const locale of ["zh", "en"] as const) {
+  test(`${locale}: output panel hides empty sections and centers an icon when empty`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.addInitScript((value) => {
+      localStorage.setItem("paper-locale", value);
+      localStorage.setItem("team-side-panel", "true");
+    }, locale);
+    const { messages } = await setup(page);
+    const panel = page.getByTestId("team-side-panel");
+    const empty = panel.getByRole("img", {
+      name: t("team.noOutputs"),
+      exact: true,
+    });
+    await expect(empty).toBeVisible();
+    await expect(panel.locator("section, h3")).toHaveCount(0);
+    await expect(
+      panel.getByText(t("team.noOutputs"), { exact: true }),
+    ).toHaveCount(0);
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(
+        (value) => (document.documentElement.dataset.theme = value),
+        theme,
+      );
+      for (const width of [1440, 720]) {
+        await page.setViewportSize({ width, height: 1000 });
+        if (width === 720)
+          await page
+            .getByRole("button", { name: t("team.showPanel"), exact: true })
+            .click();
+        await expect(panel).toBeVisible();
+        const area = panel.locator(":scope > div");
+        const areaBox = (await area.boundingBox())!;
+        const iconBox = (await empty.boundingBox())!;
+        expect(
+          Math.abs(
+            iconBox.x + iconBox.width / 2 - areaBox.x - areaBox.width / 2,
+          ),
+        ).toBeLessThan(1);
+        expect(
+          Math.abs(
+            iconBox.y + iconBox.height / 2 - areaBox.y - areaBox.height / 2,
+          ),
+        ).toBeLessThan(1);
+        await expect(empty).toHaveCSS("width", "32px");
+        await expect(empty).toHaveCSS("height", "32px");
+      }
+    }
+    const base: TeamMessage = {
+      id: "output",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "advisor",
+      kind: "text",
+      text: "Output",
+      data: {},
+      mentions: [],
+      replies: 0,
+      created_at: stamp,
+    };
+    const cases: ["progress" | "deliverables" | "sources", TeamMessage][] = [
+      [
+        "progress",
+        {
+          ...base,
+          run: {
+            id: "run",
+            status: "running",
+            response: "",
+            error: "",
+            steps: [],
+            runtime: {},
+            created_at: stamp,
+            updated_at: stamp,
+          },
+        },
+      ],
+      [
+        "deliverables",
+        { ...base, data: { files: [{ path: "draft.md", name: "draft.md" }] } },
+      ],
+      [
+        "sources",
+        {
+          ...base,
+          data: {
+            paper: { title: "Paper", url: "https://example.test/paper" },
+          },
+        },
+      ],
+    ];
+    // At narrow widths the panel is a drawer over the header; check the rest wide.
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    for (const [key, message] of cases) {
+      messages.splice(0, messages.length, message);
+      await expect(panel.getByRole("heading", { level: 3 })).toHaveText(
+        t(`team.${key}`),
+      );
+      await expect(empty).toHaveCount(0);
+    }
+    await page
+      .getByTestId("team-screen")
+      .locator("header")
+      .getByRole("button", { name: t("team.files"), exact: true })
+      .first()
+      .click();
+    await expect(panel.getByRole("heading", { level: 3 })).toHaveText(
+      t("team.sources"),
+    );
+    messages.splice(0);
+    await expect(empty).toBeVisible();
+    await expect(panel.locator("section, h3")).toHaveCount(0);
   });
 }

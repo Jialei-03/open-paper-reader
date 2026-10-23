@@ -402,6 +402,22 @@ def message_out(d, message):
         if message.data.get("run_id")
         else None
     )
+    if message.data.get("commit") and "changes" not in message.data:
+        from . import research_repo, team_workspace
+
+        settings = d.info.get("settings")
+        commit = message.data["commit"]
+        # Older empty runs recorded HEAD even when they did not create a commit.
+        if settings and (not run or (run.runtime or {}).get("team_base") != commit):
+            try:
+                out["data"] = {
+                    **message.data,
+                    "changes": team_workspace.changes(
+                        research_repo.repo_dir(settings, message.workspace_id), commit
+                    ),
+                }
+            except (ValueError, research_repo.GitError):
+                pass  # A missing historical repository must not hide the conversation.
     if run:
         out["run"] = run_out(run)
         out["text"] = normalize(message.text or run.response)
