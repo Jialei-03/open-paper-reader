@@ -141,9 +141,28 @@ test("dragging a connection creates a rule only after saving the shared editor",
   await editor.getByRole("button", { name: "Cancel", exact: true }).click();
   expect((await state(page)).rules).toHaveLength(4);
   await dragConnection();
+  const triggerLimit = editor.getByLabel("Trigger limit per thread");
+  await expect(triggerLimit).toHaveValue("");
+  await expect(triggerLimit).toHaveAttribute("placeholder", "Unlimited");
+  await editor.getByLabel("Action", { exact: true }).selectOption("review");
+  const reviewLimit = editor.getByLabel("Review limit", { exact: true });
+  await expect(reviewLimit).toHaveValue("");
+  await expect(reviewLimit).toHaveAttribute("placeholder", "Unlimited");
+  await triggerLimit.fill("2");
+  await reviewLimit.fill("2");
+  await triggerLimit.fill("");
+  await reviewLimit.fill("");
+  await triggerLimit.fill("0");
+  await reviewLimit.fill("0");
+  await expect(triggerLimit).toHaveValue("");
+  await expect(reviewLimit).toHaveValue("");
   await editor.getByLabel("Instruction", { exact: true }).fill("Cross-check");
   await editor.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(async () => (await state(page)).rules.length).toBe(5);
+  expect((await state(page)).rules.at(-1)).toMatchObject({
+    limit: { per_thread: 0 },
+    then: { action: "review", max_rounds: 0 },
+  });
   await page.getByRole("tab", { name: "List", exact: true }).click();
   await expect(
     page.getByRole("button", { name: /When Alex.*Morgan.*Cross-check/ }),

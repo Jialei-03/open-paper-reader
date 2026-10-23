@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Workflow } from "../../src/screens/team/workflow/workflow-model";
+import type { TeamMessage } from "../../src/screens/research/team-api";
 import { signIn } from "../reader/fixtures";
 
 test.use({ locale: "zh-CN" });
@@ -47,6 +48,28 @@ async function setup(page: import("@playwright/test").Page) {
   let workflow = fresh();
   const writes: Workflow[] = [];
   const libraryWrites: Workflow[] = [];
+  const reply: TeamMessage = {
+    id: "reply",
+    channel_id: cid,
+    thread_id: null,
+    author_id: "advisor",
+    text: "已评审",
+    kind: "text",
+    mentions: [],
+    replies: 0,
+    created_at: "2026-10-23T15:44:00Z",
+    data: {},
+    run: {
+      id: "review-run",
+      status: "completed",
+      response: "已评审",
+      error: "",
+      steps: [],
+      runtime: {},
+      created_at: "2026-10-23T15:27:00Z",
+      updated_at: "2026-10-23T15:44:00Z",
+    },
+  };
   await page.route("**/api/v1/health", async (route) => {
     const real = await (await route.fetch()).json();
     await route.fulfill({ json: { ...real, mode: "local" } });
@@ -142,15 +165,7 @@ async function setup(page: import("@playwright/test").Page) {
           research_id: null,
           messages: [
             {
-              id: "reply",
-              channel_id: cid,
-              thread_id: null,
-              author_id: "advisor",
-              text: "已评审",
-              kind: "text",
-              mentions: [],
-              replies: 0,
-              created_at: new Date().toISOString(),
+              ...reply,
               data: {
                 rule: "source-review",
                 workflow: workflow.id,
@@ -180,7 +195,7 @@ async function setup(page: import("@playwright/test").Page) {
     return route.fulfill({ json: [] });
   });
   await signIn(page);
-  return { writes, libraryWrites };
+  return { writes, libraryWrites, reply };
 }
 
 test("team settings persist rules, switch workflows and open canvas messages", async ({
@@ -216,6 +231,10 @@ test("message provenance and schedule links locate the rule editor at 720px", as
   await setup(page);
   await page.setViewportSize({ width: 720, height: 900 });
   await page.goto(`/#team/${wid}/${cid}`);
+  await expect(page.locator('[data-message-id="reply"] time')).toHaveAttribute(
+    "datetime",
+    "2026-10-23T15:44:00Z",
+  );
   await page.getByRole("link", { name: "source-review", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "取消", exact: true }).click();
@@ -226,6 +245,29 @@ test("message provenance and schedule links locate the rule editor at 720px", as
   ).toBe(true);
   await page.goto("/#schedules");
   await page.getByRole("link", { name: "Daily", exact: true }).last().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("queued rule wakes stay compact until work starts", async ({ page }) => {
+  const { reply } = await setup(page);
+  reply.text = "";
+  reply.created_at = reply.run!.created_at;
+  reply.run!.status = "queued";
+  reply.run!.response = "";
+  await page.goto(`/#team/${wid}/${cid}`);
+  const row = page.locator('[data-message-id="reply"]');
+  await expect(row.getByRole("status")).toHaveText("排队中");
+  await expect(row.locator("time, section")).toHaveCount(0);
+  await expect(
+    row.getByRole("link", { name: "source-review", exact: true }),
+  ).toHaveCount(0);
+  reply.run!.status = "running";
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("research-team-updated")),
+  );
+  await expect(row.locator('[data-live="true"]')).toBeVisible();
+  await expect(row.getByText("排队中", { exact: true })).toHaveCount(0);
+  await row.getByRole("link", { name: "source-review", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 

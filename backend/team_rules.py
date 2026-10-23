@@ -95,8 +95,6 @@ class Then(Strict):
         if self.action == "review":
             if not self.on_fail:
                 raise ValueError("review requires on_fail")
-            if self.max_rounds is None:
-                self.max_rounds = 3
         elif self.on_fail is not None or self.max_rounds is not None:
             raise ValueError("on_fail/max_rounds requires review")
         if self.action == "post":
@@ -108,7 +106,7 @@ class Then(Strict):
 
 
 class Limit(Strict):
-    per_thread: Annotated[StrictInt, Field(ge=1)] = 10
+    per_thread: Annotated[StrictInt, Field(ge=0)] = 0
 
 
 class Position(Strict):
@@ -403,7 +401,10 @@ def match(workflow, event, state, *, members) -> MatchResult:
     def eligible(rule):
         return (
             active(rule)
-            and current["counts"].get(rule["id"], 0) < rule["limit"]["per_thread"]
+            and (
+                not rule["limit"]["per_thread"]
+                or current["counts"].get(rule["id"], 0) < rule["limit"]["per_thread"]
+            )
         )
 
     def emit(rule, action, *, advance=True):
@@ -450,18 +451,22 @@ def match(workflow, event, state, *, members) -> MatchResult:
             if (
                 rule
                 and rule["enabled"]
-                and current["counts"].get(rid, 0) < rule["limit"]["per_thread"]
+                and (
+                    not rule["limit"]["per_thread"]
+                    or current["counts"].get(rid, 0) < rule["limit"]["per_thread"]
+                )
             ):
                 review["pending"] = False
+                maximum = rule["then"].get("max_rounds", 0)
                 action = {
                     "rule": rid,
                     "action": "limit",
                     "reason": "review",
-                    "limit": rule["then"]["max_rounds"],
+                    "limit": maximum,
                     "channel": event["channel"],
                     "thread": event["thread"],
                 }
-                if review["returns"] < rule["then"]["max_rounds"]:
+                if not maximum or review["returns"] < maximum:
                     action.update(
                         action="wake",
                         member=review["on_fail"],

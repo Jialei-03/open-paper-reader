@@ -79,6 +79,11 @@
   max-width: var(--ui-conversation-width);
   margin: 0 auto;
 }
+.queuedMessage {
+  align-items: center;
+  padding: var(--ui-space-6) 0;
+  font-size: var(--ui-text-13);
+}
 .avatar {
   flex: 0 0 var(--ui-space-32);
   height: var(--ui-space-32);
@@ -112,8 +117,14 @@
 .status[data-status="working"] {
   background: var(--ui-success-text);
 }
+.status[data-status="queued"] {
+  background: var(--ui-accent);
+}
 .status[data-status="waiting"] {
   background: var(--ui-warning-text);
+}
+.status[data-status="disabled"] {
+  background: var(--ui-edge);
 }
 .memberRow {
   display: flex;
@@ -137,10 +148,11 @@
   gap: var(--ui-space-8);
   min-height: var(--ui-control-sm);
 }
-.messageBody strong {
+.message strong {
   font-weight: var(--ui-weight-strong);
 }
 .messageBody time,
+.messageStatus,
 .list time {
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);

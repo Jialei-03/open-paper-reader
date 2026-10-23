@@ -605,6 +605,177 @@ test("thread results stay with their request and link to cross-channel posts", a
   ).toHaveAttribute("href", `#team/${workspace}/${channel}?thread=draft`);
 });
 
+test("queued replies become working turns and settle in completion order", async ({
+  page,
+}) => {
+  const { messages } = await setup(page);
+  const started = "2026-10-23T15:27:00Z";
+  const finished = "2026-10-23T15:44:00Z";
+  const request: TeamMessage = {
+    id: "timed-request",
+    channel_id: channel,
+    thread_id: null,
+    author_id: "human",
+    text: "查找论文",
+    kind: "text",
+    mentions: [],
+    data: {},
+    replies: 2,
+    created_at: stamp,
+  };
+  const reply: TeamMessage = {
+    ...request,
+    id: "timed-reply",
+    author_id: "librarian",
+    thread_id: request.id,
+    text: "",
+    replies: 0,
+    created_at: started,
+    run: {
+      id: "timed-run",
+      status: "queued",
+      response: "",
+      error: "",
+      steps: [],
+      runtime: {},
+      created_at: started,
+      updated_at: started,
+    },
+  };
+  messages.push(request, reply, {
+    ...request,
+    id: "intervening-update",
+    thread_id: request.id,
+    text: "补充要求",
+    replies: 0,
+    created_at: "2026-10-23T15:35:00Z",
+  });
+  await page.goto(`/#team/${workspace}/${channel}?thread=${request.id}`);
+  const thread = page.getByRole("region", { name: "线程", exact: true });
+  const row = thread.locator('[data-message-id="timed-reply"]');
+  const rows = thread.locator("[data-message-id]");
+  const order = () =>
+    rows.evaluateAll((els) =>
+      els.map((el) => el.getAttribute("data-message-id")),
+    );
+  await expect(row.getByRole("status")).toHaveText("排队中");
+  await expect(row.locator("[data-color]")).toHaveCount(1);
+  await expect(row.getByText("librarian", { exact: true })).toHaveCount(1);
+  await expect(row.locator("time, section")).toHaveCount(0);
+  await expect(row.getByText("等着开始…", { exact: true })).toHaveCount(0);
+  await expect(
+    row.getByRole("button", { name: "回复", exact: true }),
+  ).toHaveCount(0);
+  await row.hover();
+  await expect(
+    row.getByRole("button", { name: "停止", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(order)
+    .toEqual([request.id, reply.id, "intervening-update"]);
+
+  reply.run!.status = "running";
+  reply.run!.updated_at = "2026-10-23T15:36:00Z";
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("research-team-updated")),
+  );
+  await expect(row.locator('[data-live="true"]')).toBeVisible();
+  await expect(row.locator("time")).toHaveAttribute("datetime", started);
+  await expect(row.getByText("排队中", { exact: true })).toHaveCount(0);
+  await expect
+    .poll(order)
+    .toEqual([request.id, reply.id, "intervening-update"]);
+
+  reply.created_at = finished;
+  reply.text = reply.run!.response = "找到三篇论文";
+  reply.run!.status = "completed";
+  reply.run!.updated_at = finished;
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("research-team-updated")),
+  );
+  await expect(row.getByText("找到三篇论文", { exact: true })).toBeVisible();
+  await expect(row.locator("time")).toHaveAttribute("datetime", finished);
+  const displayed = await page.evaluate(
+    (value) =>
+      new Date(value).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    finished,
+  );
+  await expect(row.locator("time")).toHaveText(displayed);
+  await expect(
+    row.getByRole("button", { name: "停止", exact: true }),
+  ).toHaveCount(0);
+  await expect
+    .poll(order)
+    .toEqual([request.id, "intervening-update", reply.id]);
+});
+
+test("stopping a queued member leaves a stopped reply and failures keep their output", async ({
+  page,
+}) => {
+  const { messages } = await setup(page);
+  const reply: TeamMessage = {
+    id: "stopped-reply",
+    channel_id: channel,
+    thread_id: null,
+    author_id: "librarian",
+    text: "",
+    kind: "text",
+    mentions: [],
+    data: {},
+    replies: 0,
+    created_at: stamp,
+    run: {
+      id: "stopped-run",
+      status: "queued",
+      response: "",
+      error: "",
+      steps: [],
+      runtime: {},
+      created_at: stamp,
+      updated_at: stamp,
+    },
+  };
+  messages.push(reply, {
+    ...reply,
+    id: "failed-reply",
+    text: "已保存的草稿",
+    run: {
+      ...reply.run!,
+      id: "failed-run",
+      status: "failed",
+      error: "测试错误",
+    },
+  });
+  let cancelled = 0;
+  await page.route("**/api/v1/agent/runs/stopped-run/cancel", (route) => {
+    expect(route.request().method()).toBe("POST");
+    reply.run!.status = "cancelled";
+    cancelled++;
+    return route.fulfill({ json: reply.run });
+  });
+  await page.reload();
+  const row = page.locator('[data-message-id="stopped-reply"]');
+  await expect(row.getByRole("status")).toHaveText("排队中");
+  await row.hover();
+  await row.getByRole("button", { name: "停止", exact: true }).click();
+  await expect.poll(() => cancelled).toBe(1);
+  await expect(row.getByText("已停止", { exact: true })).toHaveCount(1);
+  await expect(row.getByText("排队中", { exact: true })).toHaveCount(0);
+  await expect(
+    row.getByRole("button", { name: "停止", exact: true }),
+  ).toHaveCount(0);
+  const failed = page.locator('[data-message-id="failed-reply"]');
+  await expect(failed.getByText("已保存的草稿", { exact: true })).toBeVisible();
+  await expect(failed.getByText("测试错误", { exact: true })).toBeVisible();
+  await expect(
+    failed.getByRole("button", { name: "停止", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("team-queue")).toHaveCount(0);
+});
+
 for (const [locale, waiting] of [
   ["zh", "等你"],
   ["en", "Waiting for you"],

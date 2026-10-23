@@ -537,7 +537,6 @@ def route_message(d, workspace, message, *, trigger="message"):
                 "enabled": True,
                 "when": {"event": "conclusion_proposed"},
                 "then": {"action": "wait_for_owner"},
-                "limit": {"per_thread": 1000000},
             }
         ]
         trigger = "conclusion_proposed"

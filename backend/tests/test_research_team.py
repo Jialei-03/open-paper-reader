@@ -468,6 +468,59 @@ def test_completion_is_unread_when_the_running_message_was_read(world):
     )
 
 
+@pytest.mark.parametrize("status", ["completed", "cancelled", "failed"])
+def test_member_reply_uses_terminal_time_and_keeps_active_position(world, status):
+    app, a, _, settings, _, _, _, base, _ = world
+    root = send(world, "@librarian find papers")
+    delivery = deliveries(app)[0]
+    progress = send(world, "Another update", thread_id=root["id"])
+    started = "2026-10-23T15:27:00+00:00"
+    working = "2026-10-23T15:35:00+00:00"
+    finished = "2026-10-23T15:44:00+00:00"
+    path = base + f"/channels/{root['channel_id']}/messages"
+
+    def messages():
+        return a.get(path, params={"thread_id": root["id"]}).json()["messages"]
+
+    with app.state.maker() as d:
+        response = d.scalar(
+            select(TeamMessage).where(
+                TeamMessage.source_key == f"run:{delivery.run_id}"
+            )
+        )
+        response_id = response.id
+        response.created_at = started
+        d.get(TeamMessage, progress["id"]).created_at = working
+        run = d.get(AgentRun, delivery.run_id)
+        run.created_at, run.updated_at = started, working
+        d.commit()
+    for active_status in ("queued", "running"):
+        with app.state.maker() as d:
+            d.get(AgentRun, delivery.run_id).status = active_status
+            d.commit()
+        team.settle(settings, app.state.maker)
+        rows = messages()
+        assert [m["id"] for m in rows] == [response_id, progress["id"]]
+        assert rows[0]["created_at"] == started
+        assert rows[0]["run"]["status"] == active_status
+    with app.state.maker() as d:
+        run = d.get(AgentRun, delivery.run_id)
+        run.status, run.updated_at = status, finished
+        run.response = "Saved answer"
+        run.error = "Test failure" if status == "failed" else ""
+        d.commit()
+    for _ in range(2):
+        team.settle(settings, app.state.maker)
+        rows = messages()
+        assert [m["id"] for m in rows] == [progress["id"], response_id]
+        assert rows[-1]["created_at"] == finished
+        assert rows[-1]["text"] == "Saved answer"
+        assert rows[-1]["run"]["status"] == status
+    assert deliveries(app)[0].status == ("applied" if status == "completed" else status)
+    if status == "cancelled":
+        assert a.get(base + "/deliveries").json() == []
+
+
 def test_research_immediate_targets_current_round_and_cross_channel_reply(world):
     app, a, _, settings, owner, model, wid, base, overview = world
     from backend import research_map

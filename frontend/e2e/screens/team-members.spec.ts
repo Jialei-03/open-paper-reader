@@ -44,7 +44,7 @@ function sourceConfig(source: string): MemberConfig {
     role_description: source.split("---").slice(2).join("---").trim(),
   };
 }
-async function setup(page: Page) {
+async function setup(page: Page, extraMembers: TeamMember[] = []) {
   let members: TeamMember[] = [
     {
       id: "human",
@@ -64,6 +64,7 @@ async function setup(page: Page) {
       status: "idle",
       active_run_id: null,
     },
+    ...extraMembers,
   ];
   const library: LibraryMember[] = [
     { id: "library-ada", version: 1, config: defaults("Ada"), teams: [] },
@@ -258,7 +259,22 @@ async function setup(page: Page) {
     }
     if (path.endsWith("/messages"))
       return route.fulfill({
-        json: { messages: [], root: null, research_id: null },
+        json: {
+          messages: extraMembers.map((member) => ({
+            id: `message-${member.id}`,
+            channel_id: cid,
+            thread_id: null,
+            author_id: member.id,
+            text: `Message from ${member.name}`,
+            kind: "text",
+            mentions: [],
+            data: {},
+            created_at: "2026-10-24T00:00:00Z",
+            replies: 0,
+          })),
+          root: null,
+          research_id: null,
+        },
       });
     return route.fulfill({ json: [] });
   });
@@ -289,7 +305,7 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
   await dialog.getByLabel("名字", { exact: true }).fill("Ada");
   await dialog
     .getByLabel("角色说明", { exact: true })
-    .fill("# Ada\nVerify every claim");
+    .fill("# Role heading\n## Evidence\n### Sources\nVerify every claim");
   await dialog.getByLabel("头像颜色", { exact: true }).selectOption("green");
   await dialog.getByLabel("只读", { exact: true }).check();
   await expect(dialog.getByLabel("命令行", { exact: true })).toBeDisabled();
@@ -312,6 +328,35 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
     subscriptions: [cid],
   });
   await page.getByRole("button", { name: "Ada", exact: true }).click();
+  const title = page.getByRole("heading", { name: "Ada", exact: true });
+  const back = page.getByRole("button", { name: "返回", exact: true });
+  await expect(back).toBeVisible();
+  await expect(back.locator("svg")).toBeVisible();
+  await expect(back).toHaveText("");
+  const titleBox = await title.boundingBox();
+  const backBox = await back.boundingBox();
+  expect(backBox!.x + backBox!.width).toBeLessThan(titleBox!.x);
+  for (const heading of ["Role heading", "Evidence", "Sources"]) {
+    const bodyHeading = page.getByRole("heading", {
+      name: heading,
+      exact: true,
+    });
+    await expect(bodyHeading).toBeVisible();
+    expect(
+      await bodyHeading.evaluate((node) =>
+        parseFloat(getComputedStyle(node).fontSize),
+      ),
+    ).toBeLessThan(
+      await title.evaluate((node) =>
+        parseFloat(getComputedStyle(node).fontSize),
+      ),
+    );
+  }
+  await page.setViewportSize({ width: 720, height: 900 });
+  await expect(back).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(720);
   await expect(
     page.getByText("Reading evidence", { exact: true }),
   ).toBeVisible();
@@ -351,7 +396,7 @@ test("复制内置成员、编辑和停用", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Peer II", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "成员", exact: true }).click();
+  await page.getByRole("button", { name: "返回", exact: true }).click();
   const row = page.getByRole("listitem").filter({
     has: page.getByRole("button", { name: "Peer II", exact: true }),
   });
@@ -520,7 +565,7 @@ test("重新打开成员读取外部修改，坏文件显示行号和上一份�
   );
   await page.getByRole("button", { name: "Ada", exact: true }).click();
   await expect(page.getByText("External body", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "成员", exact: true }).click();
+  await page.getByRole("button", { name: "返回", exact: true }).click();
   await expect(
     page.getByRole("searchbox", { name: "搜索成员", exact: true }),
   ).toBeVisible();
@@ -536,4 +581,73 @@ test("重新打开成员读取外部修改，坏文件显示行号和上一份�
   await expect(
     page.getByRole("dialog").getByLabel("源文件", { exact: true }),
   ).toHaveValue(/tools: broken/);
+});
+
+test("成员列表、私信侧栏和消息头像使用一致的状态点", async ({ page }) => {
+  const states = [
+    { status: "working", label: "工作中" },
+    { status: "queued", label: "排队中" },
+    { status: "waiting", label: "等你" },
+    { status: "idle", label: "空闲" },
+    { status: "working", label: "已停用", enabled: false },
+  ] as const;
+  const members: TeamMember[] = states.map((state, index) => ({
+    ...defaults(`Status ${index}`),
+    id: `status-${index}`,
+    role: `custom_status_${index}`,
+    builtin: false,
+    enabled: !("enabled" in state) || state.enabled,
+    status: state.status,
+    active_run_id: null,
+  }));
+  await setup(page, members);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => {
+      document.documentElement.dataset.theme = value;
+    }, theme);
+    const colors = [];
+    for (const [index, state] of states.entries()) {
+      const row = page.getByRole("listitem").filter({
+        has: page.getByRole("button", {
+          name: members[index].name,
+          exact: true,
+        }),
+      });
+      const dot = row.getByRole("img", { name: state.label, exact: true });
+      await expect(dot).toBeVisible();
+      await expect(dot).toHaveAttribute(
+        "data-status",
+        "enabled" in state ? "disabled" : state.status,
+      );
+      colors.push(
+        await dot.evaluate((node) => getComputedStyle(node).backgroundColor),
+      );
+    }
+    expect(new Set(colors).size).toBe(states.length);
+    await page.goto(`/#team/${wid}/${cid}`);
+    await page.evaluate((value) => {
+      document.documentElement.dataset.theme = value;
+    }, theme);
+    for (const [index, state] of states.entries()) {
+      const sidebar = page
+        .getByRole("navigation", { name: "侧栏", exact: true })
+        .getByRole("link", {
+          name: members[index].name,
+          exact: true,
+        })
+        .locator("xpath=ancestor::div[contains(@class, 'memberRow')][1]");
+      const avatar = page.locator(
+        `[data-message-id="message-${members[index].id}"]`,
+      );
+      for (const container of [sidebar, avatar]) {
+        const dot = container.getByRole("img", {
+          name: state.label,
+          exact: true,
+        });
+        await expect(dot).toBeVisible();
+        await expect(dot).toHaveCSS("background-color", colors[index]);
+      }
+    }
+    await page.goto(`/#team/${wid}/settings?thread=members`);
+  }
 });

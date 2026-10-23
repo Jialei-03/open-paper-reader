@@ -256,7 +256,7 @@ export function RuleEditor({
                           current.then.on_fail ??
                           current.when.from_member ??
                           current.when.from_role,
-                        max_rounds: current.then.max_rounds ?? 3,
+                        max_rounds: current.then.max_rounds,
                       }
                     : {}),
                   ...(action === "post"
@@ -306,11 +306,11 @@ export function RuleEditor({
               </SelectField>
               <TextField
                 type="number"
-                min={1}
+                min={0}
                 step={1}
-                required
                 label={t("teamWorkflow.rounds")}
-                value={draft.then.max_rounds ?? 3}
+                placeholder={t("team.unlimited")}
+                value={draft.then.max_rounds || ""}
                 onChange={(event) =>
                   then({ max_rounds: Number(event.target.value) })
                 }
@@ -343,11 +343,11 @@ export function RuleEditor({
           />
           <TextField
             type="number"
-            min={1}
+            min={0}
             step={1}
-            required
             label={t("teamWorkflow.limit")}
-            value={draft.limit.per_thread}
+            placeholder={t("team.unlimited")}
+            value={draft.limit?.per_thread || ""}
             onChange={(event) =>
               setDraft({
                 ...draft,

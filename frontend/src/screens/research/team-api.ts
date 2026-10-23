@@ -54,7 +54,7 @@ export interface TeamMember extends Partial<MemberConfig>, AgentFile {
   id: string;
   role: string;
   name: string;
-  status: "idle" | "working" | "waiting";
+  status: "idle" | "working" | "queued" | "waiting";
   active_run_id: string | null;
 }
 export interface TeamChannel {

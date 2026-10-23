@@ -10,6 +10,7 @@ import {
   initials,
 } from "./member-model";
 import { MemberFields, PermissionFields } from "./MemberEditor";
+import { MemberStatus } from "../research/TeamNavigation";
 import { workflowMembers } from "./TeamSettings";
 import { mentionMatches } from "../research/team-model";
 import { en } from "../../i18n/messages/en";
@@ -25,6 +26,33 @@ const ada: TeamMember = {
   status: "idle",
   active_run_id: null,
 };
+describe("member status", () => {
+  for (const locale of ["zh", "en"] as const) {
+    it(`labels each state and gives disabled members precedence in ${locale}`, () => {
+      const labels =
+        locale === "zh"
+          ? ["空闲", "工作中", "排队中", "等你", "已停用"]
+          : ["Idle", "Working", "Queued", "Waiting for you", "Disabled"];
+      for (const [index, state] of (
+        ["idle", "working", "queued", "waiting", "disabled"] as const
+      ).entries()) {
+        const html = renderToStaticMarkup(
+          createElement(I18nProvider, {
+            locale,
+            children: createElement(MemberStatus, {
+              status: state === "disabled" ? "working" : state,
+              enabled: state !== "disabled",
+            }),
+          }),
+        );
+        expect(html).toContain(`data-status="${state}"`);
+        expect(html).toContain('role="img"');
+        expect(html).toContain(`aria-label="${labels[index]}"`);
+      }
+    });
+  }
+});
+
 describe("custom members", () => {
   it("validates the actual form and isolates permission drafts", () => {
     const form = memberDraft({ name: "Ada" });

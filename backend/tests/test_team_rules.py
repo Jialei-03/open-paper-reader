@@ -49,7 +49,7 @@ def rule(id="r", trigger="message", action="wake", **extra):
     if action in {"wake", "review"}:
         then.update(role="executor", instruction="Do the work")
     if action == "review":
-        then.update(role="advisor", on_fail="executor", max_rounds=3)
+        then.update(role="advisor", on_fail="executor")
     if action == "post":
         then.update(channel="out", text="Report")
     return {
@@ -57,7 +57,6 @@ def rule(id="r", trigger="message", action="wake", **extra):
         "enabled": True,
         "when": {"event": trigger},
         "then": then,
-        "limit": {"per_thread": 10},
         **extra,
     }
 
@@ -235,10 +234,7 @@ def test_wait_has_priority_even_when_last_and_event_mentions_someone(members):
 
 
 def test_agent_handoffs_are_never_capped(members):
-    many = {"per_thread": 1000}
-    flow = workflow(
-        rule(limit=many), rule("job", trigger="job_finished", limit=many)
-    )
+    flow = workflow(rule(), rule("job", trigger="job_finished"))
     state = {}
     for index in range(40):
         item = (
@@ -250,7 +246,7 @@ def test_agent_handoffs_are_never_capped(members):
         assert brief(actions) == [("wake", "m-executor")]
 
 
-@pytest.mark.parametrize("maximum", [0, 1, 3])
+@pytest.mark.parametrize("maximum", [1, 3])
 def test_review_returns_at_most_n_times(maximum, members):
     spec = rule(action="review", limit={"per_thread": 30})
     spec["when"].update(from_role="executor", kind="result")
@@ -258,8 +254,6 @@ def test_review_returns_at_most_n_times(maximum, members):
     flow = workflow(spec)
     state = {}
     for attempt in range(maximum + 1):
-        # The owner can resume a long review series past the relay cap.
-        _, state = run(flow, event(members), state, members)
         actions, state = run(
             flow, event(members, "executor", kind="result"), state, members
         )
@@ -270,6 +264,28 @@ def test_review_returns_at_most_n_times(maximum, members):
         assert brief(actions) == expected
         assert all(a["rule"] == "r" for a in actions)
         assert run(flow, failed, state, members).actions == []
+
+
+@pytest.mark.parametrize("maximum", [None, 0])
+@pytest.mark.parametrize("limit", [None, {}, {"per_thread": 0}])
+def test_missing_or_zero_limits_allow_repeated_reviews(maximum, limit, members):
+    spec = rule(action="review")
+    spec["when"].update(from_role="executor", kind="result")
+    if maximum is not None:
+        spec["then"]["max_rounds"] = maximum
+    if limit is not None:
+        spec["limit"] = limit
+    flow = workflow(spec)
+    state = {}
+    for _ in range(40):
+        actions, state = run(
+            flow, event(members, "executor", kind="result"), state, members
+        )
+        assert brief(actions) == [("review", "m-advisor")]
+        actions, state = run(
+            flow, event(members, "advisor", type="review_failed"), state, members
+        )
+        assert brief(actions) == [("wake", "m-executor")]
 
 
 def test_review_failure_needs_pending_reviewer_and_scope(members):
@@ -389,7 +405,7 @@ def test_pure_deterministic_detached_and_json_serializable(members):
             {"then": {"action": "wait_for_owner", "member": "me"}},
             "member/role requires",
         ),
-        ({"limit": {"per_thread": 0}}, "limit.per_thread"),
+        ({"limit": {"per_thread": -1}}, "limit.per_thread"),
         ({"limit": {"per_thread": True}}, "limit.per_thread"),
         ({"enabled": "yes"}, "enabled"),
         ({"position": {"x": float("inf"), "y": 0}}, "position.x"),
@@ -403,7 +419,7 @@ def test_rule_validation_explains_field(change, error):
 
 def test_workflow_validation_and_references(members):
     channels = [{"id": "c", "name": "Research", "kind": "channel"}]
-    flow = workflow(rule())
+    flow = workflow(rule(limit={"per_thread": 0}))
     assert rules.validate_workflow(flow, members=members, channels=channels) == flow
     for bad, error in [
         (workflow(rule(), rule()), "unique"),
@@ -781,6 +797,10 @@ def test_builtin_data_is_detached_and_bilingual_with_same_rule_identity(members)
             r["id"] for r in en[key]["rules"]
         ]
         assert rules.initial_state(zh[key]) == rules.initial_state(en[key])
+        for flow in (zh[key], en[key]):
+            for spec in flow["rules"]:
+                assert spec["limit"]["per_thread"] == 0
+                assert not spec["then"].get("max_rounds")
     zh["research"]["rules"].clear()
     assert rules.builtin_workflows()["research"]["rules"]
 
@@ -822,7 +842,7 @@ def test_migrate_existing_linear_definitions_preserves_instructions_outputs_and_
                 assert all(path in instructions for path in step.get("outputs", []))
         if key == "literature-review":
             review = next(r for r in flow["rules"] if r["then"]["action"] == "review")
-            assert review["then"]["max_rounds"] == 2
+            assert review["then"]["max_rounds"] == 0
 
 
 def test_custom_linear_cursor_and_retry_return_to_previous_step(members):

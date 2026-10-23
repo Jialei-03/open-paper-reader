@@ -103,14 +103,20 @@ export function TeamSwitcher({
   );
 }
 
-export function MemberStatus({ status }: { status: TeamMember["status"] }) {
+export function MemberStatus({
+  status,
+  enabled,
+}: Pick<TeamMember, "status" | "enabled">) {
   const { t } = useI18n();
+  const state = enabled === false ? "disabled" : status;
   return (
     <span
       className={styles.status}
-      data-status={status}
+      data-status={state}
       role="img"
-      aria-label={t(`team.status.${status}`)}
+      aria-label={t(
+        state === "disabled" ? "members.disabled" : `team.status.${state}`,
+      )}
     />
   );
 }
@@ -196,7 +202,7 @@ export function TeamNavigation({
             const member = team.members.find((m) => m.id === c.member_id)!;
             return (
               <div key={c.id} className={styles.memberRow}>
-                <MemberStatus status={member.status} />
+                <MemberStatus status={member.status} enabled={member.enabled} />
                 <SidebarItem
                   icon={MessageSquare}
                   label={memberName(member, t)}

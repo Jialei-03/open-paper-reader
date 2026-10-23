@@ -264,8 +264,14 @@ def test_explicit_question_pauses_and_notifies_owner(world):
         m["kind"] == "relay_limit" and m["data"]["waiting"]
         for m in a.get(world[7]).json()["notifications"]
     )
+    assert next(
+        m for m in a.get(world[7]).json()["members"] if m["role"] == "human"
+    )["status"] == "waiting"
     send(world, "@writer 按这个方向写", thread_id=root["id"])
     assert len(deliveries(app)) == 2
+    assert next(
+        m for m in a.get(world[7]).json()["members"] if m["role"] == "human"
+    )["status"] == "idle"
 
 
 def test_failed_empty_and_time_limited_output(world, monkeypatch):

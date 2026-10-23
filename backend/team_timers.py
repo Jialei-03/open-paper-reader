@@ -50,7 +50,6 @@ def sync(d, item, *, remove=False):
                     "role": "advisor",
                     "instruction": item.prompt,
                 },
-                "limit": {"per_thread": 1000000},
                 **({"position": old["position"]} if old and "position" in old else {}),
             }
         )

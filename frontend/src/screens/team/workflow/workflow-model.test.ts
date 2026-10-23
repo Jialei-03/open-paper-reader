@@ -161,7 +161,7 @@ describe("editing and ordering the one workflow", () => {
     const rule = structuredClone(edgeToRule(edge, workflow)!);
     rule.then.instruction = "Check again";
     rule.then.max_rounds = 5;
-    rule.limit.per_thread = 7;
+    rule.limit = { per_thread: 7 };
     rule.enabled = false;
     const next = saveRule(workflow, rule);
     expect(next.rules[0]).toEqual(rule);
@@ -172,6 +172,7 @@ describe("editing and ordering the one workflow", () => {
     expect(workflow.rules[0].then.instruction).toBe("Check results");
     expect(next.layout).toBe(workflow.layout);
     const created = newRule("new");
+    expect(created.limit?.per_thread).toBe(0);
     expect(saveRule(next, created).rules.at(-1)).toBe(created);
   });
 
@@ -199,7 +200,7 @@ describe("editing and ordering the one workflow", () => {
     expect(validateRule(rule)).toBe(false);
     rule.then.member = "executor";
     expect(validateRule(rule)).toBe(true);
-    for (const limit of [0, -1, 1.5, NaN, Infinity])
+    for (const limit of [-1, 1.5, NaN, Infinity])
       expect(validateRule({ ...rule, limit: { per_thread: limit } })).toBe(
         false,
       );
@@ -207,9 +208,22 @@ describe("editing and ordering the one workflow", () => {
     expect(
       validateRule({ ...review, then: { ...review.then, on_fail: undefined } }),
     ).toBe(false);
-    expect(
-      validateRule({ ...review, then: { ...review.then, max_rounds: 0 } }),
-    ).toBe(false);
+    for (const maximum of [-1, 1.5, NaN, Infinity])
+      expect(
+        validateRule({
+          ...review,
+          then: { ...review.then, max_rounds: maximum },
+        }),
+      ).toBe(false);
+    for (const limit of [undefined, {}, { per_thread: 0 }])
+      for (const maximum of [undefined, 0, 5])
+        expect(
+          validateRule({
+            ...review,
+            limit,
+            then: { ...review.then, max_rounds: maximum },
+          }),
+        ).toBe(true);
     const schedule = fixture().rules[3];
     for (const cron of [
       "0 9 * *",
@@ -369,6 +383,34 @@ describe("localized list and shared editor", () => {
       renderToStaticMarkup(
         createElement(I18nProvider, { locale, children: child }),
       );
+    for (const maximum of [undefined, 0])
+      it(`${locale} renders missing/zero (${maximum}) limits as unlimited`, () => {
+        const rule = {
+          ...fixture().rules[0],
+          limit: maximum === undefined ? undefined : { per_thread: maximum },
+          then: { ...fixture().rules[0].then, max_rounds: maximum },
+        };
+        expect(ruleSummary(rule, members, channels, t)).toContain(
+          t("team.unlimited"),
+        );
+        const editor = render(
+          createElement(RuleEditor, {
+            rule,
+            members,
+            channels,
+            onSave: vi.fn(),
+            onClose: vi.fn(),
+          }),
+        );
+        const limits = editor.match(/<input[^>]*type="number"[^>]*>/g)!;
+        expect(limits).toHaveLength(2);
+        for (const input of limits) {
+          expect(input).toContain(`placeholder="${t("team.unlimited")}"`);
+          expect(input).toContain('value=""');
+          expect(input).toContain('min="0"');
+          expect(input).not.toContain("required");
+        }
+      });
     it(`${locale} displays names and provides the review editor fields`, () => {
       const workflow = fixture();
       const summary = ruleSummary(workflow.rules[0], members, channels, t);

@@ -26,14 +26,16 @@
     "role": "或者按角色找成员",
     "instruction": "给被叫醒成员的一句话",
     "on_fail": "review 不通过时交给谁（成员 id 或 role）",
-    "max_rounds": 3,
+    "max_rounds": 0,
     "channel": "post 发到哪",
     "text": "post 的内容"
   },
-  "limit": { "per_thread": 10 },
+  "limit": { "per_thread": 0 },
   "position": { "x": 0, "y": 0 }
 }
 ```
+
+`max_rounds` 和 `limit.per_thread` 缺省或为 0 时不限；只有显式填写的正数限制评审退回次数和规则触发次数。
 
 ## 事件（Event）——规则引擎的输入
 ```json

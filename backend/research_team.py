@@ -160,7 +160,7 @@ def root_of(d, workspace, channel, thread_id):
     return root
 
 
-def active_run(d, member):
+def active_run(d, member, statuses=ACTIVE):
     workspace = d.get(ResearchWorkspace, member.workspace_id)
     sessions = [member.session_id]
     if member.role == "advisor":
@@ -175,7 +175,7 @@ def active_run(d, member):
         ]
     own = d.scalar(
         select(AgentRun)
-        .where(AgentRun.session_id.in_(sessions), AgentRun.status.in_(ACTIVE))
+        .where(AgentRun.session_id.in_(sessions), AgentRun.status.in_(statuses))
         .order_by(AgentRun.created_at)
     )
     if own:
@@ -184,7 +184,7 @@ def active_run(d, member):
         select(AgentRun)
         .where(
             AgentRun.owner == workspace.owner,
-            AgentRun.status.in_(ACTIVE),
+            AgentRun.status.in_(statuses),
             or_(
                 AgentRun.runtime["team"]["member_id"].as_string() == member.id,
                 AgentRun.runtime["research"]["member_id"].as_string() == member.id,
@@ -207,7 +207,7 @@ def active_run(d, member):
             .where(
                 ResearchProject.workspace_id == workspace.id,
                 ResearchSprint.role.in_(roles),
-                AgentRun.status.in_(ACTIVE),
+                AgentRun.status.in_(statuses),
             )
             .order_by(AgentRun.created_at)
         )
@@ -552,9 +552,21 @@ def overview(d, workspace):
     )
     from .team_members import config, file_out
 
+    queued = set(
+        d.scalars(
+            select(TeamDelivery.member_id).where(
+                TeamDelivery.member_id.in_([member.id for member in members]),
+                TeamDelivery.status == "queued",
+            )
+        )
+    )
     statuses = []
     for member in members:
-        run = active_run(d, member) if member.role != "human" else None
+        run = (
+            active_run(d, member, {"running"}) or active_run(d, member)
+            if member.role != "human"
+            else None
+        )
         waiting = (
             member.role != "human"
             and member.max_tokens
@@ -590,7 +602,13 @@ def overview(d, workspace):
                 deleted=member.deleted,
                 overrides=member.overrides,
                 subscriptions=member.subscriptions,
-                status="working" if run else "waiting" if waiting else "idle",
+                status="working"
+                if run and run.status == "running"
+                else "waiting"
+                if waiting
+                else "queued"
+                if run or member.id in queued
+                else "idle",
                 active_run_id=run.id if run else None,
                 tokens=member.tokens,
                 max_tokens=member.max_tokens,
@@ -910,7 +928,11 @@ def settle(settings, maker):
                     run = d.get(AgentRun, delivery.run_id)
                     if run.status not in ACTIVE:
                         delivery.status = (
-                            "applied" if run.status == "completed" else "failed"
+                            "applied"
+                            if run.status == "completed"
+                            else "cancelled"
+                            if run.status == "cancelled"
+                            else "failed"
                         )
                         delivery.error = run.error
                         response = d.scalar(
@@ -919,6 +941,8 @@ def settle(settings, maker):
                             )
                         )
                         if response:
+                            # The placeholder becomes a reply at the run's terminal time.
+                            response.created_at = run.updated_at
                             response.data = {**response.data, "read": False}
                             if run.runtime.get("time_limit_reached") or run.runtime.get(
                                 "budget_limit"

@@ -399,17 +399,16 @@ export function RunTurn({
           </button>
           {open && <Trail steps={steps} live={false} />}
           {final && <Words text={final.replaceAll("\\n", "\n")} live={false} />}
-          {steps.length === 0 &&
-            (run?.status === "cancelled" ||
-              (run?.status === "failed" && !run.error)) && (
-              <p className={styles.pending}>
-                {t(
-                  run.status === "failed"
-                    ? "research.process.failed"
-                    : "research.process.cancelled",
-                )}
-              </p>
-            )}
+          {(run?.status === "cancelled" ||
+            (run?.status === "failed" && !run.error)) && (
+            <p className={styles.pending}>
+              {t(
+                run.status === "failed"
+                  ? "research.process.failed"
+                  : "research.process.cancelled",
+              )}
+            </p>
+          )}
           {run?.status === "failed" && run.error && (
             <p className={styles.error}>{run.error}</p>
           )}

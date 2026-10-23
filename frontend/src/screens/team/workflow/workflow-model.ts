@@ -68,7 +68,7 @@ export interface WorkflowRule {
     channel?: string;
     text?: string;
   };
-  limit: { per_thread: number };
+  limit?: { per_thread?: number };
   position?: XYPosition;
 }
 export interface Workflow {
@@ -161,10 +161,16 @@ export function ruleSummary(
     rule.then.instruction,
     rule.then.text,
     rule.then.action === "review" && rule.then.on_fail
-      ? t("teamWorkflow.returnTo", {
-          name: memberName(rule.then.on_fail, rule.then.on_fail),
-          count: rule.then.max_rounds ?? 3,
-        })
+      ? t(
+          rule.then.max_rounds
+            ? "teamWorkflow.returnTo"
+            : "teamWorkflow.returnToUnlimited",
+          {
+            name: memberName(rule.then.on_fail, rule.then.on_fail),
+            count: rule.then.max_rounds ?? 0,
+            limit: t("team.unlimited"),
+          },
+        )
       : "",
   ]
     .filter(Boolean)
@@ -178,7 +184,7 @@ export function newRule(id: string): WorkflowRule {
     enabled: true,
     when: { event: "message" },
     then: { action: "wake" },
-    limit: { per_thread: 10 },
+    limit: { per_thread: 0 },
   };
 }
 
@@ -431,8 +437,8 @@ export function updateCanvasNodes(
 }
 
 export function validateRule(rule: WorkflowRule): boolean {
-  if (!Number.isSafeInteger(rule.limit.per_thread) || rule.limit.per_thread < 1)
-    return false;
+  const perThread = rule.limit?.per_thread ?? 0;
+  if (!Number.isSafeInteger(perThread) || perThread < 0) return false;
   if (rule.when.event === "schedule") {
     if (!validCron(rule.when.cron ?? "") || !rule.when.timezone) return false;
     try {
@@ -458,8 +464,8 @@ export function validateRule(rule: WorkflowRule): boolean {
   if (
     rule.then.action === "review" &&
     (!rule.then.on_fail ||
-      !Number.isSafeInteger(rule.then.max_rounds) ||
-      rule.then.max_rounds! < 1)
+      !Number.isSafeInteger(rule.then.max_rounds ?? 0) ||
+      (rule.then.max_rounds ?? 0) < 0)
   )
     return false;
   return (

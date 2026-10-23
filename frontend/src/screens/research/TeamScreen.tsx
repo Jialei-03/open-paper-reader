@@ -569,7 +569,7 @@ function MessagePane({
   );
 }
 
-function MessageRow({
+export function MessageRow({
   message,
   team,
   openThread,
@@ -588,46 +588,63 @@ function MessageRow({
     ? displayMemberName(member, t)
     : t(message.kind === "research" ? "team.member.human" : "team.system");
   const replyable = true;
+  const avatar = (
+    <div className={styles.avatar} data-member={member ? "" : undefined}>
+      {member ? (
+        <>
+          <MemberAvatar name={name} color={member.avatar_color} />
+          <MemberStatus status={member.status} enabled={member.enabled} />
+        </>
+      ) : (
+        <span>{name.slice(0, 1)}</span>
+      )}
+    </div>
+  );
+  const stop = (message.run?.status === "queued" ||
+    message.run?.status === "running") && (
+    <IconButton
+      size="sm"
+      icon={Square}
+      label={t("research.stop")}
+      onClick={() =>
+        void api(`/agent/runs/${encodeURIComponent(message.run!.id)}/cancel`, {
+          method: "POST",
+        })
+          .then(refreshTeam)
+          .catch((e: unknown) =>
+            toast.show({ message: String(e), tone: "error" }),
+          )
+      }
+    />
+  );
+  if (message.run?.status === "queued")
+    return (
+      <article
+        className={`${styles.message} ${styles.queuedMessage}`}
+        data-message-id={message.id}
+      >
+        {avatar}
+        <strong>{name}</strong>
+        <span className={styles.messageStatus} role="status">
+          {t("team.queued")}
+        </span>
+        <div className={styles.hoverActions}>{stop}</div>
+      </article>
+    );
   return (
     <article className={styles.message} data-message-id={message.id}>
-      <div className={styles.avatar} data-member={member ? "" : undefined}>
-        {member ? (
-          <>
-            <MemberAvatar name={name} color={member.avatar_color} />
-            <MemberStatus status={member.status} />
-          </>
-        ) : (
-          <span>{name.slice(0, 1)}</span>
-        )}
-      </div>
+      {avatar}
       <div className={styles.messageBody}>
         <header>
           <strong>{name}</strong>
-          <time>
+          <time dateTime={message.created_at}>
             {new Date(message.created_at).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             })}
           </time>
           <div className={styles.hoverActions}>
-            {(message.run?.status === "queued" ||
-              message.run?.status === "running") && (
-              <IconButton
-                size="sm"
-                icon={Square}
-                label={t("research.stop")}
-                onClick={() =>
-                  void api(
-                    `/agent/runs/${encodeURIComponent(message.run!.id)}/cancel`,
-                    { method: "POST" },
-                  )
-                    .then(refreshTeam)
-                    .catch((e: unknown) =>
-                      toast.show({ message: String(e), tone: "error" }),
-                    )
-                }
-              />
-            )}
+            {stop}
             {replyable && (
               <IconButton
                 size="sm"
