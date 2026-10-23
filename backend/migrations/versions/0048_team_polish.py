@@ -24,7 +24,6 @@ def upgrade():
                 "max_tokens": 0,
                 "period_hours": 24,
                 "max_concurrent": 0,
-                "relay_limit": 12,
             },
         )
         bind.execute(

@@ -284,15 +284,7 @@ def event(
             if k not in state.get("linear", {})
         }
     )
-    from .team_budgets import limits
-
-    actions, state = team_rules.match(
-        flow,
-        incoming,
-        state,
-        members=members,
-        relay_limit=limits(workspace)["relay_limit"],
-    )
+    actions, state = team_rules.match(flow, incoming, state, members=members)
     fired = state.setdefault("fired", [])
     fired.extend(
         {

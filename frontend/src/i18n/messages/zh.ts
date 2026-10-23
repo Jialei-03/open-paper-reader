@@ -104,7 +104,6 @@ export const zh: { [K in keyof typeof en]: string } = {
   "team.memberTokenLimit": "单次 Token 上限",
   "team.periodHours": "周期（小时）",
   "team.concurrent": "同时工作的成员数",
-  "team.relay": "连续接力上限",
   "team.unlimited": "不限",
   "team.turns": "模型轮数",
   "team.minutes": "单次时长（分钟）",

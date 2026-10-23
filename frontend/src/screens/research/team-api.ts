@@ -105,7 +105,6 @@ export interface TeamBudget {
   max_tokens: number;
   period_hours: number;
   max_concurrent: number;
-  relay_limit: number;
 }
 export interface Delivery {
   id: string;

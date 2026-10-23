@@ -234,10 +234,13 @@ def test_wait_has_priority_even_when_last_and_event_mentions_someone(members):
     assert brief(actions) == [("wait_for_owner", None)]
 
 
-def test_twelve_hop_relay_including_mentions_and_jobs(members):
-    flow = workflow(rule(), rule("job", trigger="job_finished"))
+def test_agent_handoffs_are_never_capped(members):
+    many = {"per_thread": 1000}
+    flow = workflow(
+        rule(limit=many), rule("job", trigger="job_finished", limit=many)
+    )
     state = {}
-    for index in range(12):
+    for index in range(40):
         item = (
             event(members, "advisor", mentions=["m-executor"])
             if index % 2
@@ -245,29 +248,6 @@ def test_twelve_hop_relay_including_mentions_and_jobs(members):
         )
         actions, state = run(flow, item, state, members)
         assert brief(actions) == [("wake", "m-executor")]
-    actions, state = run(flow, event(members, "advisor"), state, members)
-    assert brief(actions) == [("limit", None)]
-    assert scope(state)["relay"] == 12
-    assert (
-        run(
-            flow, event(members, "advisor", mentions=["m-writer"]), state, members
-        ).actions
-        == []
-    )
-    actions, state = run(flow, event(members), state, members)
-    assert brief(actions) == [("wake", "m-executor")] and scope(state)["relay"] == 0
-
-
-def test_relay_is_shared_between_workflows_and_does_not_count_posts(members):
-    flow = workflow(rule(action="post"))
-    state = {}
-    for _ in range(8):
-        _, state = run(flow, event(members, "advisor"), state, members)
-    assert scope(state)["relay"] == 0
-    for index in range(13):
-        flow = {**workflow(rule()), "id": f"flow-{index}"}
-        actions, state = run(flow, event(members, "advisor"), state, members)
-    assert brief(actions) == [("limit", None)]
 
 
 @pytest.mark.parametrize("maximum", [0, 1, 3])
@@ -368,23 +348,6 @@ def test_returns_obey_rule_limit(members):
         ).actions
         == []
     )
-
-
-def test_relay_exhaustion_does_not_count_an_unperformed_review_return(members):
-    review = rule(action="review")
-    review["when"].update(from_role="executor", kind="result")
-    flow = workflow(
-        review, rule("job", trigger="job_finished", limit={"per_thread": 30})
-    )
-    _, state = run(flow, event(members, "executor", kind="result"), {}, members)
-    for _ in range(11):
-        _, state = run(flow, event(members, None, type="job_finished"), state, members)
-    actions, state = run(
-        flow, event(members, "advisor", type="review_failed"), state, members
-    )
-    assert brief(actions) == [("limit", None)]
-    execution = next(iter(scope(state)["workflows"].values()))
-    assert execution["reviews"]["r"]["returns"] == 0
 
 
 def test_pure_deterministic_detached_and_json_serializable(members):

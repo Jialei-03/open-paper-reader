@@ -11,7 +11,6 @@ export function TeamBudgets({ team }: { team: Team }) {
       max_tokens: 0,
       period_hours: 24,
       max_concurrent: 0,
-      relay_limit: 12,
     },
   );
   const [saving, setSaving] = useState(false);
@@ -40,7 +39,6 @@ export function TeamBudgets({ team }: { team: Team }) {
             ["max_tokens", "team.tokenLimit"],
             ["period_hours", "team.periodHours"],
             ["max_concurrent", "team.concurrent"],
-            ["relay_limit", "team.relay"],
           ] as const
         ).map(([key, label]) => (
           <div className={styles.budgetField} key={key}>
@@ -69,7 +67,6 @@ export function TeamBudgets({ team }: { team: Team }) {
                         : {
                             max_tokens: 12000000,
                             max_concurrent: 1,
-                            relay_limit: 12,
                           }[key],
                     })
                   }

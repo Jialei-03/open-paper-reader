@@ -57,7 +57,7 @@ def test_all_mentions_and_language_at_front(world):
         )
 
 
-def test_agent_mentions_all_and_configurable_same_scope_limit(members):
+def test_agent_wakes_everyone_named_without_a_cap(members):
     flow, state = workflow(), {}
     actions, state = team_rules.match(
         flow,
@@ -75,38 +75,15 @@ def test_agent_mentions_all_and_configurable_same_scope_limit(members):
         "m-reviewer",
         "m-advisor",
     ]
-    for _ in range(4):
+    for _ in range(30):
         actions, state = team_rules.match(
             flow,
             event(members, "writer", mentions=["m-reviewer", "m-executor"]),
             state,
             members=members,
-        )
-    actions, state = team_rules.match(
-        flow,
-        event(members, "writer", mentions=["m-reviewer", "m-executor"]),
-        state,
-        members=members,
-    )
-    assert [a["action"] for a in actions] == ["limit"]
-    assert not scope(state)["waiting"]
-    actions, state = team_rules.match(
-        flow,
-        event(members, mentions=["m-writer", "m-librarian"]),
-        state,
-        members=members,
-    )
-    assert [a["member"] for a in actions] == ["m-writer", "m-librarian"]
-    assert scope(state)["relay"] == 0
-    for _ in range(20):
-        actions, state = team_rules.match(
-            flow,
-            event(members, "writer", mentions=["m-reviewer", "m-executor"]),
-            state,
-            members=members,
-            relay_limit=0,
         )
         assert len(actions) == 2
+    assert not scope(state)["waiting"]
 
 
 def test_merge_unstarted_wakes_in_thread_and_keep_all_requests(world):
@@ -460,13 +437,13 @@ def test_migration_boundary_and_file_definitions_unchanged(world):
         columns = {c["name"] for c in inspect(conn).get_columns("team_members")}
         assert not {"max_execution_seconds", "max_model_turns"} & columns
         assert (
-            json.loads(
+            "relay_limit"
+            not in json.loads(
                 conn.execute(
                     text("SELECT workflow_state FROM research_workspaces WHERE id=:id"),
                     {"id": wid},
                 ).scalar_one()
-            )["budget"]["relay_limit"]
-            == 12
+            )["budget"]
         )
         # Repeating the upgrade must retain the original boundary and user settings.
         with Operations.context(MigrationContext.configure(conn)):
@@ -489,7 +466,6 @@ def test_team_limits_queue_notify_once_resume_and_isolate(world):
         "max_tokens": 100,
         "period_hours": 24,
         "max_concurrent": 1,
-        "relay_limit": 2,
     }
     assert b.put(base + "/budget", json=budget).status_code == 404
     assert (

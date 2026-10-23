@@ -16,7 +16,6 @@ from pydantic import Field, StrictBool, StrictInt, model_validator
 
 from .schemas import Strict
 
-MAX_RELAY = 12
 EVENTS = Literal[
     "message",
     "mention",
@@ -349,7 +348,7 @@ def _actions(rule, event, members):
     ]
 
 
-def match(workflow, event, state, *, members, relay_limit=MAX_RELAY) -> MatchResult:
+def match(workflow, event, state, *, members) -> MatchResult:
     """Return (actions, new_state), without mutating any input.
 
     State is scoped by team/channel/thread; null threads use the channel scope.
@@ -419,20 +418,8 @@ def match(workflow, event, state, *, members, relay_limit=MAX_RELAY) -> MatchRes
             target = action["member"]
             if target in event.get("pending_members", []):
                 pass  # Merge an inbox entry without spending another relay hop.
-            elif not owner and relay_limit and scope["relay"] >= relay_limit:
-                if scope.get("limit_notified"):
-                    return False
-                action = {
-                    k: v
-                    for k, v in action.items()
-                    if k not in {"member", "instruction"}
-                }
-                action.update(action="limit", reason="relay", limit=relay_limit)
-                scope["limit_notified"] = True
-                advance = False
             elif not owner:
                 scope["relay"] += 1
-                scope.pop("limit_notified", None)
         if action["action"] == "wait_for_owner":
             scope["waiting"] = True
             for execution in scope["workflows"].values():

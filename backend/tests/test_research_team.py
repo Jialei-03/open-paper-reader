@@ -94,7 +94,7 @@ def test_defaults_channels_and_silent_channel(world):
         assert len(team.ensure(d, d.get(ResearchWorkspace, wid))) == 7
 
 
-def test_mentions_reply_location_relay_and_limit(world):
+def test_mentions_reply_location_and_uncapped_relay(world):
     app, a, _, settings, _, _, _, base, _ = world
     first = send(world, "@librarian find papers")
     initial = deliveries(app)[0]
@@ -120,8 +120,10 @@ def test_mentions_reply_location_relay_and_limit(world):
         )
         team.settle(settings, app.state.maker)
     with app.state.maker() as d:
-        assert d.scalar(select(TeamMessage).where(TeamMessage.kind == "relay_limit"))
-    assert len(deliveries(app)) == 13  # owner wake + twelve agent handoffs
+        assert not d.scalar(
+            select(TeamMessage).where(TeamMessage.kind == "relay_limit")
+        )
+    assert len(deliveries(app)) == 15  # Handoffs are never cut off.
     response = a.get(
         base + f"/channels/{first['channel_id']}/messages",
         params={"thread_id": first["id"]},

@@ -104,7 +104,6 @@ export const en = {
   "team.memberTokenLimit": "Tokens per run",
   "team.periodHours": "Period (hours)",
   "team.concurrent": "Concurrent members",
-  "team.relay": "Consecutive agent handoffs",
   "team.unlimited": "Unlimited",
   "team.turns": "Model turns",
   "team.minutes": "Minutes per run",

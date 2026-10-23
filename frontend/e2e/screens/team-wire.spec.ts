@@ -290,7 +290,7 @@ test("team canvas fills the main area and lists channels without DMs", async ({
   ).toBe(true);
 });
 
-test("team budgets expose limits and allow unlimited handoffs", async ({
+test("team budgets are optional and there is no handoff limit", async ({
   page,
 }) => {
   await setup(page);
@@ -303,17 +303,10 @@ test("team budgets expose limits and allow unlimited handoffs", async ({
   await page.goto(`/#team/${wid}/settings?thread=budget`);
   const settings = page.getByRole("region", { name: "团队设置", exact: true });
   await expect(
-    settings.getByRole("spinbutton", { name: "连续接力上限", exact: true }),
-  ).toHaveValue("12");
-  await expect(
     settings.getByRole("spinbutton", { name: "同时工作的成员数", exact: true }),
   ).toHaveValue("0");
-  await settings
-    .getByRole("spinbutton", { name: "连续接力上限", exact: true })
-    .locator("../..")
-    .getByRole("checkbox")
-    .check();
+  await expect(settings.getByText("连续接力上限")).toHaveCount(0);
   await settings.getByRole("button", { name: "保存", exact: true }).click();
   await expect.poll(() => writes.length).toBe(1);
-  expect(writes[0].body.relay_limit).toBe(0);
+  expect(writes[0].body).not.toHaveProperty("relay_limit");
 });

@@ -21,7 +21,6 @@ class TeamBudget(Strict):
     max_tokens: StrictInt = Field(default=0, ge=0)
     period_hours: StrictInt = Field(default=24, ge=1, le=8760)
     max_concurrent: StrictInt = Field(default=0, ge=0)
-    relay_limit: StrictInt = Field(default=12, ge=0)
 
 
 def snapshot(member):
@@ -34,9 +33,9 @@ def snapshot(member):
 
 
 def limits(workspace):
-    return TeamBudget.model_validate(
-        workspace.workflow_state.get("budget", {})
-    ).model_dump()
+    stored = dict(workspace.workflow_state.get("budget", {}))
+    stored.pop("relay_limit", None)  # Removed: agents hand off without a cap.
+    return TeamBudget.model_validate(stored).model_dump()
 
 
 def _in_workspace(workspace):
