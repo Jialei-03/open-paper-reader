@@ -78,8 +78,12 @@ export function WorkflowsSection() {
         query={query}
         onQuery={setQuery}
         action={
-          <Button variant="primary" onClick={() => setEditing("new")}>
-            <Plus aria-hidden />
+          <Button
+            variant="primary"
+            size="sm"
+            icon={Plus}
+            onClick={() => setEditing("new")}
+          >
             {t("workflows.create")}
           </Button>
         }

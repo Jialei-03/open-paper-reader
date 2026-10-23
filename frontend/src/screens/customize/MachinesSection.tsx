@@ -358,7 +358,7 @@ export function MachinesSection() {
               <div className={styles.rowText}>
                 <span className={styles.rowTitle}>{r.host}</span>
                 <span className={styles.rowMeta}>
-                  <span className={styles.dot} data-tone="off" aria-hidden />
+                  <span className={styles.dot} data-tone="idle" aria-hidden />
                   {t("settings.research.off")}
                 </span>
               </div>
