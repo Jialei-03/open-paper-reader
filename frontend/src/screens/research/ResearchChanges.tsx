@@ -25,6 +25,11 @@ import styles from "./ResearchChanges.module.css";
 import { refreshResearchNavigation } from "./navigation-api";
 import { useResearchNavigation } from "./ResearchNavigation";
 import { workspaceMachine } from "./workspace-machine";
+import {
+  readWorkflows,
+  workflowName,
+  type Workflow,
+} from "../workflows/workflows-api";
 
 const errorText = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -34,8 +39,10 @@ export function ForkDialog({
   onClose,
   go,
   initialSprintId,
+  rerun = false,
 }: {
   initialSprintId?: string;
+  rerun?: boolean;
   project: ResearchProject;
   onClose(): void;
   go(hash: string): void;
@@ -51,13 +58,24 @@ export function ForkDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [reads, setReads] = useState(0);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflowId, setWorkflowId] = useState("");
   const request = useRef({ key: "", id: "" });
   useEffect(() => {
     let cancelled = false;
-    forkOptions(project.id).then(
-      (value) => {
+    Promise.all([
+      forkOptions(project.id),
+      rerun ? readWorkflows() : Promise.resolve([]),
+    ]).then(
+      ([value, items]) => {
         if (cancelled) return;
         setOptions(value);
+        setWorkflows(items);
+        setWorkflowId((old) =>
+          items.some((item) => item.id === old)
+            ? old
+            : items.find((item) => item.id !== project.workflow?.id)?.id || "",
+        );
         setSelected((old) =>
           initialSprintId
             ? initialSprintId
@@ -76,21 +94,28 @@ export function ForkDialog({
     return () => {
       cancelled = true;
     };
-  }, [project.id, reads]);
+  }, [project.id, project.workflow?.id, initialSprintId, rerun, reads]);
   const round = options?.rounds.find((item) => item.sprint_id === selected);
   const create = async () => {
-    if (!round?.available || !options?.can_fork || !change.trim()) return;
+    if (
+      !round?.available ||
+      !options?.can_fork ||
+      (rerun ? !workflowId : !change.trim())
+    )
+      return;
     setBusy(true);
     setError("");
-    const key = `${round.sprint_id}:${round.commit_sha}:${change.trim()}`;
+    const note = rerun ? project.question : change.trim();
+    const key = `${round.sprint_id}:${round.commit_sha}:${note}:${workflowId}`;
     if (request.current.key !== key)
       request.current = { key, id: crypto.randomUUID() };
     try {
       const child = await forkResearch(project.id, {
         sprint_id: round.sprint_id,
         expected_commit: round.commit_sha,
-        change: change.trim(),
+        change: note,
         client_id: request.current.id,
+        ...(rerun ? { workflow_id: workflowId } : {}),
       });
       refreshResearchNavigation();
       go(`research/${child.id}`);
@@ -106,7 +131,7 @@ export function ForkDialog({
       open
       onClose={onClose}
       dismissible={!busy}
-      title={t("research.fork.action")}
+      title={t(rerun ? "compare.rerun" : "research.fork.action")}
       size="md"
       footer={
         <>
@@ -116,7 +141,11 @@ export function ForkDialog({
           <Button
             variant="primary"
             loading={busy}
-            disabled={!options?.can_fork || !round?.available || !change.trim()}
+            disabled={
+              !options?.can_fork ||
+              !round?.available ||
+              (rerun ? !workflowId : !change.trim())
+            }
             onClick={create}
           >
             {t("research.fork.create")}
@@ -162,13 +191,30 @@ export function ForkDialog({
         {options && !options.can_fork && (
           <p className={styles.error}>{options.reason}</p>
         )}
-        <TextArea
-          label={t("research.fork.change")}
-          rows={3}
-          value={change}
-          onChange={(event) => setChange(event.target.value)}
-          disabled={busy}
-        />
+        {rerun ? (
+          <fieldset className={styles.rounds} disabled={busy}>
+            <legend>{t("workflows.title")}</legend>
+            {workflows.map((workflow) => (
+              <label key={workflow.id} className={styles.round}>
+                <input
+                  type="radio"
+                  name="rerun-workflow"
+                  checked={workflowId === workflow.id}
+                  onChange={() => setWorkflowId(workflow.id)}
+                />
+                <span>{workflowName(workflow, t)}</span>
+              </label>
+            ))}
+          </fieldset>
+        ) : (
+          <TextArea
+            label={t("research.fork.change")}
+            rows={3}
+            value={change}
+            onChange={(event) => setChange(event.target.value)}
+            disabled={busy}
+          />
+        )}
 
         {error && (
           <p className={styles.error} role="alert">

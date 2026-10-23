@@ -646,8 +646,7 @@ def install_research_routes(app, settings, db, auth, human, owned):
         d.commit()
         return made
 
-    @app.post("/api/v1/research/projects")
-    def create(body: ProjectInput, a=Depends(auth), d=Depends(db)):
+    def create_research(body, a, d, *, persist=True):
         from . import research_datasets, research_settings, research_stages
         from .research_hub import collection_of
         from .research_locations import bind, compute_for
@@ -683,7 +682,8 @@ def install_research_routes(app, settings, db, auth, human, owned):
             p.workspace_id = home.id
             p.collection_id = collection.id if collection else None
             d.get(AgentSession, p.session_id).workspace_id = home.id
-            bind(settings, home, p)
+            if persist:
+                bind(settings, home, p)
             research_datasets.request(d, p, body.datasets)
             if not (budget or {}).get("auto_decide"):
                 # The plan is talked through first; nothing runs until it is approved.
@@ -698,6 +698,8 @@ def install_research_routes(app, settings, db, auth, human, owned):
                 p.status = "paused"
         except ValueError as e:
             raise HTTPException(422, str(e)) from None
+        if not persist:
+            return p
         d.commit()
         from . import research_repo
 
@@ -711,6 +713,16 @@ def install_research_routes(app, settings, db, auth, human, owned):
         from .research_locations import location_for
 
         return project_out(p, location=location_for(settings, home))
+
+    @app.post("/api/v1/research/projects")
+    def create(body: ProjectInput, a=Depends(auth), d=Depends(db)):
+        return create_research(body, a, d)
+
+    from .team_compare import install_compare_routes
+
+    install_compare_routes(
+        app, db, auth, allowed, owned, project_of, workspace_of, create_research
+    )
 
     @app.post("/api/v1/research/projects/{id}/messages")
     def message(id: str, body: MessageInput, a=Depends(auth), d=Depends(db)):

@@ -24,6 +24,7 @@ import { researchStatus, useResearchNavigation } from "./ResearchNavigation";
 import { updateChatSession, type ResearchProject } from "./research-api";
 import { About } from "./projects/ProjectPage";
 import { ProjectResults } from "./projects/ProjectResults";
+import { ComparePanel } from "../team/compare/ComparePanel";
 import { ConnectionsDialog, CreateWorkspaceDialog } from "./WorkspaceDialogs";
 import { workspaceMachine } from "./workspace-machine";
 import styles from "./Workspace.module.css";
@@ -89,6 +90,7 @@ export function WorkspaceScreen({
                 { value: "board", label: t("projects.view.board") },
                 { value: "about", label: t("projects.view.about") },
                 { value: "results", label: t("projects.view.results") },
+                { value: "compare", label: t("compare.title") },
               ]}
             />
             <Button
@@ -126,7 +128,15 @@ export function WorkspaceScreen({
           <Spinner />
         </div>
       ) : workspace ? (
-        tab === "results" ? (
+        tab === "compare" ? (
+          <ComparePanel
+            key={workspace.id}
+            workspaceId={workspace.id}
+            researches={workspace.researches}
+            evaluation={workspace.kind === "eval"}
+            onOpenResearch={(id) => go(`research/${id}`)}
+          />
+        ) : tab === "results" ? (
           <ProjectResults workspaceId={workspace.id} refreshKey={0} go={go} />
         ) : tab === "about" ? (
           <About

@@ -745,6 +745,7 @@ export const forkResearch = (
     expected_commit: string;
     change: string;
     client_id: string;
+    workflow_id?: string;
   },
 ) => send(`${BASE}/${projectId}/forks`, body) as Promise<ResearchProject>;
 

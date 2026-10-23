@@ -514,6 +514,22 @@ class ResearchWorkspace(Base):
     updated_at: Mapped[str] = mapped_column(String(40), default=now)
 
 
+class ResearchEvaluationBatch(Base):
+    """A question by workflow matrix, referencing independent researches."""
+
+    __tablename__ = "research_evaluation_batches"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("research_workspaces.id"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    questions: Mapped[list] = mapped_column(JSON, default=list)
+    workflows: Mapped[list] = mapped_column(JSON, default=list)
+    cells: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
 class ResearchCollection(Base):
     """An optional classification of researches, independent of their files."""
 

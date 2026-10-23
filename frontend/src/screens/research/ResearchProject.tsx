@@ -134,6 +134,7 @@ export function ResearchProject({
   const [outputFile, setOutputFile] = useState("");
   const [filesOpen, setFilesOpen] = useState(false);
   const [forking, setForking] = useState<string | null>(null);
+  const [rerunning, setRerunning] = useState(false);
   const [naming, setNaming] = useState(false);
   const [title, setTitle] = useState("");
   const [run, setRun] = useState("");
@@ -268,7 +269,10 @@ export function ResearchProject({
       setOutputFile(path);
       setRecord(true);
     },
-    fork: (sprintId) => setForking(sprintId || ""),
+    fork: (sprintId) => {
+      setRerunning(false);
+      setForking(sprintId || "");
+    },
     changed: refresh,
     approvePlan: async (version) => {
       setBusy(true);
@@ -495,7 +499,26 @@ export function ResearchProject({
                 id: "fork",
                 label: t("research.fork.action"),
                 icon: GitFork,
-                onSelect: () => setForking(""),
+                onSelect: () => {
+                  setRerunning(false);
+                  setForking("");
+                },
+              },
+              {
+                id: "rerun",
+                label: t("compare.rerun"),
+                icon: GitFork,
+                onSelect: () => {
+                  setRerunning(true);
+                  setForking("");
+                },
+              },
+              {
+                id: "compare",
+                label: t("compare.title"),
+                icon: GitFork,
+                disabled: !p.workspace_id,
+                onSelect: () => go(`workspaces/${p.workspace_id}/compare`),
               },
               p.status === "paused"
                 ? {
@@ -675,6 +698,7 @@ export function ResearchProject({
         <ForkDialog
           project={p}
           initialSprintId={forking || undefined}
+          rerun={rerunning}
           go={go}
           onClose={() => setForking(null)}
         />
