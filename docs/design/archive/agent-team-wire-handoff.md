@@ -1,3 +1,5 @@
+已归档：2026-10-24，现行设计见 [工作流](../workflows.md)。
+
 # 研究团队接线（codex/team-wire）
 
 ## 存储与 API
@@ -83,19 +85,19 @@ E           AssertionError: assert ''
 
 保留完整、未裁剪日志：
 
-- [最终 pytest](agent-team-wire-validation/pytest.log)
-- [版面翻译单独复测](agent-team-wire-validation/layout-recheck.log)
-- [运行状态接线回归](agent-team-wire-validation/runtime-followup.log) / [结论与研究回归](agent-team-wire-validation/conclusion-regression.log)
-- [逐项命令及退出码](agent-team-wire-validation/check-results.json)
-- [agent-runtime](agent-team-wire-validation/node.log)
-- [前端 check](agent-team-wire-validation/check.log)
-- [Vitest 标准命令失败](agent-team-wire-validation/vitest-standard.log) / [runner 成功](agent-team-wire-validation/vitest.log)
-- [build 标准命令失败](agent-team-wire-validation/build-standard.log) / [runner 成功](agent-team-wire-validation/build.log)
-- [Playwright 收集结果](agent-team-wire-validation/playwright-list.log)
+- [最终 pytest](../agent-team-wire-validation/pytest.log)
+- [版面翻译单独复测](../agent-team-wire-validation/layout-recheck.log)
+- [运行状态接线回归](../agent-team-wire-validation/runtime-followup.log) / [结论与研究回归](../agent-team-wire-validation/conclusion-regression.log)
+- [逐项命令及退出码](../agent-team-wire-validation/check-results.json)
+- [agent-runtime](../agent-team-wire-validation/node.log)
+- [前端 check](../agent-team-wire-validation/check.log)
+- [Vitest 标准命令失败](../agent-team-wire-validation/vitest-standard.log) / [runner 成功](../agent-team-wire-validation/vitest.log)
+- [build 标准命令失败](../agent-team-wire-validation/build-standard.log) / [runner 成功](../agent-team-wire-validation/build.log)
+- [Playwright 收集结果](../agent-team-wire-validation/playwright-list.log)
 
-中间一次版面翻译测试及其单独复测出现沙箱拒绝 `os.killpg` 的 `PermissionError`，最终全量中该用例通过，没有修改版面翻译实现；[单独复测原文](agent-team-wire-validation/layout-recheck.log) 保留。
+中间一次版面翻译测试及其单独复测出现沙箱拒绝 `os.killpg` 的 `PermissionError`，最终全量中该用例通过，没有修改版面翻译实现；[单独复测原文](../agent-team-wire-validation/layout-recheck.log) 保留。
 
-中间一次全量还出现未修改的 `test_translation_calls_share_agent_slots` 时序断言 `E       assert 1 == 2`；该用例在串行复核（共 23 项）及后续完整运行中均通过。原文在 [该次全量](agent-team-wire-validation/pytest-timing-run.log) 与 [串行复核](agent-team-wire-validation/pytest-timing-recheck.log)。首次前端检查发现并已修复重复 `getTeam` import，[失败原文](agent-team-wire-validation/check-first.log) 一并保留。
+中间一次全量还出现未修改的 `test_translation_calls_share_agent_slots` 时序断言 `E       assert 1 == 2`；该用例在串行复核（共 23 项）及后续完整运行中均通过。原文在 [该次全量](../agent-team-wire-validation/pytest-timing-run.log) 与 [串行复核](../agent-team-wire-validation/pytest-timing-recheck.log)。首次前端检查发现并已修复重复 `getTeam` import，[失败原文](../agent-team-wire-validation/check-first.log) 一并保留。
 
 负责人可运行：
 

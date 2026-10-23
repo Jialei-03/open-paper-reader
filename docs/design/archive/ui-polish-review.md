@@ -1,3 +1,5 @@
+已归档：2026-10-24，现行设计见 [界面规范](../ui-norms.md)。
+
 # 界面一致性实现记录
 
 本轮依据 `ui-norms.md`、`app-structure.md` 和 reference 截图检查代码。没有启动浏览器或 Playwright，没有修改研究目录、数据库、迁移、路由和后端；所有变更留在工作区。以下是代码检查结果，视觉和键盘实测由负责人完成。
@@ -62,7 +64,7 @@ E           AssertionError: assert ''
 
 标准 Vitest / build 的首次失败为 `EPERM`，尝试写入指向主仓库的 `frontend/node_modules/.vite-temp/`。未修改共享依赖或构建配置，使用 runner 和禁用测试缓存绕过写入。
 
-完整日志：[pytest](../../test-results/ui-polish/pytest-full.log)、[相关 pytest](../../test-results/ui-polish/pytest-related.log)、[Vitest 首次失败](../../test-results/ui-polish/vitest-original.log)、[构建首次失败](../../test-results/ui-polish/build-original.log)、[前端检查](../../test-results/ui-polish/npm-check.log)、[Vitest runner](../../test-results/ui-polish/vitest-runner.log)、[构建 runner](../../test-results/ui-polish/build-runner.log)。日志位于忽略的 test-results 目录。
+完整日志：[pytest](../../../test-results/ui-polish/pytest-full.log)、[相关 pytest](../../../test-results/ui-polish/pytest-related.log)、[Vitest 首次失败](../../../test-results/ui-polish/vitest-original.log)、[构建首次失败](../../../test-results/ui-polish/build-original.log)、[前端检查](../../../test-results/ui-polish/npm-check.log)、[Vitest runner](../../../test-results/ui-polish/vitest-runner.log)、[构建 runner](../../../test-results/ui-polish/build-runner.log)。日志位于忽略的 test-results 目录。
 
 ## 负责人浏览器验收
 

@@ -1,3 +1,5 @@
+已归档：2026-10-24，现行设计见 [研究团队](../agent-team.md)。
+
 # 成员文件化后的团队走查修复
 
 工作区：`codex/team-port`。修复按 `agent-files.md` 的「叫醒和护栏」移植；原始 `team-polish.patch`、`team-polish-result.md`、`team-findings.md` 已删除。未提交、未修改工作区 Git 元数据，未启动浏览器、调用真实模型、访问个人数据目录或连接 SSH。
@@ -32,18 +34,18 @@
 
 ## 自动验证
 
-按完整 pytest → runtime → frontend check → Vitest → build 的顺序完成。完整命令与退出码见 [results.json](team-port-validation/results.json)。
+按完整 pytest → runtime → frontend check → Vitest → build 的顺序完成。完整命令与退出码见 [results.json](../team-port-validation/results.json)。
 
 | 检查 | 结果 | 原始输出 |
 | --- | --- | --- |
-| 完整 pytest | 1674 passed、18 skipped；仅 5 项约定忽略的沙箱失败 | [pytest](team-port-validation/pytest.txt) |
-| runtime | 22 passed | [node](team-port-validation/node.txt) |
-| frontend check | 1803 个中英文键、TypeScript、Prettier 通过 | [check](team-port-validation/check.txt) |
-| Vitest | runner 模式 52 个文件、389 passed | [Vitest](team-port-validation/vitest.txt) |
-| build | runner 构建与 copy-docs 通过，保留已有大 chunk 提示 | [build](team-port-validation/build.txt) |
-| 迁移往返 | 空库至 0047/0048、降级、重升；文件、设置、外键均通过 | [migration](team-port-validation/migration.txt) |
-| Playwright | 3 个文件、20 项收集成功；未启动浏览器 | [list](team-port-validation/playwright-list.txt) |
-| 静态检查 | diff 空白与 Python 静态错误检查通过 | [static](team-port-validation/static.txt) |
+| 完整 pytest | 1674 passed、18 skipped；仅 5 项约定忽略的沙箱失败 | [pytest](../team-port-validation/pytest.txt) |
+| runtime | 22 passed | [node](../team-port-validation/node.txt) |
+| frontend check | 1803 个中英文键、TypeScript、Prettier 通过 | [check](../team-port-validation/check.txt) |
+| Vitest | runner 模式 52 个文件、389 passed | [Vitest](../team-port-validation/vitest.txt) |
+| build | runner 构建与 copy-docs 通过，保留已有大 chunk 提示 | [build](../team-port-validation/build.txt) |
+| 迁移往返 | 空库至 0047/0048、降级、重升；文件、设置、外键均通过 | [migration](../team-port-validation/migration.txt) |
+| Playwright | 3 个文件、20 项收集成功；未启动浏览器 | [list](../team-port-validation/playwright-list.txt) |
+| 静态检查 | diff 空白与 Python 静态错误检查通过 | [static](../team-port-validation/static.txt) |
 
 完整 pytest 的失败摘要原文（完整 traceback 在上表链接）：
 
@@ -63,7 +65,7 @@ E                   PermissionError: [Errno 1] Operation not permitted: 'ps'
 E           AssertionError: assert ''
 ```
 
-Vitest 和 build 标准启动分别遇到 `.vite-temp` 权限错误，按要求加 runner 后均通过。失败原文如下，完整输出见 [Vitest 默认启动](team-port-validation/vitest-default.txt)、[build 默认启动](team-port-validation/build-default.txt)：
+Vitest 和 build 标准启动分别遇到 `.vite-temp` 权限错误，按要求加 runner 后均通过。失败原文如下，完整输出见 [Vitest 默认启动](../team-port-validation/vitest-default.txt)、[build 默认启动](../team-port-validation/build-default.txt)：
 
 ```text
 Error: EPERM: operation not permitted, open '/Users/leslie/Desktop/ORA-worktrees/team-port/frontend/node_modules/.vite-temp/vite.config.ts.timestamp-1792759455473-306763249732e.mjs'

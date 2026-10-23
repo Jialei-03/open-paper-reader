@@ -1,6 +1,8 @@
+已归档：2026-10-24，现行设计见 [研究团队](../agent-team.md)。
+
 # 研究团队 · 第 2–5 步
 
-接在第 1 步（docs/design/agent-team-step1.md）的成员、频道、消息、投递模型上。总设计见 docs/design/agent-team.md。
+接在第 1 步（docs/design/archive/agent-team-step1.md）的成员、频道、消息、投递模型上。总设计见 docs/design/agent-team.md。
 
 ## 第 2 步：自定义成员
 - 团队侧栏「成员」里可以添加、编辑、停用成员。字段：名字、头像（按名字自动生成，可换颜色）、角色说明（就是它的 skill，Markdown）、模型、工具权限（读文献 / 读写文件 / 运行命令和实验 / 使用的机器 / 只读）、每次被叫醒的预算（轮数、token）、默认在哪些频道里听（订阅）。

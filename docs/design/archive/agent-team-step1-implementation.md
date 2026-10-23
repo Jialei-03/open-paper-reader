@@ -1,3 +1,5 @@
+已归档：2026-10-24，现行设计见 [研究团队](../agent-team.md)。
+
 # 研究团队第 1 步：实现与验收
 
 分支工作区：`codex/team-1`。迁移为 `0043`，接在 `0042` 后。未启动浏览器、未运行 Playwright、未提交；没有调用真实模型、访问用户研究数据目录或连接 SSH。
@@ -49,9 +51,9 @@
 
 原始失败输出（未改写）：
 
-- [完整 pytest](../test-results/agent-team-step1-pytest.log)
-- [Vitest 启动错误](../test-results/agent-team-step1-vitest-startup.log)
-- [构建启动错误](../test-results/agent-team-step1-build-startup.log)
+- [完整 pytest](../../test-results/agent-team-step1-pytest.log)
+- [Vitest 启动错误](../../test-results/agent-team-step1-vitest-startup.log)
+- [构建启动错误](../../test-results/agent-team-step1-build-startup.log)
 
 ## 负责人浏览器验收
 

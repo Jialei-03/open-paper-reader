@@ -1,3 +1,5 @@
+已归档：2026-10-24，现行设计见 [成员文件](../agent-files.md)。
+
 # 研究团队第 2 步：自定义成员
 
 工作区：`codex/team-2`。实现接在 `0045` 和现有团队投递、工作流、画布、比较之上。没有启动浏览器、调用真实模型、访问 `~/.open-paper-reader`、连接 SSH 或写入 Git 元数据。
@@ -68,13 +70,13 @@ Error: EPERM: operation not permitted, open '/Users/leslie/Desktop/ORA-worktrees
 
 完整原始日志：
 
-- [最终 pytest](agent-team-step2-validation/pytest.log)；[首次全量的研究运行格式回归，已修复](agent-team-step2-validation/pytest-first.log)
-- [迁移空库/重升检查](agent-team-step2-validation/migration-smoke.log)
-- [成员与规则回归](agent-team-step2-validation/backend-members-final.log)；[迁移及运行检查](agent-team-step2-validation/migration-runtime.log)
-- [Node](agent-team-step2-validation/node.log)；[前端 check](agent-team-step2-validation/check.log)
-- [Vitest 标准启动失败](agent-team-step2-validation/vitest-standard.log) / [runner 结果](agent-team-step2-validation/vitest.log)
-- [build 标准启动失败](agent-team-step2-validation/build-standard.log) / [runner 结果](agent-team-step2-validation/build.log)
-- [Playwright 收集](agent-team-step2-validation/playwright-list.log)；[命令、退出码](agent-team-step2-validation/check-results.json)
+- [最终 pytest](../agent-team-step2-validation/pytest.log)；[首次全量的研究运行格式回归，已修复](../agent-team-step2-validation/pytest-first.log)
+- [迁移空库/重升检查](../agent-team-step2-validation/migration-smoke.log)
+- [成员与规则回归](../agent-team-step2-validation/backend-members-final.log)；[迁移及运行检查](../agent-team-step2-validation/migration-runtime.log)
+- [Node](../agent-team-step2-validation/node.log)；[前端 check](../agent-team-step2-validation/check.log)
+- [Vitest 标准启动失败](../agent-team-step2-validation/vitest-standard.log) / [runner 结果](../agent-team-step2-validation/vitest.log)
+- [build 标准启动失败](../agent-team-step2-validation/build-standard.log) / [runner 结果](../agent-team-step2-validation/build.log)
+- [Playwright 收集](../agent-team-step2-validation/playwright-list.log)；[命令、退出码](../agent-team-step2-validation/check-results.json)
 
 中间开发测试的失败和复测也保留在上述日志目录中。
 

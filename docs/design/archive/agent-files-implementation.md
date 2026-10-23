@@ -1,3 +1,5 @@
+已归档：2026-10-24，现行设计见 [成员文件](../agent-files.md)。
+
 # 成员就是文件：实现与验收
 
 工作区：`codex/agent-files`。成员定义从文件读取，旧 SQL 定义字段作为迁移档案保留，不再接收定义编辑。状态、消息、花费、成员 ID、角色路由身份、库引用和文件路径仍在数据库中。
@@ -61,14 +63,14 @@
 
 | 检查 | 最终结果 | 原始日志 |
 | --- | --- | --- |
-| 完整 pytest | 1653 passed、16 skipped；5 项已约定的沙箱失败 | [pytest](agent-files-validation/pytest.log) |
-| 成员/文件专项 | 41 passed | [backend-files](agent-files-validation/backend-files.log) |
-| 迁移 | 空库升到 0047 → 降到 0046 → 重升；外键检查通过；旧数据导出与幂等见专项 | [migration-smoke](agent-files-validation/migration-smoke.log) |
-| Node | 20 passed | [node](agent-files-validation/node.log) |
-| frontend check | 1783 个文案键、TypeScript、Prettier 通过 | [check](agent-files-validation/check.log) |
-| Vitest | runner 模式：52 个文件、388 passed | [vitest](agent-files-validation/vitest.log) |
-| build | 标准命令的 TypeScript 通过；runner 构建及 copy-docs 通过，保留已有大 chunk 警告 | [build](agent-files-validation/build.log) |
-| Playwright | 6 个用例收集通过；未启动浏览器 | [playwright-list](agent-files-validation/playwright-list.log) |
+| 完整 pytest | 1653 passed、16 skipped；5 项已约定的沙箱失败 | [pytest](../agent-files-validation/pytest.log) |
+| 成员/文件专项 | 41 passed | [backend-files](../agent-files-validation/backend-files.log) |
+| 迁移 | 空库升到 0047 → 降到 0046 → 重升；外键检查通过；旧数据导出与幂等见专项 | [migration-smoke](../agent-files-validation/migration-smoke.log) |
+| Node | 20 passed | [node](../agent-files-validation/node.log) |
+| frontend check | 1783 个文案键、TypeScript、Prettier 通过 | [check](../agent-files-validation/check.log) |
+| Vitest | runner 模式：52 个文件、388 passed | [vitest](../agent-files-validation/vitest.log) |
+| build | 标准命令的 TypeScript 通过；runner 构建及 copy-docs 通过，保留已有大 chunk 警告 | [build](../agent-files-validation/build.log) |
+| Playwright | 6 个用例收集通过；未启动浏览器 | [playwright-list](../agent-files-validation/playwright-list.log) |
 | Ruff / diff | 通过 | `git diff --check` |
 
 最终完整 pytest 的失败原文：
@@ -96,7 +98,7 @@ Error: EPERM: operation not permitted, open '/Users/leslie/Desktop/ORA-worktrees
 Error: EPERM: operation not permitted, open '/Users/leslie/Desktop/ORA-worktrees/agent-files/frontend/node_modules/.vite-temp/vite.config.ts.timestamp-1792758006174-d2c1ebd526a3e.mjs'
 ```
 
-完整命令、退出码和用时：[check-results.json](agent-files-validation/check-results.json)。早期环境和兼容问题的失败日志保留在 [pytest-first](agent-files-validation/pytest-first.log)、[pytest-second](agent-files-validation/pytest-second.log)、[check-first](agent-files-validation/check-first.log)、[vitest-first](agent-files-validation/vitest-first.log)；CLI 与翻译复核 [5 passed](agent-files-validation/cli-layout-recheck.log)。最终全量已无这些额外失败。
+完整命令、退出码和用时：[check-results.json](../agent-files-validation/check-results.json)。早期环境和兼容问题的失败日志保留在 [pytest-first](../agent-files-validation/pytest-first.log)、[pytest-second](../agent-files-validation/pytest-second.log)、[check-first](../agent-files-validation/check-first.log)、[vitest-first](../agent-files-validation/vitest-first.log)；CLI 与翻译复核 [5 passed](../agent-files-validation/cli-layout-recheck.log)。最终全量已无这些额外失败。
 
 
 ## 负责人浏览器流程

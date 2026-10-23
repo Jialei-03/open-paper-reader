@@ -1,6 +1,8 @@
+已归档：2026-10-24，现行设计见 [会话管理](../session-management.md)。
+
 # 第 2 阶段：项目主会话
 
-本页保留初版第 2 阶段的范围和验收记录。2026-10-23 起，项目中的普通研究对话共享项目读取和派出子研究的能力，旧导师按普通对话保留；见[应用结构实现记录](app-structure-implementation.md)。2026-10-22 的[会话管理改造](session-management.md)已更新新聊天、复制、归档、运行控制和通报展示；这些行为以新记录和当前代码为准，下文的验收数字对应初版。
+本页保留初版第 2 阶段的范围和验收记录。2026-10-23 起，项目中的普通研究对话共享项目读取和派出子研究的能力，旧导师按普通对话保留；见[应用结构实现记录](app-structure-implementation.md)。2026-10-22 的[会话管理改造](../session-management.md)已更新新聊天、复制、归档、运行控制和通报展示；这些行为以新记录和当前代码为准，下文的验收数字对应初版。
 
 范围是项目主会话、派出定题研究、给研究带话和被动通报。分叉、合并和资料库不在本阶段。
 
@@ -25,7 +27,7 @@
 | 项目界面 | `frontend/src/screens/research/projects/ProjectPage.tsx`、`ProjectChats.tsx`、`Projects.module.css`：默认主会话、研究卡片、通报时间线；保留看板、历史和项目设置入口。 |
 | 类型与呈现 | `frontend/src/screens/research/research-api.ts`、`process/Process.tsx`、`process/model.ts`、`talk/ThreadView.tsx`、`frontend/src/i18n/messages/zh.ts`、`en.ts`：接口类型、导师和工具名称、极简中英文状态文案。 |
 | 验证 | `backend/tests/test_research_lead.py`、`frontend/e2e/screens/project-main.spec.ts`、`frontend/src/screens/research/process/model.test.ts`：持续对话、工具权限、旧数据、模型/压缩、四类通报、并发和在途带话、界面入口。 |
-| 使用说明 | `docs/DEVELOPMENT.md`、`docs/RESEARCH.md`、本记录 `docs/design/project-lead.md`：同步主会话和通报的行为、代码地图。 |
+| 使用说明 | `docs/DEVELOPMENT.md`、`docs/RESEARCH.md`、本记录 `docs/design/archive/project-lead.md`：同步主会话和通报的行为、代码地图。 |
 
 本次没有改动 `research_repo.py`。开始工作时仓库已存在第 1 阶段的未提交改动以及桌面打包改动，均保留。
 
