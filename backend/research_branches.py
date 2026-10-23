@@ -239,6 +239,7 @@ class ForkInput(BaseModel):
     expected_commit: str = Field(min_length=7, max_length=64)
     change: str = Field(min_length=1, max_length=8000)
     client_id: UUID
+    workflow_id: str = Field(default="research", min_length=1, max_length=64)
 
 
 def _same_request(child, source, body):
@@ -248,6 +249,7 @@ def _same_request(child, source, body):
         and origin.get("sprint_id") == body.sprint_id
         and origin.get("commit") == body.expected_commit
         and origin.get("change") == body.change.strip()
+        and origin.get("workflow_id", "research") == body.workflow_id
     )
 
 
@@ -282,6 +284,9 @@ def fork(settings, d, source, body):
         if not _same_request(existing, source, body):
             raise ValueError("这个请求编号已经用于另一次研究分叉")
         return existing
+    from .research_workflows import definition
+
+    workflow = definition(d, source.owner, body.workflow_id)
     workspace = (
         d.get(ResearchWorkspace, source.workspace_id) if source.workspace_id else None
     )
@@ -335,6 +340,8 @@ def fork(settings, d, source, body):
         "source_stage": state["stage"],
         "source_spent": state["spent"],
         "datasets": snapshot.get("datasets", []),
+        "workflow_id": workflow["id"],
+        "workflow": workflow["name"],
     }
     child_session = AgentSession(
         owner=source.owner,
@@ -381,7 +388,9 @@ def fork(settings, d, source, body):
     d.flush()
     from .research_workflows import snapshot as workflow_snapshot
 
-    workflow_snapshot(d, child)
+    workflow_snapshot(d, child, body.workflow_id)
+    # Snapshot activation must not schedule a fork before the owner resumes it.
+    child.status = "paused"
     ids = {row["id"]: uid() for row in snapshot["nodes"]}
     child.forked_from = {**origin, "node_ids": ids}
     for row in snapshot["nodes"]:

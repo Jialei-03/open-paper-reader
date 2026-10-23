@@ -152,7 +152,9 @@ export function parseAppRoute(hash: string): AppRoute {
       ? {
           screen: "workspaces",
           workspaceId,
-          ...(["results", "board", "about"].includes(tab) ? { tab } : {}),
+          ...(["results", "board", "about", "compare"].includes(tab)
+            ? { tab }
+            : {}),
         }
       : { screen: "workspaces", redirect: "workspaces" };
   }
