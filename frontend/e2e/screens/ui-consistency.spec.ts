@@ -1,12 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createPaperWithPdf, signIn } from "../reader/fixtures";
-import { mockTeam } from "../fixtures/team";
+import { advisorDM, mockTeam } from "../fixtures/team";
+
+const WORKSPACE = "11111111-1111-4111-8111-111111111111";
 
 const task = {
   id: "7f3c2a10-1b2c-4d5e-8f90-a1b2c3d4e5f6",
   title: "Daily papers",
   prompt: "Find papers",
-  workspace_id: "workspace-ui",
+  workspace_id: WORKSPACE,
   destination: "new",
   research_id: null,
   frequency: "daily",
@@ -40,7 +42,7 @@ async function setup(page: Page) {
         collections: [],
         workspaces: [
           {
-            id: "workspace-ui",
+            id: WORKSPACE,
             name: "UI project",
             archived: false,
             researches: [],
@@ -122,6 +124,40 @@ for (const theme of ["light", "dark"] as const) {
         theme,
       );
       await setup(page);
+      await page.goto("/#new");
+      const home = page.getByTestId("new-research");
+      await expect(
+        home.getByRole("heading", { name: "想研究什么？" }),
+      ).toHaveCSS("font-size", "24px");
+      await expect(
+        home.getByRole("heading", { name: "想研究什么？" }),
+      ).toHaveCSS("font-weight", "600");
+      for (const name of ["附加文件", "选择项目", "选择模型", "工作流"]) {
+        await expect(
+          home.getByRole("button", { name, exact: true }),
+        ).toBeVisible();
+      }
+      const send = home.getByRole("button", { name: "发送", exact: true });
+      await expect(send).toHaveAttribute("aria-label", "发送");
+      await expect(send.locator("svg")).toHaveAttribute("width", "16");
+      await send.hover();
+      await expect(
+        page.getByRole("tooltip", { includeHidden: true }),
+      ).toHaveText("发送");
+      await page.mouse.move(0, 0);
+      await noOverflow(page);
+      const sidebar = page.getByRole("navigation", {
+        name: "侧栏",
+        exact: true,
+      });
+      await expect(
+        sidebar.getByRole("link", { name: "新研究", exact: true }),
+      ).toHaveAttribute("aria-current", "page");
+      for (const name of ["研究", "资料", "定时任务", "自定义", "设置"]) {
+        await expect(
+          sidebar.getByRole("link", { name, exact: true }).first(),
+        ).toBeVisible();
+      }
       const pages = [
         ["library", "全部"],
         ["library?view=reading", "在读"],
@@ -167,6 +203,30 @@ for (const theme of ["light", "dark"] as const) {
         expect(
           await dialog.locator('button[class*="_primary_"]:visible').count(),
         ).toBeLessThanOrEqual(1);
+        if (category === "general") {
+          const appearance = dialog.getByRole("radiogroup", {
+            name: "主题",
+            exact: true,
+          });
+          const light = appearance.getByRole("radio", {
+            name: "浅色",
+            exact: true,
+          });
+          await light.focus();
+          await light.press("End");
+          await expect(
+            appearance.getByRole("radio", { name: "深色", exact: true }),
+          ).toHaveAttribute("aria-checked", "true");
+          await expect(
+            dialog.getByRole("button", { name: "关闭", exact: true }),
+          ).toBeVisible();
+          await appearance
+            .getByRole("radio", {
+              name: theme === "light" ? "浅色" : "深色",
+              exact: true,
+            })
+            .click();
+        }
         await noOverflow(page);
         await page.keyboard.press("Escape");
         await expect(dialog).toBeHidden();
@@ -230,8 +290,95 @@ test("reader shell stays within a 720px dark window", async ({ page }) => {
   await page.goto(`/#read/${paper.paperId}`);
   const heading = page.getByRole("main").getByRole("heading", { level: 1 });
   await expect(heading).toBeVisible();
-  await expect(heading).toHaveCSS("font-size", "15px");
+  await expect(heading).toHaveCSS("font-size", "14px");
   await noOverflow(page);
-  await page.getByRole("button", { name: "更多", exact: true }).click();
+  const more = page.getByRole("button", { name: "更多", exact: true });
+  await expect(more).toHaveAttribute("aria-label", "更多");
+  await more.hover();
+  await expect(page.getByRole("tooltip", { includeHidden: true })).toHaveText(
+    "更多",
+  );
+  await more.click();
   await expect(page.getByRole("menuitem", { name: "论文详情" })).toBeVisible();
+});
+
+test("orphaned direct channels leave navigation and saved addresses usable", async ({
+  page,
+}) => {
+  await setup(page);
+  const orphan = "eeeeeeee-eeee-4eee-8eee-000000000099";
+  await page.route("**/api/v1/research/workspaces/*/team", (route) =>
+    route.fulfill({
+      json: {
+        workspace_id: WORKSPACE,
+        members: [
+          {
+            id: "advisor",
+            name: "导师",
+            role: "advisor",
+            status: "idle",
+            active_run_id: null,
+          },
+        ],
+        channels: [
+          {
+            id: advisorDM,
+            key: "dm:advisor",
+            name: "导师",
+            member_id: "advisor",
+            unread: 0,
+          },
+          {
+            id: orphan,
+            key: "dm:missing",
+            name: "Former member",
+            member_id: "missing",
+            unread: 0,
+          },
+        ],
+        notifications: [],
+      },
+    }),
+  );
+  await page.goto("/#new");
+  const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+  const direct = sidebar.getByRole("group", { name: "消息", exact: true });
+  await expect(
+    direct.getByRole("link", { name: "导师", exact: true }),
+  ).toBeVisible();
+  await expect(
+    direct.getByRole("link", { name: "Former member", exact: true }),
+  ).toHaveCount(0);
+  const advisor = direct.getByRole("link", { name: "导师", exact: true });
+  await expect(advisor).toHaveAttribute(
+    "href",
+    `#team/${WORKSPACE}/${advisorDM}`,
+  );
+  await advisor.click();
+  await expect(page).toHaveURL(new RegExp(`#team/${WORKSPACE}/${advisorDM}$`));
+  await expect(advisor).toHaveAttribute("aria-current", "page");
+  await sidebar.getByRole("link", { name: "新研究", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`#new\\?workspace=${WORKSPACE}$`));
+  const originalAddress = page.url();
+  // A background tab is reported by the context, even when it has no opener.
+  const [opened] = await Promise.all([
+    page.context().waitForEvent("page"),
+    advisor.click({ button: "middle" }),
+  ]);
+  await expect(opened).toHaveURL(
+    new RegExp(`#team/${WORKSPACE}/${advisorDM}$`),
+  );
+  await expect(page).toHaveURL(originalAddress);
+  await opened.close();
+  await page.goto(`/#team/${WORKSPACE}/${orphan}`);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Former member", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByTestId("team-empty")).toContainText("Former member");
+  await expect(
+    page.getByRole("textbox", { name: "消息", exact: true }),
+  ).toHaveAttribute("placeholder", "发送给 Former member");
+  await expect(
+    sidebar.getByRole("link", { name: "新研究", exact: true }),
+  ).toBeVisible();
 });

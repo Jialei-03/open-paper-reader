@@ -44,7 +44,8 @@ function random(seed: string): Rand {
 
 const pick = <T>(r: Rand, items: readonly T[]): T =>
   items[Math.floor(r() * items.length)];
-const between = (r: Rand, low: number, high: number) => low + r() * (high - low);
+const between = (r: Rand, low: number, high: number) =>
+  low + r() * (high - low);
 
 function hsl(h: number, s: number, l: number) {
   return `hsl(${Math.round(((h % 360) + 360) % 360)} ${Math.round(s)}% ${Math.round(l)}%)`;
@@ -80,7 +81,9 @@ function palette(r: Rand, species: Species): Palette {
   // Rare fantasy colours keep the space open-ended.
   const fantasy = r() < 0.12;
   const h = fantasy ? between(r, 0, 360) : between(r, h0, h1);
-  const s = fantasy ? between(r, 45, 70) : Math.max(0, s0 + between(r, -10, 10));
+  const s = fantasy
+    ? between(r, 45, 70)
+    : Math.max(0, s0 + between(r, -10, 10));
   const l = Math.min(92, Math.max(18, l0 + between(r, -8, 8)));
   return {
     body: hsl(h, s, l),
@@ -113,7 +116,10 @@ function draw(
 
   const cy = species === "rabbit" ? 10 : between(r, 8.6, 9.6);
   const rx = species === "frog" ? between(r, 6.4, 7) : between(r, 5.4, 6.4);
-  const ry = species === "chick" || species === "owl" ? between(r, 5.6, 6.2) : between(r, 4.6, 5.6);
+  const ry =
+    species === "chick" || species === "owl"
+      ? between(r, 5.6, 6.2)
+      : between(r, 4.6, 5.6);
   const inHead = (x: number, y: number) =>
     ((x + 0.5 - N / 2) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1;
 
@@ -195,16 +201,26 @@ function draw(
   if (species === "penguin") {
     for (let y = eyeY - 1; y < N; y++)
       for (let x = 4; x < N / 2; x++)
-        if (inHead(x, y) && g[y][x] !== p.outline && (x > 4 || y > eyeY)) both(x, y, p.light);
+        if (inHead(x, y) && g[y][x] !== p.outline && (x > 4 || y > eyeY))
+          both(x, y, p.light);
   }
-  if (species === "fox" || species === "dog" || species === "bear" || species === "cat") {
+  if (
+    species === "fox" ||
+    species === "dog" ||
+    species === "bear" ||
+    species === "cat"
+  ) {
     for (let y = eyeY + 1; y < N; y++)
       for (let x = 5; x < N / 2; x++)
-        if (inHead(x, y) && g[y][x] !== p.outline && r() < 0.95) both(x, y, p.light);
+        if (inHead(x, y) && g[y][x] !== p.outline && r() < 0.95)
+          both(x, y, p.light);
   }
   // Stripes or spots on the forehead.
   const pattern = r();
-  if (["cat", "fox", "dog", "bear", "mouse", "frog"].includes(species) && pattern < 0.35) {
+  if (
+    ["cat", "fox", "dog", "bear", "mouse", "frog"].includes(species) &&
+    pattern < 0.35
+  ) {
     const top = Math.round(cy - ry) + 1;
     for (let i = 0; i < 3; i++) put(6 + i, top + (i % 2), p.outline);
     put(9, top, p.outline);
@@ -214,7 +230,14 @@ function draw(
   }
 
   // Eyes.
-  const eyeStyle = pick(r, ["dot", "tall", "shine", "shine", "sleepy", "big"] as const);
+  const eyeStyle = pick(r, [
+    "dot",
+    "tall",
+    "shine",
+    "shine",
+    "sleepy",
+    "big",
+  ] as const);
   const eye = species === "owl" || species === "frog" ? "big" : eyeStyle;
   const pupil = species === "panda" ? "#fff" : p.dark;
   if (eye === "dot") both(eyeX, eyeY, pupil);
@@ -349,7 +372,10 @@ export function pixelAvatarSvg(seed: string, background = true): string {
       const c = row[x];
       let w = 1;
       while (c && x + w < N && row[x + w] === c) w++;
-      if (c) rects.push(`<rect x="${x}" y="${y}" width="${w}" height="1" fill="${c}"/>`);
+      if (c)
+        rects.push(
+          `<rect x="${x}" y="${y}" width="${w}" height="1" fill="${c}"/>`,
+        );
       x += w;
     }
   });
@@ -365,5 +391,4 @@ export function pixelAvatarSvg(seed: string, background = true): string {
 }
 
 /** A new random seed for "another one". */
-export const newAvatarSeed = () =>
-  Math.random().toString(36).slice(2, 10);
+export const newAvatarSeed = () => Math.random().toString(36).slice(2, 10);

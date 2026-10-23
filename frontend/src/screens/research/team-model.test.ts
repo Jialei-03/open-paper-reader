@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   mentionMatches,
+  directChannels,
   memberLabel,
   mentionQuery,
   orderedMessages,
@@ -9,7 +10,7 @@ import {
   threadDate,
 } from "./team-model";
 import { createTranslator } from "../../i18n/i18n";
-import type { TeamMember, TeamMessage } from "./team-api";
+import type { TeamChannel, TeamMember, TeamMessage } from "./team-api";
 
 const members: TeamMember[] = [
   {
@@ -32,6 +33,36 @@ describe("team messages", () => {
     const { t } = createTranslator("en");
     expect(memberLabel(members[0], t)).toBe("Advisor");
     expect(memberLabel({ ...members[0], name: "Ada" }, t)).toBe("Ada");
+    expect(memberLabel(undefined, t)).toBe("");
+  });
+  it("omits orphaned and deleted direct channels without hiding disabled members", () => {
+    const channels: TeamChannel[] = [
+      null,
+      "advisor",
+      "writer",
+      "deleted",
+      "missing",
+    ].map((member_id, index) => ({
+      id: String(index),
+      key: String(index),
+      name: String(index),
+      member_id,
+      unread: 0,
+    }));
+    const disabled = { ...members[1], enabled: false };
+    expect(
+      directChannels({
+        channels,
+        members: [
+          members[0],
+          disabled,
+          { ...members[0], id: "deleted", deleted: true },
+        ],
+      }),
+    ).toEqual([
+      { channel: channels[1], member: members[0] },
+      { channel: channels[2], member: disabled },
+    ]);
   });
   it("completes the mention at the caret, including Chinese and text after it", () => {
     expect(mentionQuery("hello @导 rest", 8)).toEqual({
@@ -113,6 +144,37 @@ describe("team messages", () => {
           january,
         ),
       ).toContain("2025");
+    });
+  }
+});
+
+describe("conversation dates", () => {
+  for (const locale of ["zh", "en"]) {
+    it(`${locale} formats today, yesterday, weekdays and older dates locally`, () => {
+      const now = new Date(2026, 9, 24, 15);
+      const format = (date: Date, today = now) =>
+        threadDate(date.toISOString(), locale, today, "conversation");
+      expect(format(new Date(2026, 9, 24, 0, 5))).toBe("00:05");
+      expect(format(new Date(2026, 9, 23, 23, 59))).toBe(
+        locale === "zh" ? "昨天" : "Yesterday",
+      );
+      expect(format(new Date(2026, 9, 21, 23, 59))).toBe(
+        locale === "zh" ? "星期三" : "Wednesday",
+      );
+      expect(format(new Date(2026, 9, 18, 23, 59))).toBe(
+        locale === "zh" ? "10月18日" : "Oct 18",
+      );
+      expect(format(new Date(2025, 11, 31))).toBe(
+        locale === "zh" ? "12月31日" : "Dec 31",
+      );
+      // Yesterday wins across both the Monday and New Year boundaries.
+      expect(format(new Date(2026, 9, 25, 23, 59), new Date(2026, 9, 26))).toBe(
+        locale === "zh" ? "昨天" : "Yesterday",
+      );
+      expect(format(new Date(2025, 11, 31, 23, 59), new Date(2026, 0, 1))).toBe(
+        locale === "zh" ? "昨天" : "Yesterday",
+      );
+      expect(threadDate("invalid", locale, now, "conversation")).toBe("—");
     });
   }
 });

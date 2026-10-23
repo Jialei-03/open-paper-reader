@@ -1,11 +1,19 @@
 import { zh } from "../../i18n/messages/zh";
-import type { TeamMember, TeamMessage } from "./team-api";
+import { createTranslator } from "../../i18n/i18n";
+import type { Team, TeamMember, TeamMessage } from "./team-api";
 import { memberName } from "../team/member-model";
 
 export const memberLabel = (
   member: TeamMember | undefined,
   t: Parameters<typeof memberName>[1],
 ) => (member ? memberName(member, t) : "");
+
+export function directChannels(team: Pick<Team, "channels" | "members">) {
+  return team.channels.flatMap((channel) => {
+    const member = team.members.find((m) => m.id === channel.member_id);
+    return member && !member.deleted ? [{ channel, member }] : [];
+  });
+}
 
 export const normalizedText = (text: string) => text.replaceAll("\\n", "\n");
 export function mentionQuery(text: string, caret: number) {
@@ -54,15 +62,38 @@ export function recentThreads(messages: TeamMessage[]) {
   );
 }
 
-export function threadDate(stamp: string, locale: string, now = new Date()) {
+export function threadDate(
+  stamp: string,
+  locale: string,
+  now = new Date(),
+  format: "thread" | "conversation" = "thread",
+) {
   const date = new Date(stamp);
   if (!Number.isFinite(date.getTime())) return "—";
   const today = date.toDateString() === now.toDateString();
+  if (format === "conversation" && !today) {
+    const yesterday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 1,
+    );
+    if (date.toDateString() === yesterday.toDateString())
+      return createTranslator(locale.startsWith("zh") ? "zh" : "en").t(
+        "team.yesterday",
+      );
+    const monday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - ((now.getDay() + 6) % 7),
+    );
+    if (date >= monday && date < now)
+      return new Intl.DateTimeFormat(locale, { weekday: "long" }).format(date);
+  }
   return new Intl.DateTimeFormat(locale, {
     ...(today
       ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
       : {
-          ...(date.getFullYear() !== now.getFullYear()
+          ...(format === "thread" && date.getFullYear() !== now.getFullYear()
             ? { year: "numeric" }
             : {}),
           month: "short",

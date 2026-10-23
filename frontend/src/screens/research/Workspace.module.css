@@ -76,7 +76,7 @@
   align-items: center;
   height: 100%;
   min-height: 0;
-  padding: var(--ui-space-24);
+  padding: var(--ui-space-32);
   box-sizing: border-box;
   overflow: auto;
   background: var(--ui-bg-1);
@@ -109,7 +109,7 @@
 }
 .startArea {
   flex: none;
-  width: min(736px, 100%);
+  width: min(var(--ui-conversation-width), 100%);
   min-width: 0;
 }
 .workspaceStart {
@@ -162,10 +162,12 @@
   display: inline-flex;
   align-items: center;
   gap: var(--ui-space-6);
+  min-width: 0;
   max-width: 100%;
-  padding: var(--ui-space-4) var(--ui-space-6);
+  height: var(--ui-control-sm);
+  padding: 0 var(--ui-space-8);
   border: 0;
-  border-radius: var(--ui-r-6);
+  border-radius: var(--ui-r-8);
   background: transparent;
   color: var(--ui-fg-2);
   font: inherit;
@@ -176,10 +178,17 @@
   background: var(--ui-hover);
   color: var(--ui-fg);
 }
+.chip:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
 .chip span {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.chip svg {
+  flex: none;
 }
 .device svg {
   flex: none;
@@ -917,8 +926,8 @@
 
 .newPage {
   justify-content: center;
-  gap: 34px;
-  padding-bottom: max(48px, 14vh);
+  gap: var(--ui-space-24);
+  padding-bottom: max(var(--ui-space-48), 14vh);
 }
 .newHeading {
   flex: none;
@@ -926,7 +935,8 @@
   padding: 0;
 }
 .newHeading h1 {
-  font-size: 28px;
+  font-size: var(--ui-text-24);
+  font-weight: var(--ui-weight-strong);
 }
 .treeFolder {
   gap: 0;

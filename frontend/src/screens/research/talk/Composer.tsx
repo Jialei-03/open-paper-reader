@@ -2,7 +2,13 @@ import { ArrowUp, Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import type { SlashCommand } from "../../../lib/slash";
-import { Menu, useSlashCommands } from "../../../ui";
+import {
+  Button,
+  IconButton,
+  Menu,
+  Tooltip,
+  useSlashCommands,
+} from "../../../ui";
 import { INSERT_EVENT, type InsertDetail } from "../files/files-api";
 import styles from "./Talk.module.css";
 
@@ -142,15 +148,12 @@ export function Composer({
                 onSelect: () => void command.run(""),
               }))}
               trigger={(props) => (
-                <button
-                  type="button"
-                  className={styles.composerAction}
-                  aria-label={t("research.composer.actions")}
+                <IconButton
+                  icon={Plus}
+                  label={t("research.composer.actions")}
                   disabled={disabled}
                   {...props}
-                >
-                  <Plus size={20} strokeWidth={1.8} aria-hidden />
-                </button>
+                />
               )}
             />
           )}
@@ -158,14 +161,16 @@ export function Composer({
         </div>
         <div className={styles.composerEnd}>
           {tools}
-          <button
-            type="submit"
-            className={styles.send}
-            disabled={!ready}
-            aria-label={sendLabel}
-          >
-            <ArrowUp size={19} strokeWidth={2} aria-hidden />
-          </button>
+          <Tooltip content={sendLabel}>
+            <Button
+              type="submit"
+              variant="primary"
+              icon={ArrowUp}
+              className={styles.send}
+              disabled={!ready}
+              aria-label={sendLabel}
+            />
+          </Tooltip>
         </div>
       </div>
     </form>

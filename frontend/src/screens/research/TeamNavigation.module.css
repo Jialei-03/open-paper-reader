@@ -1,0 +1,203 @@
+/* Keep the settings row at the foot of the existing project sidebar. */
+:global(div):has(> .navigation) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.navigation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.frequent {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--ui-space-4);
+  padding: 0 var(--ui-space-4) var(--ui-space-12);
+}
+
+.frequent a {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: var(--ui-space-6);
+  min-width: 0;
+  padding: var(--ui-space-4) 0;
+  border-radius: var(--ui-r-8);
+  color: var(--ui-fg-1);
+  text-decoration: none;
+}
+
+.frequentName {
+  width: 100%;
+  text-align: center;
+  font-size: var(--ui-text-12);
+}
+
+.memberAvatar,
+.channelAvatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--ui-space-32);
+  height: var(--ui-space-32);
+}
+
+.memberAvatar > :first-child {
+  width: 100%;
+  height: 100%;
+}
+
+.memberAvatar > [data-status] {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border: 1px solid var(--ui-bg);
+}
+
+.channelAvatar {
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-2);
+}
+
+.shortcut {
+  position: relative;
+}
+
+.shortcut a {
+  padding-right: var(--ui-space-48);
+}
+
+.shortcut > .badge {
+  position: absolute;
+  top: 50%;
+  right: var(--ui-space-8);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--ui-space-16);
+  min-height: var(--ui-space-16);
+  box-sizing: border-box;
+  padding: 0 var(--ui-space-4);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-danger);
+  color: var(--ui-paper);
+  font-size: var(--ui-text-12);
+  line-height: var(--ui-leading-tight);
+}
+
+.heading {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-12) var(--ui-space-8) var(--ui-space-4);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+}
+
+.conversations {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-2);
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.conversation {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-width: 0;
+  min-height: var(--ui-space-48);
+  padding: var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+  color: var(--ui-fg);
+  text-decoration: none;
+  font-size: var(--ui-text-13);
+  line-height: var(--ui-leading-tight);
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.line {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  min-width: 0;
+}
+
+.name,
+.preview {
+  flex: 1;
+  min-width: 0;
+}
+
+.name,
+.preview,
+.frequentName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview {
+  min-height: var(--ui-space-16);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+}
+
+.preview[data-working] {
+  color: var(--ui-accent-text);
+}
+
+.line time {
+  flex: none;
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-12);
+  white-space: nowrap;
+}
+
+.settings {
+  flex: none;
+  padding-top: var(--ui-space-12);
+}
+
+.frequent a:hover,
+.conversation:hover {
+  background: var(--ui-hover);
+}
+
+.conversation[aria-current="page"] {
+  background: var(--ui-selected);
+}
+
+.navigation a:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}

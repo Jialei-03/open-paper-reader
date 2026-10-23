@@ -17,6 +17,7 @@ const defaults = (name: string): MemberConfig => ({
   description: "Checks evidence",
   wake_minutes: 20,
   avatar_color: "blue",
+  avatar: "",
   role_description: "# Skill\nCheck evidence",
   model_config_id: "",
   permissions: {
@@ -35,12 +36,13 @@ function documentSource(
   channels: string[] = [],
 ) {
   const extra = previous.split("\n").find((line) => line.startsWith("future:"));
-  return `---\nname: ${config.name}\ndescription: ${config.description ?? ""}\ntools: [files, web]\nbudget: {turns: ${config.wake_turns}, tokens: ${config.wake_tokens}, minutes: ${config.wake_minutes ?? 20}}\nchannels: ${JSON.stringify(channels)}\n${extra ? `${extra}\n` : ""}---\n\n${config.role_description}`;
+  return `---\nname: ${config.name}\navatar: ${config.avatar ?? ""}\ndescription: ${config.description ?? ""}\ntools: [files, web]\nbudget: {turns: ${config.wake_turns}, tokens: ${config.wake_tokens}, minutes: ${config.wake_minutes ?? 20}}\nchannels: ${JSON.stringify(channels)}\n${extra ? `${extra}\n` : ""}---\n\n${config.role_description}`;
 }
 function sourceConfig(source: string): MemberConfig {
   return {
     ...defaults(source.match(/^name: (.+)$/m)?.[1] ?? "Ada"),
     description: source.match(/^description: (.+)$/m)?.[1] ?? "",
+    avatar: source.match(/^avatar: (.+)$/m)?.[1] ?? "",
     role_description: source.split("---").slice(2).join("---").trim(),
   };
 }
@@ -70,8 +72,18 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
     { id: "library-ada", version: 1, config: defaults("Ada"), teams: [] },
   ];
   const saved: Record<string, unknown>[] = [];
+  const images = new Map<string, { extension: string; content: string }>();
   const channels = () => [
-    { id: cid, key: "general", name: "闲聊", member_id: null, unread: 0 },
+    {
+      id: cid,
+      key: "general",
+      name: "闲聊",
+      member_id: null,
+      unread: 0,
+      last_message: null,
+      last_at: "2026-10-23T00:00:00Z",
+      working_member_ids: [],
+    },
     ...members
       .filter((m) => m.role !== "human")
       .map((m) => ({
@@ -80,6 +92,9 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
         name: m.name,
         member_id: m.id,
         unread: 0,
+        last_message: null,
+        last_at: "2026-10-23T00:00:00Z",
+        working_member_ids: [],
       })),
   ];
   await page.route("**/api/v1/health", async (route) => {
@@ -197,11 +212,16 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
     if (path.endsWith("/members") && method === "POST") {
       const body = route.request().postDataJSON();
       saved.push(body);
-      const config =
-        body.config ||
-        library.find((l) => l.id === body.library_id)?.config ||
-        defaults("导师");
+      const config = {
+        ...(body.config ||
+          library.find((l) => l.id === body.library_id)?.config ||
+          defaults("导师")),
+      };
       const id = `custom-${members.length}`;
+      if (body.avatar_upload) {
+        config.avatar = `.ora/avatars/${config.name}.${body.avatar_upload.extension}`;
+        images.set(id, body.avatar_upload);
+      }
       members = [
         ...members,
         {
@@ -214,11 +234,28 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
           status: "idle",
           active_run_id: null,
           subscriptions: body.subscriptions || [],
-          source: body.source || documentSource(config),
+          source: body.avatar_upload
+            ? documentSource(config, body.source)
+            : body.source || documentSource(config),
+          avatar_url: body.avatar_upload
+            ? `/api/v1/research/workspaces/${wid}/team/members/${id}/avatar?v=1`
+            : null,
           revision: "v1",
         },
       ];
       return route.fulfill({ json: { id } });
+    }
+    if (path.endsWith("/avatar")) {
+      const image = images.get(path.split("/").at(-2)!);
+      return image
+        ? route.fulfill({
+            body: Buffer.from(image.content, "base64"),
+            contentType:
+              image.extension === "svg"
+                ? "image/svg+xml"
+                : `image/${image.extension}`,
+          })
+        : route.fulfill({ status: 404 });
     }
     if (path.includes("/members/")) {
       const id = path.split("/").at(-1)!;
@@ -298,6 +335,64 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
   };
 }
 
+test("上传头像随成员保存，取消不写入", async ({ page }) => {
+  const { saved } = await setup(page);
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAC0lEQVR4nGNgQAYAAA4AAamRc7EAAAAASUVORK5CYII=",
+    "base64",
+  );
+  for (const save of [false, true]) {
+    await page.getByRole("button", { name: "添加成员", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("名字", { exact: true }).fill("Ada");
+    await dialog.getByLabel("上传图片", { exact: true }).setInputFiles({
+      name: "portrait.png",
+      mimeType: "image/png",
+      buffer: png,
+    });
+    const avatar = dialog.getByRole("group", { name: "头像", exact: true });
+    await expect(avatar.locator("img")).toHaveAttribute(
+      "src",
+      /^data:image\/png;base64,/,
+    );
+    expect(saved).toHaveLength(0);
+    await dialog.getByLabel("名字", { exact: true }).fill("Ada II");
+    await dialog
+      .getByRole("button", { name: save ? "保存" : "取消", exact: true })
+      .click();
+    await expect(dialog).toHaveCount(0);
+  }
+  expect(saved).toHaveLength(1);
+  expect(saved[0]).toMatchObject({
+    config: { name: "Ada II" },
+    avatar_upload: { extension: "png", content: png.toString("base64") },
+  });
+  const row = page
+    .locator("li")
+    .filter({ has: page.getByRole("button", { name: "Ada II", exact: true }) });
+  await expect(row.locator("img")).toBeVisible();
+});
+
+test("自定义头像加载失败回退到像素动物", async ({ page }) => {
+  await setup(page, [
+    {
+      id: "broken",
+      role: "custom_broken",
+      ...defaults("Broken"),
+      avatar: ".ora/avatars/missing.png",
+      avatar_url: `/api/v1/research/workspaces/${wid}/team/members/broken/avatar`,
+      enabled: true,
+      status: "idle",
+      active_run_id: null,
+    },
+  ]);
+  const row = page
+    .locator("li")
+    .filter({ has: page.getByRole("button", { name: "Broken", exact: true }) });
+  await expect(row.locator("img")).toHaveCount(0);
+  await expect(row.locator('svg[shape-rendering="crispEdges"]')).toBeVisible();
+});
+
 test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
   const { saved: writes } = await setup(page);
   await page.getByRole("button", { name: "添加成员", exact: true }).click();
@@ -306,7 +401,17 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
   await dialog
     .getByLabel("角色说明", { exact: true })
     .fill("# Role heading\n## Evidence\n### Sources\nVerify every claim");
-  await dialog.getByLabel("头像颜色", { exact: true }).selectOption("green");
+  const avatar = dialog.getByRole("group", { name: "头像", exact: true });
+  const before = await avatar.locator("svg").evaluate((svg) => svg.outerHTML);
+  await avatar.getByRole("button", { name: "换一个", exact: true }).click();
+  await expect(avatar.locator("svg")).not.toHaveJSProperty("outerHTML", before);
+  const expectedAvatar = await avatar
+    .locator("svg")
+    .evaluate((svg) => svg.outerHTML);
+  await expect(dialog.getByLabel("头像颜色", { exact: true })).toHaveCount(0);
+  await expect(
+    avatar.getByRole("button", { name: "上传图片", exact: true }),
+  ).toBeVisible();
   await dialog.getByLabel("只读", { exact: true }).check();
   await expect(dialog.getByLabel("命令行", { exact: true })).toBeDisabled();
   await dialog.getByLabel("只读", { exact: true }).uncheck();
@@ -320,13 +425,18 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
   expect(writes[0]).toMatchObject({
     config: {
       name: "Ada",
-      avatar_color: "green",
+      avatar: expect.stringMatching(/^pixel:.+/),
       wake_turns: 0,
       wake_minutes: 0,
       wake_tokens: 0,
     },
     subscriptions: [cid],
   });
+  await expect(
+    page
+      .getByRole("link", { name: "Ada", exact: true })
+      .locator('svg[shape-rendering="crispEdges"]'),
+  ).toHaveJSProperty("outerHTML", expectedAvatar);
   await page.getByRole("button", { name: "Ada", exact: true }).click();
   const title = page.getByRole("heading", { name: "Ada", exact: true });
   const back = page.getByRole("button", { name: "返回", exact: true });
@@ -369,6 +479,9 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
     .getByRole("textbox", { name: "消息", exact: true });
   await composer.fill("@Ad");
   await expect(page.getByRole("option", { name: /Ada/ })).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: /Ada/ }).locator("svg"),
+  ).toHaveJSProperty("outerHTML", expectedAvatar);
   await page.goto(`/#team/${wid}/settings?thread=member%3Acustom-2`);
   await page.getByRole("button", { name: "发私信", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${dmId("custom-2")}$`));
@@ -631,11 +744,21 @@ test("成员列表、私信侧栏和消息头像使用一致的状态点", async
     for (const [index, state] of states.entries()) {
       const sidebar = page
         .getByRole("navigation", { name: "侧栏", exact: true })
+        .getByRole("group", { name: "消息", exact: true })
         .getByRole("link", {
           name: members[index].name,
           exact: true,
-        })
-        .locator("xpath=ancestor::div[contains(@class, 'memberRow')][1]");
+        });
+      const sidebarDot = sidebar.getByRole("img", {
+        name: state.label,
+        exact: true,
+      });
+      await expect(
+        sidebarDot.locator("..").locator('svg[shape-rendering="crispEdges"]'),
+      ).toBeVisible();
+      await expect(sidebarDot).toHaveCSS("position", "absolute");
+      await expect(sidebarDot).toHaveCSS("right", "0px");
+      await expect(sidebarDot).toHaveCSS("bottom", "0px");
       const avatar = page.locator(
         `[data-message-id="message-${members[index].id}"]`,
       );

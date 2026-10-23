@@ -1483,10 +1483,10 @@ test("notifications open pending conversations and sidebar entries expose real s
   state.researches[0].status = "waiting";
   await page.reload();
   const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
-  const advisor = sidebar.getByRole("group", { name: "私信", exact: true });
-  await expect(
-    advisor.getByRole("link", { name: "advisor", exact: true }),
-  ).toBeVisible();
+  const advisor = sidebar
+    .getByRole("group", { name: "消息", exact: true })
+    .getByRole("link", { name: "advisor", exact: true });
+  await expect(advisor).toBeVisible();
   await expect(
     advisor.getByRole("img", { name: "等你", exact: true }),
   ).toBeVisible();
@@ -1506,7 +1506,7 @@ test("notifications open pending conversations and sidebar entries expose real s
   ).toBeVisible();
   await expect(
     thread.getByRole("textbox", { name: "消息", exact: true }),
-  ).toHaveAttribute("placeholder", "接着说");
+  ).toHaveAttribute("placeholder", "发送给 #实验");
   expect(state.direct).toEqual([]);
 });
 
@@ -1524,11 +1524,15 @@ test("team channels keep every research and derived conversation accessible as a
   }));
   await page.goto(`/#${teamHash(wid, experiments)}`);
   const sidebar = page.getByRole("navigation", { name: "侧栏" });
+  const conversations = sidebar.getByRole("group", {
+    name: "消息",
+    exact: true,
+  });
   await expect(
-    sidebar.getByRole("group", { name: "频道", exact: true }),
+    conversations.getByRole("link", { name: "实验", exact: true }),
   ).toBeVisible();
   await expect(
-    sidebar.getByRole("group", { name: "私信", exact: true }),
+    conversations.getByRole("link", { name: "advisor", exact: true }),
   ).toBeVisible();
   await expect(
     sidebar.getByRole("button", { name: "切换团队", exact: true }),

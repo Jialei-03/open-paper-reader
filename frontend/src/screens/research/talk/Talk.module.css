@@ -75,15 +75,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  min-height: 34px;
+  gap: var(--ui-space-8);
+  min-height: var(--ui-control-md);
 }
 
 .composerStart,
 .composerEnd {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--ui-space-6);
   min-width: 0;
 }
 
@@ -94,36 +94,6 @@
 .composerEnd {
   flex: 0 1 auto;
   margin-left: auto;
-}
-
-.composerAction {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  margin-left: -4px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--composer-fg);
-  cursor: pointer;
-}
-
-.composerAction:hover,
-.composerAction[aria-expanded="true"] {
-  background: var(--composer-hover);
-}
-
-.composerAction:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.composerAction:focus-visible {
-  outline: 2px solid var(--composer-muted);
-  outline-offset: 2px;
 }
 
 .chip {
@@ -155,10 +125,10 @@
 .composer .chip {
   flex: 0 1 auto;
   min-width: 0;
-  max-width: 280px;
-  height: 30px;
-  padding: 0 5px;
-  border-radius: 8px;
+  max-width: var(--ui-sidebar-width);
+  height: var(--ui-control-sm);
+  padding: 0 var(--ui-space-8);
+  border-radius: var(--ui-r-8);
   color: var(--composer-fg);
 }
 
@@ -167,9 +137,8 @@
 }
 
 .composer .chip:focus-visible {
-  box-shadow: none;
-  outline: 2px solid var(--composer-muted);
-  outline-offset: 2px;
+  box-shadow: var(--ui-focus-ring);
+  outline: none;
 }
 
 .composer .chip > svg {
@@ -177,40 +146,23 @@
 }
 
 .pickerName {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.pickerName > span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .send {
-  display: inline-grid;
   flex: none;
-  place-items: center;
-  width: 34px;
-  height: 34px;
+  width: var(--ui-control-md);
   padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: var(--ui-primary, #f3f3f3);
-  color: var(--ui-primary-fg, #252525);
-  cursor: pointer;
-  transition: opacity var(--ui-dur-1) var(--ui-ease-out);
-}
-
-.send:disabled {
-  opacity: 0.65;
-  color: color-mix(
-    in srgb,
-    var(--ui-primary-fg, #252525) 55%,
-    var(--ui-primary, #f3f3f3)
-  );
-  cursor: default;
-}
-
-.send:focus-visible {
-  outline: 2px solid var(--composer-muted);
-  outline-offset: 3px;
-  box-shadow: none;
 }
 
 /* ---------- Project page ---------- */

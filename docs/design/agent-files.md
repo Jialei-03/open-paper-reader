@@ -9,7 +9,7 @@ description: 找论文、核对出处、总结要点
 tools: [literature, files, web]
 machines: [host]
 channels: ["#综述"]
-color: amber
+avatar: pixel:ada
 ---
 
 你是这个团队的文献员。……
@@ -33,7 +33,8 @@ color: amber
 | `tools` | 省略取角色默认：`literature/files/web/project`，执行者与写手另有 `shell/experiments` |
 | `machines` | 默认 `[host, local, docker]`；允许使用的机器 |
 | `channels` | 默认 `[]`；频道名（如 `#综述`），兼容频道 ID |
-| `color` | 默认 `blue`；支持 `blue/green/amber/red/violet/slate` |
+| `avatar` | 可选；默认像素动物，种子为成员文件名，内置成员用角色键；`pixel:<种子>` 指定形象；项目仓库相对图片路径支持 png/jpg/jpeg/webp/svg；未知格式保留原文 |
+| `color` | 保留旧颜色字段兼容，不在界面编辑 |
 | `readonly` / `file_readonly` | 默认 `false`；全局只读与仅文件只读分别控制 |
 | `enabled` | 默认 `true`；停用不删除历史身份 |
 | `budget.turns/tokens/minutes` | 缺省或 0 为不限；仅显式正数限制单次运行 |
@@ -45,6 +46,8 @@ color: amber
 ## 编辑与运行
 
 成员编辑器的表单和 Markdown 正文共同编辑同一份文件，也可切到「源文件」编辑整份定义。读取界面、准备简报、权限校验、订阅和预算均通过 `agent_files.py` 的文件边界；外部修改在下次读取时生效，外部新增的有效文件会注册成员与私信。
+
+头像表单提供预览、随机形象和图片上传。上传图片在保存时写入 `.ora/avatars/<成员名>.<ext>`，与成员文件一起提交；图片读取校验项目归属、相对路径与符号链接，加载失败回退到像素动物。研究者以用户 ID 为种子。
 
 YAML 往返编辑保留未知字段和注释；表单修改已知字段可能规范化排版。格式错误显示行号，保留错误源文件供修复，运行继续使用数据目录 `agent-state/<成员id>.valid.md` 的上一份有效定义；缺失文件也沿用有效快照。源文件摘要用于检测外部修改冲突，库同步基线保存在同目录的 `.base.md`。
 

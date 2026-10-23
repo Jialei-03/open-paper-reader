@@ -231,6 +231,31 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         d.commit()
         return {"ok": True}
 
+    @app.get(base + "/members/{member_id}/avatar")
+    def member_avatar(id: str, member_id: str, a=Depends(auth), d=Depends(db)):
+        from fastapi.responses import FileResponse
+        from . import agent_files as files
+
+        workspace = workspace_of(d, id, a)
+        try:
+            member = members.owned(d, workspace, member_id)
+            path = files.avatar_path(
+                files.member_root(settings, member), members.config(member)["avatar"]
+            )
+            if path is None or not path.is_file():
+                raise ValueError("头像不存在 / Avatar not found")
+        except (OSError, ValueError) as error:
+            raise HTTPException(404, str(error)) from None
+        return FileResponse(
+            path,
+            media_type=files.AVATAR_TYPES[path.suffix.lower()],
+            headers={
+                "Cache-Control": "private, no-cache",
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+            },
+        )
+
     @app.get(base + "/members/{member_id}")
     def member_detail(id: str, member_id: str, a=Depends(auth), d=Depends(db)):
         workspace = workspace_of(d, id, a)

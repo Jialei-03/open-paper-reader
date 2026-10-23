@@ -10,6 +10,9 @@ import type { MessageKey, Translator } from "../../../i18n/i18n";
 
 // References and payloads follow docs/design/agent-team-contract.md.
 export interface WorkflowMember {
+  avatar?: string;
+  avatar_url?: string | null;
+  avatar_seed?: string;
   id: string;
   name: string;
   kind: "human" | "agent";
@@ -112,6 +115,7 @@ export type WorkflowNode = Node<
     status?: WorkflowRuntime["members"][string];
     event?: WorkflowRule["when"]["event"];
     human?: boolean;
+    member?: WorkflowMember;
     when?: WorkflowRule["when"];
   },
   "workflow"
@@ -243,6 +247,10 @@ export function workflowToFlow(
           ref,
           name,
           event,
+          member:
+            kind === "member"
+              ? members.find((item) => item.id === ref)
+              : undefined,
           human:
             kind === "member" &&
             members.some((item) => item.id === ref && item.kind === "human"),

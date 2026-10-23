@@ -105,9 +105,9 @@ export function WorkspacePicker({
           aria-haspopup="dialog"
           onClick={toggle}
         >
-          <Folder size={15} aria-hidden />
+          <Folder size={16} aria-hidden />
           <span>{current?.name || t("workspace.choose")}</span>
-          <ChevronDown size={12} aria-hidden />
+          <ChevronDown size={16} aria-hidden />
         </button>
       )}
       <Floating
@@ -181,7 +181,7 @@ export function WorkspacePicker({
                     close();
                   }}
                 >
-                  <Folder size={15} aria-hidden />
+                  <Folder size={16} aria-hidden />
                   <span>
                     {workspace.name}
                     <small title={machine(workspace.location).title}>

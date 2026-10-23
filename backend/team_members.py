@@ -5,6 +5,7 @@ Deleted instances remain as historical message/rule references.
 """
 
 from uuid import uuid4
+from typing import Literal
 
 from pydantic import ConfigDict, Field, field_validator
 from sqlalchemy import select
@@ -40,6 +41,7 @@ class MemberConfig(Strict):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
     name: str = Field(min_length=1, max_length=100)
     avatar_color: str = "blue"
+    avatar: str | None = None
     role_description: str = Field(default="", max_length=50000)
     model_config_id: str = Field(default="", max_length=64)
     permissions: Permissions = Field(default_factory=Permissions)
@@ -61,7 +63,13 @@ class MemberConfig(Strict):
         return value
 
 
+class AvatarUpload(Strict):
+    extension: Literal["png", "jpg", "jpeg", "webp", "svg"]
+    content: str
+
+
 class MemberCreate(Strict):
+    avatar_upload: AvatarUpload | None = None
     source: str | None = Field(default=None, max_length=150000)
     config: MemberConfig | None = None
     library_id: str | None = None
@@ -70,6 +78,7 @@ class MemberCreate(Strict):
 
 
 class MemberEdit(Strict):
+    avatar_upload: AvatarUpload | None = None
     source: str | None = Field(default=None, max_length=150000)
     revision: str | None = None
     restore_builtin: bool = False
@@ -173,6 +182,37 @@ def file_out(member):
     }
 
 
+def avatar_out(member, owner):
+    from pathlib import Path
+    from . import agent_files as files
+    from .research_team import ROLES
+
+    avatar = config(member)["avatar"]
+    url = None
+    if member.role != "human" and files.settings_of(member):
+        try:
+            path = files.avatar_path(
+                files.member_root(files.settings_of(member), member), avatar
+            )
+            if path:
+                stamp = str(path.stat().st_mtime_ns) if path.is_file() else "missing"
+                url = f"/api/v1/research/workspaces/{member.workspace_id}/team/members/{member.id}/avatar?v={stamp}"
+        except (OSError, ValueError):
+            pass
+    return {
+        "avatar_url": url,
+        "avatar_seed": (
+            owner
+            if member.role == "human"
+            else (
+                member.role
+                if member.role in ROLES
+                else Path(member.file_path or member.name).stem
+            )
+        ),
+    }
+
+
 def check_revision(source, expected):
     if expected is not None and revision(source) != expected:
         raise ValueError("成员文件已更新 / Agent file changed")
@@ -246,7 +286,7 @@ def create(d, workspace, body):
     if channel_ids and body.source is None:
         values["channels"] = files.channels_for(d, member, channel_ids)
         original = files.render(values, original)
-    files.save_member(member, original, workspace.owner)
+    files.save_member(member, original, workspace.owner, upload=body.avatar_upload)
     files.atomic_write(
         files.state_path(files.settings_of(member), member.id, "base.md"),
         files.read_library(library)[0],
@@ -299,7 +339,7 @@ def edit(d, workspace, member, body):
         and body.subscriptions is None
         else files.render(values, original, member.role)
     )
-    files.save_member(member, source, workspace.owner)
+    files.save_member(member, source, workspace.owner, upload=body.avatar_upload)
     for channel in d.scalars(
         select(TeamChannel).where(TeamChannel.member_id == member.id)
     ):
@@ -373,6 +413,7 @@ def sync_library(d, row, body):
                 "channels",
                 "budget",
                 "color",
+                "avatar",
                 "readonly",
                 "file_readonly",
                 "enabled",

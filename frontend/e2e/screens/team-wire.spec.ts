@@ -146,6 +146,18 @@ async function setup(page: import("@playwright/test").Page) {
               name: "实验",
               member_id: null,
               unread: 0,
+              last_message: {
+                author_id: "advisor",
+                author_name: "advisor",
+                text: reply.text,
+                created_at: reply.created_at,
+              },
+              last_at: reply.created_at,
+              working_member_ids:
+                reply.run?.status === "queued" ||
+                reply.run?.status === "running"
+                  ? ["advisor"]
+                  : [],
             },
             {
               id: dm,
@@ -153,6 +165,9 @@ async function setup(page: import("@playwright/test").Page) {
               name: "导师",
               member_id: "advisor",
               unread: 0,
+              last_message: null,
+              last_at: "2026-10-22T00:00:00Z",
+              working_member_ids: [],
             },
           ],
           notifications: [],
@@ -232,7 +247,10 @@ test("message provenance and schedule links locate the rule editor at 720px", as
   await setup(page);
   await page.setViewportSize({ width: 720, height: 900 });
   await page.goto(`/#team/${wid}/${cid}`);
-  await expect(page.locator('[data-message-id="reply"] time')).toHaveAttribute(
+  const reply = page.locator('[data-message-id="reply"]');
+  await expect(reply).toHaveAttribute("data-author", "agent");
+  await expect(reply.getByText("智能体", { exact: true })).toBeVisible();
+  await expect(reply.locator("footer time")).toHaveAttribute(
     "datetime",
     "2026-10-23T15:44:00Z",
   );
@@ -257,6 +275,24 @@ test("queued rule wakes stay compact until work starts", async ({ page }) => {
   reply.run!.response = "";
   await page.goto(`/#team/${wid}/${cid}`);
   const row = page.locator('[data-message-id="reply"]');
+  const conversations = page
+    .getByRole("navigation", { name: "侧栏", exact: true })
+    .getByRole("group", { name: "消息", exact: true });
+  const conversation = conversations.getByRole("link", {
+    name: "实验",
+    exact: true,
+  });
+  await expect(
+    conversation.getByText("工作中…", { exact: true }),
+  ).toBeVisible();
+  await expect(conversations.getByRole("link").first()).toHaveAccessibleName(
+    "实验",
+  );
+  await expect(
+    conversations
+      .getByRole("link", { name: "advisor", exact: true })
+      .getByText("工作中…", { exact: true }),
+  ).toHaveCount(0);
   await expect(row.getByRole("status")).toHaveText("排队中");
   await expect(row.locator("time, section")).toHaveCount(0);
   await expect(
@@ -268,6 +304,15 @@ test("queued rule wakes stay compact until work starts", async ({ page }) => {
   );
   await expect(row.locator('[data-live="true"]')).toBeVisible();
   await expect(row.getByText("排队中", { exact: true })).toHaveCount(0);
+  reply.text = reply.run!.response = "已完成核对";
+  reply.run!.status = "completed";
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("research-team-updated")),
+  );
+  await expect(conversation).toContainText("advisor：已完成核对");
+  await expect(conversation.getByText("工作中…", { exact: true })).toHaveCount(
+    0,
+  );
   await row.getByRole("link", { name: "source-review", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });

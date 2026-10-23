@@ -26,6 +26,8 @@ export type MenuEntry =
       id: string;
       label: string;
       icon?: LucideIcon;
+      /** An exclusive choice; the menu exposes its selection to assistive technology. */
+      checked?: boolean;
       /** Written as for `formatShortcut`; shown at the end of the row and announced. */
       shortcut?: string;
       danger?: boolean;
@@ -207,7 +209,8 @@ export function MenuList({
               ref={(element) => {
                 elements.current[index] = element;
               }}
-              role="menuitem"
+              role={entry.checked === undefined ? "menuitem" : "menuitemradio"}
+              aria-checked={entry.checked}
               tabIndex={-1}
               aria-disabled={entry.disabled ? true : undefined}
               aria-description={entry.hint}

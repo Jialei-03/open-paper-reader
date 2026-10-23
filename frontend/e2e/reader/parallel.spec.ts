@@ -129,7 +129,7 @@ async function chooseInMenu(page: Page, name: "原文" | "对照") {
     .click();
   await page
     .getByRole("menu", { name: "翻译设置" })
-    .getByRole("menuitem", { name: new RegExp(`${name}$`) })
+    .getByRole("menuitemradio", { name, exact: true })
     .click();
 }
 const pageInput = (page: Page) =>
@@ -451,12 +451,10 @@ test("without a model, 对照 says to add one in settings and asks for nothing",
   const { service } = await open(page, () => ({ models: [] }));
   await mode(page, "对照").click();
 
-  await expect(column(page, 1)).toContainText(
-    "先在设置里添加模型，才能对照着读译文。",
-  );
+  await expect(column(page, 1)).toContainText("未配置模型");
   await expect(
-    column(page, 1).getByRole("link", { name: "去设置" }),
-  ).toHaveAttribute("href", "#settings");
+    column(page, 1).getByRole("link", { name: "添加模型" }),
+  ).toHaveAttribute("href", "#customize/models");
   await page.waitForTimeout(1000);
   expect(service.posts).toEqual([]);
 });

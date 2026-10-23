@@ -1,10 +1,11 @@
 .page {
+  position: relative;
   display: flex;
   height: 100%;
   min-height: 0;
   min-width: 0;
   flex: 1;
-  background: var(--ui-bg);
+  background: var(--ui-bg-1);
 }
 .fileImage {
   max-width: 100%;
@@ -73,6 +74,7 @@
   padding: var(--ui-space-20) var(--ui-space-32);
 }
 .message {
+  position: relative;
   display: flex;
   gap: var(--ui-space-12);
   padding: var(--ui-space-12) 0;
@@ -82,7 +84,17 @@
 .queuedMessage {
   align-items: center;
   padding: var(--ui-space-6) 0;
+  padding-right: var(--ui-control-md);
   font-size: var(--ui-text-13);
+}
+.queuedMessage strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.messageStatus {
+  flex-shrink: 0;
 }
 .avatar {
   flex: 0 0 var(--ui-space-32);
@@ -137,7 +149,8 @@
   min-width: 0;
 }
 .messageBody {
-  flex: 1;
+  flex: 0 1 auto;
+  max-width: calc(100% - var(--ui-space-48));
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: var(--ui-text-14);
@@ -151,20 +164,28 @@
 .message strong {
   font-weight: var(--ui-weight-strong);
 }
-.messageBody time,
 .messageStatus,
 .list time {
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
 }
 .hoverActions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
   display: flex;
-  margin-left: auto;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-8);
+  box-shadow: var(--ui-elev-1);
   opacity: 0;
+  pointer-events: none;
 }
 .message:hover .hoverActions,
 .message:focus-within .hoverActions {
   opacity: 1;
+  pointer-events: auto;
 }
 .replies,
 .researchCard {
@@ -181,6 +202,8 @@
   text-align: left;
 }
 .replies {
+  color: var(--ui-accent-text);
+  padding: 0;
   font-size: var(--ui-text-12);
   background: transparent;
 }
@@ -247,7 +270,7 @@
 .mentionMenu button[aria-selected="true"] {
   background: var(--ui-selected);
 }
-.mentionMenu span {
+.mentionStatus {
   margin-left: auto;
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
@@ -285,7 +308,7 @@
   flex-direction: column;
   gap: var(--ui-space-12);
   height: 100%;
-  color: var(--ui-fg-3);
+  color: var(--ui-fg);
   font-size: var(--ui-text-14);
 }
 .list {
@@ -371,4 +394,182 @@
   height: var(--ui-control-lg);
   border-radius: var(--ui-r-8);
   background: var(--ui-bg-2);
+}
+
+.counts {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+  white-space: nowrap;
+}
+.counts svg,
+.handoff svg {
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
+}
+.bubble {
+  padding: var(--ui-space-12) var(--ui-space-16);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg);
+}
+.bubble > :first-child {
+  margin-top: 0;
+}
+.bubble > :last-child {
+  margin-bottom: 0;
+}
+.bubble :where(p, ul, ol, pre, table) {
+  font-size: var(--ui-text-14);
+}
+.bubble pre {
+  max-width: 100%;
+  overflow: auto;
+}
+.message[data-author="human"] .messageBody {
+  margin-left: auto;
+}
+.message[data-author="human"] .bubble {
+  background: var(--ui-own-message);
+}
+.message[data-author="agent"][data-grouped] {
+  padding-top: var(--ui-space-2);
+  padding-left: calc(var(--ui-space-32) + var(--ui-space-12));
+  box-sizing: border-box;
+}
+.message[data-grouped] .messageBody {
+  max-width: 100%;
+}
+.messageBody > header {
+  margin-bottom: var(--ui-space-6);
+}
+.agentTag {
+  border-radius: var(--ui-r-4);
+  background: var(--ui-fill);
+  padding: var(--ui-space-2) var(--ui-space-4);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+}
+.metadata {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-6) var(--ui-space-4) 0;
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+}
+.metadata time {
+  color: var(--ui-fg-3);
+}
+.handoff {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+.message[data-author="human"] .metadata {
+  justify-content: flex-end;
+}
+.message[data-author="human"] time {
+  opacity: 0;
+}
+.message[data-author="human"]:is(:hover, :focus-within) time {
+  opacity: 1;
+}
+.systemMessage {
+  display: flex;
+  justify-content: center;
+  padding: var(--ui-space-8) 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+.systemMessage > span {
+  padding: var(--ui-space-4) var(--ui-space-12);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-fill);
+}
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+}
+.run > button {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  height: auto;
+  min-height: 0;
+  margin-left: 0;
+  padding: 0;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+.message:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+.empty p {
+  margin: 0;
+  max-width: min(100%, var(--ui-dialog-sm));
+  overflow-wrap: anywhere;
+  text-align: center;
+  color: var(--ui-fg-1);
+}
+.empty strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.memberCardAvatar > span {
+  width: var(--ui-space-48);
+  height: var(--ui-space-48);
+  font-size: var(--ui-text-20);
+}
+.memberModel {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+.toolTags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--ui-space-6);
+}
+.toolTags span {
+  padding: var(--ui-space-4) var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+}
+@media (hover: none) {
+  .message:not(.queuedMessage) {
+    padding-top: var(--ui-space-32);
+  }
+  .hoverActions,
+  .message[data-author="human"] time {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (max-width: 600px) {
+  .header {
+    gap: var(--ui-space-4);
+    padding-inline: var(--ui-space-12);
+  }
+  .counts {
+    gap: var(--ui-space-2);
+  }
+  .messageBody {
+    max-width: calc(100% - var(--ui-space-40));
+  }
+  .message[data-author="human"] .messageBody {
+    max-width: 100%;
+  }
 }

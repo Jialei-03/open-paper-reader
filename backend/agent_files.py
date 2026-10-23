@@ -5,13 +5,17 @@ library sync baselines live beside the data directory, never in model prompts.
 """
 
 import hashlib
+import base64
+import binascii
 import io
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import tempfile
 import tomllib
+from xml.etree import ElementTree
 
+from PIL import Image
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.error import MarkedYAMLError
@@ -21,6 +25,13 @@ from sqlalchemy.orm import object_session
 GROUPS = ("literature", "files", "shell", "experiments", "web", "project")
 COLORS = ("blue", "green", "amber", "red", "violet", "slate")
 BUILTINS = Path(__file__).parent / "agents"
+AVATAR_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+}
 
 
 class DefinitionError(ValueError):
@@ -77,11 +88,15 @@ def parse(source, role="custom"):
         or name.endswith((".", " "))
     ):
         fail("name", "名字无效 / Invalid name")
-    for key in ("description", "model", "color"):
+    for key in ("description", "model", "color", "avatar"):
         if key in header and not isinstance(header[key], str):
             fail(key, f"{key} 必须是文字 / Must be text")
     if header.get("color", "blue") not in COLORS:
         fail("color", "头像颜色无效 / Invalid avatar color")
+    try:
+        avatar_relative(header.get("avatar", ""))
+    except ValueError as exc:
+        fail("avatar", str(exc))
     for key in ("tools", "machines", "channels"):
         if key in header and (
             not isinstance(header[key], list)
@@ -125,6 +140,7 @@ def parse(source, role="custom"):
         "name": name,
         "description": header.get("description", ""),
         "avatar_color": header.get("color", "blue"),
+        "avatar": header.get("avatar", ""),
         "role_description": body.removeprefix("\n"),
         "model_config_id": header.get("model", ""),
         "permissions": permissions,
@@ -160,6 +176,11 @@ def render(config, source="", role="custom"):
         "channels": config.get("channels", []),
         "enabled": config.get("enabled", True),
     }
+    if config.get("avatar") is not None:
+        if config["avatar"]:
+            values["avatar"] = config["avatar"]
+        else:
+            header.pop("avatar", None)
     p = config.get("permissions", {})
     tools = config.get("tools")
     if tools is None:
@@ -304,6 +325,57 @@ def safe_path(root, relative):
     return path
 
 
+def avatar_relative(value):
+    """Unknown avatar formats round-trip; recognized images must be repo-relative."""
+    if (
+        not value
+        or value.startswith("pixel:")
+        or Path(value).suffix.lower() not in AVATAR_TYPES
+    ):
+        return None
+    if (
+        "\\" in value
+        or ":" in value
+        or "\0" in value
+        or Path(value).is_absolute()
+        or PureWindowsPath(value).drive
+        or ".." in Path(value).parts
+    ):
+        raise ValueError("头像路径无效 / Invalid avatar path")
+    return value
+
+
+def avatar_path(root, value):
+    relative = avatar_relative(value)
+    return safe_path(root, relative) if relative else None
+
+
+def avatar_upload(upload):
+    """Decode and verify uploads before changing a member or its image."""
+    try:
+        raw = base64.b64decode(upload.content, validate=True)
+        if upload.extension == "svg":
+            if b"<!DOCTYPE" in raw.upper() or b"<!ENTITY" in raw.upper():
+                raise ValueError()
+            if ElementTree.fromstring(raw).tag != "{http://www.w3.org/2000/svg}svg":
+                raise ValueError()
+        else:
+            with Image.open(io.BytesIO(raw)) as image:
+                expected = {"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG", "webp": "WEBP"}
+                if image.format != expected[upload.extension]:
+                    raise ValueError()
+                image.verify()
+        return raw
+    except (
+        ValueError,
+        binascii.Error,
+        OSError,
+        ElementTree.ParseError,
+        Image.DecompressionBombError,
+    ) as exc:
+        raise ValueError("头像图片无效 / Invalid avatar image") from exc
+
+
 def atomic_write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp = tempfile.mkstemp(prefix=".agent-", dir=path.parent)
@@ -349,6 +421,7 @@ def legacy_config(member):
     return {
         **MemberConfig(name=member.legacy_name or role).model_dump(),
         "avatar_color": member.legacy_avatar_color or "blue",
+        "avatar": "",
         "role_description": text,
         "model_config_id": member.legacy_model_config_id or "",
         "permissions": member.legacy_permissions
@@ -511,7 +584,7 @@ def model_identifier(settings, owner, model):
     return match["id"] if match else model
 
 
-def save_member(member, source, actor, initialize=False):
+def save_member(member, source, actor, initialize=False, upload=None):
     from . import research_repo
 
     values = parse(source, member.role)
@@ -522,6 +595,11 @@ def save_member(member, source, actor, initialize=False):
     if person:
         actor = f"{person.username} ({actor})"
     repo = member_root(settings, member)
+    image = avatar_upload(upload) if upload else None
+    if upload:
+        values["avatar"] = f".ora/avatars/{values['name']}.{upload.extension}"
+        source = render(values, source, member.role)
+    image_path = avatar_path(repo, values["avatar"])
     relative = f".ora/agents/{values['name']}.md"
     if initialize:
         from .models import TeamMember
@@ -549,6 +627,17 @@ def save_member(member, source, actor, initialize=False):
                 raise ValueError("同名成员文件已存在 / Agent file already exists")
         atomic_write(path, source)
         paths = [relative]
+        if image is not None:
+            # Commit the image and definition together, only when the member is saved.
+            image_path.parent.mkdir(parents=True, exist_ok=True)
+            fd, temporary = tempfile.mkstemp(prefix=".avatar-", dir=image_path.parent)
+            try:
+                with os.fdopen(fd, "wb") as output:
+                    output.write(image)
+                os.replace(temporary, image_path)
+            finally:
+                Path(temporary).unlink(missing_ok=True)
+            paths.append(values["avatar"])
         if old and old != path and old.exists():
             old.unlink()
             old_relative = str(old.relative_to(repo))

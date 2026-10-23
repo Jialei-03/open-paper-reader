@@ -262,12 +262,11 @@ function FirstMessage({
       }
       refreshResearchNavigation();
       const team = await getTeam(workspaceId);
+      const channel = team.channels.find((c) => c.key === "experiments");
       go(
-        teamHash(
-          workspaceId,
-          team.channels.find((c) => c.key === "experiments")!.id,
-          `research:${research.id}`,
-        ),
+        channel
+          ? teamHash(workspaceId, channel.id, `research:${research.id}`)
+          : `research/${research.id}`,
       );
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : String(reason);
@@ -349,7 +348,11 @@ function FirstMessage({
         autoFocus
       />
       {modelKnown && !modelId && (
-        <Button size="sm" variant="ghost" onClick={() => go("settings/models")}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => go("customize/models")}
+        >
           {t("workspace.configureModel")}
         </Button>
       )}

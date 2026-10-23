@@ -272,6 +272,7 @@ function useTruncated(element: RefObject<HTMLElement | null>, text: string) {
 
 export interface SidebarItemProps {
   icon: LucideIcon;
+  iconContent?: ReactNode;
   /** One line: a longer label is cut with an ellipsis, and shown whole in a tooltip. */
   label: string;
   /** A small note at the end of the row (a count, say). */
@@ -288,6 +289,7 @@ export interface SidebarItemProps {
 
 export function SidebarItem({
   icon: Icon,
+  iconContent,
   label,
   meta,
   active = false,
@@ -301,7 +303,7 @@ export function SidebarItem({
 
   const content = (
     <>
-      <Icon size={16} aria-hidden="true" />
+      {iconContent ?? <Icon size={16} aria-hidden="true" />}
       <span ref={text} className={styles.label}>
         {label}
       </span>

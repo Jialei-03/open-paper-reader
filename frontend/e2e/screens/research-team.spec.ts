@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { signIn } from "../reader/fixtures";
-import type { TeamMessage } from "../../src/screens/research/team-api";
+import type {
+  TeamMember,
+  TeamMessage,
+} from "../../src/screens/research/team-api";
 
 // Fake team and model transport; no provider requests are made by these flows.
-test.use({ locale: "zh-CN" });
+test.use({ locale: "zh-CN", timezoneId: "Asia/Singapore" });
 const workspace = "10000000-0000-0000-0000-000000000001";
 const channel = "10000000-0000-0000-0000-000000000002";
 const dm = "10000000-0000-0000-0000-000000000003";
@@ -16,7 +19,7 @@ async function setup(page: import("@playwright/test").Page) {
   const posted: Record<string, unknown>[] = [];
   const messages: TeamMessage[] = [];
   const deliveries: Record<string, unknown>[] = [];
-  const members = [
+  const members: TeamMember[] = [
     "human",
     "advisor",
     "executor",
@@ -141,6 +144,9 @@ async function setup(page: import("@playwright/test").Page) {
               name: "实验",
               member_id: null,
               unread: 0,
+              last_message: null,
+              last_at: stamp,
+              working_member_ids: working ? ["advisor"] : [],
             },
             ...members
               .filter((m) => m.role !== "human")
@@ -153,6 +159,10 @@ async function setup(page: import("@playwright/test").Page) {
                 name: m.name,
                 member_id: m.id,
                 unread: 0,
+                last_message: null,
+                last_at: stamp,
+                working_member_ids:
+                  working && m.role === "advisor" ? [m.id] : [],
               })),
           ],
           notifications: [],
@@ -218,6 +228,12 @@ async function setup(page: import("@playwright/test").Page) {
       const thread = url.searchParams.get("thread_id");
       return route.fulfill({
         json: {
+          activity: thread
+            ? []
+            : [
+                ...(target === channel ? [root] : []),
+                ...messages.filter((m) => m.channel_id === target),
+              ],
           messages: [
             ...(!thread && target === channel ? [root] : []),
             ...messages.filter(
@@ -410,9 +426,16 @@ for (const theme of ["light", "dark"] as const) {
       const avatar = screen
         .locator(`[data-message-id="status-${role}"]`)
         .getByRole("img", { name: status, exact: true });
-      const marker = sidebar
-        .getByRole("img", { name: status, exact: true })
-        .first();
+      const dmRow = sidebar
+        .getByRole("group", { name: "消息", exact: true })
+        .getByRole("link", { name: role, exact: true });
+      const marker = dmRow.getByRole("img", { name: status, exact: true });
+      await expect(
+        marker.locator("..").locator('svg[shape-rendering="crispEdges"]'),
+      ).toBeVisible();
+      await expect(marker).toHaveCSS("position", "absolute");
+      await expect(marker).toHaveCSS("right", "0px");
+      await expect(marker).toHaveCSS("bottom", "0px");
       await expect(avatar).toBeVisible();
       await expect(avatar).toHaveCSS(
         "width",
@@ -475,18 +498,31 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("DM empty state identifies its member", async ({ page }) => {
-  await setup(page);
+test("DM empty state shows its member card", async ({ page }) => {
+  const { members } = await setup(page);
+  Object.assign(members.find((m) => m.id === "advisor")!, {
+    description: "研究规划",
+    model_config_id: "model",
+    tools: ["literature", "files"],
+  });
   await page.goto(`/#team/${workspace}/${dm}`);
   const empty = page.getByTestId("team-empty");
-  // The avatar uses initials; the separate label keeps the full file-defined name.
-  await expect(empty.locator("[data-color]")).toHaveText("AD");
-  await expect(empty.locator("[data-color]")).toHaveAttribute(
+  // The decorative pixel avatar leaves the file-defined name on the card.
+  await expect(
+    empty.locator('svg[shape-rendering="crispEdges"]'),
+  ).toBeVisible();
+  await expect(empty.locator('span[aria-hidden="true"]')).toHaveAttribute(
     "aria-hidden",
     "true",
   );
   await expect(empty.getByText("advisor", { exact: true })).toBeVisible();
-  await expect(empty.locator("svg")).toHaveCount(0);
+  await expect(empty.getByText("研究规划", { exact: true })).toBeVisible();
+  await expect(empty.getByText("Fake", { exact: true })).toBeVisible();
+  await expect(empty.getByText("文献", { exact: true })).toBeVisible();
+  await expect(empty.getByText("文件", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "消息", exact: true }),
+  ).toHaveAttribute("placeholder", "发送给 advisor");
 });
 
 test("one author, preserved draft, one timeout and Continue on the agent message", async ({
@@ -544,7 +580,7 @@ test("one author, preserved draft, one timeout and Continue on the agent message
   await page.reload();
   const row = page.locator('[data-message-id="limited"]');
   await expect(row.getByText("writer", { exact: true })).toHaveCount(1);
-  await expect(row.locator("[data-color]")).toHaveCount(1);
+  await expect(row.locator('svg[shape-rendering="crispEdges"]')).toBeVisible();
   await expect(row.getByText("已写好的引言", { exact: true })).toBeVisible();
   await expect(
     row.getByText("已到时间上限，已保存内容", { exact: true }),
@@ -659,7 +695,7 @@ test("queued replies become working turns and settle in completion order", async
       els.map((el) => el.getAttribute("data-message-id")),
     );
   await expect(row.getByRole("status")).toHaveText("排队中");
-  await expect(row.locator("[data-color]")).toHaveCount(1);
+  await expect(row.locator('svg[shape-rendering="crispEdges"]')).toBeVisible();
   await expect(row.getByText("librarian", { exact: true })).toHaveCount(1);
   await expect(row.locator("time, section")).toHaveCount(0);
   await expect(row.getByText("等着开始…", { exact: true })).toHaveCount(0);
@@ -804,11 +840,333 @@ for (const [locale, waiting] of [
       locale === "zh" ? "zh-CN" : "en",
     );
     const message = page.locator('[data-message-id="owner-wait"]');
+    await expect(message).toHaveCSS("justify-content", "center");
+    await expect(message.locator("svg, img, button, time")).toHaveCount(0);
     await expect(message.getByText(waiting, { exact: true })).toHaveCount(1);
     await expect(
       message.getByText(locale === "zh" ? "Waiting for you" : "等你", {
         exact: true,
       }),
     ).toHaveCount(0);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`${theme}: Feishu bubbles group authors and keep tool details folded`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("paper-appearance", value),
+      theme,
+    );
+    const { messages } = await setup(page);
+    const base: TeamMessage = {
+      id: "agent-card",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "writer",
+      kind: "text",
+      text: "已完成的正文",
+      // Start after the research card so it cannot interrupt this author group.
+      created_at: "2026-10-23T10:01:00+00:00",
+      mentions: [],
+      replies: 2,
+      data: {
+        to: ["librarian"],
+        files: [{ path: "draft.md", name: "draft.md" }],
+      },
+      run: {
+        id: "card-run",
+        status: "completed",
+        model: "Offline",
+        response: "已完成的正文",
+        error: "",
+        steps: [
+          {
+            name: "read",
+            status: "completed",
+            arguments: { path: "folded-notes.md" },
+          },
+        ],
+        runtime: {},
+        created_at: "2026-10-23T10:01:00+00:00",
+        updated_at: "2026-10-23T10:01:00+00:00",
+      },
+    };
+    messages.push(
+      base,
+      {
+        ...base,
+        id: "grouped-card",
+        text: "补充正文",
+        replies: 0,
+        data: {},
+        run: undefined,
+        created_at: "2026-10-23T10:04:00+00:00",
+      },
+      {
+        ...base,
+        id: "ungrouped-card",
+        text: "另一段正文",
+        replies: 0,
+        data: {},
+        run: undefined,
+        created_at: "2026-10-23T10:10:00+00:00",
+      },
+      {
+        ...base,
+        id: "my-message",
+        author_id: "human",
+        text: "我的要求",
+        data: {},
+        run: undefined,
+        replies: 0,
+        created_at: "2026-10-23T10:11:00+00:00",
+      },
+    );
+    await page.reload();
+    const screen = page.getByTestId("team-screen");
+    const first = screen.locator('[data-message-id="agent-card"]');
+    await expect(first).toHaveAttribute("data-author", "agent");
+    await expect(first.getByText("智能体", { exact: true })).toBeVisible();
+    await expect(
+      first.getByText("交给 librarian", { exact: true }),
+    ).toBeVisible();
+    await expect(first.locator("footer")).toContainText("Offline");
+    await expect(
+      first.getByRole("button", { name: "2 条回复", exact: true }),
+    ).toBeVisible();
+    await expect(
+      first.getByText("folded-notes.md", { exact: true }),
+    ).toHaveCount(0);
+    const fold = first.getByRole("button", { name: /^已处理/ });
+    await fold.click();
+    await expect(
+      first.getByText("folded-notes.md", { exact: true }),
+    ).toBeVisible();
+    const grouped = screen.locator('[data-message-id="grouped-card"]');
+    await expect(grouped).toHaveAttribute("data-grouped", "true");
+    await expect(
+      grouped.locator('svg[shape-rendering="crispEdges"], img, strong'),
+    ).toHaveCount(0);
+    await expect(
+      screen
+        .locator('[data-message-id="ungrouped-card"]')
+        .locator('svg[shape-rendering="crispEdges"]'),
+    ).toBeVisible();
+    const own = screen.locator('[data-message-id="my-message"]');
+    await expect(own).toHaveAttribute("data-author", "human");
+    await expect(
+      own.locator('svg[shape-rendering="crispEdges"], img, strong'),
+    ).toHaveCount(0);
+    await expect(own.locator("time")).toHaveCSS("opacity", "0");
+    await own.hover();
+    await expect(own.locator("time")).toHaveCSS("opacity", "1");
+    const ownBox = await own.getByTestId("team-message-bubble").boundingBox();
+    const agentBox = await first
+      .getByTestId("team-message-bubble")
+      .boundingBox();
+    expect(ownBox!.x).toBeGreaterThan(agentBox!.x);
+    expect(
+      await own
+        .getByTestId("team-message-bubble")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    ).not.toBe(
+      await first
+        .getByTestId("team-message-bubble")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+    );
+    await own.getByRole("button", { name: "回复", exact: true }).click();
+    await expect(page.getByTestId("team-side-panel")).toHaveCount(0);
+    await expect(
+      page.getByRole("region", { name: "线程", exact: true }),
+    ).toBeVisible();
+  });
+
+  test(`${theme}: sidebar merges conversations, badges and frequent members at narrow widths`, async ({
+    page,
+  }) => {
+    await page.addInitScript(
+      (value) => localStorage.setItem("paper-appearance", value),
+      theme,
+    );
+    const { members } = await setup(page);
+    await page.clock.setFixedTime(new Date("2026-10-24T07:00:00Z"));
+    const times = [
+      "2026-10-24T06:50:00Z",
+      "2026-10-23T06:00:00Z",
+      "2026-10-21T06:00:00Z",
+      "2026-10-18T06:00:00Z",
+      "2026-10-17T06:00:00Z",
+      "2026-10-16T06:00:00Z",
+    ];
+    const directs = members
+      .filter((member) => member.role !== "human")
+      .map((member, index) => ({
+        id:
+          member.role === "advisor"
+            ? dm
+            : `10000000-0000-0000-0000-${String(index + 10).padStart(12, "0")}`,
+        key: `dm:${member.role}`,
+        name: member.name,
+        member_id: member.id,
+        unread: index === 0 ? 3 : 0,
+        last_at: times[index],
+        last_message: {
+          author_id: member.id,
+          author_name: member.name,
+          text: `私信 ${member.name}`,
+          created_at: times[index],
+        },
+        working_member_ids: [],
+      }));
+    await page.route("**/api/v1/research/workspaces/*/team", (route) =>
+      route.fulfill({
+        json: {
+          workspace_id: workspace,
+          members: members.map((member) => ({
+            ...member,
+            status: member.role === "advisor" ? "working" : "idle",
+          })),
+          channels: [
+            ...[...directs].reverse(),
+            {
+              id: channel,
+              key: "experiments",
+              name: "实验",
+              member_id: null,
+              unread: 12,
+              last_at: "2026-10-24T06:40:00Z",
+              last_message: {
+                author_id: "advisor",
+                author_name: "advisor",
+                text: "已核对",
+                created_at: "2026-10-24T06:40:00Z",
+              },
+              working_member_ids: ["advisor"],
+            },
+          ],
+          notifications: [],
+          threads_unread: 9,
+          mentions_unread: 2,
+        },
+      }),
+    );
+    await page.reload();
+    const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+    const conversations = sidebar.getByRole("group", {
+      name: "消息",
+      exact: true,
+    });
+    const frequent = sidebar.getByRole("group", {
+      name: "常用成员",
+      exact: true,
+    });
+    await expect(frequent.getByRole("link")).toHaveCount(5);
+    await expect(frequent.getByRole("link")).toHaveText([
+      "advisor",
+      "executor",
+      "librarian",
+      "reviewer",
+      "writer",
+    ]);
+    await expect(conversations.getByRole("link")).toHaveCount(7);
+    for (const [index, name] of [
+      "advisor",
+      "实验",
+      "executor",
+      "librarian",
+      "reviewer",
+      "writer",
+      "distiller",
+    ].entries())
+      await expect(
+        conversations.getByRole("link").nth(index),
+      ).toHaveAccessibleName(name);
+    const experiment = conversations.getByRole("link", {
+      name: "实验",
+      exact: true,
+    });
+    await expect(experiment).toHaveAttribute("aria-current", "page");
+    await expect(
+      experiment.getByText("工作中…", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      experiment.getByLabel("12 条未读", { exact: true }),
+    ).toHaveText("12");
+    const advisor = conversations.getByRole("link", {
+      name: "advisor",
+      exact: true,
+    });
+    await expect(advisor).toContainText("advisor：私信 advisor");
+    await expect(advisor.getByText("工作中…", { exact: true })).toHaveCount(0);
+    await expect(advisor.getByLabel("3 条未读", { exact: true })).toHaveText(
+      "3",
+    );
+    await expect(advisor.locator("time")).toHaveText("14:50");
+    await expect(
+      conversations
+        .getByRole("link", { name: "executor", exact: true })
+        .locator("time"),
+    ).toHaveText("昨天");
+    await expect(
+      conversations
+        .getByRole("link", { name: "librarian", exact: true })
+        .locator("time"),
+    ).toHaveText("星期三");
+    await expect(
+      conversations
+        .getByRole("link", { name: "reviewer", exact: true })
+        .locator("time"),
+    ).toHaveText("10月18日");
+    for (const [label, count] of [
+      ["线程", 9],
+      ["提及我的", 2],
+    ] as const) {
+      const shortcut = sidebar
+        .getByRole("link", { name: label, exact: true })
+        .locator("xpath=ancestor::div[1]");
+      const badge = shortcut.getByLabel(`${count} 条未读`, { exact: true });
+      await expect(badge).toHaveText(String(count));
+      const color = await badge.evaluate((node) => {
+        const probe = document.createElement("span");
+        probe.style.color = "var(--ui-danger)";
+        node.appendChild(probe);
+        const expected = getComputedStyle(probe).color;
+        probe.remove();
+        return expected;
+      });
+      await expect(badge).toHaveCSS("background-color", color);
+    }
+    const add = sidebar.getByRole("button", { name: "新建频道", exact: true });
+    await add.click();
+    await expect(
+      page.getByRole("dialog", { name: "新建频道", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    await frequent.getByRole("link", { name: "writer", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(directs[4].id));
+    await expect(
+      conversations.getByRole("link", { name: "writer", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+    await page.setViewportSize({ width: 720, height: 900 });
+    await expect(sidebar).toHaveAttribute("data-floating", "true");
+    await expect(sidebar).toHaveAttribute("data-collapsed", "true");
+    await sidebar
+      .getByRole("button", { name: "展开侧栏", exact: true })
+      .click();
+    await expect(conversations).toBeVisible();
+    await expect(
+      sidebar.getByRole("link", { name: "团队设置", exact: true }),
+    ).toBeVisible();
+    expect(
+      await sidebar.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
   });
 }

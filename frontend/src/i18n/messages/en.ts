@@ -21,7 +21,9 @@ export const en = {
   "members.restoreBuiltin": "Restore built-in file",
   "members.permission.file_readonly": "Read-only files",
   "members.name": "Name",
-  "members.color": "Avatar color",
+  "members.avatar": "Avatar",
+  "members.anotherAvatar": "Another one",
+  "members.uploadAvatar": "Upload image",
   "members.description": "Role description",
   "members.permissions": "Access",
   "members.permission.readonly": "Read only",
@@ -78,6 +80,12 @@ export const en = {
   "team.mentions": "Mentions",
   "team.channels": "Channels",
   "team.direct": "Direct messages",
+  "team.messages": "Messages",
+  "team.frequentMembers": "Frequent members",
+  "team.workingPreview": "Working…",
+  "team.yesterday": "Yesterday",
+  "team.preview": "{author}: {text}",
+  "team.unreadCount": "{count} unread",
   "team.addChannel": "Create channel",
   "team.channelName": "Channel name",
   "team.renameChannel": "Rename channel",
@@ -113,6 +121,21 @@ export const en = {
   "team.immediate": "Send now",
   "team.queue": "Queue",
   "team.withdraw": "Withdraw",
+  "team.agent": "Agent",
+  "team.limitReached": "Limit reached",
+  "team.participants": "Humans {humans} · Agents {agents}",
+  "team.search": "Search",
+  "team.files": "Files",
+  "team.sidePanel": "Outputs",
+  "team.showPanel": "Show outputs",
+  "team.hidePanel": "Hide outputs",
+  "team.progress": "Progress",
+  "team.deliverables": "Deliverables",
+  "team.sources": "Sources",
+  "team.open": "Open",
+  "team.handoff": "Hand off to {name}",
+  "team.sendTo": "Send to {name}",
+  "team.mention": "Mention",
   "team.message": "Message",
   "team.status.idle": "Idle",
   "team.status.working": "Working",
@@ -244,14 +267,10 @@ export const en = {
   "reader.translation.addModel": "Add a model…",
   "reader.translation.retranslate": "Translate this page again",
   "reader.layout.region": "Full translation",
-  "reader.layout.timeNote":
-    "It takes a few minutes. You can keep reading the original meanwhile.",
   "reader.layout.checking": "Checking for a translation…",
-  "reader.layout.disabledNote":
-    "This installation has no layout translation set up. Switch to Parallel to read a translation page by page.",
-  "reader.layout.noModel":
-    "Add a model in Settings first, so the paper can be translated.",
-  "reader.layout.toSettings": "Open Settings",
+  "reader.layout.disabledNote": "Layout translation unavailable",
+  "reader.layout.noModel": "No model configured",
+  "reader.layout.toSettings": "Add model",
   "reader.layout.queued": "Waiting to start…",
   "reader.layout.percent": "{percent}%",
   "reader.layout.cancel": "Cancel translation",
@@ -262,19 +281,14 @@ export const en = {
     "Couldn't cancel the translation. Try again in a moment.",
   "reader.layout.offline": "Couldn't reach the service. Trying again.",
   "reader.layout.noSource": "arXiv has no LaTeX source for this version.",
-  "reader.layout.latexMissingNote":
-    "An arXiv paper is translated from its LaTeX source and compiled on this computer. Install the compiler once to do that.",
+  "reader.layout.latexMissingNote": "LaTeX compiler not installed",
   "reader.engine.title": "Full translation",
   "reader.engine.switch": "Translation method",
   "reader.engine.latex.name": "Source recompile",
-  "reader.engine.latex.about":
-    "Translates the arXiv LaTeX source and compiles it again: the best typography. Only for arXiv papers that have source.",
   "reader.engine.latex.start": "Start source recompile",
   "reader.engine.latex.unsupported":
     "Needs an arXiv paper's LaTeX source; this paper isn't one.",
   "reader.engine.pdf.name": "Layout translation",
-  "reader.engine.pdf.about":
-    "Translates the original PDF with BabelDOC and keeps its layout. Works for any PDF.",
   "reader.engine.pdf.start": "Start layout translation",
   "reader.engine.state.idle": "Not started",
   "reader.engine.state.running": "Running",
@@ -353,8 +367,8 @@ export const en = {
   "reader.translate.copied": "Copied",
   "reader.translate.copyFailed":
     "Couldn't copy. Select the text and copy it yourself.",
-  "reader.translate.noModel": "Add a model in Settings to translate.",
-  "reader.translate.settings": "Open Settings",
+  "reader.translate.noModel": "No model configured",
+  "reader.translate.settings": "Add model",
   "reader.translate.failed": "The translation didn't finish. Try again.",
   "reader.translate.stopped": "The translation was stopped.",
   "reader.region.tool": "Box a figure or formula (or hold Alt and drag)",
@@ -379,9 +393,8 @@ export const en = {
   "reader.region.copyLatex": "Copy LaTeX",
   "reader.region.copyFailed":
     "Couldn't copy. Select the text and copy it yourself.",
-  "reader.region.noModel": "Add a model in settings to explain a boxed region.",
-  "reader.region.noVision":
-    "This model can't read images, so this uses only the text inside the box and on the page, not the figure itself.",
+  "reader.region.noModel": "No model configured",
+  "reader.region.noVision": "This model can't see images",
   "reader.region.failed": "That didn't finish. Try again.",
   "reader.region.stopped": "Stopped.",
   "reader.region.prompt.explain":
@@ -398,9 +411,8 @@ export const en = {
   "reader.parallel.failed": "Failed",
   "reader.parallel.failedReason": "This page couldn't be translated.",
   "reader.parallel.figure": "Text in the figure",
-  "reader.parallel.noModel":
-    "Add a model in Settings to read a translation beside the paper.",
-  "reader.parallel.settings": "Open Settings",
+  "reader.parallel.noModel": "No model configured",
+  "reader.parallel.settings": "Add model",
   "reader.notes.title": "Notes on {title}",
   "reader.notes.editor": "Note text",
   "reader.notes.placeholder": "Write something…",
@@ -484,11 +496,9 @@ export const en = {
   "reader.tab.notes": "Notes",
   "reader.guide.loading": "Loading the guide…",
   "reader.guide.working": "Generating the guide…",
-  "reader.guide.noModel":
-    "Add a model in settings, and a guide to this paper can be made.",
-  "reader.guide.openSettings": "Open settings",
-  "reader.guide.idle":
-    "A guide sets out the paper's question, method, results and limits, with the pages they come from.",
+  "reader.guide.noModel": "No model configured",
+  "reader.guide.openSettings": "Add model",
+  "reader.guide.idle": "No guide yet",
   "reader.guide.generate": "Generate guide",
   "reader.guide.failed": "The guide could not be generated.",
   "reader.guide.stopped": "Generating the guide was stopped.",
@@ -502,8 +512,7 @@ export const en = {
   "reader.keypoints.method": "Method",
   "reader.keypoints.results": "Results",
   "reader.keypoints.limits": "Limitations",
-  "reader.keypoints.idle":
-    "Find the sentences that state what is new, how it is done, what it achieved and where it falls short.",
+  "reader.keypoints.idle": "No key sentences yet",
   "reader.keypoints.generate": "Find key sentences",
   "reader.keypoints.working": "Finding key sentences…",
   "reader.keypoints.failed": "The key sentences could not be found.",
@@ -519,9 +528,8 @@ export const en = {
   "reader.assistant.explainPrompt":
     "Explain this passage: what it says, why it matters, and how it fits the surrounding argument.",
   "reader.assistant.stop": "Stop answering",
-  "reader.assistant.noModel":
-    "Add a model in Settings first, so the assistant can answer.",
-  "reader.assistant.toSettings": "Open Settings",
+  "reader.assistant.noModel": "No model configured",
+  "reader.assistant.toSettings": "Add model",
   "reader.assistant.offline": "The connection dropped; trying again.",
   "reader.assistant.notReady":
     "The conversation is not ready yet; try again in a moment.",
@@ -542,8 +550,7 @@ export const en = {
   "reader.assistant.image.tooMany": "At most {count} images per question.",
   "reader.assistant.image.tooLarge": "Each image must be under 20 MB.",
   "reader.assistant.image.wait": "Waiting for images to upload…",
-  "reader.assistant.image.noVision":
-    "This model can't see images; it will answer from the text only.",
+  "reader.assistant.image.noVision": "This model can't see images",
   "reader.assistant.image.drop": "Drop images to add them",
   "reader.assistant.image.alt": "Attached image",
   "reader.assistant.dock.detach": "Move out of the panel, over the paper",
@@ -822,8 +829,6 @@ export const en = {
     "Synced {date}: {downloaded} downloaded from the site, {uploaded} uploaded to it.",
   "settings.cloud.withoutPdf":
     "{n} papers on the site have no PDF and were not synced.",
-  "settings.cloud.scope":
-    "Syncing only adds, never deletes: a paper one side lacks is copied to the other with its PDF, and papers with the same PDF are the same paper. Notes, highlights and later edits are not synced yet. Disconnecting only makes this computer forget the token; to cancel it for good, revoke it on the hosted site under Settings → Sharing and access.",
   "settings.cloud.failed": "Operation failed",
   "settings.access.title": "Share links and credentials",
   "settings.shares.title": "Share links",
@@ -845,8 +850,6 @@ export const en = {
     "The agent using “{name}” loses access right away.",
   "settings.tokens.revoked": "Credential revoked.",
   "settings.layoutInstall.title": "Layout translation",
-  "settings.layoutInstall.about":
-    "Translates a PDF with its layout kept, figures and formulas where they were. It runs on this computer and needs a one-time install.",
   "settings.layoutInstall.installed": "Installed",
   "settings.layoutInstall.start": "Install layout translation",
   "settings.layoutInstall.cancel": "Cancel install",
@@ -862,16 +865,12 @@ export const en = {
   "settings.layoutInstall.stage.assets": "Downloading layout models and fonts…",
   "settings.layoutInstall.stage.finish": "Finishing…",
   "settings.latexInstall.title": "LaTeX translation",
-  "settings.latexInstall.about":
-    "Translates an arXiv paper from its LaTeX source and compiles it into a new PDF. It uses the Tectonic compiler on this computer, installed once.",
   "settings.latexInstall.installed": "Installed",
   "settings.latexInstall.start": "Install the LaTeX compiler",
   "settings.latexInstall.cancel": "Cancel install",
   "settings.latexInstall.cancelled":
     "The install was cancelled. Nothing was left behind.",
   "settings.latexInstall.failed": "The install could not be finished.",
-  "settings.latexInstall.sizeNote":
-    "Downloads Tectonic, and the LaTeX packages and Chinese fonts it needs, into its own folder. Papers fetch further packages as they are compiled.",
   "settings.latexInstall.progress": "Install progress",
   "settings.latexInstall.percent": "{percent}%",
   "settings.latexInstall.stage.download": "Downloading Tectonic…",
@@ -1171,7 +1170,7 @@ export const en = {
   "reader.assistant.model.defaulted": "{name} is now the default model.",
   "reader.assistant.model.defaultError":
     "Could not set the default model. Try again.",
-  "reader.assistant.model.settings": "Add or import models in Settings",
+  "reader.assistant.model.settings": "Manage models",
   "reader.assistant.effort.menu": "Thinking effort",
   "reader.assistant.effort.current": "Thinking effort: {name}",
   "reader.assistant.effort.default": "Default",
@@ -1244,8 +1243,7 @@ export const en = {
   "commands.clone": "Copy this conversation to go on with apart",
   "commands.cloned": "Copied into a new conversation",
   "commands.copy": "Copy the last answer",
-  "commands.compact":
-    "Compact the context: summarize the conversation so far; add what to keep after it",
+  "commands.compact": "Compact context",
   "commands.compacting": "Compacting the context…",
   "commands.compacted":
     "Context compacted: the earlier conversation is now a summary.",
@@ -1644,7 +1642,7 @@ export const en = {
   "workspace.searchResearch": "Search research",
   "workspace.mergeInto": "Merge into workspace",
   "workspace.system": "System",
-  "workspace.configureModel": "Configure a model",
+  "workspace.configureModel": "Add model",
   "workspace.chooseFolder": "Choose a local or SSH folder",
   "workspace.machineHeading": "Where will you work?",
   "workspace.addMachine": "Add an SSH machine",

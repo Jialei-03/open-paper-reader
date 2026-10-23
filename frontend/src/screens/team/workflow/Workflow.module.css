@@ -257,17 +257,6 @@
   font-weight: var(--ui-weight-strong);
 }
 
-.avatar {
-  display: grid;
-  place-items: center;
-  width: var(--ui-control-md);
-  height: var(--ui-control-md);
-  border-radius: var(--ui-r-pill);
-  background: var(--ui-bg-3);
-  color: var(--ui-fg-1);
-  font-size: var(--ui-text-12);
-}
-
 .nodeStatus {
   display: flex;
   align-items: center;

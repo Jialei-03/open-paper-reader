@@ -6,6 +6,7 @@
 
 - 成员：`{ "id": str, "name": str, "kind": "human" | "agent", "role": str }`。内置 agent 的 role：`advisor`（导师）、`executor`（执行者）、`librarian`（文献员）、`reviewer`（评审）、`writer`（写手）、`distiller`（提炼者）。我（研究者）的 role 是 `owner`。
 - 成员还可带 `enabled: bool`、`subscriptions: str[]`，用于过滤停用成员和按频道订阅投递。数据库中的研究者角色 `human` 在这里映射为 `kind=human, role=owner`。
+- 成员头像输出 `avatar` 原字符串、`avatar_url`（安全图片接口或 `null`）和 `avatar_seed`（缺省像素动物种子）；画布沿用同一组头像数据。
 - 频道：`{ "id": str, "name": str, "kind": "channel" | "dm" }`。
 
 ## 规则（Rule）

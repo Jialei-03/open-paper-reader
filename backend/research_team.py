@@ -2,6 +2,7 @@
 
 import json
 import re
+from html import unescape
 from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import or_, select, update
@@ -42,6 +43,48 @@ ACTIVE = {"queued", "running"}
 
 def normalize(text):
     return str(text or "").replace("\\n", "\n")
+
+
+def preview_text(text):
+    """A single plain-text line for the conversation list."""
+    # ponytail: preview-only cleanup; use a Markdown parser for complex nesting.
+    text = normalize(text)
+    text = re.sub(r"(?m)^\s{0,3}(?:`{3,}|~{3,}).*$", "", text)
+    text = re.sub(r"(?m)^\s{0,3}\[[^\]]+\]:\s+.*$", "", text)
+    text = re.sub(
+        r"!?\[([^\]]*)\]\((?:[^()\n]|\([^()\n]*\))*\)|!?\[([^\]]*)\]\[[^\]]*\]",
+        lambda m: m[1] or m[2] or "",
+        text,
+    )
+    text = re.sub(r"<((?:https?://|mailto:)[^>]+)>", r"\1", text)
+    text = re.sub(r"<!--.*?-->|</?[A-Za-z][^>]*>", "", text, flags=re.DOTALL)
+    divider = (
+        r"(?m)^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*(?:\|[ \t]*:?-{3,}:?[ \t]*)+\|?[ \t]*$"
+    )
+    if re.search(divider, text):
+        text = re.sub(divider, "", text)
+        text = re.sub(r"(?m)^.*\|.*$", lambda m: re.sub(r"(?<!\\)\|", " ", m[0]), text)
+    text = re.sub(
+        r"(?m)^\s{0,3}(?:#{1,6}\s+|(?:>\s*)+|[-+*]\s+|\d+[.)]\s+|(?:[-*_]\s*){3,}$|[=-]+$)",
+        "",
+        text,
+    )
+    text = re.sub(r"(?m)^\s*\[[ xX]\]\s+", "", text)
+    text = re.sub(r"(?<!\\)(`+)(.*?)(?<!\\)\1", r"\2", text, flags=re.DOTALL)
+    text = re.sub(
+        r"(?<!\\)(\*{1,3}|~~)(?=\S)(.*?\S)(?<!\\)\1",
+        r"\2",
+        text,
+        flags=re.DOTALL,
+    )
+    text = re.sub(
+        r"(?<![A-Za-z0-9_\\])(_{1,3})(?=\S)(.*?\S)(?<!\\)\1(?![A-Za-z0-9_])",
+        r"\2",
+        text,
+        flags=re.DOTALL,
+    )
+    text = re.sub(r"\\([\\`*_{}\[\]()#+.!>~-])", r"\1", text)
+    return " ".join(unescape(text).split())[:80]
 
 
 def stable(workspace, key):
@@ -319,6 +362,8 @@ def run_out(run):
         k: getattr(run, k)
         for k in (
             "id",
+            "model_config_id",
+            "model",
             "status",
             "response",
             "error",
@@ -528,6 +573,25 @@ def history(d, workspace, channel, thread_id=None):
         )
     return {
         "research": research,
+        # The conversation panel includes work and outputs inside its threads.
+        "activity": (
+            [
+                *rows,
+                *[
+                    message_out(d, message)
+                    for message in d.scalars(
+                        select(TeamMessage)
+                        .where(
+                            TeamMessage.channel_id == channel.id,
+                            TeamMessage.thread_id.is_not(None),
+                        )
+                        .order_by(TeamMessage.created_at, TeamMessage.id)
+                    )
+                ],
+            ]
+            if not thread_id
+            else []
+        ),
         "messages": sorted(rows, key=lambda m: (m["created_at"], m["id"])),
         "root": (
             research_root(root, channel, d)
@@ -550,16 +614,55 @@ def overview(d, workspace):
             )
         )
     )
-    from .team_members import config, file_out
+    from .team_members import avatar_out, config, file_out
 
-    queued = set(
-        d.scalars(
-            select(TeamDelivery.member_id).where(
+    active_deliveries = list(
+        d.execute(
+            select(TeamDelivery.member_id, TeamMessage.channel_id)
+            .join(TeamMessage, TeamMessage.id == TeamDelivery.message_id)
+            .outerjoin(AgentRun, AgentRun.id == TeamDelivery.run_id)
+            .where(
                 TeamDelivery.member_id.in_([member.id for member in members]),
-                TeamDelivery.status == "queued",
+                TeamMessage.workspace_id == workspace.id,
+                TeamDelivery.status.in_(["queued", "running", "steering"]),
+                or_(TeamDelivery.run_id.is_(None), AgentRun.status.in_(ACTIVE)),
             )
         )
     )
+    queued = {member_id for member_id, _ in active_deliveries}
+    working = {c.id: set() for c in channels}
+    for member_id, channel_id in active_deliveries:
+        if channel_id in working:
+            working[channel_id].add(member_id)
+    # A member can also have native research or legacy chat work in parallel.
+    for run, session_kind in d.execute(
+        select(AgentRun, AgentSession.kind)
+        .join(AgentSession, AgentSession.id == AgentRun.session_id)
+        .where(
+            AgentRun.owner == workspace.owner,
+            AgentRun.status.in_(ACTIVE),
+            or_(
+                AgentSession.workspace_id == workspace.id,
+                AgentRun.session_id.in_(
+                    select(ResearchProject.session_id).where(
+                        ResearchProject.workspace_id == workspace.id
+                    )
+                ),
+                AgentRun.runtime["team"]["workspace_id"].as_string() == workspace.id,
+            ),
+        )
+    ):
+        origin = (run.runtime or {}).get("team", {})
+        if not origin and (run.runtime or {}).get("research"):
+            origin = research_context(d, run.runtime["research"], workspace.owner) or {}
+        channel_id, member_id = origin.get("channel_id"), origin.get("member_id")
+        if not origin and session_kind in {"project_lead", "project_chat"}:
+            channel_id, member_id = (
+                stable(workspace, "dm:advisor"),
+                stable(workspace, "advisor"),
+            )
+        if channel_id in working and member_id in {m.id for m in members}:
+            working[channel_id].add(member_id)
     statuses = []
     for member in members:
         run = (
@@ -595,6 +698,7 @@ def overview(d, workspace):
                 id=member.id,
                 role=member.role,
                 **config(member),
+                **avatar_out(member, workspace.owner),
                 **(file_out(member) if member.role != "human" else {}),
                 library_id=member.library_id,
                 builtin=member.role in ROLES,
@@ -618,11 +722,28 @@ def overview(d, workspace):
         d.scalars(
             select(TeamMessage)
             .where(TeamMessage.workspace_id == workspace.id)
-            .order_by(TeamMessage.created_at)
+            .order_by(TeamMessage.created_at, TeamMessage.id)
         )
     )
     human = stable(workspace, "human")
     participating = {m.thread_id or m.id for m in messages if m.author_id == human}
+    thread_roots = participating | {m.thread_id for m in messages if m.thread_id}
+    unread_messages = [
+        m for m in messages if m.author_id != human and not m.data.get("read")
+    ]
+    previews = {}
+    for message in messages:
+        previews[message.channel_id] = message
+    last_messages = {}
+    names = {m.id: m.name for m in members}
+    for channel_id, message in previews.items():
+        value = message_out(d, message)
+        last_messages[channel_id] = {
+            "author_id": message.author_id,
+            "author_name": names.get(message.author_id, ""),
+            "text": preview_text(value["text"]),
+            "created_at": message.created_at,
+        }
     unread = []
     for channel in channels:
         count = 0
@@ -662,10 +783,19 @@ def overview(d, workspace):
                 name=c.name,
                 member_id=c.member_id,
                 unread=c.unread_count,
+                last_message=last_messages.get(c.id),
+                last_at=last_messages[c.id]["created_at"]
+                if c.id in last_messages
+                else c.created_at,
+                working_member_ids=sorted(working[c.id]),
             )
             for c in channels
         ],
         notifications=unread[-100:],
+        threads_unread=sum(
+            (m.thread_id or m.id) in thread_roots for m in unread_messages
+        ),
+        mentions_unread=sum(human in m.mentions for m in unread_messages),
         tokens=tokens(d, workspace=workspace),
         max_tokens=limits(workspace)["max_tokens"],
         budget=limits(workspace),

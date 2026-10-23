@@ -19,6 +19,7 @@ export interface MemberConfig {
   tools?: string[] | null;
   wake_minutes?: number;
   avatar_color: string;
+  avatar?: string;
   role_description: string;
   model_config_id: string;
   permissions: MemberPermissions;
@@ -36,6 +37,10 @@ export interface AgentFile {
   file_path?: string;
   file_error?: string;
 }
+export interface AvatarUpload {
+  extension: "png" | "jpg" | "jpeg" | "webp" | "svg";
+  content: string;
+}
 export interface LibraryMember extends AgentFile {
   id: string;
   version: number;
@@ -43,6 +48,8 @@ export interface LibraryMember extends AgentFile {
   teams: string[];
 }
 export interface TeamMember extends Partial<MemberConfig>, AgentFile {
+  avatar_url?: string | null;
+  avatar_seed?: string;
   library_id?: string | null;
   builtin?: boolean;
   enabled?: boolean;
@@ -63,7 +70,23 @@ export interface TeamChannel {
   name: string;
   member_id: string | null;
   unread: number;
+  last_message?: {
+    author_id: string | null;
+    author_name: string;
+    text: string;
+    created_at: string;
+  } | null;
+  last_at?: string;
+  working_member_ids?: string[];
 }
+export type TeamPaperLink =
+  | string
+  | {
+      title?: string;
+      name?: string;
+      url?: string;
+      href?: string;
+    };
 export interface TeamMessage {
   id: string;
   channel_id: string;
@@ -73,6 +96,11 @@ export interface TeamMessage {
   kind: string;
   mentions: string[];
   data: {
+    to?: string[];
+    paper?: TeamPaperLink;
+    papers?: TeamPaperLink[];
+    citation?: TeamPaperLink;
+    citations?: TeamPaperLink[];
     rule?: string;
     workflow?: string;
     workflow_version?: number;
@@ -90,13 +118,18 @@ export interface TeamMessage {
   created_at: string;
   last_message_at?: string;
   replies: number;
-  run?: Omit<ResearchRun, "role">;
+  run?: Omit<ResearchRun, "role"> & {
+    model_config_id?: string;
+    model?: string;
+  };
 }
 export interface Team {
   workspace_id: string;
   members: TeamMember[];
   channels: TeamChannel[];
   notifications: TeamMessage[];
+  threads_unread?: number;
+  mentions_unread?: number;
   workflow?: Workflow;
   runtime?: WorkflowRuntime;
   budget?: TeamBudget;
@@ -126,6 +159,7 @@ export const saveTeamBudget = (id: string, budget: TeamBudget) =>
 export const getMessages = (id: string, channel: string, thread?: string) =>
   api<{
     messages: TeamMessage[];
+    activity?: TeamMessage[];
     root: TeamMessage | null;
     research_id: string | null;
   }>(
@@ -228,8 +262,9 @@ export const addTeamMember = (
     library_id?: string;
     copy_from?: string;
     subscriptions?: string[];
+    avatar_upload?: AvatarUpload;
   },
-) => send(`${base(id)}/members`, body);
+) => saveMember(`${base(id)}/members`, body, "POST");
 export const editTeamMember = (
   id: string,
   member: string,
@@ -241,8 +276,19 @@ export const editTeamMember = (
     reset_overrides?: boolean;
     restore_builtin?: boolean;
     revision?: string;
+    avatar_upload?: AvatarUpload;
   },
-) => send(`${base(id)}/members/${member}`, body, "PATCH");
+) => saveMember(`${base(id)}/members/${member}`, body, "PATCH");
+const saveMember = (
+  path: string,
+  body: { avatar_upload?: AvatarUpload },
+  method: string,
+) =>
+  api(path, {
+    method,
+    body: JSON.stringify(body),
+    headers: body.avatar_upload ? { "X-Avatar-Upload": "1" } : undefined,
+  });
 export const deleteTeamMember = (id: string, member: string) =>
   send(`${base(id)}/members/${member}`, {}, "DELETE");
 export interface MemberDetail extends TeamMember {

@@ -24,7 +24,7 @@ import { useResearchNavigation } from "../research/ResearchNavigation";
 import { MemberStatus } from "../research/TeamNavigation";
 import { Prose } from "../research/talk/ThreadView";
 import { MemberAvatar, MemberEditor } from "./MemberEditor";
-import { memberDraft, memberName } from "./member-model";
+import { memberAvatarSeed, memberDraft, memberName } from "./member-model";
 import styles from "./Members.module.css";
 
 export function Members({
@@ -142,10 +142,7 @@ export function Members({
               onClick={() => go(settingsHash(team.workspace_id, "members"))}
             />
             <div className={styles.identity}>
-              <MemberAvatar
-                name={memberName(member, t)}
-                color={member.avatar_color}
-              />
+              <MemberAvatar member={member} />
               <h2>{memberName(member, t)}</h2>
               <span>
                 {t(
@@ -299,10 +296,7 @@ export function Members({
               )
               .map((m) => (
                 <li key={m.id}>
-                  <MemberAvatar
-                    name={memberName(m, t)}
-                    color={m.avatar_color}
-                  />
+                  <MemberAvatar member={m} />
                   <Button
                     variant="ghost"
                     onClick={() =>
@@ -393,6 +387,11 @@ export function Members({
           }
           initialSource={editing.library?.source ?? editing.member?.source}
           initialSubscriptions={editing.member?.subscriptions}
+          initialAvatarSeed={
+            editing.member ? memberAvatarSeed(editing.member) : undefined
+          }
+          initialAvatarUrl={editing.member?.avatar_url ?? undefined}
+          allowUpload={!editing.library}
           role={editing.library ? "custom" : editing.member?.role}
           builtin={!!editing.member?.builtin && !editing.library}
           creating={!editing.member}
@@ -401,7 +400,7 @@ export function Members({
           models={models}
           machines={availableMachines}
           onClose={() => setEditing(null)}
-          onSave={async (config, subscriptions, source, document) => {
+          onSave={async (config, subscriptions, source, document, upload) => {
             if (editing.library) {
               setPending({ config, source: document });
               return;
@@ -412,6 +411,7 @@ export function Members({
                 source: document,
                 subscriptions,
                 revision: editing.member.revision,
+                avatar_upload: upload,
               });
             else
               await addTeamMember(
@@ -422,6 +422,7 @@ export function Members({
                       config,
                       source: document,
                       subscriptions,
+                      avatar_upload: upload,
                       ...(source.startsWith("m:")
                         ? { copy_from: source.slice(2) }
                         : {}),

@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { Button, Dialog, IconButton } from "../../../ui";
+import { MemberAvatar } from "../MemberEditor";
 import {
   connectionToRule,
   edgeToRule,
@@ -70,9 +71,10 @@ function CanvasNode({ data }: NodeProps<WorkflowNode>) {
       ) : data.kind === "channel" ? (
         <Hash size={16} aria-hidden />
       ) : (
-        <span className={styles.avatar} aria-hidden>
-          {Array.from(name).slice(0, 2).join("")}
-        </span>
+        <MemberAvatar
+          member={data.member}
+          seed={data.member?.avatar_seed ?? data.ref}
+        />
       )}
       <span className={styles.nodeName}>{name}</span>
       {data.status && (

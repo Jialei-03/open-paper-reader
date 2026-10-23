@@ -581,3 +581,336 @@ def test_research_immediate_targets_current_round_and_cross_channel_reply(world)
         and m["text"] == "adjusted the work"
         for m in history
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "# 标题\n\n> **加粗**、_斜体_和 ~~删除~~\n- [x] `代码`",
+            "标题 加粗、斜体和 删除 代码",
+        ),
+        (
+            "[论文](https://example.invalid/paper) ![图](image.png) <b>结果</b> &amp; 后续",
+            "论文 图 结果 & 后续",
+        ),
+        (
+            "```python\nprint('hello')\n```\n[来源][ref]\n[ref]: https://example.invalid",
+            "print('hello') 来源",
+        ),
+        ("变量 foo_bar 保留\\n新行和\\*符号", "变量 foo_bar 保留 新行和*符号"),
+        ("**" + "研究" * 60 + "**", "研究" * 40),
+        ("| 姓名 | 结果 |\n| --- | :---: |\n| Ada | **通过** |", "姓名 结果 Ada 通过"),
+        (r"\*原样\* 和 \`符号\`", "*原样* 和 `符号`"),
+        ("word**bold**word", "wordboldword"),
+        ("中文**强调**内容 [来源](https://example.invalid/a(b))", "中文强调内容 来源"),
+    ],
+)
+def test_channel_preview_plain_text(source, expected):
+    assert team.preview_text(source) == expected
+
+
+def test_channel_overview_latest_reply_and_resolved_preview(world):
+    app, a, _, _, owner, model, wid, base, initial = world
+    channels = {c["key"]: c for c in initial["channels"]}
+    assert all(c["last_message"] is None and c["last_at"] for c in channels.values())
+    advisor = next(m for m in initial["members"] if m["role"] == "advisor")
+    assert (
+        a.patch(
+            base + f"/members/{advisor['id']}", json={"config": {"name": "Ada"}}
+        ).status_code
+        == 200
+    )
+    with app.state.maker() as d:
+        member = d.get(TeamMember, advisor["id"])
+        d.add(
+            TeamMessage(
+                id="preview-root",
+                workspace_id=wid,
+                channel_id=channels["general"]["id"],
+                text="旧消息",
+                created_at="2026-10-20T00:00:00Z",
+            )
+        )
+        run = AgentRun(
+            owner=owner,
+            session_id=member.session_id,
+            model_config_id=model,
+            model="Fake",
+            prompt="",
+            response="## 最新\n**" + "结论" * 60 + "**",
+            status="completed",
+        )
+        d.add(run)
+        d.flush()
+        d.add(
+            TeamMessage(
+                id="preview-reply",
+                workspace_id=wid,
+                channel_id=channels["general"]["id"],
+                thread_id="preview-root",
+                author_id=member.id,
+                data={"run_id": run.id},
+                created_at="2026-10-24T03:04:00Z",
+            )
+        )
+        d.add(
+            TeamMessage(
+                workspace_id=wid,
+                channel_id=channels["dm:advisor"]["id"],
+                author_id=member.id,
+                text="[私信](https://example.invalid)",
+                created_at="2026-10-24T04:00:00Z",
+            )
+        )
+        from backend import research_map
+
+        project = research_map.create_project(d, owner, "Preview source", "", model)
+        project.workspace_id = wid
+        sprint = ResearchSprint(
+            project_id=project.id,
+            number=1,
+            role="writer",
+            run_id=run.id,
+            status="ended",
+            summary="**引用结果**",
+        )
+        d.add(sprint)
+        d.flush()
+        d.add(
+            TeamMessage(
+                workspace_id=wid,
+                channel_id=channels["writing"]["id"],
+                kind="sprint_reference",
+                data={"sprint_id": sprint.id},
+                created_at="2026-10-24T05:00:00Z",
+            )
+        )
+        d.commit()
+    result = {c["key"]: c for c in a.get(base).json()["channels"]}
+    preview = result["general"]["last_message"]
+    assert preview == {
+        "author_id": advisor["id"],
+        "author_name": "Ada",
+        "text": ("最新 " + "结论" * 60)[:80],
+        "created_at": "2026-10-24T03:04:00Z",
+    }
+    assert result["general"]["last_at"] == preview["created_at"]
+    assert result["dm:advisor"]["last_message"]["text"] == "私信"
+    assert result["review"]["last_message"] is None
+    assert result["writing"]["last_message"]["text"] == "引用结果"
+
+
+def test_channel_overview_working_members_stay_in_their_conversation(world):
+    app, a, _, _, owner, model, wid, base, initial = world
+    channels = {c["key"]: c["id"] for c in initial["channels"]}
+    ids = {m["role"]: m["id"] for m in initial["members"]}
+    with app.state.maker() as d:
+        for key in ("general", "writing", "review"):
+            d.add(
+                TeamMessage(
+                    id=f"working-{key}",
+                    workspace_id=wid,
+                    channel_id=channels[key],
+                    text="request",
+                )
+            )
+        advisor = d.get(TeamMember, ids["advisor"])
+        run = AgentRun(
+            owner=owner,
+            session_id=advisor.session_id,
+            model_config_id=model,
+            model="Fake",
+            prompt="",
+            status="running",
+            runtime={
+                "team": {"member_id": advisor.id, "channel_id": channels["general"]}
+            },
+        )
+        d.add(run)
+        d.flush()
+        d.add_all(
+            [
+                TeamDelivery(
+                    message_id="working-general",
+                    member_id=advisor.id,
+                    run_id=run.id,
+                    status="running",
+                ),
+                TeamDelivery(
+                    message_id="working-writing", member_id=advisor.id, status="queued"
+                ),
+                TeamDelivery(
+                    message_id="working-writing",
+                    member_id=ids["writer"],
+                    status="queued",
+                ),
+                TeamDelivery(
+                    message_id="working-review",
+                    member_id=ids["reviewer"],
+                    status="cancelled",
+                ),
+            ]
+        )
+        # A stale delivery must stop lighting its conversation as soon as its run ends.
+        done = AgentRun(
+            owner=owner,
+            session_id=d.get(TeamMember, ids["reviewer"]).session_id,
+            model_config_id=model,
+            model="Fake",
+            prompt="",
+            status="completed",
+        )
+        d.add(done)
+        d.flush()
+        d.add(
+            TeamDelivery(
+                message_id="working-review",
+                member_id=ids["advisor"],
+                run_id=done.id,
+                status="running",
+            )
+        )
+        d.commit()
+    result = {
+        c["key"]: set(c["working_member_ids"]) for c in a.get(base).json()["channels"]
+    }
+    assert result["general"] == {ids["advisor"]}
+    assert result["writing"] == {ids["advisor"], ids["writer"]}
+    assert result["review"] == set()
+    assert result["dm:advisor"] == set()
+
+
+def test_channel_overview_unread_counts_are_separate_and_not_notification_limited(
+    world,
+):
+    app, a, _, _, _, _, wid, base, initial = world
+    channel = next(c["id"] for c in initial["channels"] if c["key"] == "general")
+    human = next(m["id"] for m in initial["members"] if m["role"] == "human")
+    advisor = next(m["id"] for m in initial["members"] if m["role"] == "advisor")
+    with app.state.maker() as d:
+        d.add(
+            TeamMessage(
+                id="unread-root",
+                workspace_id=wid,
+                channel_id=channel,
+                author_id=human,
+                text="request",
+            )
+        )
+        for index in range(105):
+            d.add(
+                TeamMessage(
+                    workspace_id=wid,
+                    channel_id=channel,
+                    thread_id="unread-root",
+                    author_id=advisor,
+                    mentions=[human],
+                    text=str(index),
+                )
+            )
+        d.add(
+            TeamMessage(
+                workspace_id=wid,
+                channel_id=channel,
+                author_id=advisor,
+                text="ordinary channel message",
+            )
+        )
+        d.add(
+            TeamMessage(
+                workspace_id=wid,
+                channel_id=channel,
+                thread_id="unread-root",
+                author_id=advisor,
+                mentions=[human],
+                data={"read": True},
+            )
+        )
+        d.commit()
+    result = a.get(base).json()
+    assert result["threads_unread"] == 105
+    assert result["mentions_unread"] == 105
+    assert next(c["unread"] for c in result["channels"] if c["id"] == channel) == 106
+    assert (
+        len(result["notifications"]) == 100
+    )  # Existing notification payload, not the badge's source.
+
+
+def test_channel_overview_projects_and_legacy_work_in_their_own_channels(world):
+    app, a, _, _, owner, model, wid, base, initial = world
+    from backend import research_map
+    from backend.models import AgentSession
+
+    channels = {c["key"]: c["id"] for c in initial["channels"]}
+    members = {m["role"]: m["id"] for m in initial["members"]}
+    with app.state.maker() as d:
+        project = research_map.create_project(d, owner, "Research", "", model)
+        project.workspace_id = wid
+        run = AgentRun(
+            owner=owner,
+            session_id=project.session_id,
+            model_config_id=model,
+            model="Fake",
+            prompt="",
+            status="queued",
+            runtime={"research": {"project_id": project.id, "role": "executor"}},
+        )
+        legacy_session = AgentSession(
+            owner=owner, workspace_id=wid, kind="project_chat", title="Legacy"
+        )
+        advisor = d.get(TeamMember, members["advisor"])
+        d.add_all(
+            [
+                run,
+                legacy_session,
+                AgentRun(
+                    owner=owner,
+                    session_id=advisor.session_id,
+                    model_config_id=model,
+                    model="Fake",
+                    prompt="",
+                    status="running",
+                    runtime={
+                        "team": {
+                            "workspace_id": wid,
+                            "channel_id": channels["general"],
+                            "member_id": advisor.id,
+                        }
+                    },
+                ),
+                AgentRun(
+                    owner=owner,
+                    session_id=project.session_id,
+                    model_config_id=model,
+                    model="Fake",
+                    prompt="",
+                    status="running",
+                    runtime={"research": {"project_id": project.id, "role": "scoping"}},
+                ),
+            ]
+        )
+        d.flush()
+        d.add(
+            ResearchSprint(
+                project_id=project.id, number=1, role="executor", run_id=run.id
+            )
+        )
+        d.add(
+            AgentRun(
+                owner=owner,
+                session_id=legacy_session.id,
+                model_config_id=model,
+                model="Fake",
+                prompt="",
+                status="running",
+            )
+        )
+        d.commit()
+    result = {
+        c["id"]: set(c["working_member_ids"]) for c in a.get(base).json()["channels"]
+    }
+    assert result[channels["experiments"]] == {members["executor"], members["advisor"]}
+    assert result[channels["dm:advisor"]] == {members["advisor"]}
+    assert result[channels["dm:executor"]] == set()
+    assert result[channels["general"]] == {members["advisor"]}

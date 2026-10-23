@@ -580,6 +580,7 @@ function AppResearchSidebar({
                         icon={SquarePen}
                         label={t("projects.newResearch")}
                         href={`#${newResearchHash}`}
+                        active={screen === "new-research"}
                         onClick={followLink(choose, newResearchHash)}
                       />
                     </div>

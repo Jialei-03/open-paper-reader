@@ -36,6 +36,12 @@
   /* The paper being read */
   --ui-highlight: rgba(250, 204, 21, 0.32); /* a marker pen */
   --ui-selection: rgba(28, 99, 191, 0.18);
+  --ui-own-message: rgba(
+    28,
+    99,
+    191,
+    0.1
+  ); /* the researcher's own chat bubbles */
   --ui-page-filter: none; /* a hook to tint the PDF paper; none in either theme */
   --ui-paper: #ffffff; /* a PDF page before it is drawn: white, as pdf.js paints it, in both themes */
 
@@ -188,6 +194,7 @@
 
   --ui-highlight: rgba(234, 179, 8, 0.28);
   --ui-selection: rgba(128, 182, 251, 0.32);
+  --ui-own-message: rgba(128, 182, 251, 0.18);
   /* The paper looks the same in both themes. */
   --ui-page-filter: none;
 

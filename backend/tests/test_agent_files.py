@@ -2,6 +2,10 @@
 """File definitions: all tests use temporary app data and no model/network calls."""
 
 import importlib
+import base64
+import io
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import select
@@ -52,6 +56,303 @@ def test_roundtrip_preserves_unknown_fields_comments_and_body():
     assert files.parse(updated)["role_description"] == "# Revised\n"
     assert files.parse(updated)["wake_minutes"] == 8
     assert files.parse(updated)["tools"] == ["files", "web"]
+
+
+@pytest.mark.parametrize(
+    "avatar", ["pixel:中文-seed", ".ora/avatars/ada.png", "future:animal"]
+)
+def test_avatar_roundtrip_preserves_original_and_legacy_color(avatar):
+    source = SOURCE.replace(
+        "name: Ada", f'name: Ada\navatar: "{avatar}" # keep avatar\ncolor: amber'
+    )
+    values = files.parse(source)
+    assert values["avatar"] == avatar
+    assert (
+        files.render(values, source).split("avatar:")[1].splitlines()[0]
+        == f' "{avatar}" # keep avatar'
+    )
+    # Older clients do not know this optional field.
+    legacy = MemberConfig(name="Ada").model_dump()
+    assert files.parse(files.render(legacy, source))["avatar"] == avatar
+    values["avatar"] = "pixel:another"
+    updated = files.parse(files.render(values, source))
+    assert updated["avatar"] == "pixel:another"
+    assert updated["avatar_color"] == "amber"
+    values["avatar"] = ""
+    assert "avatar:" not in files.render(values, source)
+    assert files.parse(SOURCE)["avatar"] == ""
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "../outside.png",
+        "/tmp/outside.png",
+        "a/../../outside.svg",
+        r"..\outside.jpg",
+        "C:/outside.webp",
+        "https://example.com/a.png",
+    ],
+)
+def test_avatar_rejects_non_repository_paths(tmp_path, relative):
+    with pytest.raises(ValueError):
+        files.avatar_path(tmp_path, relative)
+    with pytest.raises(files.DefinitionError) as error:
+        files.parse(SOURCE.replace("name: Ada", "name: Ada\navatar: " + relative))
+    assert error.value.line == 3
+
+
+def test_avatar_rejects_symlink_files_and_directories(tmp_path):
+    root = tmp_path / "repo"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "image.png").write_bytes(b"outside")
+    (root / "linked").symlink_to(outside, target_is_directory=True)
+    (root / "linked.png").symlink_to(outside / "image.png")
+    for relative in ("linked/image.png", "linked.png"):
+        with pytest.raises(ValueError):
+            files.avatar_path(root, relative)
+    assert (
+        files.avatar_path(root, ".ora/avatars/Ada.PNG") == root / ".ora/avatars/Ada.PNG"
+    )
+
+
+@pytest.mark.parametrize(
+    "extension,raw",
+    [
+        ("png", b"not an image"),
+        ("svg", b"not xml"),
+        ("svg", b'<html xmlns="http://www.w3.org/1999/xhtml"/>'),
+        (
+            "svg",
+            b'<!DOCTYPE svg [<!ENTITY x "x">]><svg xmlns="http://www.w3.org/2000/svg"/>',
+        ),
+    ],
+)
+def test_avatar_rejects_invalid_image_contents(extension, raw):
+    from backend.team_members import AvatarUpload
+
+    with pytest.raises(ValueError, match="Invalid avatar image"):
+        files.avatar_upload(
+            AvatarUpload(extension=extension, content=base64.b64encode(raw).decode())
+        )
+
+
+@pytest.fixture
+def avatar_app(tmp_path, monkeypatch):
+    """Exercise real team/file routes without models, credentials, sockets or git writes."""
+    from fastapi import Depends, FastAPI, Header, HTTPException
+    from fastapi.testclient import TestClient
+    from backend.config import Settings, database
+    from backend.models import Base, User
+    from backend import research_team as team
+    from backend.research_team_routes import install_team_routes
+
+    settings = Settings(
+        database_url="sqlite:///" + str(tmp_path / "avatar.db"),
+        storage=str(tmp_path / "files"),
+        testing=True,
+        mode="local",
+    )
+    engine, maker = database(settings)
+    Base.metadata.create_all(engine)
+
+    def ensure_repo(settings, workspace, **_):
+        root = repo.repo_dir(settings, workspace.id)
+        (root / ".ora/agents").mkdir(parents=True, exist_ok=True)
+        return root
+
+    git = Mock(
+        side_effect=lambda _root, *args, **_: SimpleNamespace(
+            returncode=1 if args[0] == "diff" else 0, stdout=""
+        )
+    )
+    monkeypatch.setattr(repo, "ensure_repo", ensure_repo)
+    monkeypatch.setattr(repo, "git", git)
+    monkeypatch.setattr(repo, "available", lambda: False)
+    with maker() as d:
+        d.add(User(id="owner", username="avatar-owner", password="unused"))
+        d.flush()
+        d.add(ResearchWorkspace(id="project", owner="owner", name="Avatars"))
+        d.commit()
+
+    def db():
+        with maker() as d:
+            yield d
+
+    def auth(x_owner: str = Header(default="owner")):
+        return {"id": x_owner}
+
+    def workspace_of(d, identifier, a):
+        workspace = d.get(ResearchWorkspace, identifier)
+        if not workspace or workspace.owner != a["id"]:
+            raise HTTPException(404)
+        return workspace
+
+    app = FastAPI()
+    install_team_routes(app, settings, db, auth, workspace_of)
+    base = "/api/v1/research/workspaces/project/team"
+
+    @app.get(base)
+    def overview(d=Depends(db), a=Depends(auth)):
+        result = team.overview(d, workspace_of(d, "project", a))
+        d.commit()
+        return result
+
+    with TestClient(app) as client:
+        yield client, base, repo.repo_dir(settings, "project"), git
+    engine.dispose()
+
+
+@pytest.mark.parametrize("extension", ["png", "jpg", "jpeg", "webp", "svg"])
+def test_avatar_save_upload_overview_read_and_isolation(avatar_app, extension):
+    from PIL import Image
+
+    client, base, root, git = avatar_app
+    if extension == "svg":
+        raw = b'<svg xmlns="http://www.w3.org/2000/svg"><rect width="2" height="2"/></svg>'
+    else:
+        output = io.BytesIO()
+        Image.new("RGB", (2, 2)).save(
+            output,
+            format={"png": "PNG", "jpg": "JPEG", "jpeg": "JPEG", "webp": "WEBP"}[
+                extension
+            ],
+        )
+        raw = output.getvalue()
+    result = client.post(
+        base + "/members",
+        json={
+            "source": SOURCE,
+            "avatar_upload": {
+                "extension": extension,
+                "content": base64.b64encode(raw).decode(),
+            },
+        },
+    )
+    assert result.status_code == 200, result.text
+    member_id = result.json()["id"]
+    detail = client.get(base + f"/members/{member_id}").json()
+    relative = f".ora/avatars/Ada.{extension}"
+    assert detail["avatar"] == relative
+    assert detail["avatar_seed"] == "Ada"
+    assert (root / relative).read_bytes() == raw
+    assert files.parse((root / detail["file_path"]).read_text())["avatar"] == relative
+    commit = next(
+        call for call in reversed(git.call_args_list) if call.args[1] == "commit"
+    )
+    assert commit.args[-2:] == (detail["file_path"], relative)
+    image = client.get(detail["avatar_url"])
+    assert image.status_code == 200 and image.content == raw
+    assert image.headers["content-type"] == files.AVATAR_TYPES["." + extension]
+    assert "sandbox" in image.headers["content-security-policy"]
+    assert (
+        client.get(detail["avatar_url"], headers={"X-Owner": "other"}).status_code
+        == 404
+    )
+    overview = client.get(base).json()
+    assert (
+        next(m for m in overview["members"] if m["id"] == member_id)["avatar"]
+        == relative
+    )
+    assert (
+        next(m for m in overview["members"] if m["role"] == "human")["avatar_seed"]
+        == "owner"
+    )
+    assert (
+        next(m for m in overview["members"] if m["role"] == "advisor")["avatar_seed"]
+        == "advisor"
+    )
+    # The image endpoint rechecks symlinks even after a valid avatar was saved.
+    (root / relative).unlink()
+    (root / relative).symlink_to(root / detail["file_path"])
+    assert client.get(detail["avatar_url"]).status_code == 404
+
+
+def test_avatar_edit_upload_and_invalid_upload_leave_current_files(avatar_app):
+    client, base, root, _ = avatar_app
+    member_id = client.post(base + "/members", json={"source": SOURCE}).json()["id"]
+    url = base + f"/members/{member_id}"
+    detail = client.get(url).json()
+    assert detail["avatar"] == "" and detail["avatar_url"] is None
+    raw = b'<svg xmlns="http://www.w3.org/2000/svg"/>'
+    upload = {"extension": "svg", "content": base64.b64encode(raw).decode()}
+    assert (
+        client.patch(
+            url,
+            json={
+                "source": detail["source"].replace("name: Ada", "name: Ada II"),
+                "revision": detail["revision"],
+                "avatar_upload": upload,
+            },
+        ).status_code
+        == 200
+    )
+    saved = client.get(url).json()
+    assert saved["avatar"] == ".ora/avatars/Ada II.svg"
+    assert (root / saved["avatar"]).read_bytes() == raw
+    assert (
+        client.patch(
+            url, json={"avatar_upload": {"extension": "svg", "content": "broken"}}
+        ).status_code
+        == 422
+    )
+    assert client.get(url).json()["source"] == saved["source"]
+    assert (root / saved["avatar"]).read_bytes() == raw
+    assert (
+        client.patch(
+            url, json={"source": saved["source"].replace(saved["avatar"], "pixel:new")}
+        ).status_code
+        == 200
+    )
+    changed = client.get(url).json()
+    assert changed["avatar"] == "pixel:new" and changed["avatar_url"] is None
+    assert client.get(url + "/avatar").status_code == 404
+
+
+def test_avatar_upload_uses_the_configured_upload_request_limit(cloud_env):
+    _, client, _, settings = cloud_env
+    settings.upload_limit = 3 * 1024 * 1024
+    path = "/api/v1/research/workspaces/project/team/members"
+    body = {"source": "x" * (2 * 1024 * 1024)}
+    assert client.post(path, json=body).status_code == 413
+    # Validation or authorization may fail, but an image-sized save reaches the route.
+    assert (
+        client.post(path, json=body, headers={"X-Avatar-Upload": "1"}).status_code
+        != 413
+    )
+    assert (
+        client.post(
+            path + "/agent/avatar", json=body, headers={"X-Avatar-Upload": "1"}
+        ).status_code
+        == 413
+    )
+    body["source"] = "x" * (7 * 1024 * 1024)
+    assert (
+        client.post(path, json=body, headers={"X-Avatar-Upload": "1"}).status_code
+        == 413
+    )
+
+
+def test_avatar_sandbox_policy_survives_application_middleware(cloud_env):
+    from fastapi.responses import Response
+
+    app, client, _, _ = cloud_env
+
+    @app.get("/test-avatar-policy")
+    def image():
+        return Response(
+            headers={"Content-Security-Policy": "sandbox; default-src 'none'"}
+        )
+
+    # Ahead of the frontend's catch-all route, as the real avatar route is.
+    app.router.routes.insert(0, app.router.routes.pop())
+
+    assert (
+        client.get("/test-avatar-policy").headers["content-security-policy"]
+        == "sandbox; default-src 'none'"
+    )
 
 
 @pytest.mark.parametrize(
