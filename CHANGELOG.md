@@ -105,7 +105,7 @@
 - 文库：阅读状态、标签、研究方向、集合、批量操作、全局搜索、发现论文、只读分享链接、整个工作区导出。
 
 ### 部署
-- `docker compose up` 运行完整服务（API、助手 worker、自动准备 worker、PostgreSQL）；也提供 systemd 单元、Caddy 与 nginx 示例。
+- `docker compose --env-file .env -f deploy/docker-compose.yml up` 运行完整服务（API、助手 worker、自动准备 worker、PostgreSQL）；也提供 systemd 单元、Caddy 与 nginx 示例。
 - 注册可设为仅限邀请（`REGISTRATION=invite`）；共享模型标签可用 `badge` 配置。
 - 发布清单（`scripts/release_manifest.py`）校验上线内容；一致性离线备份与加密恢复包。
 

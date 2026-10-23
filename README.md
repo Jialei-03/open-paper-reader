@@ -112,4 +112,4 @@ make test      # 后端测试
 
 ## 许可证
 
-[MIT](LICENSE)。第三方组件的许可证见 [NOTICE](NOTICE.md)。本项目与 Anthropic、OpenAI 无关联。
+[MIT](LICENSE)。第三方组件的许可证见 [NOTICE](docs/NOTICE.md)。本项目与 Anthropic、OpenAI 无关联。

@@ -219,7 +219,7 @@ def session_page(d, workspace, search="", cursor="", limit=40, archived=False):
                 ),
                 ResearchProject.workspace_id == workspace.id,
             ),
-            AgentSession.kind != "artifact",
+            AgentSession.kind.not_in(["artifact", "team_member"]),
             archived_clause if archived else ~archived_clause,
         )
     )
@@ -295,7 +295,7 @@ def search_sessions(d, owner, search="", cursor="", limit=8):
             ResearchWorkspace.owner == owner,
             ResearchWorkspace.archived.is_(False),
             AgentSession.archived_at.is_(None),
-            AgentSession.kind != "artifact",
+            AgentSession.kind.not_in(["artifact", "team_member"]),
         )
     )
     if search.strip():
@@ -459,8 +459,11 @@ def overview(d, workspace, settings=None):
     parts = [f"# 项目：{workspace.name}"]
     if workspace.description:
         parts.append(workspace.description)
-    if workspace.instructions:
-        parts.append("## 项目说明\n" + workspace.instructions)
+    from .agent_files import workspace_instructions
+
+    instructions = workspace_instructions(workspace)
+    if instructions:
+        parts.append("## 项目说明\n" + instructions)
     researches = research_workspaces.researches(d, workspace)
     if not researches:
         parts.append("这个项目里还没有研究。")
@@ -668,7 +671,7 @@ def chats(d, workspace):
             select(AgentSession)
             .where(
                 AgentSession.workspace_id == workspace.id,
-                AgentSession.kind.not_in(["research", "artifact"]),
+                AgentSession.kind.not_in(["research", "artifact", "team_member"]),
                 AgentSession.archived_at.is_(None),
                 (
                     AgentSession.id != workspace.session_id

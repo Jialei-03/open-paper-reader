@@ -14,6 +14,8 @@ export interface WorkflowMember {
   name: string;
   kind: "human" | "agent";
   role: string;
+  enabled?: boolean;
+  subscriptions?: string[];
 }
 export interface WorkflowChannel {
   id: string;
@@ -58,6 +60,7 @@ export interface WorkflowRule {
   then: {
     action: (typeof RULE_ACTIONS)[number];
     member?: string;
+    subscribers?: boolean;
     role?: string;
     instruction?: string;
     on_fail?: string;
@@ -88,6 +91,7 @@ export interface WorkflowDataProps {
   members: WorkflowMember[];
   channels: WorkflowChannel[];
   onChange(workflow: Workflow): void;
+  readOnly?: boolean;
 }
 export type WorkflowNodeTarget = { kind: "member" | "channel"; id: string };
 export type WorkflowNode = Node<
@@ -148,7 +152,9 @@ export function ruleSummary(
       ? channelName(rule.then.channel)
       : rule.then.action === "wait_for_owner"
         ? t("teamWorkflow.me")
-        : memberName(rule.then.member, rule.then.role);
+        : rule.then.subscribers
+          ? t("members.subscribers")
+          : memberName(rule.then.member, rule.then.role);
   const action = [
     target,
     t(`teamWorkflow.action.${rule.then.action}`),
@@ -287,6 +293,30 @@ export function workflowToFlow(
           (item) => item.role === "owner" && item.kind === "human",
         ) ?? members.find((item) => item.kind === "human");
       target = owner ? member(owner.id) : add("owner", "owner", "");
+    } else if (rule.then.subscribers) {
+      for (const subscriber of members.filter(
+        (m) =>
+          m.kind === "agent" &&
+          m.enabled !== false &&
+          (rule.when.channel
+            ? m.subscriptions?.includes(rule.when.channel)
+            : !!m.subscriptions?.length),
+      )) {
+        const subscriberTarget = member(subscriber.id);
+        if (subscriberTarget)
+          edges.push({
+            id: `subscriber:${rule.id}:${subscriber.id}`,
+            source,
+            target: subscriberTarget,
+            sourceHandle: "out",
+            targetHandle: "in",
+            type: "smoothstep",
+            data: { rule: rule.id, kind: "subscription" },
+            focusable: true,
+            reconnectable: false,
+          });
+      }
+      continue;
     } else target = member(rule.then.member, rule.then.role);
     // Incomplete rules still have an editable event node, without inventing references.
     if (!target) {
@@ -412,7 +442,18 @@ export function validateRule(rule: WorkflowRule): boolean {
     }
   }
   if (rule.then.action === "wake" || rule.then.action === "review") {
-    if (!rule.then.member && !rule.then.role?.trim()) return false;
+    if (
+      Number(!!rule.then.member) +
+        Number(!!rule.then.role?.trim()) +
+        Number(!!rule.then.subscribers) !==
+      1
+    )
+      return false;
+    if (
+      rule.then.subscribers &&
+      (rule.then.action !== "wake" || rule.when.event !== "message")
+    )
+      return false;
   }
   if (
     rule.then.action === "review" &&

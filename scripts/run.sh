@@ -6,5 +6,5 @@ if [[ -f .env ]]; then
   source .env
   set +a
 fi
-.venv/bin/alembic upgrade head
+.venv/bin/alembic -c pyproject.toml upgrade head
 exec .venv/bin/uvicorn backend.main:app --host 127.0.0.1 --port "${APP_PORT:-8765}" --workers 1

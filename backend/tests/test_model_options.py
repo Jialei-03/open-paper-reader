@@ -201,12 +201,12 @@ def test_translation_options_migration_preserves_existing_jobs(tmp_path, monkeyp
         connection.execute("INSERT INTO alembic_version VALUES ('0012')")
     monkeypatch.setenv("DATABASE_URL", "sqlite:///" + str(db))
     monkeypatch.setenv("APP_ENV", "development")
-    command.upgrade(Config("alembic.ini"), "0013")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0013")
     with sqlite3.connect(db) as connection:
         assert connection.execute(
             "SELECT model, model_options FROM translation_jobs"
         ).fetchone() == ("MiniMax-M3", "{}")
-    command.downgrade(Config("alembic.ini"), "0012")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0012")
     with sqlite3.connect(db) as connection:
         assert connection.execute("SELECT model FROM translation_jobs").fetchone() == (
             "MiniMax-M3",

@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix="paper-platform-e2e-") as directory:
     # Public bibliographic look-ups never leave the test machine.
     os.environ["SCHOLAR_OFFLINE"] = "1"
     subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "head"], cwd=root, check=True
+        [sys.executable, "-m", "alembic", "-c", "pyproject.toml", "upgrade", "head"], cwd=root, check=True
     )
     from backend.config import Settings, database
     from backend.main import PASSWORD

@@ -23,7 +23,15 @@ export interface ResearchRun {
   error: string;
   steps: RunStep[];
   role: string;
-  runtime: { phase?: string; execution_seconds?: number };
+  runtime: {
+    phase?: string;
+    execution_seconds?: number;
+    time_limit_reached?: boolean;
+    no_answer?: boolean;
+    max_execution_seconds?: number;
+    budget_limit?: string;
+    rule?: { rule: string; workflow: string; workflow_version: number };
+  };
   created_at: string;
   updated_at: string;
   sprint_id?: string;

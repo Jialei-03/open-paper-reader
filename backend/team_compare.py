@@ -161,7 +161,9 @@ def comparison(d, projects, *, members_by_thread=None, at=None):
                 "conclusion": _sentence(answer),
                 "numbers": _numbers(project, nodes, jobs),
                 "tokens": max(
-                    project.spent.get("tokens", 0), sum(s.tokens for s in sprints)
+                    project.spent.get("tokens", 0),
+                    sum(s.tokens for s in sprints),
+                    sum(m["tokens"] for m in members),
                 ),
                 "job_seconds": max(
                     project.spent.get("job_seconds", 0),
@@ -228,7 +230,9 @@ def create_batch(d, owner, workspace, body, create_research):
         raise HTTPException(404, "Not found")
     if workspace.kind != "eval" or workspace.archived:
         raise HTTPException(409, "评测项目不可用")
-    workflows = [definition(d, owner, id) for id in body.workflow_ids]
+    workflows = [
+        definition(d, owner, id, workspace=workspace) for id in body.workflow_ids
+    ]
     batch = ResearchEvaluationBatch(
         owner=owner,
         workspace_id=workspace.id,
@@ -289,7 +293,13 @@ def install_compare_routes(
     ):
         allowed(a, d)
         projects = [project_of(d, id, a) for id in dict.fromkeys(ids)]
-        return comparison(d, projects)
+        from .research_team import comparison_members
+
+        result = comparison(
+            d, projects, members_by_thread=comparison_members(d, projects)
+        )
+        d.commit()
+        return result
 
     @app.post("/api/v1/research/workspaces/{id}/evaluations")
     def create(id: str, body: BatchInput, a=Depends(auth), d=Depends(db)):
@@ -332,4 +342,13 @@ def install_compare_routes(
         batch = owned(d, ResearchEvaluationBatch, id, a)
         workspace_of(d, batch.workspace_id, a)
         projects = [project_of(d, cell["research_id"], a) for cell in batch.cells]
-        return {**batch_out(batch), **comparison(d, projects)}
+        from .research_team import comparison_members
+
+        result = {
+            **batch_out(batch),
+            **comparison(
+                d, projects, members_by_thread=comparison_members(d, projects)
+            ),
+        }
+        d.commit()
+        return result

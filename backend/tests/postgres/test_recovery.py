@@ -48,13 +48,13 @@ def pg_env(tmp_path, monkeypatch):
     try:
         monkeypatch.setenv("DATABASE_URL", settings.database_url)
         monkeypatch.setenv("APP_ENV", "development")
-        command.upgrade(Config("alembic.ini"), "head")
+        command.upgrade(Config(toml_file="pyproject.toml"), "head")
         app = create_app(settings)
         with app.state.engine.connect() as connection:
             assert connection.scalar(text("SELECT current_schema()")) == schema
             assert (
                 connection.scalar(text("SELECT version_num FROM alembic_version"))
-                == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+                == ScriptDirectory.from_config(Config(toml_file="pyproject.toml")).get_current_head()
             )
         with app.state.maker() as d:
             for name in ("alice", "bob"):
@@ -193,8 +193,8 @@ def test_existing_task_survives_runtime_column_upgrade(pg_env):
         json={"prompt": "Keep this existing task", "model_config_id": model},
     ).json()
     app.state.engine.dispose()
-    command.downgrade(Config("alembic.ini"), "0009")
-    command.upgrade(Config("alembic.ini"), "head")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0009")
+    command.upgrade(Config(toml_file="pyproject.toml"), "head")
     rows = a.get(f"/api/v1/agent/sessions/{session}/runs").json()
     assert len(rows) == 1
     assert rows[0]["id"] == created["id"]

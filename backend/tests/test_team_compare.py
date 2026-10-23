@@ -121,11 +121,17 @@ def test_comparison_uses_own_costs_relevant_finite_numbers_and_role_participatio
         got["elapsed_seconds"],
         got["rounds"],
     ) == (1000, 80, 3600, 3)
-    assert got["members"] == [
-        {"id": "advisor", "name": "advisor", "messages": 1, "tokens": 300},
-        {"id": "executor", "name": "executor", "messages": 2, "tokens": 700},
-        {"id": "human", "name": "human", "messages": 1, "tokens": 0},
-    ]
+    from backend.research_team import stable
+    from backend.models import ResearchWorkspace
+
+    with app.state.maker() as d:
+        workspace = d.get(ResearchWorkspace, d.get(ResearchProject, pid).workspace_id)
+        assert {m["id"]: (m["messages"], m["tokens"]) for m in got["members"]} == {
+            stable(workspace, "human"): (1, 0),
+            stable(workspace, "advisor"): (1, 300),
+            stable(workspace, "executor"): (2, 700),
+        }
+
     with app.state.maker() as d:
         p = d.get(ResearchProject, pid)
         fake = [{"id": "m1", "name": "Ada", "messages": 7, "tokens": 800}]
@@ -388,7 +394,7 @@ def test_batch_migration_is_repeatable_and_preserves_research(env):
     app, _, _, _ = env
     pid, _, _ = project(env)
     migration = importlib.import_module(
-        "backend.migrations.versions.0043_team_comparison"
+        "backend.migrations.versions.0044_team_comparison"
     )
     with app.state.engine.begin() as connection:
         ResearchEvaluationBatch.__table__.drop(connection)

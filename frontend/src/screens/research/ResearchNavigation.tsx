@@ -36,6 +36,7 @@ import { researchStatus } from "./navigation-status";
 import { threadTree } from "./thread-tree";
 import type { NavigationResearch } from "./navigation-api";
 import styles from "./Workspace.module.css";
+import { getTeam, TEAM_EVENT, teamHash, type TeamMessage } from "./team-api";
 
 const EMPTY: Navigation = { workspaces: [], collections: [] };
 const Context = createContext({
@@ -136,6 +137,35 @@ export function ResearchNotifications({ go }: { go(hash: string): void }) {
   const { t } = useI18n();
   const { data } = useResearchNavigation();
   const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState<
+    (TeamMessage & { workspace_id: string })[]
+  >([]);
+  useEffect(() => {
+    let stale = false;
+    const load = () =>
+      Promise.all(
+        data.workspaces
+          .filter((w) => !w.archived)
+          .map(async (w) => {
+            const result = await getTeam(w.id);
+            return result.notifications.map((m) => ({
+              ...m,
+              workspace_id: w.id,
+            }));
+          }),
+      ).then(
+        (results) => {
+          if (!stale) setMessages(results.flat());
+        },
+        () => undefined,
+      );
+    void load();
+    window.addEventListener(TEAM_EVENT, load);
+    return () => {
+      stale = true;
+      window.removeEventListener(TEAM_EVENT, load);
+    };
+  }, [data.workspaces]);
   const anchor = useRef<HTMLButtonElement>(null);
   const rows = data.workspaces
     .filter((w) => !w.archived)
@@ -143,8 +173,7 @@ export function ResearchNotifications({ go }: { go(hash: string): void }) {
     .filter(
       (r) =>
         !r.archived_at &&
-        (researchStatus(r) === "research.status.waiting" ||
-          (r.unread && r.status === "paused")),
+        (researchStatus(r) === "research.status.waiting" || r.unread),
     );
   return (
     <>
@@ -157,7 +186,9 @@ export function ResearchNotifications({ go }: { go(hash: string): void }) {
           aria-expanded={open}
           onClick={() => setOpen(!open)}
         />
-        {!!rows.length && <i className={styles.bellDot} />}
+        {(!!rows.length || !!messages.length) && (
+          <i className={styles.bellDot} />
+        )}
       </span>
       <Floating
         open={open}
@@ -169,11 +200,28 @@ export function ResearchNotifications({ go }: { go(hash: string): void }) {
       >
         <div role="dialog" aria-label={t("research.notifications")}>
           <h3>{t("research.notifications")}</h3>
+          {messages.map((message) => (
+            <button
+              key={message.id}
+              onClick={() => {
+                go(
+                  teamHash(
+                    message.workspace_id,
+                    message.channel_id,
+                    message.thread_id || message.id,
+                  ),
+                );
+                setOpen(false);
+              }}
+            >
+              <span>{message.text}</span>
+            </button>
+          ))}
           {rows.map((r) => (
             <button
               key={r.id}
               onClick={() => {
-                go(`research/${r.id}`);
+                go(teamHash(r.workspace_id, "", `research:${r.id}`));
                 setOpen(false);
               }}
             >
@@ -182,7 +230,7 @@ export function ResearchNotifications({ go }: { go(hash: string): void }) {
               <small>{t(researchStatus(r))}</small>
             </button>
           ))}
-          {!rows.length && (
+          {!rows.length && !messages.length && (
             <div className={styles.notificationEmpty}>
               <Bell size={24} aria-hidden />
               <span>{t("research.notifications.empty")}</span>

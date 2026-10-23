@@ -122,7 +122,7 @@ def install_agent_routes(app, settings, db, auth, human, owned):
                 {k: t[k] for k in ("name", "label", "description", "write")}
                 for t in TOOLS
                 # Research tools only exist inside research runs.
-                if not t.get("research")
+                if not t.get("research") and not t.get("team")
             ],
             "limits": agent_limits.describe(),
             "run": {

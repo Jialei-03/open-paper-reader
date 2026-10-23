@@ -17,7 +17,7 @@ Group=paper-platform
 WorkingDirectory=/srv/paper-platform/app
 EnvironmentFile=/etc/paper-platform/app.env
 # The schema is created and updated by migrations, never by the application itself.
-ExecStartPre=/srv/paper-platform/venv/bin/python -m alembic upgrade head
+ExecStartPre=/srv/paper-platform/venv/bin/python -m alembic -c pyproject.toml upgrade head
 # Behind a reverse proxy on the same host. Keep one worker: the rate limiter is per process.
 ExecStart=/srv/paper-platform/venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8765 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --no-access-log
 Restart=always

@@ -193,10 +193,10 @@ def test_annotation_migration_preserves_file(env, monkeypatch):
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
         conn.execute(text("INSERT INTO alembic_version VALUES ('0014')"))
-    command.upgrade(Config("alembic.ini"), "head")
+    command.upgrade(Config(toml_file="pyproject.toml"), "head")
     with app.state.maker() as d:
         assert d.get(File, f["id"]).name == f["name"]
         assert d.scalar(select(TextAnnotation)) is None
-    command.downgrade(Config("alembic.ini"), "0014")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0014")
     with app.state.maker() as d:
         assert d.get(File, f["id"]) is not None

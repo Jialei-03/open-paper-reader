@@ -1,6 +1,6 @@
 /*
  * Design tokens for the new interface. Their structure and values are adapted
- * from claude-web (MIT), see NOTICE.md.
+ * from claude-web (MIT), see docs/NOTICE.md.
  *
  * Each theme sets only its primaries; everything else is derived with
  * color-mix(), so a theme stays a short list. `:root` holds the light primaries,

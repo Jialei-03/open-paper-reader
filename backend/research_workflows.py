@@ -10,7 +10,7 @@ from fastapi import Depends, HTTPException
 from pydantic import Field, field_validator, model_validator
 from sqlalchemy import select, update
 
-from .models import ResearchCard, ResearchProject, ResearchWorkflow, now
+from .models import AgentRun, ResearchCard, ResearchProject, ResearchWorkflow, now
 from .schemas import Strict
 
 
@@ -174,18 +174,49 @@ BUILTINS = {
 }
 
 
-def definition(d, owner, id="research"):
-    if id in BUILTINS:
-        return deepcopy({"id": id, "version": 1, "builtin": True, **BUILTINS[id]})
-    row = d.get(ResearchWorkflow, id)
-    if row is None or row.owner != owner:
-        raise HTTPException(404, "工作流不存在")
-    return {
-        "id": row.id,
-        "name": row.name,
-        "version": row.version,
-        "builtin": False,
-        "steps": deepcopy(row.definition["steps"]),
+def definition(d, owner, id="research", *, workspace=None):
+    from .team_workflows import definition as read
+
+    return read(d, owner, id, workspace=workspace)
+
+
+def execution(project):
+    return (project.workflow_state or {}).get("execution", project.workflow or {})
+
+
+def is_native(project):
+    return not project.workflow or execution(project).get("legacy", False)
+
+
+def adopt_project(d, project):
+    """Lazy counterpart of migration 0045 for imported/in-memory old projects."""
+    from .team_workflows import pack
+
+    if "rules" in (project.workflow or {}):
+        return
+    original = project.workflow or {
+        "id": "research",
+        "version": 1,
+        "builtin": True,
+        **deepcopy(BUILTINS["research"]),
+    }
+    if original.get("legacy"):
+        from .team_rules import builtin_workflows, initial_state
+
+        flow = builtin_workflows()["research"]
+        seed = initial_state(flow)
+    else:
+        packed = pack(original)
+        flow = {
+            k: packed[k]
+            for k in ("id", "name", "version", "builtin", "rules", "layout")
+        }
+        seed = packed["initial_state"]
+    project.workflow = flow
+    project.workflow_state = {
+        **(project.workflow_state or legacy_state(project)),
+        "execution": original,
+        "rule_state": seed,
     }
 
 
@@ -196,9 +227,45 @@ def _event(d, project, action, detail, sprint=None):
     project.updated_at = now()
 
 
-def snapshot(d, project, id="research"):
-    project.workflow = definition(d, project.owner, id)
+def snapshot(d, project, id=None):
+    from .models import ResearchWorkspace
+    from .team_workflows import seed
+
+    workspace = (
+        d.get(ResearchWorkspace, project.workspace_id) if project.workspace_id else None
+    )
+    if workspace:
+        from .research_team import ensure
+
+        ensure(d, workspace)
+    id = id or (
+        workspace.workflow["id"] if workspace and workspace.workflow else "research"
+    )
+    flow = definition(d, project.owner, id, workspace=workspace)
+    if workspace:
+        from .team_workflows import references
+        from .team_rules import validate_workflow
+
+        members, channels = references(d, workspace)
+        flow = validate_workflow(flow, members=members, channels=channels)
+    # Execution metadata is only for outputs, approvals, rounds and checkpoints.
+    # Every scheduling boundary goes through the contract rules.
+    if id in BUILTINS:
+        original = {
+            "id": id,
+            "version": flow["version"],
+            "builtin": True,
+            **deepcopy(BUILTINS[id]),
+        }
+    else:
+        row = d.get(ResearchWorkflow, id)
+        original = deepcopy(row.definition.get("execution", {})) if row else {}
+        if original:
+            original.update({k: flow[k] for k in ("id", "name", "version", "builtin")})
+    project.workflow = flow
     project.workflow_state = {
+        "execution": original,
+        "rule_state": seed(d, flow),
         "current": 0,
         "steps": [
             {
@@ -210,13 +277,15 @@ def snapshot(d, project, id="research"):
                 "started_at": None,
                 "finished_at": None,
             }
-            for _ in project.workflow["steps"]
+            for _ in original.get("steps", [])
         ],
     }
-    if project.workflow.get("legacy"):
+    if is_native(project):
         sync_legacy(d, project)
-    else:
+    elif original.get("steps"):
         activate(d, project)
+    else:
+        project.stage = "workflow"
 
 
 def legacy_state(project):
@@ -245,7 +314,7 @@ def view(project):
         **deepcopy(BUILTINS["research"]),
     }
     state = deepcopy(project.workflow_state)
-    if workflow.get("legacy"):
+    if is_native(project):
         projected = legacy_state(project)
         projected["steps"] = [
             {
@@ -256,15 +325,21 @@ def view(project):
             }
             for i, item in enumerate(projected["steps"])
         ]
-        state = projected
-    return {**workflow, "state": state}
+        state = {**state, **projected}
+    return {
+        **workflow,
+        "steps": execution(project).get(
+            "steps", BUILTINS["research"]["steps"] if is_native(project) else []
+        ),
+        "state": state,
+    }
 
 
 def sync_legacy(d, project):
-    if not project.workflow.get("legacy"):
+    if not project.workflow or not is_native(project):
         return
     old = project.workflow_state or {}
-    state = legacy_state(project)
+    state = {**old, **legacy_state(project)}
     for i, item in enumerate(state["steps"]):
         previous = (old.get("steps") or [{}] * 4)[i]
         item.update({k: v for k, v in previous.items() if k != "status"})
@@ -283,7 +358,7 @@ def sync_legacy(d, project):
                     "workflow_step_finished",
                     {
                         "index": i,
-                        "name": project.workflow["steps"][i]["name"],
+                        "name": execution(project)["steps"][i]["name"],
                         "status": "completed",
                         "outputs": [],
                     },
@@ -296,7 +371,7 @@ def sync_legacy(d, project):
                     "workflow_step_started",
                     {
                         "index": i,
-                        "name": project.workflow["steps"][i]["name"],
+                        "name": execution(project)["steps"][i]["name"],
                         "status": item["status"],
                     },
                 )
@@ -304,12 +379,12 @@ def sync_legacy(d, project):
 
 
 def current(project):
-    if not project.workflow or project.workflow.get("legacy"):
+    if not project.workflow or is_native(project):
         return None
     index = project.workflow_state["current"]
     return (
-        project.workflow["steps"][index]
-        if index < len(project.workflow["steps"])
+        execution(project).get("steps", [])[index]
+        if index < len(execution(project).get("steps", []))
         else None
     )
 
@@ -375,10 +450,65 @@ def _next(d, project):
     activate(d, project)
 
 
-def complete(d, project, summary, outputs, sprint=None, *, confirmed=False):
+def complete(
+    d, project, summary, outputs, sprint=None, *, confirmed=False, routed=False
+):
     spec = current(project)
     if spec is None:
         raise ValueError("当前没有工作流步骤")
+    from .team_workflows import research_event
+
+    if not routed:
+        from .models import TeamMember
+
+        action = (
+            (d.get(AgentRun, sprint.run_id).runtime or {}).get("research", {})
+            if sprint
+            else {}
+        )
+        member = (
+            d.get(TeamMember, action.get("member_id"))
+            if action.get("member_id")
+            else None
+        )
+        role = (
+            member.role
+            if member
+            else (
+                "distiller"
+                if spec.get("action") == "retrospective"
+                else "advisor" if spec["type"] == "review" else "executor"
+            )
+        )
+        trigger = (
+            "plan_approved"
+            if confirmed and spec["type"] == "plan"
+            else (
+                "conclusion_proposed"
+                if spec["type"] == "experiment" or spec.get("action") == "conclusion"
+                else "message"
+            )
+        )
+        kind = (
+            "plan"
+            if spec["type"] == "plan"
+            else (
+                "review"
+                if spec["type"] == "review"
+                else "draft" if role == "writer" else "result"
+            )
+        )
+        research_event(
+            d,
+            project,
+            trigger,
+            role=(
+                "owner"
+                if trigger == "plan_approved"
+                else "advisor" if trigger == "conclusion_proposed" else role
+            ),
+            kind=kind,
+        )
     state = deepcopy(project.workflow_state)
     index = state["current"]
     item = state["steps"][index]
@@ -418,18 +548,20 @@ def complete(d, project, summary, outputs, sprint=None, *, confirmed=False):
             },
             sprint,
         )
-    else:
+    elif project.workflow_state.get("pending_actions"):
         _next(d, project)
+    else:
+        project.status = "waiting"
 
 
-def native_complete(d, project, kind, summary):
+def native_complete(d, project, kind, summary, *, routed=False):
     spec = current(project)
     if not spec or spec["type"] != kind:
         return False
     state = deepcopy(project.workflow_state)
     state["steps"][state["current"]]["checkpoint_pending"] = True
     project.workflow_state = state
-    complete(d, project, summary, [], confirmed=True)
+    complete(d, project, summary, [], confirmed=True, routed=routed)
     return True
 
 
@@ -440,7 +572,11 @@ def complete_action(d, project, action, summary=""):
     state = deepcopy(project.workflow_state)
     state["steps"][state["current"]]["checkpoint_pending"] = True
     project.workflow_state = state
-    complete(d, project, summary, [], confirmed=True)
+    from .team_workflows import research_event
+
+    if action == "conclusion":
+        research_event(d, project, "plan_approved", role="owner", kind="conclusion")
+    complete(d, project, summary, [], confirmed=True, routed=action == "conclusion")
     return True
 
 
@@ -449,7 +585,7 @@ def separate_conclusion(d, project):
     if not spec or spec["type"] != "experiment":
         return False
     index = project.workflow_state["current"] + 1
-    steps = project.workflow["steps"]
+    steps = execution(project)["steps"]
     if index < len(steps) and steps[index].get("action") == "conclusion":
         return native_complete(
             d, project, "experiment", project.conclusion.get("summary", "")
@@ -463,7 +599,7 @@ def reject_conclusion(d, project, note):
         return False
     state = deepcopy(project.workflow_state)
     index = state["current"]
-    if index and project.workflow["steps"][index - 1]["type"] == "experiment":
+    if index and execution(project)["steps"][index - 1]["type"] == "experiment":
         state["current"] -= 1
     state["steps"][state["current"]]["human_note"] = note
     project.workflow_state = state
@@ -486,6 +622,11 @@ def decide(d, project, request, approve, note):
     item["human_note"] = note
     project.workflow_state = state
     if approve and item["status"] == "waiting":
+        from .team_workflows import research_event
+
+        research_event(d, project, "plan_approved", role="owner", kind="plan")
+        state = deepcopy(project.workflow_state)
+        item = state["steps"][index]
         item["status"] = "completed"
         item["finished_at"] = now()
         project.workflow_state = deepcopy(state)
@@ -497,6 +638,34 @@ def decide(d, project, request, approve, note):
         )
         _next(d, project)
     else:
+        from .team_workflows import research_event, key
+        from .models import ResearchWorkspace
+
+        # Explicit redo releases the owner wait and returns to this step's entry.
+        workspace = (
+            d.get(ResearchWorkspace, project.workspace_id)
+            if project.workspace_id
+            else None
+        )
+        routing_state = deepcopy(
+            workspace.workflow_state
+            if workspace
+            else project.workflow_state.get("rule_state", {})
+        )
+        for scope in routing_state.get("threads", {}).values():
+            execution_state = scope.get("workflows", {}).get(key(project.workflow))
+            if execution_state:
+                execution_state["cursor"] = (
+                    "start" if index == 0 else f"step:{index - 1}"
+                )
+        if workspace:
+            workspace.workflow_state = routing_state
+        else:
+            project.workflow_state = {
+                **project.workflow_state,
+                "rule_state": routing_state,
+            }
+        research_event(d, project, "message", role="owner", kind="text")
         activate(d, project)
     return True
 
@@ -627,7 +796,23 @@ def review_step(settings, d, project, sprint, args):
             {"index": index, "name": spec["name"], **item},
             sprint,
         )
-        if retries > spec["max_retries"]:
+        from .team_workflows import research_event, pending
+        from .models import TeamMember
+
+        run = d.get(AgentRun, sprint.run_id)
+        member_id = (
+            (run.runtime or {}).get("research", {}).get("member_id") if run else None
+        )
+        member = d.get(TeamMember, member_id) if member_id else None
+        research_event(
+            d,
+            project,
+            "review_failed",
+            role=member.role if member else "advisor",
+            kind="review",
+        )
+        state = deepcopy(project.workflow_state)
+        if not pending(project):
             block(d, project, notes, sprint)
         else:
             state["current"] -= 1
@@ -659,67 +844,9 @@ def block(d, project, reason, sprint=None):
 
 
 def install_workflow_routes(app, settings, db, auth, allowed, owned):
-    @app.get("/api/v1/research/workflows")
-    def listing(a=Depends(auth), d=Depends(db)):
-        allowed(a, d)
-        ids = list(BUILTINS) + list(
-            d.scalars(
-                select(ResearchWorkflow.id)
-                .where(ResearchWorkflow.owner == a["id"])
-                .order_by(ResearchWorkflow.created_at)
-            )
-        )
-        return [definition(d, a["id"], id) for id in ids]
+    from .team_workflow_routes import install
 
-    @app.post("/api/v1/research/workflows")
-    def create(body: WorkflowInput, a=Depends(auth), d=Depends(db)):
-        allowed(a, d)
-        row = ResearchWorkflow(
-            owner=a["id"],
-            name=body.name,
-            definition={"steps": [s.model_dump() for s in body.steps]},
-        )
-        d.add(row)
-        d.commit()
-        return definition(d, a["id"], row.id)
-
-    @app.get("/api/v1/research/workflows/{id}")
-    def read(id: str, a=Depends(auth), d=Depends(db)):
-        allowed(a, d)
-        return definition(d, a["id"], id)
-
-    @app.put("/api/v1/research/workflows/{id}")
-    def edit(id: str, body: WorkflowInput, a=Depends(auth), d=Depends(db)):
-        allowed(a, d)
-        if id in BUILTINS:
-            raise HTTPException(409, "内置工作流只读")
-        row = owned(d, ResearchWorkflow, id, a)
-        result = d.execute(
-            update(ResearchWorkflow)
-            .where(
-                ResearchWorkflow.id == row.id, ResearchWorkflow.version == body.version
-            )
-            .values(
-                name=body.name,
-                definition={"steps": [s.model_dump() for s in body.steps]},
-                version=ResearchWorkflow.version + 1,
-                updated_at=now(),
-            )
-        )
-        if not result.rowcount:
-            raise HTTPException(409, "工作流已经更新")
-        d.commit()
-        return definition(d, a["id"], id)
-
-    @app.delete("/api/v1/research/workflows/{id}")
-    def delete(id: str, a=Depends(auth), d=Depends(db)):
-        allowed(a, d)
-        if id in BUILTINS:
-            raise HTTPException(409, "内置工作流只读")
-        row = owned(d, ResearchWorkflow, id, a)
-        d.delete(row)
-        d.commit()
-        return {"deleted": True}
+    install(app, settings, db, auth, allowed, owned)
 
 
 def round_started(project):
@@ -757,10 +884,10 @@ def checkpoints(settings, d, project):
         try:
             research_repo.adopt(settings, workspace, project)
             path = f"workflow/step-{index + 1}-{item.get('attempt', 1)}.md"
-            text = item.get("summary", "") or project.workflow["steps"][index]["name"]
+            text = item.get("summary", "") or execution(project)["steps"][index]["name"]
             content = (
                 json.dumps(project.plan, ensure_ascii=False, indent=2)
-                if project.workflow["steps"][index]["type"] == "plan"
+                if execution(project)["steps"][index]["type"] == "plan"
                 else text
             )
             _pi(
@@ -858,6 +985,9 @@ def child_tick(settings, d, project):
             background[:20000],
             project.model_config_id,
         )
+        # The child is a native research, even when the team's current workflow
+        # is read-to-write; it must not recursively spawn the parent workflow.
+        snapshot(d, child, "research")
         child.parent_id = project.id
         d.flush()
         commit = previous.get("commit_sha")

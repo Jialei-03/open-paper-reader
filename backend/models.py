@@ -502,6 +502,10 @@ class ResearchWorkspace(Base):
     # A physical folder; an empty legacy value resolves to its managed repo.
     location: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     instructions: Mapped[str] = mapped_column(Text, default="")
+    workflow: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    workflow_state: Mapped[dict] = mapped_column(
+        JSON, default=dict, server_default="{}"
+    )
     # Evaluation runs are kept apart from research a person leads.
     kind: Mapped[str] = mapped_column(String(16), default="research")
     compute_id: Mapped[str] = mapped_column(String(64), default="")
@@ -866,3 +870,158 @@ class ResearchScheduleRun(Base):
     status: Mapped[str] = mapped_column(String(16), default="running")
     research_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     error: Mapped[str] = mapped_column(Text, default="")
+
+
+class MemberLibrary(Base):
+    __tablename__ = "member_library"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    owner: Mapped[str] = mapped_column(String(100), index=True)
+    legacy_config: Mapped[dict] = mapped_column("config", JSON, default=dict)
+    file_path: Mapped[str] = mapped_column(Text, default="", server_default="")
+
+    @property
+    def config(self):
+        from .agent_files import library_config
+
+        return library_config(self)
+
+    @config.setter
+    def config(self, value):
+        self.legacy_config = value
+
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
+def _member_definition(key):
+    def read(member):
+        from .agent_files import member_value
+
+        return member_value(member, key)
+
+    def archive(member, value):
+        setattr(member, "legacy_" + key, value)
+
+    return property(read, archive)
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+    library_id: Mapped[str | None] = mapped_column(
+        ForeignKey("member_library.id", name="fk_team_members_library", use_alter=True),
+        nullable=True,
+    )
+    legacy_overrides: Mapped[list] = mapped_column(
+        "overrides", JSON, default=list, server_default="[]"
+    )
+    legacy_role_description: Mapped[str] = mapped_column(
+        "role_description", Text, default="", server_default=""
+    )
+    legacy_avatar_color: Mapped[str] = mapped_column(
+        "avatar_color", String(24), default="blue", server_default="blue"
+    )
+    legacy_permissions: Mapped[dict] = mapped_column(
+        "permissions", JSON, default=dict, server_default="{}"
+    )
+    legacy_subscriptions: Mapped[list] = mapped_column(
+        "subscriptions", JSON, default=list, server_default="[]"
+    )
+    legacy_enabled: Mapped[bool] = mapped_column(
+        "enabled", Boolean, default=True, server_default="1"
+    )
+    deleted: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    legacy_wake_turns: Mapped[int] = mapped_column(
+        "wake_turns", Integer, default=32, server_default="32"
+    )
+    legacy_wake_tokens: Mapped[int] = mapped_column(
+        "wake_tokens", Integer, default=200000, server_default="200000"
+    )
+    __table_args__ = (UniqueConstraint("workspace_id", "role"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("research_workspaces.id"), index=True
+    )
+    role: Mapped[str] = mapped_column(String(24))
+    legacy_name: Mapped[str] = mapped_column("name", String(100))
+    session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_sessions.id"), nullable=True
+    )
+    legacy_model_config_id: Mapped[str] = mapped_column(
+        "model_config_id", String(36), default=""
+    )
+    legacy_max_tokens: Mapped[int] = mapped_column(
+        "max_tokens", Integer, default=2000000
+    )
+    tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+    file_path: Mapped[str] = mapped_column(Text, default="", server_default="")
+
+    overrides = _member_definition("overrides")
+    role_description = _member_definition("role_description")
+    avatar_color = _member_definition("avatar_color")
+    permissions = _member_definition("permissions")
+    subscriptions = _member_definition("subscriptions")
+    enabled = _member_definition("enabled")
+    wake_turns = _member_definition("wake_turns")
+    wake_tokens = _member_definition("wake_tokens")
+    wake_minutes = _member_definition("wake_minutes")
+    max_tokens = _member_definition("max_tokens")
+    name = _member_definition("name")
+    model_config_id = _member_definition("model_config_id")
+
+
+class TeamChannel(Base):
+    __tablename__ = "team_channels"
+    __table_args__ = (UniqueConstraint("workspace_id", "key"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("research_workspaces.id"), index=True
+    )
+    key: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str] = mapped_column(String(100))
+    member_id: Mapped[str | None] = mapped_column(
+        ForeignKey("team_members.id"), nullable=True
+    )
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    read_at: Mapped[str] = mapped_column(String(40), default="")
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class TeamMessage(Base):
+    __tablename__ = "team_messages"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    workspace_id: Mapped[str] = mapped_column(
+        ForeignKey("research_workspaces.id"), index=True
+    )
+    channel_id: Mapped[str] = mapped_column(ForeignKey("team_channels.id"), index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    author_id: Mapped[str | None] = mapped_column(
+        ForeignKey("team_members.id"), nullable=True
+    )
+    text: Mapped[str] = mapped_column(Text, default="")
+    kind: Mapped[str] = mapped_column(String(24), default="message")
+    mentions: Mapped[list] = mapped_column(JSON, default=list)
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    relay: Mapped[int] = mapped_column(Integer, default=0)
+    source_key: Mapped[str | None] = mapped_column(
+        String(100), nullable=True, unique=True
+    )
+    created_at: Mapped[str] = mapped_column(String(40), default=now)
+
+
+class TeamDelivery(Base):
+    __tablename__ = "team_deliveries"
+    action: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    __table_args__ = (UniqueConstraint("message_id", "member_id"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
+    message_id: Mapped[str] = mapped_column(ForeignKey("team_messages.id"), index=True)
+    member_id: Mapped[str] = mapped_column(ForeignKey("team_members.id"), index=True)
+    mode: Mapped[str] = mapped_column(String(16), default="queue")
+    status: Mapped[str] = mapped_column(String(24), default="queued")
+    run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_runs.id"), nullable=True
+    )
+    control_id: Mapped[str | None] = mapped_column(
+        ForeignKey("agent_controls.id"), nullable=True
+    )
+    error: Mapped[str] = mapped_column(String(500), default="")
+    created_at: Mapped[str] = mapped_column(String(40), default=now)

@@ -46,10 +46,10 @@ install: ## Create .venv and install backend and frontend dependencies
 	npm --prefix agent-runtime ci --ignore-scripts
 
 env: ## Create .env from the example if there is none
-	@test -f .env || cp .env.example .env
+	@test -f .env || cp deploy/.env.example .env
 
 db: env ## Apply database migrations
-	set -a; . ./.env; set +a; .venv/bin/alembic upgrade head
+	set -a; . ./.env; set +a; .venv/bin/alembic -c pyproject.toml upgrade head
 
 build: ## Build the frontend (served by the API)
 	npm --prefix frontend run build
@@ -76,7 +76,7 @@ e2e: build ## Browser tests (needs: npx playwright install chromium)
 	npm --prefix frontend run test:e2e
 
 docker-up: env ## Build and start the Docker Compose stack
-	docker compose up -d --build
+	docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
 
 docker-down: ## Stop the Docker Compose stack (data volumes are kept)
-	docker compose down
+	docker compose --env-file .env -f deploy/docker-compose.yml down

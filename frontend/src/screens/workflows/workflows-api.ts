@@ -1,3 +1,4 @@
+import type { Workflow as RuleWorkflow } from "../team/workflow/workflow-model";
 import { api, send } from "../../api";
 import type { MessageKey } from "../../i18n/i18n";
 
@@ -32,6 +33,8 @@ export interface Workflow {
   version: number;
   builtin: boolean;
   steps: WorkflowStep[];
+  rules?: RuleWorkflow["rules"];
+  layout?: RuleWorkflow["layout"];
   state?: { current: number; steps: StepState[] };
 }
 export interface WorkflowInput {
@@ -40,11 +43,24 @@ export interface WorkflowInput {
   steps: WorkflowStep[];
 }
 const base = "/research/workflows";
-export const readWorkflows = () => api<Workflow[]>(base);
-export const createWorkflow = (body: WorkflowInput) =>
+export const readWorkflows = (workspaceId?: string) =>
+  api<Workflow[]>(
+    `${base}${workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : ""}`,
+  );
+export const ruleWorkflow = (item: Workflow): RuleWorkflow => ({
+  id: item.id,
+  name: item.name,
+  builtin: item.builtin,
+  version: item.version,
+  rules: item.rules || [],
+  layout: item.layout || { members: {}, channels: {} },
+});
+export const createWorkflow = (body: WorkflowInput | RuleWorkflow) =>
   send(base, body) as Promise<Workflow>;
-export const updateWorkflow = (id: string, body: WorkflowInput) =>
-  send(`${base}/${id}`, body, "PUT") as Promise<Workflow>;
+export const updateWorkflow = (
+  id: string,
+  body: WorkflowInput | RuleWorkflow,
+) => send(`${base}/${id}`, body, "PUT") as Promise<Workflow>;
 export const deleteWorkflow = (id: string) =>
   send(`${base}/${id}`, undefined, "DELETE");
 const BUILTIN_NAMES: Record<string, MessageKey> = {
@@ -86,7 +102,10 @@ const STEP_NAMES: Record<string, MessageKey[]> = {
     ...WRITING,
   ],
 };
-export const workflowName = (item: Workflow, t: (key: MessageKey) => string) =>
+export const workflowName = (
+  item: Pick<Workflow, "id" | "name" | "builtin">,
+  t: (key: MessageKey) => string,
+) =>
   item.builtin && BUILTIN_NAMES[item.id]
     ? t(BUILTIN_NAMES[item.id])
     : item.name;

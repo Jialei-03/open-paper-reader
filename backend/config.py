@@ -132,4 +132,6 @@ def database(settings):
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA busy_timeout=10000")
 
-    return engine, sessionmaker(engine, expire_on_commit=False)
+    return engine, sessionmaker(
+        engine, expire_on_commit=False, info={"settings": settings}
+    )

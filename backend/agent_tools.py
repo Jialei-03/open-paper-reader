@@ -265,7 +265,10 @@ TOOLS.extend(definitions(tool, TEXT, ID))
 from .research_tools import RESEARCH_TOOLS
 
 # Only research runs are given these (agent_worker leaves them out elsewhere).
+from .research_team_tools import TEAM_TOOLS
+
 TOOLS.extend(RESEARCH_TOOLS)
+TOOLS.extend(TEAM_TOOLS)
 for spec in TOOLS:
     spec["label"] = LABELS[spec["name"]]
 TOOL_MAP = {t["name"]: t for t in TOOLS}
@@ -297,6 +300,12 @@ async def execute(
         if field in args and not re.fullmatch(r"[0-9a-f-]{36}", str(args[field])):
             raise ValueError("对象 ID 不合法")
 
+    if sandbox_id or name.startswith("team_"):
+        from .research_team_tools import execute as team_execute
+
+        handled, result = await team_execute(app, owner, sandbox_id, name, args)
+        if handled:
+            return result
     if spec.get("research") and research is None:
         raise ValueError("研究工具只能在研究任务里使用")
     if research is not None:

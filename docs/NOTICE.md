@@ -1,16 +1,16 @@
 # 第三方许可与说明
 
-Open Paper Reader 自己的代码以 [MIT 许可证](LICENSE) 发布。这份文件列出随仓库分发、或在构建时进入镜像的第三方内容，以及需要特别说明的地方。它是整理，不是法律意见；以各项目自己的许可证文本为准。
+Open Paper Reader 自己的代码以 [MIT 许可证](../LICENSE) 发布。这份文件列出随仓库分发、或在构建时进入镜像的第三方内容，以及需要特别说明的地方。它是整理，不是法律意见；以各项目自己的许可证文本为准。
 
 ## 随仓库分发的第三方代码与资源
 
 | 内容 | 位置 | 许可证 | 说明 |
 | --- | --- | --- | --- |
-| [LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans) 的解析与重建代码 | `backend/vendor/latextrans/` | MIT（Copyright (c) 2025 NiuTrans Open Source） | 改编自上游 `0b49799`；改动见 [`NOTICE.md`](backend/vendor/latextrans/NOTICE.md)，许可证文本在同目录的 `LICENSE`。只用了解析和重建，没有用它的网络客户端、Agent 编排和编译器 |
+| [LaTeXTrans](https://github.com/NiuTrans/LaTeXTrans) 的解析与重建代码 | `backend/vendor/latextrans/` | MIT（Copyright (c) 2025 NiuTrans Open Source） | 改编自上游 `0b49799`；改动见 [`NOTICE.md`](../backend/vendor/latextrans/NOTICE.md)，许可证文本在同目录的 `LICENSE`。只用了解析和重建，没有用它的网络客户端、Agent 编排和编译器 |
 | [shadcn/ui](https://ui.shadcn.com) 组件 | `frontend/src/components/ui/` | MIT | 由 shadcn CLI 复制进仓库后按需修改 |
-| [Inter](https://rsms.me/inter/)、[Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC)、[Pretendard](https://github.com/orioncactus/pretendard)、[JetBrains Mono](https://www.jetbrains.com/lp/mono/) 字体 | 经 npm 包引入，构建后随前端发布 | SIL Open Font License 1.1 | 许可证文本在 [`docs/licenses/`](docs/licenses/)、[`frontend/public/assets/fonts/`](frontend/public/assets/fonts/)，构建时还会复制到前端产物的 `licenses/` |
-| [Lucide](https://lucide.dev) 图标 | 经 npm 包（`lucide-react`）引入 | ISC | 许可证文本在 [`frontend/public/assets/icons/LICENSE-lucide.txt`](frontend/public/assets/icons/LICENSE-lucide.txt) |
-| [claude-web](https://github.com/ypyik0669/claude-web) 的设计令牌 | `frontend/src/ui/tokens.css` | MIT（Copyright (c) 2026 ypyik0669） | 设计令牌的结构和取值改编自它的 `tokens.css`；许可证文本在 [`docs/licenses/claude-web-MIT.txt`](docs/licenses/claude-web-MIT.txt) |
+| [Inter](https://rsms.me/inter/)、[Noto Sans SC](https://fonts.google.com/noto/specimen/Noto+Sans+SC)、[Pretendard](https://github.com/orioncactus/pretendard)、[JetBrains Mono](https://www.jetbrains.com/lp/mono/) 字体 | 经 npm 包引入，构建后随前端发布 | SIL Open Font License 1.1 | 许可证文本在 [`docs/licenses/`](licenses/)、[`frontend/public/assets/fonts/`](../frontend/public/assets/fonts/)，构建时还会复制到前端产物的 `licenses/` |
+| [Lucide](https://lucide.dev) 图标 | 经 npm 包（`lucide-react`）引入 | ISC | 许可证文本在 [`frontend/public/assets/icons/LICENSE-lucide.txt`](../frontend/public/assets/icons/LICENSE-lucide.txt) |
+| [claude-web](https://github.com/ypyik0669/claude-web) 的设计令牌 | `frontend/src/ui/tokens.css` | MIT（Copyright (c) 2026 ypyik0669） | 设计令牌的结构和取值改编自它的 `tokens.css`；许可证文本在 [`docs/licenses/claude-web-MIT.txt`](licenses/claude-web-MIT.txt) |
 
 ## 通过包管理器安装的依赖
 
@@ -44,7 +44,7 @@ Open Paper Reader 自己的代码以 [MIT 许可证](LICENSE) 发布。这份文
 
 ## 可选的版面翻译镜像与 AGPL-3.0
 
-普通 PDF 的版面翻译（见 [翻译](docs/TRANSLATION.md)）使用 [BabelDOC](https://github.com/funstory-ai/BabelDOC)，它采用 **AGPL-3.0**。open-paper-reader 这样处理它：
+普通 PDF 的版面翻译（见 [翻译](TRANSLATION.md)）使用 [BabelDOC](https://github.com/funstory-ai/BabelDOC)，它采用 **AGPL-3.0**。open-paper-reader 这样处理它：
 
 - BabelDOC **不在仓库里，也不是 web 环境的依赖**。它只在可选的 `deploy/translation/Dockerfile.layout` 构建出的镜像里，由 `backend/requirements-layout.txt` 固定版本，构建时才从 PyPI 下载。
 - open-paper-reader 的 web 服务把它当作独立的容器进程来调用，通过标准输入输出传递 JSON，两者之间没有链接。
@@ -54,7 +54,7 @@ Open Paper Reader 自己的代码以 [MIT 许可证](LICENSE) 发布。这份文
 
 ## 构建时拉取的其他软件
 
-`deploy/translation/Dockerfile`（TeX Live 编译环境）、`deploy/Dockerfile.agent-sandbox`（助手沙箱）和主 `Dockerfile` 在构建时从 Debian、npm、PyPI 和 GitHub 下载软件（包括 TeX Live 各宏包、`fd`、`ripgrep`、`poppler` 等），它们各有自己的许可证；仓库不分发这些内容。如果你发布这些镜像，请自行核对并附上相应的许可证与源码获取方式。
+`deploy/translation/Dockerfile`（TeX Live 编译环境）、`deploy/Dockerfile.agent-sandbox`（助手沙箱）和主 `deploy/Dockerfile` 在构建时从 Debian、npm、PyPI 和 GitHub 下载软件（包括 TeX Live 各宏包、`fd`、`ripgrep`、`poppler` 等），它们各有自己的许可证；仓库不分发这些内容。如果你发布这些镜像，请自行核对并附上相应的许可证与源码获取方式。
 
 ## 演示内容
 

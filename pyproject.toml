@@ -17,7 +17,7 @@ readme = "docs/LOCAL.md"
 # and uv would otherwise pick the newest Python and try to compile them.
 requires-python = ">=3.11,<3.14"
 license = "MIT"
-license-files = ["LICENSE", "NOTICE.md"]
+license-files = ["LICENSE", "docs/NOTICE.md"]
 keywords = ["research", "agent", "experiments", "papers", "pdf", "reader"]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -45,6 +45,7 @@ dependencies = [
   "regex==2024.11.6",
   "pylatexenc==2.10",
   "pypdfium2==5.13.0",
+  "ruamel.yaml==0.18.6",
 ]
 
 [project.optional-dependencies]
@@ -92,6 +93,19 @@ include = [
   "frontend/dist",
   "docs/LOCAL.md",
   "LICENSE",
-  "NOTICE.md",
+  "docs/NOTICE.md",
 ]
 exclude = ["backend/tests", "**/__pycache__", "agent-runtime/node_modules"]
+
+[tool.alembic]
+script_location = "%(here)s/backend/migrations"
+prepend_sys_path = ["%(here)s"]
+path_separator = "os"
+"sqlalchemy.url" = "sqlite:///./data/platform.db"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["backend/tests"]
+# Four processes: about a minute for the whole suite instead of six or seven.
+# `-n 0` runs it in one process (what the PostgreSQL tests need: one shared database).
+addopts = "-n 4"

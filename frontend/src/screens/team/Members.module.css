@@ -1,0 +1,213 @@
+.page {
+  width: 100%;
+  max-width: var(--ui-page-width);
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 0 var(--ui-space-32) var(--ui-space-32);
+  min-width: 0;
+  font-size: var(--ui-text-14);
+  overflow-wrap: anywhere;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--ui-space-12);
+  margin-bottom: var(--ui-space-24);
+}
+.toolbar input[type="search"] {
+  border-radius: var(--ui-r-pill);
+  height: var(--ui-control-md);
+}
+.search {
+  flex: 0 1 var(--ui-search-width);
+  width: var(--ui-search-width);
+  min-width: 0;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.list li {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-12);
+  min-height: var(--ui-control-lg);
+  padding-block: var(--ui-space-4);
+}
+.roster li > button {
+  /* Names share one column so descriptions line up. */
+  flex: 0 0 var(--ui-library-date-width);
+  justify-content: flex-start;
+}
+.list li > button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.meta {
+  margin-left: auto;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+.avatar {
+  --member-color: steelblue;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--ui-control-md);
+  height: var(--ui-control-md);
+  border-radius: var(--ui-r-pill);
+  background: color-mix(in oklab, var(--member-color) 18%, var(--ui-elev));
+  color: var(--ui-fg);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+}
+.avatar[data-color="green"] {
+  --member-color: var(--ui-success-text);
+}
+.avatar[data-color="amber"] {
+  --member-color: var(--ui-warning-text);
+}
+.avatar[data-color="red"] {
+  --member-color: var(--ui-danger-text);
+}
+.avatar[data-color="violet"] {
+  --member-color: mediumpurple;
+}
+.avatar[data-color="slate"] {
+  --member-color: var(--ui-fg-2);
+}
+.form,
+.fields {
+  display: grid;
+  gap: var(--ui-space-16);
+  min-width: 0;
+}
+.fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-12);
+}
+.identity > div {
+  flex: 1;
+  min-width: 0;
+}
+.identity h2 {
+  font-size: var(--ui-text-14);
+  font-weight: var(--ui-weight-strong);
+}
+.identity > span:last-child,
+.stats {
+  font-size: var(--ui-text-12);
+  color: var(--ui-fg-2);
+}
+.checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-12);
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  font-size: var(--ui-text-13);
+}
+.checks legend {
+  margin-bottom: var(--ui-space-8);
+}
+.checks label {
+  display: flex;
+  gap: var(--ui-space-8);
+  align-items: center;
+}
+.checks fieldset {
+  flex-basis: 100%;
+}
+.field {
+  display: grid;
+  gap: var(--ui-space-8);
+  font-size: var(--ui-text-13);
+}
+.field select {
+  min-width: 0;
+  width: 100%;
+  min-height: var(--ui-control-lg);
+  border: 1px solid var(--ui-edge);
+  background: var(--ui-elev);
+  color: var(--ui-fg);
+  border-radius: var(--ui-r-8);
+  padding-inline: var(--ui-space-12);
+  font: inherit;
+}
+.field select:focus-visible,
+.checks input:focus-visible {
+  outline: 0;
+  box-shadow: var(--ui-focus-ring);
+}
+.budget {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-16);
+}
+.stats {
+  display: flex;
+  gap: var(--ui-space-12);
+}
+.stats dd {
+  margin: 0;
+}
+.page h3 {
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-strong);
+  margin-block: var(--ui-space-24) var(--ui-space-12);
+}
+
+.editorColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ui-space-24);
+  align-items: start;
+  min-width: 0;
+}
+.bodyEditor,
+.sourceEditor {
+  font-family: var(--ui-font-mono);
+  resize: vertical;
+}
+.summary {
+  flex: 1;
+  min-width: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
+}
+.statusDot {
+  display: inline-block;
+  width: var(--ui-space-6);
+  height: var(--ui-space-6);
+  border-radius: var(--ui-r-pill);
+  margin-inline-end: var(--ui-space-8);
+  background: var(--ui-success-text);
+}
+.statusDot[data-status="working"] {
+  background: var(--ui-accent);
+}
+.statusDot[data-status="waiting"] {
+  background: var(--ui-warning-text);
+}
+.statusDot[data-status="disabled"] {
+  background: var(--ui-fg-3);
+}
+@media (max-width: 720px) {
+  .editorColumns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

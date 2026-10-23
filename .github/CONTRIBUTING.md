@@ -4,7 +4,7 @@ Open Paper Reader 是采用 MIT 许可证的开源论文阅读工作台，同时
 
 ## 先聊一聊
 
-- **发现问题**：先搜一下已有的 issue。新建时写清楚：你做了什么、期望什么、实际发生了什么；部署问题请附上 `docker compose ps` 和相关日志（**先抹掉密钥、令牌和你的论文内容**）。
+- **发现问题**：先搜一下已有的 issue。新建时写清楚：你做了什么、期望什么、实际发生了什么；部署问题请附上 `docker compose --env-file .env -f deploy/docker-compose.yml ps` 和相关日志（**先抹掉密钥、令牌和你的论文内容**）。
 - **想做大的改动**：先开一个 issue 说说想法，再动手。Open Paper Reader 有明确的取向（克制的界面、阅读内容优先、助手的每一步都可以核对），提前沟通能避免白费功夫。
 - **安全问题**：请不要公开提 issue，按 [SECURITY](SECURITY.md) 私下报告。
 
@@ -15,7 +15,7 @@ make install && make db && make build && make run     # http://127.0.0.1:8765
 make worker                                           # 另一个终端：助手 worker
 ```
 
-目录结构、测试和约定在 [开发](docs/DEVELOPMENT.md)；整体设计在 [架构](docs/ARCHITECTURE.md)。
+目录结构、测试和约定在 [开发](../docs/DEVELOPMENT.md)；整体设计在 [架构](../docs/ARCHITECTURE.md)。
 
 ## 提交之前
 
@@ -38,7 +38,7 @@ make build && cd frontend && npx playwright test e2e/<相关的>.spec.ts   # 改
 - **界面**：复用现有的 shadcn/ui 组件和语义色；阅读内容优先，状态提示不挤动阅读区域；动效要有用，并尊重「减少动态效果」。界面文案用简体中文。
 - **数据**：修改数据走现有的 API、所有权检查和版本冲突检查；不要绕过权限，不要覆盖用户的笔记。
 - **助手**：回答与工具过程分开展示；「成功」必须有真实的工具结果，不能只凭模型自己说成功。
-- **依赖**：新增依赖要说明理由和许可证（见 [NOTICE](NOTICE.md)）；不接受带有「禁止再分发」「非商业」之类限制的代码或资源。不要引入遥测或后台的外部请求。
+- **依赖**：新增依赖要说明理由和许可证（见 [NOTICE](../docs/NOTICE.md)）；不接受带有「禁止再分发」「非商业」之类限制的代码或资源。不要引入遥测或后台的外部请求。
 - **密钥**：不要提交 `.env`、模型密钥、令牌和真实的论文数据。
 
 ## Pull request
@@ -48,7 +48,7 @@ make build && cd frontend && npx playwright test e2e/<相关的>.spec.ts   # 改
 3. 说明改动的动机、你验证过什么（命令与结果），界面改动请附前后截图。
 4. 评审里的意见请直接在 PR 里讨论；维护者可能会要求拆分或补测试。
 
-提交贡献，即表示你同意你的贡献以本项目的 [MIT 许可证](LICENSE) 发布。
+提交贡献，即表示你同意你的贡献以本项目的 [MIT 许可证](../LICENSE) 发布。
 
 ## 行为准则
 

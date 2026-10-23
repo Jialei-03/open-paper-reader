@@ -328,7 +328,9 @@ export function RunTurn({
   children,
   elapsed,
   footer,
+  hideAuthor = false,
 }: {
+  hideAuthor?: boolean;
   elapsed?: number;
   footer?: ReactNode;
   run: ResearchRun | undefined;
@@ -350,7 +352,7 @@ export function RunTurn({
       : "";
   return (
     <section className={styles.turn} data-live={live || undefined}>
-      {live && (
+      {live && !hideAuthor && (
         <header className={styles.who}>
           <Mascot
             agent={AGENT[role] ?? "executor"}
@@ -396,7 +398,7 @@ export function RunTurn({
             <ChevronRight size={13} className={styles.chevron} aria-hidden />
           </button>
           {open && <Trail steps={steps} live={false} />}
-          {final && <Words text={final} live={false} />}
+          {final && <Words text={final.replaceAll("\\n", "\n")} live={false} />}
           {steps.length === 0 &&
             (run?.status === "cancelled" ||
               (run?.status === "failed" && !run.error)) && (

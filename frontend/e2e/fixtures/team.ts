@@ -1,0 +1,107 @@
+import type { Page } from "@playwright/test";
+import type { Team, TeamMessage } from "../../src/screens/research/team-api";
+
+export const experiments = "eeeeeeee-eeee-4eee-8eee-000000000001";
+export const advisorDM = "eeeeeeee-eeee-4eee-8eee-000000000002";
+
+/** Mock only the team transport, leaving project details and writes to each spec. */
+export async function mockTeam(
+  page: Page,
+  options: {
+    researches?: (workspace: string) => {
+      id: string;
+      question: string;
+      title?: string;
+      updated_at?: string;
+      status?: string;
+      unread?: boolean;
+      archived_at?: string | null;
+    }[];
+    history?: () => TeamMessage[];
+  } = {},
+) {
+  await page.route("**/api/v1/research/workspaces/*/team**", (route) => {
+    const url = new URL(route.request().url());
+    const workspace = url.pathname.split("/")[5];
+    const roots: TeamMessage[] = (options.researches?.(workspace) || [])
+      .filter((r) => !r.archived_at)
+      .map((r) => ({
+        id: `research:${r.id}`,
+        channel_id: experiments,
+        thread_id: null,
+        author_id: "human",
+        text: r.title || r.question,
+        kind: "research",
+        mentions: [],
+        data: { research_id: r.id, title: r.title || r.question },
+        created_at: r.updated_at || "2026-10-23T00:00:00Z",
+        replies: 1,
+      }));
+    if (url.pathname.endsWith("/team")) {
+      const team: Team = {
+        workspace_id: workspace,
+        members: [
+          "human",
+          "advisor",
+          "executor",
+          "librarian",
+          "reviewer",
+          "writer",
+          "distiller",
+        ].map((role) => ({
+          id: role,
+          name: role,
+          role,
+          status:
+            role === "advisor" &&
+            options.researches?.(workspace).some((r) => r.status === "waiting")
+              ? "waiting"
+              : "idle",
+          active_run_id: null,
+        })),
+        channels: [
+          {
+            id: experiments,
+            key: "experiments",
+            name: "实验",
+            member_id: null,
+            unread: 0,
+          },
+          {
+            id: advisorDM,
+            key: "dm:advisor",
+            name: "导师",
+            member_id: "advisor",
+            unread: 0,
+          },
+        ],
+        notifications: [],
+      };
+      return route.fulfill({ json: team });
+    }
+    if (url.pathname.endsWith("/messages")) {
+      const thread = url.searchParams.get("thread_id");
+      return route.fulfill({
+        json: {
+          messages: thread
+            ? []
+            : url.pathname.includes(advisorDM)
+              ? options.history?.() || []
+              : roots,
+          root: roots.find((r) => r.id === thread) || null,
+          research_id: thread?.startsWith("research:") ? thread.slice(9) : null,
+        },
+      });
+    }
+    if (url.pathname.endsWith("/read"))
+      return route.fulfill({ json: { ok: true } });
+    if (url.pathname.endsWith("/threads"))
+      return route.fulfill({ json: roots });
+    if (url.pathname.endsWith("/deliveries"))
+      return route.fulfill({ json: [] });
+    return route.fulfill({
+      status: 404,
+      json: { detail: "Unexpected team request" },
+    });
+  });
+}

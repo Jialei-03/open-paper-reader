@@ -297,7 +297,7 @@ def test_reading_artifact_backup_restore_and_migration(env, tmp_path, monkeypatc
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
         conn.execute(text("INSERT INTO alembic_version VALUES ('0015')"))
-    command.upgrade(Config("alembic.ini"), "head")
+    command.upgrade(Config(toml_file="pyproject.toml"), "head")
     with app.state.maker() as d:
         assert d.get(File, f["id"]) is not None
         assert d.scalar(select(ReadingArtifact)) is None

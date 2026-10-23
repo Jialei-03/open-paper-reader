@@ -141,7 +141,7 @@ def definitions(locale="zh"):
                     action="retrospective",
                 ),
             ],
-            ["executor", "executor", "advisor", "distiller"],
+            ["advisor", "executor", "advisor", "distiller"],
         ),
         "literature-review": (
             text("文献综述", "Literature review"),
@@ -373,6 +373,20 @@ def compile_linear(definition, *, roles=None):
         cursor = f"step:{index}"
         then, end = start(index + 1)
         back = cursor if then["action"] == "review" else None
+        if spec["type"] in {"agent", "review"}:
+            add(
+                f"{index}:continue",
+                cursor,
+                cursor,
+                "message",
+                {
+                    "action": "wake",
+                    "role": spec["role"],
+                    "instruction": instruction(spec),
+                },
+                role=spec["role"],
+                kind="text",
+            )
         if spec["type"] == "experiment":
             add(
                 f"{index}:result",
@@ -451,6 +465,7 @@ def compile_linear(definition, *, roles=None):
                     "plan_approved",
                     then,
                     role="owner",
+                    kind="conclusion" if spec.get("conclusion") else None,
                     on_fail=back,
                 )
         else:
@@ -464,5 +479,135 @@ def compile_linear(definition, *, roles=None):
                 kind=kind,
                 on_fail=back,
             )
+    if base["id"] == "research" and base["builtin"]:
+        add(
+            "discuss-conclusion",
+            "confirm:1",
+            "confirm:1",
+            "message",
+            {
+                "action": "wake",
+                "role": "advisor",
+                "instruction": instruction(prepared[0]),
+            },
+            role="owner",
+            kind="text",
+        )
+        add(
+            "finished-discussion",
+            "done",
+            "done",
+            "message",
+            {
+                "action": "wake",
+                "role": "advisor",
+                "instruction": instruction(prepared[0]),
+            },
+            role="owner",
+            kind="text",
+        )
+        add(
+            "retrospective-discussion",
+            "step:2",
+            "step:2",
+            "message",
+            {
+                "action": "wake",
+                "role": "advisor",
+                "instruction": instruction(prepared[0]),
+            },
+            role="owner",
+            kind="text",
+        )
+        add(
+            "reopen",
+            "confirm:1",
+            "step:1",
+            "plan_approved",
+            {
+                "action": "wake",
+                "role": "executor",
+                "instruction": instruction(prepared[1]),
+            },
+            role="owner",
+            kind="result",
+        )
+        add(
+            "resume",
+            "step:1",
+            "step:1",
+            "plan_approved",
+            {
+                "action": "wake",
+                "role": "executor",
+                "instruction": instruction(prepared[1]),
+            },
+            role="owner",
+            kind="plan",
+        )
+        add(
+            "budget-retrospective",
+            "step:1",
+            "step:2",
+            "conclusion_proposed",
+            {
+                "action": "wake",
+                "role": "distiller",
+                "instruction": instruction(prepared[2]),
+            },
+            role="executor",
+        )
+        add(
+            "continue",
+            "step:1",
+            "step:1",
+            "message",
+            {
+                "action": "wake",
+                "role": "executor",
+                "instruction": instruction(prepared[1]),
+            },
+            role="executor",
+            kind="text",
+        )
+        add(
+            "revise-plan",
+            "confirm:0",
+            "step:0",
+            "message",
+            {
+                "action": "wake",
+                "role": "advisor",
+                "instruction": instruction(prepared[0]),
+            },
+            role="owner",
+            kind="text",
+        )
+        add(
+            "discuss-plan",
+            "step:0",
+            "step:0",
+            "message",
+            {
+                "action": "wake",
+                "role": "advisor",
+                "instruction": instruction(prepared[0]),
+            },
+            role="owner",
+            kind="text",
+        )
+        add(
+            "guidance",
+            "step:1",
+            "step:1",
+            "message",
+            {
+                "action": "wake",
+                "role": "advisor",
+                "instruction": instruction(prepared[0]),
+            },
+            role="owner",
+            kind="text",
+        )
     workflow = validate_workflow({**base, "rules": rules})
     return workflow, {"linear": {_workflow_key(workflow): routes}}

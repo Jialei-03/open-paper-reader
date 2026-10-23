@@ -124,9 +124,9 @@ def test_migration_0027_upgrades(tmp_path, monkeypatch):
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
         conn.execute(text("INSERT INTO alembic_version VALUES ('0026')"))
-    command.upgrade(Config("alembic.ini"), "head")
+    command.upgrade(Config(toml_file="pyproject.toml"), "head")
     assert TABLES <= set(inspect(engine).get_table_names())
-    command.downgrade(Config("alembic.ini"), "0026")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0026")
     assert not TABLES & set(inspect(engine).get_table_names())
     engine.dispose()
 
@@ -148,7 +148,7 @@ def test_migration_0028_adds_estimates(tmp_path, monkeypatch):
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) PRIMARY KEY)")
         )
         conn.execute(text("INSERT INTO alembic_version VALUES ('0027')"))
-    command.upgrade(Config("alembic.ini"), "head")
+    command.upgrade(Config(toml_file="pyproject.toml"), "head")
     columns = {c["name"] for c in inspect(engine).get_columns("research_nodes")}
     assert {"value", "cost"} <= columns
     engine.dispose()

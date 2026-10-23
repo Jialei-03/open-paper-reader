@@ -684,9 +684,7 @@ def _record(app, d, owner, project, sprint, args):
         "refuted"
         if args["kill_triggered"] == "yes" and node.kind == "hypothesis"
         # A node with a result is under way, as focusing on it would make it.
-        else "active"
-        if node.status == "open"
-        else None
+        else "active" if node.status == "open" else None
     )
     doubts = None
     if args["kill_triggered"] == "unsure":
@@ -1183,6 +1181,17 @@ def _run(app, owner, research, name, args):
 
 
 async def run_research_tool(app, owner, research, name, args):
+    from .research_team import normalize
+
+    args = {
+        k: (
+            normalize(v)
+            if k in {"summary", "next_focus", "needs_input", "message", "assessment"}
+            and isinstance(v, str)
+            else v
+        )
+        for k, v in args.items()
+    }
     return await asyncio.to_thread(_run, app, owner, research, name, args)
 
 

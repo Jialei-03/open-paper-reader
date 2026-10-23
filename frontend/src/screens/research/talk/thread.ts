@@ -64,7 +64,6 @@ const HIDDEN = new Set([
   "create_project",
   "handoff_from_reply",
   "playbook_version",
-  "human_decision",
   "budget_mark",
 ]);
 
@@ -100,6 +99,18 @@ export function buildThread(
   const items: ThreadItem[] = [];
   const blocks = new Map<string, Extract<ThreadItem, { kind: "work" }>>();
   for (const event of events) {
+    if (event.action === "human_decision") {
+      const note = str(event.detail.note).replaceAll("\\n", "\n");
+      if (note)
+        items.push({
+          kind: "message",
+          id: event.id,
+          who: "human",
+          text: note,
+          at: event.created_at,
+        });
+      continue;
+    }
     if (HIDDEN.has(event.action)) continue;
     const at = event.created_at;
     const sprint = event.sprint_id ? bySprint.get(event.sprint_id) : undefined;

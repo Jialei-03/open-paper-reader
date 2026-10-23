@@ -13,8 +13,10 @@ if context.is_offline_mode():
     with context.begin_transaction():
         context.run_migrations()
 else:
-    engine, _ = database(Settings.env())
+    settings = Settings.env()
+    engine, _ = database(settings)
     with engine.connect() as connection:
+        connection.info["ora_settings"] = settings
         if engine.dialect.name == "sqlite":
             connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
             connection.commit()

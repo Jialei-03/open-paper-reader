@@ -177,7 +177,7 @@ def deliver(settings, d, item):
         if workspace.archived or session.archived_at:
             raise ValueError("请先恢复项目或对话")
         # post records through research_stages.say and preserves approval boundaries.
-        research_dialogue.post(settings, d, project, item.prompt)
+        research_dialogue.post(settings, d, project, item.prompt, actor="system")
         return project.id
     research_workspaces.lock_workspace(d, workspace)
     if workspace.archived:
@@ -209,65 +209,17 @@ def deliver(settings, d, item):
 
 
 def run(settings, d, item, at, *, manual=False):
-    scheduled_for = stamp(at) if manual else item.next_run_at
-    conditions = [ResearchSchedule.id == item.id]
-    values = {"updated_at": stamp(at)}
-    if not manual:
-        conditions.extend(
-            (
-                ResearchSchedule.paused.is_(False),
-                ResearchSchedule.next_run_at == item.next_run_at,
-            )
-        )
-        values["next_run_at"] = next_time(item, at, item.next_run_at)
-    # Claim and delivery commit together, including on SQLite. Concurrent ticks
-    # cannot deliver the same occurrence, and a failed delivery still advances it.
-    claimed = d.execute(
-        update(ResearchSchedule).where(*conditions).values(**values),
-        execution_options={"synchronize_session": False},
-    )
-    if not claimed.rowcount:
-        return None
-    d.refresh(item)
-    record = ResearchScheduleRun(
-        schedule_id=item.id,
-        trigger="manual" if manual else "scheduled",
-        scheduled_for=scheduled_for,
-        started_at=stamp(at),
-    )
-    d.add(record)
-    d.flush()
-    try:
-        with d.begin_nested():
-            record.research_id = deliver(settings, d, item)
-            d.flush()
-        record.status = "succeeded"
-    except Exception as exc:  # noqa: BLE001 — delivery errors belong in the history
-        record.status = "failed"
-        record.error = str(exc)[:2000] or type(exc).__name__
-    record.finished_at = now()
+    from .team_timers import run_legacy
+
+    record = run_legacy(settings, d, item, at, manual=manual)
     d.commit()
     return record
 
 
 def tick(settings, maker, at=None):
-    if settings.mode != "local":
-        return
-    at = at or datetime.now(UTC)
-    with maker() as d:
-        ids = list(
-            d.scalars(
-                select(ResearchSchedule.id).where(
-                    ResearchSchedule.paused.is_(False),
-                    ResearchSchedule.next_run_at <= stamp(at),
-                )
-            )
-        )
-    for id in ids:
-        with maker() as d:
-            item = d.get(ResearchSchedule, id)
-            if item and not item.paused and item.next_run_at <= stamp(at):
-                run(settings, d, item, at)
+    from .team_timers import tick as dispatch_rules
+
+    dispatch_rules(settings, maker, at)
 
 
 def install_schedule_routes(
@@ -306,18 +258,30 @@ def install_schedule_routes(
     @app.get("/api/v1/research/schedules")
     def schedules(a=Depends(auth), d=Depends(db)):
         allowed(a, d)
-        return [
-            schedule_out(item)
-            for item in d.scalars(
-                select(ResearchSchedule)
-                .where(ResearchSchedule.owner == a["id"])
-                .order_by(
-                    ResearchSchedule.paused,
-                    ResearchSchedule.next_run_at,
-                    ResearchSchedule.id,
-                )
+        from .team_timers import center_rows
+
+        rules = center_rows(d, a["id"])
+        by_id = {r["rule"]: r for r in rules}
+        result = []
+        for item in d.scalars(
+            select(ResearchSchedule)
+            .where(ResearchSchedule.owner == a["id"])
+            .order_by(
+                ResearchSchedule.paused,
+                ResearchSchedule.next_run_at,
+                ResearchSchedule.id,
             )
-        ]
+        ):
+            rule = by_id.get(f"schedule:{item.id}")
+            value = schedule_out(item)
+            if rule:
+                value.update(
+                    {k: rule[k] for k in ("rule", "cron", "editor_url", "paused")}
+                )
+            result.append(value)
+        result.extend(r for r in rules if not r["rule"].startswith("schedule:"))
+        d.commit()
+        return result
 
     @app.post("/api/v1/research/schedules")
     def create_schedule(body: ScheduleInput, a=Depends(auth), d=Depends(db)):
@@ -329,6 +293,10 @@ def install_schedule_routes(
             next_run_at=next_time(body, datetime.now(UTC)),
         )
         d.add(item)
+        d.flush()
+        from .team_timers import sync
+
+        sync(d, item)
         d.commit()
         return schedule_out(item)
 
@@ -355,8 +323,13 @@ def install_schedule_routes(
             item.paused and not body.paused
         ):
             item.next_run_at = next_time(body, datetime.now(UTC))
+        from .team_timers import sync
+
+        if item.workspace_id != body.workspace_id:
+            sync(d, item, remove=True)
         for key, value in body.model_dump().items():
             setattr(item, key, value)
+        sync(d, item)
         item.updated_at = now()
         d.commit()
         return schedule_out(item) | {"runs": history(d, item)}
@@ -369,6 +342,9 @@ def install_schedule_routes(
                 ResearchScheduleRun.schedule_id == item.id
             )
         )
+        from .team_timers import sync
+
+        sync(d, item, remove=True)
         d.delete(item)
         d.commit()
         return {"deleted": True}

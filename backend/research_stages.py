@@ -213,6 +213,16 @@ def propose_plan(settings, d, project, sprint, args):
     research_map.event(
         d, project, None, "advisor", "plan_proposed", {"plan": plan}, sprint.id
     )
+    from .team_workflows import research_event
+    from .research_workflows import is_native
+
+    research_event(
+        d,
+        project,
+        "message",
+        role="advisor" if is_native(project) else "executor",
+        kind="plan",
+    )
     return {"version": plan["version"]}
 
 
@@ -265,11 +275,16 @@ def approve_plan(settings, d, project, version, note=""):
         "max_job_seconds": int(hours * 3600) if hours else None,
     }
     project.plan = {**plan, "approved_at": now()}
-    project.status = "active"
-    set_stage(d, project, "experiments", "human", note)
+    from .team_workflows import research_event, pending
     from .research_workflows import native_complete
 
-    native_complete(d, project, "plan", plan.get("summary", ""))
+    research_event(d, project, "plan_approved", role="owner", kind="plan")
+    if pending(project):
+        project.status = "active"
+        set_stage(d, project, "experiments", "human", note)
+        native_complete(d, project, "plan", plan.get("summary", ""), routed=True)
+    else:
+        project.status = "waiting"
 
 
 def propose_conclusion(d, project, sprint, conclusion):
@@ -286,6 +301,14 @@ def propose_conclusion(d, project, sprint, conclusion):
 
     if separate_conclusion(d, project):
         return
+    from .team_workflows import research_event
+    from .research_workflows import is_native
+
+    actions = None
+    if is_native(project):
+        actions = research_event(
+            d, project, "conclusion_proposed", role="advisor", kind="conclusion"
+        )
     set_stage(d, project, "conclusion", "advisor")
     research_map.event(
         d,
@@ -301,13 +324,35 @@ def propose_conclusion(d, project, sprint, conclusion):
         },
         sprint.id,
     )
-    project.status = "waiting"
+    project.status = (
+        "waiting"
+        if actions is None or any(a["action"] == "wait_for_owner" for a in actions)
+        else "active"
+    )
+    if actions is not None:
+        from .research_worker import _last_human_message
+
+        project.workflow_state = {
+            **project.workflow_state,
+            "routed_source": f"{sprint.id}:{_last_human_message(d, project) or ''}:conclusion",
+        }
 
 
 def finish(d, project, status, summary, actor, sprint_id=None):
     """The question is answered: the root node closes and the project ends."""
     from .research_workflows import complete_action, native_complete
 
+    from .team_workflows import research_event
+    from .research_workflows import is_native
+
+    if is_native(project):
+        research_event(
+            d,
+            project,
+            "plan_approved" if actor == "human" else "conclusion_proposed",
+            role="owner" if actor == "human" else "executor",
+            kind="conclusion",
+        )
     if native_complete(d, project, "experiment", summary) or complete_action(
         d, project, "conclusion", summary
     ):
@@ -472,8 +517,12 @@ def decide(d, project, request, approve, note):
 
             if reject_conclusion(d, project, note):
                 return True
-            set_stage(d, project, "experiments", "human", note)
-            project.status = "active"
+            from .team_workflows import research_event, pending
+
+            research_event(d, project, "plan_approved", role="owner", kind="result")
+            if pending(project):
+                set_stage(d, project, "experiments", "human", note)
+                project.status = "active"
         return True
     return False
 

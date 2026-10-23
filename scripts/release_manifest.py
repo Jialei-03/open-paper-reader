@@ -11,9 +11,8 @@ from pathlib import Path
 
 ROOTS = ("backend", "frontend/src", "frontend/public", "frontend/scripts", "frontend/e2e",
          "agent-runtime", "scripts", "deploy", "docs", ".github")
-FILES = ("Dockerfile", "docker-compose.yml", "compose.yaml", "alembic.ini",
-         "LICENSE", "NOTICE.md", "Makefile", "README.md", "README.en.md", ".env.example",
-         ".nvmrc", "pytest.ini",
+FILES = ("LICENSE", "Makefile", "README.md", "README.en.md", "pyproject.toml",
+         "frontend/.nvmrc",
          "frontend/package.json", "frontend/package-lock.json", "frontend/index.html",
          "frontend/vite.config.ts", "frontend/tsconfig.json", "frontend/tsconfig.app.json",
          "frontend/playwright.config.ts", "frontend/components.json",

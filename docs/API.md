@@ -120,7 +120,7 @@ curl --fail-with-body "$PAPER_BASE/papers/$PAPER_ID/context" \
 
 上面的元数据只是输入示例，不会自动去 arXiv 查询；要从 arXiv 导入，用 `POST /import/arxiv`（或者在网页里粘贴链接）。源码和对应的 PDF 要用同一个版本 id 上传。要创建新版本，`POST /papers/{id}/versions` 带 `{"label":"v2","provenance":"…"}` 和论文当前的 `If-Match`，再把对应的文件传到返回的版本 id 上。
 
-可运行的 Python 示例见 [`examples/agent_client.py`](../examples/agent_client.py)：它上传一个 UTF-8 源码附件，把真实的第一行记为证据，提交一条未确认的阅读建议，再导出可移植的上下文。它**不会**编造分析，也不会把用户标成已读。
+可运行的 Python 示例见 [`docs/examples/agent_client.py`](examples/agent_client.py)：它上传一个 UTF-8 源码附件，把真实的第一行记为证据，提交一条未确认的阅读建议，再导出可移植的上下文。它**不会**编造分析，也不会把用户标成已读。
 
 ## 记录、证据与定位
 

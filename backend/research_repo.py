@@ -1,7 +1,7 @@
 """A project's files as a git repository, and each research as a worktree of it.
 
     <data>/research-projects/<project id>/
-      repo/                 the project: main branch (PROJECT.md, memory/, shared/)
+      repo/                 the project: main branch (AGENTS.md, memory/, shared/)
       threads/<research>/   one worktree per research, on branch research/<short id>
 
 A research's working folder (research_sandbox.workdir) is its worktree: the
@@ -179,10 +179,11 @@ def _never_index(folder):
         (folder / ".metadata_never_index").touch()
 
 
-def ensure_repo(settings, workspace):
-    """The project's repository, made once: PROJECT.md, memory/, the ignore list."""
+def ensure_repo(settings, workspace, *, snapshot=True):
+    """The project's repository, made once: AGENTS.md, memory/, the ignore list."""
     repo = repo_dir(settings, workspace.id)
     if (repo / ".git").exists():
+        migrate_instructions(settings, workspace)
         return repo
     root = home(settings, workspace.id)
     with _locked(root):
@@ -192,14 +193,38 @@ def ensure_repo(settings, workspace):
         repo.mkdir(parents=True, exist_ok=True)
         git(repo, "init", "-q", "-b", "main")
         (repo / ".gitignore").write_text(IGNORE)
-        (repo / "PROJECT.md").write_text(_project_md(workspace))
+        (repo / "AGENTS.md").write_text(_project_md(workspace))
         for folder in ("memory", "shared"):
             (repo / folder).mkdir(exist_ok=True)
             (repo / folder / ".gitkeep").touch()
-        snapshot_source(settings, workspace, repo)
+        if snapshot:
+            snapshot_source(settings, workspace, repo)
         git(repo, "add", "-A")
         git(repo, "commit", "-q", "-m", f"项目：{workspace.name}"[:200])
     return repo
+
+
+def migrate_instructions(settings, workspace):
+    repo = repo_dir(settings, workspace.id)
+    old, new = repo / "PROJECT.md", repo / "AGENTS.md"
+    if not old.exists() or new.exists():
+        return
+    with _locked(home(settings, workspace.id)):
+        if old.exists() and not new.exists():
+            if old.is_symlink():
+                raise GitError("PROJECT.md 不能是符号链接")
+            old.rename(new)
+            git(repo, "add", "--", "PROJECT.md", "AGENTS.md")
+            git(
+                repo,
+                "commit",
+                "-q",
+                "-m",
+                "ORA 将 PROJECT.md 改名为 AGENTS.md",
+                "--",
+                "PROJECT.md",
+                "AGENTS.md",
+            )
 
 
 def _project_md(workspace):
@@ -233,6 +258,8 @@ def ensure_thread(settings, workspace, project, base="main"):
     with _locked(home(settings, workspace.id)):
         if (path / ".git").exists():
             return path
+        snapshot_source(settings, workspace, repo)
+        checkpoint(repo, "同步项目代码")
         path.parent.mkdir(parents=True, exist_ok=True)
         # A worktree whose folder was deleted still holds its branch until pruned.
         git(repo, "worktree", "prune")
@@ -306,7 +333,7 @@ def adopt(settings, workspace, project):
 
     Idempotent: a research already in its worktree is left as it is. Files
     move (a rename, so nothing is copied); a name the worktree already has
-    from the project (.gitignore, PROJECT.md) keeps the research's own copy.
+    from the project (.gitignore, AGENTS.md) keeps the research's own copy.
     """
     from . import research_locations
 
@@ -514,8 +541,8 @@ def _source_names(dest, settings, workspace):
         p
         for p in git(dest, "ls-files", "-z").stdout.split("\0")
         if p
-        and p not in {"PROJECT.md", ".gitignore", "shared/.gitkeep"}
-        and not p.startswith("memory/")
+        and p not in {"PROJECT.md", "AGENTS.md", ".gitignore", "shared/.gitkeep"}
+        and not p.startswith(("memory/", ".ora/agents/"))
     }
 
 

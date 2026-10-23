@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createPaperWithPdf, signIn } from "../reader/fixtures";
+import { mockTeam } from "../fixtures/team";
 
 const task = {
   id: "7f3c2a10-1b2c-4d5e-8f90-a1b2c3d4e5f6",
@@ -92,6 +93,7 @@ async function setup(page: Page) {
       }),
     );
   }
+  await mockTeam(page);
   await signIn(page);
 }
 

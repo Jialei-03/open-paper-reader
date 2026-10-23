@@ -1,4 +1,4 @@
-"""Run: PAPER_TOKEN=... python examples/agent_client.py BASE_URL PAPER_ID SOURCE.tex"""
+"""Run: PAPER_TOKEN=... python docs/examples/agent_client.py BASE_URL PAPER_ID SOURCE.tex"""
 
 import json
 import os

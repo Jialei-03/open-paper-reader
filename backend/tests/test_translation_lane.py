@@ -146,7 +146,7 @@ def test_lane_migration_keeps_existing_runs_and_drops_the_one_run_index(
         connection.execute("INSERT INTO alembic_version VALUES ('0020')")
     monkeypatch.setenv("DATABASE_URL", "sqlite:///" + str(db))
     monkeypatch.setenv("APP_ENV", "development")
-    command.upgrade(Config("alembic.ini"), "0021")
+    command.upgrade(Config(toml_file="pyproject.toml"), "0021")
     with sqlite3.connect(db) as connection:
         assert connection.execute("SELECT id, lane FROM agent_runs").fetchall() == [
             ("old", "")
@@ -156,7 +156,7 @@ def test_lane_migration_keeps_existing_runs_and_drops_the_one_run_index(
             "INSERT INTO agent_runs (id, owner, status, lane) VALUES (?, 'u', 'queued', ?)",
             [("t1", "translation"), ("t2", "translation"), ("c", "")],
         )
-    command.downgrade(Config("alembic.ini"), "0020")
+    command.downgrade(Config(toml_file="pyproject.toml"), "0020")
     with sqlite3.connect(db) as connection:
         assert {
             row[1] for row in connection.execute("PRAGMA table_info(agent_runs)")

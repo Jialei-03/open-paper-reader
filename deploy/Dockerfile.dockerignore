@@ -3,7 +3,7 @@
 .venv
 .env
 .env.*
-!.env.example
+!deploy/.env.example
 data
 test-results
 playwright-report
@@ -22,7 +22,7 @@ docs/*
 !docs/licenses
 backend/tests
 backend/devtools
-examples
+docs/examples
 scripts
 deploy/*
 !deploy/docker-entrypoint.sh

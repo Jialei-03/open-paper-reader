@@ -16,7 +16,7 @@ frontend/*.tsbuildinfo
 
 # Credentials, private data and unreviewed process output must never be pushed.
 .env.*
-!.env.example
+!deploy/.env.example
 *.env
 *.pem
 *.key
