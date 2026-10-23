@@ -114,3 +114,9 @@
 .budgetField {
   min-width: 0;
 }
+.budgetLabel {
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}

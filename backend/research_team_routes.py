@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from fastapi import Depends, HTTPException
 from pydantic import Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from . import research_team as team
 from . import team_members as members
@@ -694,5 +694,31 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                     )
                 )
             ]
+        if not mentions:
+            activity = {}
+            for message in rows:
+                root = message.thread_id or message.id
+                activity[root] = max(activity.get(root, ""), message.created_at)
+            # Legacy research replies live in events and sprints as well as team messages.
+            for model, stamp in (
+                (team.ResearchEvent, team.ResearchEvent.created_at),
+                (team.ResearchSprint, team.ResearchSprint.updated_at),
+            ):
+                query = (
+                    select(model.project_id, func.max(stamp))
+                    .join(team.ResearchProject)
+                    .where(team.ResearchProject.workspace_id == id)
+                    .group_by(model.project_id)
+                )
+                if model is team.ResearchEvent:
+                    query = query.where(model.action == "message")
+                for project_id, at in d.execute(query):
+                    root = f"research:{project_id}"
+                    activity[root] = max(activity.get(root, ""), at)
+            for message in out:
+                message["last_message_at"] = max(
+                    message["created_at"], activity.get(message["id"], "")
+                )
+            out.sort(key=lambda m: (m["last_message_at"], m["id"]), reverse=True)
         d.commit()
         return out

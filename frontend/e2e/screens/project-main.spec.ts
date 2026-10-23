@@ -1369,6 +1369,113 @@ test("conversation actions rename the title and the project owns list and board 
   expect(state.direct).toEqual([]);
 });
 
+test("the project list puts archive filtering beside search and clamps research summaries", async ({
+  page,
+}) => {
+  const state = await project(page);
+  const question = "研究问题需要比较不同数据集上的表示质量。".repeat(40);
+  const conclusion = "结论来自重复实验，适用于这组数据和设置。".repeat(120);
+  Object.assign(state.researches[0], {
+    title: "当前研究",
+    question,
+    progress: conclusion,
+    status: "finished",
+  });
+  const archived = {
+    ...research,
+    id: copy,
+    title: "归档研究",
+    archived_at: at,
+  };
+  state.researches.push(archived);
+  const untitled = {
+    ...research,
+    id: fresh,
+    question: "没有独立标题的长问题也只显示一行。".repeat(40),
+  };
+  state.researches.push(untitled);
+  await page.evaluate(() => localStorage.removeItem("paper-appearance"));
+  await page.goto(`/#workspaces/${wid}`);
+  const main = page.getByRole("main");
+  const filter = main.getByRole("radiogroup", {
+    name: "归档状态",
+    exact: true,
+  });
+  const unarchived = filter.getByRole("radio", { name: "未归档", exact: true });
+  const archivedChoice = filter.getByRole("radio", {
+    name: "已归档",
+    exact: true,
+  });
+  const search = main.getByRole("searchbox", { name: "搜索研究", exact: true });
+  const current = main.locator(`a[href="#research/${rid}"]`);
+  const oldResearch = main.locator(`a[href="#research/${copy}"]`);
+  await expect(unarchived).toBeChecked();
+  await expect(current).toBeVisible();
+  await expect(oldResearch).toHaveCount(0);
+  await expect(
+    main.getByRole("button", { name: "已归档", exact: true }),
+  ).toHaveCount(0);
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-theme",
+      colorScheme,
+    );
+    for (const width of [1280, 720]) {
+      await page.setViewportSize({ width, height: 900 });
+      const questionLine = current.getByText(question, { exact: true });
+      const summary = current.getByText(conclusion, { exact: true });
+      await expect(questionLine).toHaveCSS("-webkit-line-clamp", "1");
+      await expect(summary).toHaveCSS("-webkit-line-clamp", "2");
+      for (const [element, lines] of [
+        [questionLine, 1],
+        [summary, 2],
+      ] as const) {
+        const box = await element.evaluate((el) => ({
+          height: el.getBoundingClientRect().height,
+          lineHeight: parseFloat(getComputedStyle(el).lineHeight),
+          clipped: el.scrollHeight > el.clientHeight,
+        }));
+        expect(box.height).toBeLessThanOrEqual(box.lineHeight * lines + 1);
+        expect(box.clipped).toBe(true);
+      }
+      const title = main
+        .locator(`a[href="#research/${fresh}"]`)
+        .getByText(untitled.question, { exact: true });
+      await expect(title).toHaveCSS("white-space", "nowrap");
+      await expect(title).toHaveCSS("text-overflow", "ellipsis");
+      expect(
+        await title.evaluate((el) => el.scrollWidth > el.clientWidth),
+      ).toBe(true);
+      const filterBox = (await filter.boundingBox())!;
+      const searchBox = (await search.boundingBox())!;
+      expect(Math.abs(filterBox.y - searchBox.y)).toBeLessThan(4);
+      expect(
+        await main.evaluate((el) => el.scrollWidth <= el.clientWidth),
+      ).toBe(true);
+    }
+  }
+
+  await search.fill("研究");
+  await unarchived.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(archivedChoice).toBeChecked();
+  await expect(current).toHaveCount(0);
+  await expect(oldResearch).toBeVisible();
+  await expect(search).toHaveValue("研究");
+  await expect(
+    oldResearch.getByRole("button", { name: "恢复", exact: true }),
+  ).toBeVisible();
+  await search.fill("没有匹配项");
+  await expect(oldResearch).toHaveCount(0);
+  await expect(archivedChoice).toBeChecked();
+  await search.fill("");
+  await unarchived.click();
+  await expect(current).toBeVisible();
+  await expect(oldResearch).toHaveCount(0);
+});
+
 test("notifications open pending conversations and sidebar entries expose real state", async ({
   page,
 }) => {

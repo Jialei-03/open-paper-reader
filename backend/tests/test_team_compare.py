@@ -6,8 +6,10 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
-from backend import research_branches as branches, research_map as rm
-from backend import research_repo, research_workspaces as rw
+from backend import research_branches as branches
+from backend import research_map as rm
+from backend import research_repo
+from backend import research_workspaces as rw
 from backend.models import (
     AgentRun,
     AgentSession,
@@ -16,9 +18,13 @@ from backend.models import (
     ResearchJob,
     ResearchProject,
     ResearchSprint,
+    ResearchWorkflow,
+    ResearchWorkspace,
+    TeamMessage,
 )
 from backend.team_compare import comparison
-from backend.tests.test_acceptance import env as cloud_env, bearer  # noqa: F401
+from backend.tests.test_acceptance import bearer
+from backend.tests.test_acceptance import env as cloud_env  # noqa: F401
 from backend.tests.test_agents import configure
 
 API = "/api/v1/research"
@@ -122,7 +128,6 @@ def test_comparison_uses_own_costs_relevant_finite_numbers_and_role_participatio
         got["rounds"],
     ) == (1000, 80, 3600, 3)
     from backend.research_team import stable
-    from backend.models import ResearchWorkspace
 
     with app.state.maker() as d:
         workspace = d.get(ResearchWorkspace, d.get(ResearchProject, pid).workspace_id)
@@ -185,6 +190,96 @@ def test_comparison_empty_legacy_running_jobs_and_no_inherited_cost(env):
         )
         d.flush()
         assert comparison(d, [p])["threads"][0]["conclusion"] == "没有提升。"
+
+
+def test_comparison_workflow_names_cover_legacy_ids_and_preserve_snapshots(env):
+    app, _, _, _ = env
+    pid, _, _ = project(env)
+    with app.state.maker() as d:
+        p = d.get(ResearchProject, pid)
+        custom = ResearchWorkflow(owner=p.owner, name="Custom review")
+        d.add(custom)
+        d.flush()
+        for workflow, name in [
+            ({}, "研究"),
+            ({"id": "research"}, "研究"),
+            ({"id": "research", "name": "research"}, "研究"),
+            ({"id": "research", "name": "研究"}, "研究"),
+            ({"id": "literature-review"}, "文献综述"),
+            ({"id": custom.id}, "Custom review"),
+            ({"id": custom.id, "name": "Snapshot review"}, "Snapshot review"),
+        ]:
+            p.workflow = workflow
+            assert comparison(d, [p])["threads"][0]["workflow"] == name
+
+
+def test_comparison_team_threads_use_last_message_without_changing_root_time(env):
+    from backend import research_team as team
+
+    app, a, b, _ = env
+    pid, wid, _ = project(env)
+    base = f"{API}/workspaces/{wid}/team"
+    with app.state.maker() as d:
+        workspace = d.get(ResearchWorkspace, wid)
+        members = team.ensure(d, workspace)
+        human = next(m for m in members if m.role == "human")
+        advisor = next(m for m in members if m.role == "advisor")
+        channel = team.channel_of(d, workspace, team.stable(workspace, "general"))
+        old = team.post(d, workspace, channel, "Old thread", author=human)
+        old.created_at = "2026-10-01T00:00:00Z"
+        newer = team.post(d, workspace, channel, "Newer thread", author=human)
+        newer.created_at = "2026-10-02T00:00:00Z"
+        reply = team.post(
+            d, workspace, channel, "Latest reply", author=advisor, thread_id=old.id
+        )
+        reply.created_at = "2026-10-04T00:00:00Z"
+        reply.mentions = [human.id]
+        p = d.get(ResearchProject, pid)
+        p.created_at = "2026-09-01T00:00:00Z"
+        # A metadata update must not count as a message.
+        p.updated_at = "2026-10-10T00:00:00Z"
+        d.add(
+            ResearchEvent(
+                project_id=pid,
+                actor="advisor",
+                action="message",
+                detail={"text": "Legacy reply"},
+                created_at="2026-10-03T00:00:00Z",
+            )
+        )
+        old_id, newer_id, reply_id = old.id, newer.id, reply.id
+        d.commit()
+    response = a.get(base + "/threads")
+    assert response.status_code == 200, response.text
+    rows = response.json()
+    assert [r["id"] for r in rows] == [old_id, f"research:{pid}", newer_id]
+    assert rows[0]["created_at"] == "2026-10-01T00:00:00Z"
+    assert [r["last_message_at"] for r in rows] == [
+        "2026-10-04T00:00:00Z",
+        "2026-10-03T00:00:00Z",
+        "2026-10-02T00:00:00Z",
+    ]
+    assert [r["id"] for r in a.get(base + "/threads?mentions=true").json()] == [
+        reply_id
+    ]
+    assert b.get(base + "/threads").status_code == 404
+    with app.state.maker() as d:
+        d.get(TeamMessage, reply_id).created_at = "2026-10-01T01:00:00Z"
+        d.add(
+            ResearchSprint(
+                project_id=pid,
+                number=1,
+                run_id="fake",
+                summary="Legacy turn",
+                updated_at="2026-10-05T00:00:00Z",
+            )
+        )
+        d.commit()
+    assert [r["id"] for r in a.get(base + "/threads").json()] == [
+        f"research:{pid}",
+        newer_id,
+        old_id,
+    ]
 
 
 def test_comparison_is_local_human_only_atomic_and_preserves_order(env):

@@ -240,7 +240,7 @@ def definitions(locale="zh"):
 
 
 def compile_linear(definition, *, roles=None):
-    from .team_rules import _workflow_key, validate_workflow
+    from .team_rules import _workflow_key, deduplicate_workflow, validate_workflow
 
     source = deepcopy(definition)
     base = validate_workflow(
@@ -606,4 +606,4 @@ def compile_linear(definition, *, roles=None):
             kind="text",
         )
     workflow = validate_workflow({**base, "rules": rules})
-    return workflow, {"linear": {_workflow_key(workflow): routes}}
+    return deduplicate_workflow(workflow, {"linear": {_workflow_key(workflow): routes}})

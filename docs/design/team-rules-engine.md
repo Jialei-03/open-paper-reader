@@ -78,4 +78,6 @@ convert_linear_workflow(definition, *, roles=None) -> tuple[dict, dict]
 
 contract 没有步骤条件或完成事件，因此规则阶段路由保存在 `state.linear`，每事件只消耗当前阶段的一次转换。额外添加、没有阶段路由的规则照常按事件匹配。旧的产出路径、指示、agent 轮数和 child_research/retrospective 意图交给运行器的 instruction；review.max_retries 映射为 max_rounds。experiment 后的 conclusion 合并为同一个结论等待点，避免重复叫醒导师提出已经存在的结论。需要确认的中间步骤统一使用负责人发出的 `plan_approved`，因为 contract 没有其他批准事件；完成后没有下一步时输出 wait_for_owner，下一次负责人发言仅解除等待。
 
+编译和读取时，相同 `when` / `then` 的规则只保留一条，优先保留改过启用状态、上限或位置的版本，并保留该条的列表顺序。不同指示仍是不同规则。同一规则的多个阶段入口合并在 `state.linear` 的路由内：首个入口仍用 `from` / `to` / `on_fail`，其余入口放在 `alternatives` 数组中；计数、待评审和定时状态随规则 id 合并，避免读取旧数据后丢失运行进度。
+
 迁移不执行产出写入、检查点提交、子研究创建或旧 research_worker 的阶段推进。合并时负责人需要把原有 finish_step/review_step、计划批准、结论确认、作业结束转换成对应事件，并在运行器中继续执行上述已有能力。仅部署本模块不会改变老研究。

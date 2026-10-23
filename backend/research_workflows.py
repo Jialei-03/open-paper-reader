@@ -191,6 +191,17 @@ def adopt_project(d, project):
     from .team_workflows import pack
 
     if "rules" in (project.workflow or {}):
+        from .team_rules import deduplicate_workflow
+
+        flow, state = deduplicate_workflow(
+            project.workflow, (project.workflow_state or {}).get("rule_state")
+        )
+        if flow != project.workflow:
+            project.workflow = flow
+            project.workflow_state = {
+                **(project.workflow_state or {}),
+                "rule_state": state,
+            }
         return
     original = project.workflow or {
         "id": "research",

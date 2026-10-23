@@ -3,7 +3,7 @@ import type { Workflow } from "../../src/screens/team/workflow/workflow-model";
 import type { TeamMessage } from "../../src/screens/research/team-api";
 import { signIn } from "../reader/fixtures";
 
-test.use({ locale: "zh-CN" });
+test.use({ locale: "zh-CN", timezoneId: "Asia/Singapore" });
 const wid = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const dm = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const cid = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -156,6 +156,7 @@ async function setup(page: import("@playwright/test").Page) {
             },
           ],
           notifications: [],
+          tokens: 25570999,
         },
       });
     if (path.endsWith("/messages"))
@@ -344,11 +345,125 @@ test("team budgets are optional and there is no handoff limit", async ({
   });
   await page.goto(`/#team/${wid}/settings?thread=budget`);
   const settings = page.getByRole("region", { name: "团队设置", exact: true });
+  const tokens = settings.getByRole("spinbutton", {
+    name: "Token 上限",
+    exact: true,
+  });
+  const concurrent = settings.getByRole("spinbutton", {
+    name: "同时工作的成员数",
+    exact: true,
+  });
+  const period = settings.getByRole("spinbutton", {
+    name: "周期（小时）",
+    exact: true,
+  });
+  const tokensUnlimited = settings.getByRole("checkbox", {
+    name: "Token 上限 不限",
+    exact: true,
+  });
+  const concurrentUnlimited = settings.getByRole("checkbox", {
+    name: "同时工作的成员数 不限",
+    exact: true,
+  });
+  await expect(tokensUnlimited).toBeChecked();
+  await expect(concurrentUnlimited).toBeChecked();
+  await expect(settings.getByRole("spinbutton")).toHaveCount(0);
   await expect(
-    settings.getByRole("spinbutton", { name: "同时工作的成员数", exact: true }),
-  ).toHaveValue("0");
+    settings.getByText("已用 25,570,999 token", { exact: true }),
+  ).toBeVisible();
   await expect(settings.getByText("连续接力上限")).toHaveCount(0);
   await settings.getByRole("button", { name: "保存", exact: true }).click();
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0].body).not.toHaveProperty("relay_limit");
+  expect(writes[0].body).toEqual({
+    max_tokens: 0,
+    period_hours: 24,
+    max_concurrent: 0,
+  });
+  await tokensUnlimited.uncheck();
+  await expect(tokens).toHaveValue("12000000");
+  await expect(period).toHaveValue("24");
+  await tokens.fill("");
+  await expect(tokens).toBeVisible();
+  await expect(tokensUnlimited).not.toBeChecked();
+  await tokens.fill("5000");
+  await period.fill("12");
+  await concurrentUnlimited.uncheck();
+  await expect(concurrent).toHaveValue("1");
+  await concurrent.fill("3");
+  await settings.getByRole("button", { name: "保存", exact: true }).click();
+  await expect.poll(() => writes.length).toBe(2);
+  expect(writes[1].body).toEqual({
+    max_tokens: 5000,
+    period_hours: 12,
+    max_concurrent: 3,
+  });
+  await tokensUnlimited.check();
+  await expect(tokens).toHaveCount(0);
+  await expect(period).toHaveCount(0);
+  await expect(concurrent).toHaveValue("3");
+  await concurrentUnlimited.check();
+  await expect(concurrent).toHaveCount(0);
+  await settings.getByRole("button", { name: "保存", exact: true }).click();
+  await expect.poll(() => writes.length).toBe(3);
+  expect(writes[2].body).toEqual({
+    max_tokens: 0,
+    period_hours: 12,
+    max_concurrent: 0,
+  });
+});
+
+test("threads use latest replies, the sidebar icon and local dates", async ({
+  page,
+}) => {
+  const { reply } = await setup(page);
+  await page.clock.setFixedTime(new Date("2026-10-24T07:00:00Z"));
+  const rows = [
+    {
+      ...reply,
+      id: "newer",
+      text: "昨天的线程",
+      created_at: "2026-10-23T00:00:00Z",
+    },
+    {
+      ...reply,
+      id: "oldest",
+      text: "去年的线程",
+      created_at: "2025-12-31T00:00:00Z",
+    },
+    {
+      ...reply,
+      id: "old",
+      text: "刚回复的旧线程",
+      created_at: "2026-01-01T00:00:00Z",
+      last_message_at: "2026-10-24T06:35:00Z",
+    },
+  ];
+  await page.route("**/team/threads?*", (route) =>
+    route.fulfill({ json: rows }),
+  );
+  await page.goto(`/#team/${wid}/threads`);
+  const list = page.getByRole("region", { name: "线程", exact: true });
+  await expect(list.getByRole("button")).toHaveText([
+    "刚回复的旧线程14:35",
+    "昨天的线程10月23日",
+    "去年的线程2025年12月31日",
+  ]);
+  const sidebarIcon = page
+    .getByRole("link", { name: "线程", exact: true })
+    .locator("svg");
+  await expect(list.locator("header > svg")).toHaveAttribute(
+    "class",
+    (await sidebarIcon.getAttribute("class"))!,
+  );
+  await expect(list.locator("time").first()).toHaveAttribute(
+    "datetime",
+    "2026-10-24T06:35:00Z",
+  );
+  rows[0].last_message_at = "2026-10-24T06:40:00Z";
+  await expect(list.getByRole("button").first()).toHaveText("昨天的线程14:40");
+  await list.getByRole("button").first().click();
+  await expect(page).toHaveURL(
+    new RegExp(`#team/${wid}/${cid}\\?thread=newer$`),
+  );
 });

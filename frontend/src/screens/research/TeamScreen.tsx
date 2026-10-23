@@ -58,7 +58,10 @@ import {
   mentionMatches,
   mentionQuery,
   orderedMessages,
+  recentThreads,
   sendMode,
+  threadActivity,
+  threadDate,
 } from "./team-model";
 import styles from "./Team.module.css";
 
@@ -152,7 +155,7 @@ export function TeamScreen({
       {(!full || !threadId) && (
         <section className={styles.channel} aria-label={title}>
           <header className={styles.header}>
-            {channel?.member_id ? (
+            {channel?.member_id || channelId === "threads" ? (
               <MessageSquare size={16} aria-hidden />
             ) : (
               <Hash size={16} aria-hidden />
@@ -345,6 +348,7 @@ function ThreadList({
   mentions: boolean;
   open(message: TeamMessage): void;
 }) {
+  const { locale } = useI18n();
   const [messages, setMessages] = useState<TeamMessage[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -368,13 +372,17 @@ function ThreadList({
   return (
     <div className={styles.list}>
       {error && <p role="alert">{error}</p>}
-      {orderedMessages(messages).map((message) => (
-        <button type="button" key={message.id} onClick={() => open(message)}>
-          <MessageSquare size={16} aria-hidden />
-          <span>{message.data.title || message.text}</span>
-          <time>{new Date(message.created_at).toLocaleDateString()}</time>
-        </button>
-      ))}
+      {(mentions ? orderedMessages(messages) : recentThreads(messages)).map(
+        (message) => (
+          <button type="button" key={message.id} onClick={() => open(message)}>
+            <MessageSquare size={16} aria-hidden />
+            <span>{message.data.title || message.text}</span>
+            <time dateTime={threadActivity(message)}>
+              {threadDate(threadActivity(message), locale)}
+            </time>
+          </button>
+        ),
+      )}
     </div>
   );
 }

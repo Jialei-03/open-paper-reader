@@ -53,18 +53,28 @@ def references(d, workspace):
 def pack(source):
     """Upgrade old definitions in place without losing their execution boundary data."""
     if "rules" in source:
-        return deepcopy(source)
+        flow, state = team_rules.deduplicate_workflow(
+            source, source.get("initial_state")
+        )
+        if "initial_state" in source:
+            flow["initial_state"] = state
+        return flow
     flow, state = team_rules.convert_linear_workflow(source)
     return {**flow, "initial_state": state, "execution": deepcopy(source)}
 
 
 def definition(d, owner, identifier="research", *, workspace=None):
     if workspace and workspace.workflow and workspace.workflow["id"] == identifier:
-        return deepcopy(workspace.workflow)
+        return deepcopy(adopt(d, workspace))
     if workspace:
         saved = workspace.workflow_state.get("definitions", {}).get(identifier)
         if saved:
-            return deepcopy(saved)
+            flow, state = team_rules.deduplicate_workflow(
+                saved, workspace.workflow_state
+            )
+            state["definitions"][identifier] = deepcopy(flow)
+            workspace.workflow_state = state
+            return flow
     builtins = team_rules.builtin_workflows()
     if identifier in builtins:
         return builtins[identifier]
@@ -80,7 +90,7 @@ def definition(d, owner, identifier="research", *, workspace=None):
             "builtin": False,
         }
     )
-    if "rules" not in row.definition:
+    if source != row.definition:
         row.definition = source
     return team_rules.validate_workflow(
         {
@@ -104,7 +114,13 @@ def seed(d, workflow):
 
 def adopt(d, workspace):
     if workspace.workflow:
-        return workspace.workflow
+        flow, state = team_rules.deduplicate_workflow(
+            workspace.workflow, workspace.workflow_state
+        )
+        if flow != workspace.workflow:
+            state.setdefault("definitions", {})[flow["id"]] = deepcopy(flow)
+            workspace.workflow, workspace.workflow_state = flow, state
+        return flow
     flow = definition(d, workspace.owner)
     # The native research template listens in the research channel. Other channels
     # stay available for explicit mentions and rules the owner adds.
@@ -614,10 +630,12 @@ def prime(project, state, channel, team, members=None):
             target = f"step:{mapped[i]}"
             for rule in project.workflow["rules"]:
                 then = rule["then"]
-                if (
-                    then["action"] != "review"
-                    or routes.get(rule["id"], {}).get("to") != target
+                if then["action"] != "review" or not any(
+                    route.get("to") == target
+                    for route in team_rules.route_options(routes.get(rule["id"]))
                 ):
+                    continue
+                if reviews.get(rule["id"], {}).get("pending"):
                     continue
                 reviews[rule["id"]] = {
                     "reviewer": team_rules._resolve(
@@ -629,6 +647,7 @@ def prime(project, state, channel, team, members=None):
                     "returns": (
                         step_states[i].get("retries", 0) if i < len(step_states) else 0
                     ),
+                    "cursor": target,
                     "pending": i == index and project.status == "active",
                 }
     partition["workflows"][wk] = {"counts": {}, "reviews": reviews, "cursor": cursor}

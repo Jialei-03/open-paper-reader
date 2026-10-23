@@ -88,6 +88,7 @@ export interface TeamMessage {
     limit?: number;
   };
   created_at: string;
+  last_message_at?: string;
   replies: number;
   run?: Omit<ResearchRun, "role">;
 }

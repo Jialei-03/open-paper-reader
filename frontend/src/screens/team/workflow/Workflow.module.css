@@ -80,7 +80,9 @@
   font-size: var(--ui-text-13);
   line-height: var(--ui-leading);
   text-align: start;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 

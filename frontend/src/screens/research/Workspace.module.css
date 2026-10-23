@@ -649,8 +649,20 @@
   padding: var(--ui-space-24);
   box-sizing: border-box;
 }
-.researchList > div:first-child {
+.researchToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-12);
   margin-bottom: var(--ui-space-12);
+}
+.researchToolbar > div:last-child {
+  flex: 1;
+  min-width: 0;
+}
+.researchToolbar input {
+  height: var(--ui-control-md);
+  border-radius: var(--ui-r-pill);
 }
 .researchList > a {
   display: flex;
@@ -673,6 +685,14 @@
   font-weight: var(--ui-weight-strong);
   overflow-wrap: anywhere;
 }
+.rowTitle > svg {
+  flex: none;
+}
+.rowName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .rowStatus {
   color: var(--ui-fg-3);
   font-size: var(--ui-text-12);
@@ -684,6 +704,18 @@
   color: var(--ui-fg-3);
   font-size: var(--ui-text-12);
   overflow-wrap: anywhere;
+}
+.rowQuestion,
+.rowProgress {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
+  line-height: var(--ui-leading);
+}
+.rowQuestion {
+  -webkit-line-clamp: 1;
 }
 .classifyList {
   display: flex;

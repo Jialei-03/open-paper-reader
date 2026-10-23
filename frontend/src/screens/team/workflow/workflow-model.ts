@@ -6,7 +6,7 @@ import {
   type NodeChange,
   type XYPosition,
 } from "@xyflow/react";
-import type { Translator } from "../../../i18n/i18n";
+import type { MessageKey, Translator } from "../../../i18n/i18n";
 
 // References and payloads follow docs/design/agent-team-contract.md.
 export interface WorkflowMember {
@@ -37,6 +37,16 @@ export const RULE_ACTIONS = [
   "wait_for_owner",
   "post",
 ] as const;
+// Legacy step actions can also appear in imported workflow data.
+const ACTION_LABELS: Record<string, MessageKey> = {
+  wake: "teamWorkflow.action.wake",
+  review: "teamWorkflow.action.review",
+  wait_for_owner: "teamWorkflow.action.wait_for_owner",
+  post: "teamWorkflow.action.post",
+  conclusion: "teamWorkflow.action.conclusion",
+  retrospective: "teamWorkflow.action.retrospective",
+  child_research: "teamWorkflow.action.child_research",
+};
 export const MESSAGE_KINDS = [
   "text",
   "result",
@@ -139,42 +149,31 @@ export function ruleSummary(
     rule.when.from_member || rule.when.from_role
       ? memberName(rule.when.from_member, rule.when.from_role)
       : "",
-    t(`teamWorkflow.event.${rule.when.event}`),
-    rule.when.kind ? t(`teamWorkflow.kind.${rule.when.kind}`) : "",
+    RULE_EVENTS.includes(rule.when.event)
+      ? t(`teamWorkflow.event.${rule.when.event}`)
+      : "",
+    rule.when.kind && MESSAGE_KINDS.includes(rule.when.kind)
+      ? t(`teamWorkflow.kind.${rule.when.kind}`)
+      : "",
     rule.when.event === "schedule"
       ? `${rule.when.cron ?? ""} ${rule.when.timezone ?? ""}`
       : "",
   ]
     .filter(Boolean)
     .join(" · ");
-  const target =
-    rule.then.action === "post"
+  const actionLabel = Object.hasOwn(ACTION_LABELS, rule.then.action)
+    ? t(ACTION_LABELS[rule.then.action])
+    : "";
+  const target = !actionLabel
+    ? ""
+    : rule.then.action === "post"
       ? channelName(rule.then.channel)
       : rule.then.action === "wait_for_owner"
         ? t("teamWorkflow.me")
         : rule.then.subscribers
           ? t("members.subscribers")
           : memberName(rule.then.member, rule.then.role);
-  const action = [
-    target,
-    t(`teamWorkflow.action.${rule.then.action}`),
-    rule.then.instruction,
-    rule.then.text,
-    rule.then.action === "review" && rule.then.on_fail
-      ? t(
-          rule.then.max_rounds
-            ? "teamWorkflow.returnTo"
-            : "teamWorkflow.returnToUnlimited",
-          {
-            name: memberName(rule.then.on_fail, rule.then.on_fail),
-            count: rule.then.max_rounds ?? 0,
-            limit: t("team.unlimited"),
-          },
-        )
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const action = [target, actionLabel].filter(Boolean).join(" · ");
   return t("teamWorkflow.summary", { source, action });
 }
 

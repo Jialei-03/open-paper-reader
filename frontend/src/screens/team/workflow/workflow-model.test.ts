@@ -24,6 +24,7 @@ import {
   workflowToFlow,
   updateCanvasNodes,
   type Workflow,
+  type WorkflowRule,
 } from "./workflow-model";
 
 const fixture = () => structuredClone(workflowFixture);
@@ -390,7 +391,7 @@ describe("localized list and shared editor", () => {
           limit: maximum === undefined ? undefined : { per_thread: maximum },
           then: { ...fixture().rules[0].then, max_rounds: maximum },
         };
-        expect(ruleSummary(rule, members, channels, t)).toContain(
+        expect(ruleSummary(rule, members, channels, t)).not.toContain(
           t("team.unlimited"),
         );
         const editor = render(
@@ -417,6 +418,11 @@ describe("localized list and shared editor", () => {
       expect(summary).toContain("Alex");
       expect(summary).toContain("Morgan");
       expect(summary).toContain("Lab");
+      expect(summary).toBe(
+        locale === "en"
+          ? "When Lab · Alex · Message received · Result → Morgan · Review"
+          : "当 Lab · Alex · 收到消息 · 结果 时 → Morgan · 评审",
+      );
       const html = render(
         createElement(WorkflowRules, {
           workflow,
@@ -449,6 +455,90 @@ describe("localized list and shared editor", () => {
       ] as const)
         expect(editor).toContain(t(`teamWorkflow.${key}`));
       expect(editor).not.toContain("description=");
+    });
+
+    it(`${locale} localizes every contract and legacy action without including instructions`, () => {
+      for (const action of [
+        "wake",
+        "review",
+        "wait_for_owner",
+        "post",
+        "conclusion",
+        "retrospective",
+        "child_research",
+      ] as const) {
+        const rule = {
+          ...fixture().rules[0],
+          then: {
+            ...fixture().rules[0].then,
+            action: action as WorkflowRule["then"]["action"],
+            instruction:
+              "结论: 总结实验结论\naction: conclusion\naction: retrospective",
+            text: "Full channel post",
+            channel: "papers",
+          },
+        };
+        const summary = ruleSummary(rule, members, channels, t);
+        expect(summary).toContain(t(`teamWorkflow.action.${action}`));
+        expect(summary).not.toMatch(
+          /action:|instruction:|conclusion|retrospective|\n/,
+        );
+        expect(summary).not.toContain(rule.then.text);
+        expect(summary).not.toContain(
+          t("teamWorkflow.returnTo", { name: "Alex", count: 3 }),
+        );
+        if (action === "post") expect(summary).toContain("Papers");
+        if (action === "wait_for_owner")
+          expect(summary).toContain(t("teamWorkflow.me"));
+      }
+    });
+
+    it(`${locale} ignores unknown fields and enum values`, () => {
+      const rule = fixture().rules[0];
+      const summary = ruleSummary(rule, members, channels, t);
+      const extended = {
+        ...rule,
+        unknown: "private metadata",
+        when: { ...rule.when, unknown: "private trigger" },
+        then: { ...rule.then, unknown: "private action" },
+      };
+      expect(ruleSummary(extended, members, channels, t)).toBe(summary);
+      const future = {
+        ...extended,
+        when: { ...extended.when, event: "future_event", kind: "future_kind" },
+        then: { ...extended.then, action: "future_action" },
+      } as unknown as WorkflowRule;
+      expect(ruleSummary(future, members, channels, t)).toBe(
+        t("teamWorkflow.summary", { source: "Lab · Alex", action: "" }),
+      );
+    });
+
+    it(`${locale} keeps the complete instruction in the editor only`, () => {
+      const rule = fixture().rules[0];
+      rule.then.instruction = "Detailed instruction\naction: retrospective";
+      const before = structuredClone(rule);
+      const list = render(
+        createElement(WorkflowRules, {
+          workflow: { ...fixture(), rules: [rule] },
+          members,
+          channels,
+          onChange: vi.fn(),
+          onEdit: vi.fn(),
+        }),
+      );
+      expect(list).not.toContain("Detailed instruction");
+      expect(list).not.toContain("action:");
+      const editor = render(
+        createElement(RuleEditor, {
+          rule,
+          members,
+          channels,
+          onSave: vi.fn(),
+          onClose: vi.fn(),
+        }),
+      );
+      expect(editor).toContain(rule.then.instruction);
+      expect(rule).toEqual(before);
     });
   }
 });

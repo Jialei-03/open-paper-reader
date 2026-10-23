@@ -86,6 +86,53 @@ test("the library starts as a list, opens paper cards on request and remembers e
   await expect(library.locator("[data-view=grid]")).toBeVisible();
 });
 
+test("the source column abbreviates conferences and keeps source capitalization", async ({
+  page,
+}) => {
+  await signIn(page);
+  const stamp = Date.now().toString(36);
+  const examples = [
+    ["neural information processing systems", "NeurIPS"],
+    ["conference on empirical methods in natural language processing", "EMNLP"],
+    ["eLife", "eLife"],
+    ["journal of unusual results", "Journal Of Unusual Results"],
+  ];
+  const records: Record<
+    string,
+    { paper_id: string; status: "ok"; venue: string }
+  > = {};
+  const papers = [];
+  for (const [venue, label] of examples) {
+    const paper = await createPaperWithPdf(page, {
+      title: `${label} ${stamp}`,
+    });
+    records[paper.paperId] = { paper_id: paper.paperId, status: "ok", venue };
+    papers.push({ id: paper.paperId, venue, label });
+  }
+  await page.route("**/api/v1/paper-metadata", (route) =>
+    route.fulfill({ json: records }),
+  );
+  await page.goto(LIBRARY);
+  const library = page.getByRole("main");
+  await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
+  await expect(
+    library.getByRole("columnheader", { name: "来源", exact: true }),
+  ).toBeVisible();
+  for (const { id, label } of papers) {
+    const source = library
+      .locator(`[data-paper="${id}"]`)
+      .getByRole("cell")
+      .nth(1);
+    await expect(source).toHaveText(label);
+    await expect(source).toHaveAttribute("title", label);
+  }
+  // Formatting belongs to the view: API records still contain their source text.
+  const response = await page.evaluate(async () =>
+    (await fetch("/api/v1/paper-metadata")).json(),
+  );
+  for (const { id, venue } of papers) expect(response[id].venue).toBe(venue);
+});
+
 test("the list shows when a paper was last opened", async ({ page }) => {
   await signIn(page);
   const stamp = Date.now().toString(36);

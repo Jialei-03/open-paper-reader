@@ -23,7 +23,12 @@ for (const theme of ["light", "dark"] as const) {
       .fill("Check uncertainty");
     await editor.getByLabel("Trigger limit per thread").fill("7");
     await editor.getByRole("button", { name: "Save", exact: true }).click();
-    await expect(row(page, "review")).toContainText("Check uncertainty");
+    await expect(row(page, "review")).not.toContainText("Check uncertainty");
+    await expect(
+      row(page, "review").getByRole("button", { name: /^When/ }),
+    ).toHaveText(
+      "When Lab · Alex · Message received · Result → Morgan · Review",
+    );
     await row(page, "review").getByRole("switch").click();
     await expect(row(page, "review").getByRole("switch")).toHaveAttribute(
       "aria-checked",
@@ -95,7 +100,7 @@ for (const theme of ["light", "dark"] as const) {
       .poll(async () => (await state(page)).layout.channels.writing)
       .toBeTruthy();
     await page.getByRole("tab", { name: "List", exact: true }).click();
-    await expect(row(page, "review")).toContainText("Up to 4 times");
+    await expect(row(page, "review")).not.toContainText("Up to 4 times");
     await expect(row(page, "review").getByRole("switch")).toHaveAttribute(
       "aria-checked",
       "false",
@@ -165,9 +170,89 @@ test("dragging a connection creates a rule only after saving the shared editor",
   });
   await page.getByRole("tab", { name: "List", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: /When Alex.*Morgan.*Cross-check/ }),
+    page.getByRole("button", { name: /When Alex.*Morgan · Review/ }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("list", { name: "List", exact: true }),
+  ).not.toContainText("Cross-check");
 });
+
+for (const locale of ["en", "zh"] as const) {
+  test(`${locale} list keeps long summaries on one line and full instructions in the editor`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 720, height: 800 });
+    await page.goto(`/e2e-ui/workflow.html?locale=${locale}`);
+    const labels =
+      locale === "en"
+        ? {
+            edit: "Edit rule",
+            instruction: "Instruction",
+            save: "Save",
+            cancel: "Cancel",
+            schedule: "Schedule",
+            list: "List",
+          }
+        : {
+            edit: "编辑规则",
+            instruction: "指示",
+            save: "保存",
+            cancel: "取消",
+            schedule: "定时",
+            list: "列表",
+          };
+    const summary = row(page, "schedule").getByRole("button", {
+      name: /^(When|当)/,
+    });
+    await summary.click();
+    const editor = page.getByRole("dialog", { name: labels.edit, exact: true });
+    const instruction =
+      "总结实验结论。".repeat(100) +
+      "\naction: conclusion\naction: retrospective";
+    await editor
+      .getByLabel(labels.instruction, { exact: true })
+      .fill(instruction);
+    // A valid long cron expression exercises actual ellipsis overflow at 720px.
+    await editor
+      .getByLabel(labels.schedule, { exact: true })
+      .fill(
+        Array.from({ length: 60 }, (_, index) => index).join(",") + " 9 * * *",
+      );
+    await editor
+      .getByRole("button", { name: labels.save, exact: true })
+      .click();
+    const list = page.getByRole("list", { name: labels.list, exact: true });
+    await expect(list).not.toContainText("action:");
+    await expect(list).not.toContainText("总结实验结论");
+    const singleLine = await summary.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        whiteSpace: style.whiteSpace,
+        overflow: style.overflow,
+        textOverflow: style.textOverflow,
+        truncated: element.scrollWidth > element.clientWidth,
+      };
+    });
+    expect(singleLine).toEqual({
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      truncated: true,
+    });
+    await summary.click();
+    await expect(
+      editor.getByLabel(labels.instruction, { exact: true }),
+    ).toHaveValue(instruction);
+    await editor
+      .getByRole("button", { name: labels.cancel, exact: true })
+      .click();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+  });
+}
 
 test("Chinese list supports drag ordering and confirmed deletion", async ({
   page,

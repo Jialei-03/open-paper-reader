@@ -43,6 +43,34 @@ export function orderedMessages(messages: TeamMessage[]) {
   );
 }
 
+export const threadActivity = (message: TeamMessage) =>
+  message.last_message_at || message.created_at;
+
+export function recentThreads(messages: TeamMessage[]) {
+  return orderedMessages(messages).sort(
+    (a, b) =>
+      Date.parse(threadActivity(b)) - Date.parse(threadActivity(a)) ||
+      b.id.localeCompare(a.id),
+  );
+}
+
+export function threadDate(stamp: string, locale: string, now = new Date()) {
+  const date = new Date(stamp);
+  if (!Number.isFinite(date.getTime())) return "—";
+  const today = date.toDateString() === now.toDateString();
+  return new Intl.DateTimeFormat(locale, {
+    ...(today
+      ? { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }
+      : {
+          ...(date.getFullYear() !== now.getFullYear()
+            ? { year: "numeric" }
+            : {}),
+          month: "short",
+          day: "numeric",
+        }),
+  }).format(date);
+}
+
 export const defaultChannelNames: Record<string, string> = {
   review: zh["team.channel.review"],
   experiments: zh["team.channel.experiments"],
