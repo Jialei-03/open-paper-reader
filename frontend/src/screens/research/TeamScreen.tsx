@@ -996,12 +996,13 @@ export function MessageRow({
         <div className={styles.hoverActions}>{stop}</div>
       </article>
     );
-  const recipients = message.data.to?.map((id) => {
-    const target = team.members.find(
-      (m) => m.id === id || m.role === id || m.name === id,
-    );
-    return target ? displayMemberName(target, t) : id;
-  });
+  // Only members are woken; older records may still name the researcher.
+  const recipients = message.data.to
+    ?.map((id) =>
+      team.members.find((m) => m.id === id || m.role === id || m.name === id),
+    )
+    .filter((target) => target && target.role !== "human")
+    .map((target) => displayMemberName(target!, t));
   return (
     <article
       className={styles.message}

@@ -26,7 +26,7 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 <p align="center"><img src="docs/images/plan.png" alt="A research plan agreed with the advisor" width="900"></p>
 
 - **It starts with one sentence**: in New research, say what you want to find out and pick a project, a workflow and a model. The advisor talks it through and writes a plan card: the metric, the baseline, what comes first, and what result would sink each hypothesis. Experiments start when you press Start experiments.
-- **Collaborate as in Slack**: projects have channels, direct messages with members and threads. Each research runs in a thread, with expandable member activity, plans, experiments, file changes and conclusions.
+- **Work together like in Feishu**: channels and member DMs share one conversation list, newest first, with previews, unread counts and who is working. Your messages sit on the right; member replies are cards with their work folded into one line, files to open, and changed files to diff or revert. Each research runs in a thread.
 - **Research map**: the direction lives in a persistent tree, not in chat history: north-star question → sub-questions → hypotheses → experiments → findings. Each round starts from the map and the last handoff. The executor must name the node it advances before acting; drift is refused and logged.
 - **The advisor judges, you decide**: a read-only advisor reviews the map, checks numbers against the logs, decides to continue, invest, drop or pivot, and asks you about choices it cannot make. The plan, the conclusion and any extra budget are your call.
 - **Projects are git repositories; research runs in threads**: a research writes its code and results in its own worktree, with a checkpoint commit at the end of every round. Fork a new research from a round with a saved checkpoint to try another way; conclusions merge back into the project's memory, code into the main line once you confirm. The desktop app carries its own git.
@@ -45,6 +45,8 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 Details: [Research](docs/RESEARCH.md).
 
 ## Research team
+
+<p align="center"><img src="docs/images/team.png" alt="Team conversation: member reply cards, files and changes" width="900"></p>
 
 You lead a team of agents you define. Built-in members include an advisor, executor, librarian, reviewer, writer and distiller, which you can adapt for each project.
 
