@@ -36,14 +36,14 @@ class Permissions(Strict):
 class MemberConfig(Strict):
     description: str = Field(default="", max_length=5000)
     tools: list[str] | None = None
-    wake_minutes: int = Field(default=20, ge=1, le=1440, strict=True)
+    wake_minutes: int = Field(default=0, ge=0, le=1440, strict=True)
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
     name: str = Field(min_length=1, max_length=100)
     avatar_color: str = "blue"
     role_description: str = Field(default="", max_length=50000)
     model_config_id: str = Field(default="", max_length=64)
     permissions: Permissions = Field(default_factory=Permissions)
-    wake_turns: int = Field(default=32, ge=1, le=256, strict=True)
+    wake_turns: int = Field(default=0, ge=0, le=256, strict=True)
     wake_tokens: int = Field(default=0, ge=0, le=2000000, strict=True)
 
     @field_validator("name")
@@ -96,8 +96,13 @@ def permissions(member):
 def description(member):
     from .agent_files import read_member, shared_instructions
 
+    values = read_member(member)[1]
+    # Name the member: threads hold other members' messages, and a model that
+    # only sees a role brief can take on the author's identity.
     return (
-        read_member(member)[1]["role_description"]
+        f"You are {values.get('name') or member.name}, a member of this team. "
+        "Messages from other members are theirs, not yours.\n\n"
+        + values["role_description"]
         + "\n\n"
         + shared_instructions(member)
     )

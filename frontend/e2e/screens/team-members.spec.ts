@@ -278,7 +278,7 @@ async function setup(page: Page) {
   };
 }
 
-test("创建、权限、预算、订阅和成员详情", async ({ page }) => {
+test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
   const { saved: writes } = await setup(page);
   await page.getByRole("button", { name: "添加成员", exact: true }).click();
   const dialog = page.getByRole("dialog");
@@ -288,13 +288,10 @@ test("创建、权限、预算、订阅和成员详情", async ({ page }) => {
     .fill("# Ada\nVerify every claim");
   await dialog.getByLabel("头像颜色", { exact: true }).selectOption("green");
   await dialog.getByLabel("只读", { exact: true }).check();
-  await expect(
-    dialog.getByLabel("运行命令和实验", { exact: true }),
-  ).toBeDisabled();
+  await expect(dialog.getByLabel("命令行", { exact: true })).toBeDisabled();
   await dialog.getByLabel("只读", { exact: true }).uncheck();
-  await dialog.getByLabel("每次唤醒轮数", { exact: true }).fill("3");
-  await dialog.getByLabel("每次唤醒 token", { exact: true }).fill("5000");
-  await dialog.getByLabel("每次唤醒分钟", { exact: true }).fill("30");
+  await dialog.getByLabel("网页", { exact: true }).uncheck();
+  await expect(dialog.getByLabel("每次唤醒轮数")).toHaveCount(0);
   await dialog.getByLabel("#闲聊", { exact: true }).check();
   await dialog.getByRole("button", { name: "保存", exact: true }).click();
   await expect(
@@ -304,9 +301,9 @@ test("创建、权限、预算、订阅和成员详情", async ({ page }) => {
     config: {
       name: "Ada",
       avatar_color: "green",
-      wake_turns: 3,
-      wake_minutes: 30,
-      wake_tokens: 5000,
+      wake_turns: 0,
+      wake_minutes: 0,
+      wake_tokens: 0,
     },
     subscriptions: [cid],
   });

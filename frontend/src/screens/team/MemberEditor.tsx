@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
+import type { MessageKey } from "../../i18n/i18n";
 import { Button, Dialog, TextArea, TextField } from "../../ui";
 import {
   convertAgentDocument,
@@ -48,23 +49,22 @@ export function PermissionFields({
 }) {
   const { t } = useI18n();
   return (
-    <fieldset className={styles.checks}>
-      <legend>{t("members.permissions")}</legend>
-      {(
-        ["papers", "files", "commands", "readonly", "file_readonly"] as const
-      ).map((key) => (
-        <label key={key}>
-          <input
-            type="checkbox"
-            checked={value[key] ?? false}
-            disabled={key === "commands" && value.readonly}
-            onChange={(e) =>
-              onChange(permissionChange(value, key, e.target.checked))
-            }
-          />
-          {t(`members.permission.${key}`)}
-        </label>
-      ))}
+    <>
+      <fieldset className={styles.checks}>
+        <legend>{t("members.permissions")}</legend>
+        {(["readonly", "file_readonly"] as const).map((key) => (
+          <label key={key}>
+            <input
+              type="checkbox"
+              checked={value[key] ?? false}
+              onChange={(e) =>
+                onChange(permissionChange(value, key, e.target.checked))
+              }
+            />
+            {t(`members.permission.${key}`)}
+          </label>
+        ))}
+      </fieldset>
       <fieldset className={styles.checks}>
         <legend>{t("members.machines")}</legend>
         {machines.map((m) => (
@@ -85,7 +85,7 @@ export function PermissionFields({
           </label>
         ))}
       </fieldset>
-    </fieldset>
+    </>
   );
 }
 export function MemberFields({
@@ -173,13 +173,6 @@ export function MemberFields({
           ))}
         </select>
       </div>
-      <PermissionFields
-        value={draft.permissions}
-        machines={machines}
-        onChange={(permissions) =>
-          onChange(withMemberPermissions(draft, permissions))
-        }
-      />
       <fieldset className={styles.checks}>
         <legend>{t("members.tools")}</legend>
         {["literature", "files", "shell", "experiments", "web", "project"].map(
@@ -222,40 +215,18 @@ export function MemberFields({
                   });
                 }}
               />
-              {tool}
+              {t(`members.tool.${tool}` as MessageKey)}
             </label>
           ),
         )}
       </fieldset>
-      <div className={styles.budget}>
-        <TextField
-          label={t("members.turns")}
-          type="number"
-          min={1}
-          max={256}
-          required
-          value={draft.wake_turns}
-          onChange={(e) => set({ wake_turns: Number(e.target.value) })}
-        />
-        <TextField
-          label={t("members.tokens")}
-          type="number"
-          min={0}
-          max={2000000}
-          placeholder={t("team.unlimited")}
-          value={draft.wake_tokens || ""}
-          onChange={(e) => set({ wake_tokens: Number(e.target.value) })}
-        />
-        <TextField
-          label={t("members.minutes")}
-          type="number"
-          min={1}
-          max={1440}
-          required
-          value={draft.wake_minutes ?? 20}
-          onChange={(e) => set({ wake_minutes: Number(e.target.value) })}
-        />
-      </div>
+      <PermissionFields
+        value={draft.permissions}
+        machines={machines}
+        onChange={(permissions) =>
+          onChange(withMemberPermissions(draft, permissions))
+        }
+      />
     </>
   );
 }

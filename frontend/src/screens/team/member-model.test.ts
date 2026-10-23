@@ -31,7 +31,7 @@ describe("custom members", () => {
     expect(validMember(form)).toBe(true);
     for (const patch of [
       { name: " " },
-      { wake_turns: 0 },
+      { wake_turns: -1 },
       { wake_tokens: -1 },
       { wake_turns: 1.5 },
       { wake_tokens: 2000001 },
@@ -109,7 +109,6 @@ describe("custom members", () => {
       expect(html).toContain('value="Ada"');
       expect(html).toContain('disabled=""');
       expect(html).toContain(locale === "zh" ? "角色说明" : "Role description");
-      expect(html).toContain('max="2000000"');
       expect(html).toContain('type="checkbox"');
       const permissions = renderToStaticMarkup(
         createElement(I18nProvider, {
@@ -121,7 +120,6 @@ describe("custom members", () => {
           }),
         }),
       );
-      expect(permissions).toContain('disabled=""');
       expect(permissions).toContain("Host");
     });
 });

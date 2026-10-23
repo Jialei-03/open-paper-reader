@@ -36,12 +36,12 @@ export function memberDraft(m?: Partial<MemberConfig>): MemberConfig {
     name: m?.name ?? "",
     description: m?.description ?? "",
     tools: m?.tools ? [...m.tools] : null,
-    wake_minutes: m?.wake_minutes ?? 20,
+    wake_minutes: m?.wake_minutes ?? 0,
     avatar_color: m?.avatar_color ?? "blue",
     role_description: m?.role_description ?? "",
     model_config_id: m?.model_config_id ?? "",
     permissions: structuredClone(m?.permissions ?? defaultPermissions),
-    wake_turns: m?.wake_turns ?? 32,
+    wake_turns: m?.wake_turns ?? 0,
     wake_tokens: m?.wake_tokens ?? 0,
   };
 }
@@ -92,14 +92,14 @@ export function validMember(draft: MemberConfig) {
     ) &&
     draft.role_description.length <= 50000 &&
     Number.isInteger(draft.wake_turns) &&
-    draft.wake_turns >= 1 &&
+    draft.wake_turns >= 0 &&
     draft.wake_turns <= 256 &&
     Number.isInteger(draft.wake_tokens) &&
     draft.wake_tokens >= 0 &&
     draft.wake_tokens <= 2000000 &&
-    Number.isInteger(draft.wake_minutes ?? 20) &&
-    (draft.wake_minutes ?? 20) >= 1 &&
-    (draft.wake_minutes ?? 20) <= 1440
+    Number.isInteger(draft.wake_minutes ?? 0) &&
+    (draft.wake_minutes ?? 0) >= 0 &&
+    (draft.wake_minutes ?? 0) <= 1440
   );
 }
 export const initials = (name: string) =>

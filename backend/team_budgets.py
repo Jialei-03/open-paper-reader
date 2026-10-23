@@ -27,7 +27,7 @@ class TeamBudget(Strict):
 def snapshot(member):
     # Execution receipts record the effective file budget for this wake only.
     return {
-        "max_execution_seconds": member.wake_minutes * 60,
+        "max_execution_seconds": member.wake_minutes * 60,  # 0: none
         "max_model_turns": member.wake_turns,
         "max_tokens": member.wake_tokens,
     }
@@ -115,7 +115,7 @@ def run_limit(d, run):
         return "member_tokens"
     workspace = d.get(ResearchWorkspace, info["workspace_id"])
     member = d.get(TeamMember, info["member_id"])
-    if member and member.tokens >= member.max_tokens:
+    if member and member.max_tokens and member.tokens >= member.max_tokens:
         return "member_total_tokens"
     budget = limits(workspace)
     if budget["max_tokens"] and tokens(d, workspace=workspace) >= budget["max_tokens"]:

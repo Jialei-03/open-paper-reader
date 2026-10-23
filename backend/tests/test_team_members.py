@@ -237,8 +237,9 @@ def test_permission_checks_and_denials_are_persisted(world, research_round):
 
         prefix = (
             language_part(d, d.get(ResearchWorkspace, world[6]))
-            + body["role_description"]
+            + f"You are {body['name']}, a member of this team."
         )
+        assert body["role_description"] in payload["context"]
         assert payload["context"].startswith(prefix)
         assert payload["system_prompt"].startswith(prefix)
 
@@ -284,7 +285,7 @@ def test_member_validation_and_migration(world):
     app, a, _, _, _, _, _, base, _ = world
     for patch in (
         {"name": " "},
-        {"wake_turns": 0},
+        {"wake_turns": -1},
         {"wake_tokens": -1},
         {"avatar_color": "url(x)"},
     ):

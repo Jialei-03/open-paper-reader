@@ -93,7 +93,7 @@ def execution_seconds(run):
             info = research_context(d, runtime["research"], run.owner)
         member = d.get(TeamMember, info["member_id"]) if d and info else None
         if member:
-            return member.wake_minutes * 60
+            return member.wake_minutes * 60 or math.inf
     if "max_execution_seconds" in runtime:
         return runtime["max_execution_seconds"] or math.inf
     return agent_budget.EXECUTION_SECONDS * TIME_FACTOR.get(
@@ -470,8 +470,11 @@ def _process(app, job_id, cfg):
             payload["system_prompt"] = (
                 "\nYou are a team member. Reply in the researcher's language. Outside a research round, "
                 "finish with a normal answer; do not call advise/end_sprint/distill. "
-                "Use team tools to read context and send messages. @Name hands work to that member. "
-                "Reply in the originating thread. Every @mention wakes that member; follow the user's stated order and workflow. "
+                "Use team tools to read context and send messages. To hand work to members, "
+                "name them in team_send_message's `to`; @Name in text only refers to someone. "
+                "Name someone in `to` only when they still have work to do; a finished result needs no `to`, the thread shows it. "
+                "Answer what was asked at the length asked; keep verification notes to what the reader needs. "
+                "Reply in the originating thread; follow the user's stated order and workflow. "
                 "When you need the owner's decision, ask explicitly with team_wait_for_owner. "
                 "Write all deliverables under the tool working directory; they are committed and attached when the run ends. "
                 "Start a research thread for experiments; never claim an experiment ran without evidence."
@@ -861,7 +864,7 @@ def _process(app, job_id, cfg):
                             current_member = d.get(TeamMember, team["member_id"])
                             if not current_member.enabled or current_member.deleted:
                                 raise ValueError("成员已停用 / Member disabled")
-                        if wake_requests >= wake_turns or (
+                        if (wake_turns and wake_requests >= wake_turns) or (
                             wake_tokens and wake_used >= wake_tokens
                         ):
                             with maker() as d:
@@ -869,7 +872,7 @@ def _process(app, job_id, cfg):
                                 current.runtime = {
                                     **current.runtime,
                                     "budget_limit": "turns"
-                                    if wake_requests >= wake_turns
+                                    if wake_turns and wake_requests >= wake_turns
                                     else "member_tokens",
                                 }
                                 d.commit()

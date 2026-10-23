@@ -256,15 +256,22 @@ def install_team_routes(app, settings, db, auth, workspace_of):
             seen.add((message.channel_id, thread))
             # A thread is named by the message that started it.
             root = d.get(TeamMessage, thread) or message
-            text = team.message_out(d, root)["text"].strip()
-            threads.append(
-                {
-                    "id": thread,
-                    "channel_id": message.channel_id,
-                    "text": (text or team.message_out(d, message)["text"])[:200],
-                }
+            run = d.get(AgentRun, message.data.get("run_id") or "")
+            channel = team.channel_of(d, workspace, message.channel_id)
+            text = next(
+                t.strip()
+                for t in (
+                    team.message_out(d, root)["text"],
+                    team.message_out(d, message)["text"],
+                    run.prompt if run else "",
+                    f"#{channel.name}",
+                )
+                if t and t.strip()
             )
-        from .models import AgentRun, ResearchProject, ResearchSprint
+            threads.append(
+                {"id": thread, "channel_id": message.channel_id, "text": text[:200]}
+            )
+        from .models import ResearchProject, ResearchSprint
         from .research_team import research_context
 
         for sprint, run in d.execute(
@@ -291,13 +298,8 @@ def install_team_routes(app, settings, db, auth, workspace_of):
             )
         out["threads"] = threads[:50]
         run = team.active_run(d, member)
-        out["activity"] = (
-            run.prompt[:500]
-            if run
-            else team.message_out(d, rows[0])["text"][:500]
-            if rows
-            else ""
-        )
+        # What the member is working on now; nothing while idle.
+        out["activity"] = run.prompt[:500] if run else ""
         d.commit()
         return out
 

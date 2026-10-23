@@ -1,6 +1,7 @@
 """Real team regressions, using fake providers and local temporary repositories."""
 
 import asyncio
+import math
 import importlib
 from datetime import UTC, datetime, timedelta
 
@@ -310,7 +311,7 @@ def test_failed_empty_and_time_limited_output(world, monkeypatch):
     )
     with app.state.maker() as d:
         run = d.get(AgentRun, row.run_id)
-        assert agent_worker.execution_seconds(run) == 1200
+        assert agent_worker.execution_seconds(run) == math.inf
         run.status, run.error = "failed", "timeout"
         run.runtime = {**run.runtime, "time_limit_reached": True}
         d.commit()
@@ -766,7 +767,7 @@ time.sleep(3)
     node.chmod(0o755)
     monkeypatch.setenv("AGENT_NODE", str(node))
     agent_worker.process(app, row.run_id)
-    assert received == [1200]
+    assert received == [math.inf]
     team.settle(settings, app.state.maker)
     notifications = a.get(world[7]).json()["notifications"]
     reply = next(m for m in notifications if m["data"].get("run_id") == row.run_id)
@@ -805,7 +806,7 @@ def test_native_research_counts_before_worker_and_reads_file_duration(world):
         d.add(run)
         d.flush()
         assert working(d, workspace) == 1
-        assert agent_worker.execution_seconds(run) == 1200
+        assert agent_worker.execution_seconds(run) == math.inf
         assert not team.available(d, project, "writer")
         d.add(
             ModelUsage(

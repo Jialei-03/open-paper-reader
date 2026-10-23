@@ -305,15 +305,14 @@ def test_isolation_local_only_thread_validation_idempotency_and_budget(world):
                 TeamMember.workspace_id == wid, TeamMember.role == "writer"
             )
         )
-        writer.tokens = writer.max_tokens
+        writer.tokens = 10**9
         d.get(AgentRun, deliveries(app)[0].run_id).status = "completed"
         d.commit()
     team.settle(settings, app.state.maker)
     send(world, "@writer again")
-    assert (
-        deliveries(app)[-1].status == "queued"
-    )  # File budget.total_tokens remains a compatibility guard.
-    assert any(
+    # Members have no token limit unless their file sets budget.total_tokens.
+    assert deliveries(app)[-1].status == "running"
+    assert not any(
         m["data"].get("reason") == "member_total_tokens"
         for m in a.get(base).json()["notifications"]
     )

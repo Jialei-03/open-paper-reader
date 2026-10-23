@@ -555,31 +555,18 @@ def overview(d, workspace):
     statuses = []
     for member in members:
         run = active_run(d, member) if member.role != "human" else None
-        waiting = member.role != "human" and member.tokens >= member.max_tokens
+        waiting = (
+            member.role != "human"
+            and member.max_tokens
+            and member.tokens >= member.max_tokens
+        )
         if member.role == "human":
             waiting = waiting or any(
                 scope.get("waiting")
                 for scope in workspace.workflow_state.get("threads", {}).values()
             )
-        last = d.scalar(
-            select(TeamMessage)
-            .where(TeamMessage.author_id == member.id)
-            .order_by(TeamMessage.created_at.desc())
-            .limit(1)
-        )
-        if last and stable(workspace, "human") in last.mentions:
-            replied = d.scalar(
-                select(TeamMessage.id)
-                .where(
-                    TeamMessage.workspace_id == workspace.id,
-                    TeamMessage.author_id == stable(workspace, "human"),
-                    TeamMessage.created_at > last.created_at,
-                    TeamMessage.channel_id == last.channel_id,
-                    TeamMessage.thread_id == (last.thread_id or last.id),
-                )
-                .limit(1)
-            )
-            waiting = waiting or not replied
+        # A mention of the researcher is a notification; members wait on the
+        # researcher only through team_wait_for_owner (thread scope above).
         if member.role == "advisor":
             from .research_workspaces import _open_requests
 
@@ -760,7 +747,7 @@ def dispatch(settings, d, workspace, delivery):
     budget = limits(workspace)
     reason = (
         "member_total_tokens"
-        if member.tokens >= member.max_tokens
+        if member.max_tokens and member.tokens >= member.max_tokens
         else "team_tokens"
         if budget["max_tokens"]
         and tokens(d, workspace=workspace) >= budget["max_tokens"]
@@ -1113,7 +1100,7 @@ def available(d, project, role):
         return False
     reason = (
         "member_total_tokens"
-        if member.tokens >= member.max_tokens
+        if member.max_tokens and member.tokens >= member.max_tokens
         else "team_tokens"
         if budget["max_tokens"]
         and tokens(d, workspace=workspace) >= budget["max_tokens"]

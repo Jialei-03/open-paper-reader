@@ -101,8 +101,8 @@ def parse(source, role="custom"):
         ("minutes", 1440),
         ("total_tokens", 10**12),
     ):
-        # A per-wake token cap of 0 means none.
-        least = 0 if key == "tokens" else 1
+        # Members have no limits unless the file sets them; 0 means none.
+        least = 0
         if key in budget and (
             type(budget[key]) is not int or not least <= budget[key] <= maximum
         ):
@@ -129,10 +129,10 @@ def parse(source, role="custom"):
         "model_config_id": header.get("model", ""),
         "permissions": permissions,
         "tools": tools,
-        "wake_turns": budget.get("turns", 32),
+        "wake_turns": budget.get("turns", 0),
         "wake_tokens": budget.get("tokens", 0),
-        "wake_minutes": budget.get("minutes", 20),
-        "max_tokens": budget.get("total_tokens", 2000000),
+        "wake_minutes": budget.get("minutes", 0),
+        "max_tokens": budget.get("total_tokens", 0),
         "channels": list(header.get("channels", [])),
         "enabled": header.get("enabled", True),
     }
@@ -198,14 +198,19 @@ def render(config, source="", role="custom"):
         if not source or key in header or value != previous.get(corresponding):
             header[key] = value
     budget = header.setdefault("budget", CommentedMap())
-    for key, default in (("turns", 32), ("tokens", 0), ("minutes", 20)):
-        value = config.get("wake_" + key, default)
-        if key == "tokens" and not value:
+    for key, field in (
+        ("turns", "wake_turns"),
+        ("tokens", "wake_tokens"),
+        ("minutes", "wake_minutes"),
+        ("total_tokens", "max_tokens"),
+    ):
+        # Limits are only written when set; none by default.
+        if config.get(field):
+            budget[key] = config[field]
+        else:
             budget.pop(key, None)
-        elif not source or key in budget or value != previous.get("wake_" + key):
-            budget[key] = value
-    if "max_tokens" in config:
-        budget["total_tokens"] = config["max_tokens"]
+    if not budget:
+        header.pop("budget", None)
     out = io.StringIO()
     yaml().dump(header, out)
     result = "---\n" + out.getvalue() + "---\n\n" + config.get("role_description", "")
@@ -269,6 +274,11 @@ def import_agent(source, filename="agent.md", name=""):
         yaml().dump(header, out)
         result = "---\n" + out.getvalue() + "---\n" + body
     return {"source": result, "config": parse(result), "warnings": warnings}
+
+
+def legacy_limit(value, old_default):
+    """Old databases stored the former default limits; those mean no limit now."""
+    return 0 if not value or value == old_default else value
 
 
 def settings_of(row):
@@ -343,9 +353,9 @@ def legacy_config(member):
         "model_config_id": member.legacy_model_config_id or "",
         "permissions": member.legacy_permissions
         or Permissions(commands=role in {"executor", "writer"}).model_dump(),
-        "wake_turns": member.legacy_wake_turns or 32,
-        "wake_tokens": member.legacy_wake_tokens or 0,
-        "max_tokens": member.legacy_max_tokens or 2000000,
+        "wake_turns": legacy_limit(member.legacy_wake_turns, 32),
+        "wake_tokens": legacy_limit(member.legacy_wake_tokens, 200000),
+        "max_tokens": legacy_limit(member.legacy_max_tokens, 2000000),
         "enabled": member.legacy_enabled is not False,
     }
 
@@ -385,10 +395,10 @@ def ensure_member(member):
             values["permissions"] = member.legacy_permissions
             values["tools"] = None
         values.update(
-            wake_turns=member.legacy_wake_turns or 32,
-            wake_tokens=member.legacy_wake_tokens or 0,
+            wake_turns=legacy_limit(member.legacy_wake_turns, 32),
+            wake_tokens=legacy_limit(member.legacy_wake_tokens, 200000),
         )
-    values["max_tokens"] = member.legacy_max_tokens or 2000000
+    values["max_tokens"] = legacy_limit(member.legacy_max_tokens, 2000000)
     values["channels"] = channels_for(d, member, member.legacy_subscriptions or [])
     source = render(values, role=member.role)
     save_member(member, source, actor="ORA migration", initialize=True)
