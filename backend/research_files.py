@@ -209,6 +209,9 @@ def install_research_files(app, settings, db, auth, project_of):
         entries = []
         with os.scandir(folder) as found:
             for item in found:
+                if item.name == ".git":
+                    # The worktree's link to the project's repository (research_repo).
+                    continue
                 row = _entry(root, folder / item.name, paths, windows)
                 if row:
                     entries.append(row)
@@ -286,7 +289,7 @@ def install_research_files(app, settings, db, auth, project_of):
         refused (409), renamed (`rename`) or overwritten (`replace`)."""
         if conflict not in {"error", "rename", "replace"}:
             raise HTTPException(422, "冲突处理方式不合法")
-        p = project_of(d, id, a)
+        p = project_of(d, id, a, writable=True)
         root = research_sandbox.workdir(settings, p.id)
         folder = resolve(root, path)
         if not folder.is_dir():
@@ -310,7 +313,10 @@ def install_research_files(app, settings, db, auth, project_of):
                 # Overwriting through a link would write wherever it points.
                 raise HTTPException(409, "同名的不是普通文件，不能覆盖")
         freed = target.stat().st_size if existing else 0
-        if research_sandbox._size(root) - freed + len(data) > research_sandbox.WORKSPACE_BYTES:
+        if (
+            research_sandbox._size(root) - freed + len(data)
+            > research_sandbox.WORKSPACE_BYTES
+        ):
             raise HTTPException(413, "工作区空间不够")
         partial = folder / f".{name}.{os.getpid()}.upload"
         partial.write_bytes(data)

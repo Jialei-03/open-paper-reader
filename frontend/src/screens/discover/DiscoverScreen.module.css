@@ -1,40 +1,11 @@
-/* Same footing as the other screens: the card sets the font and colors a reset would give it. */
-.root {
-  --discover-width: 760px;
-  flex: 1;
-  color: var(--ui-fg);
-  font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-:where(.root) :focus-visible {
-  outline: none;
-  box-shadow: var(--ui-focus-ring);
-}
-
-.frame {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.heading {
-  margin: 0;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-16);
-  font-weight: var(--ui-weight-strong);
-}
-
 .body {
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: var(--ui-space-12);
   width: 100%;
-  max-width: var(--discover-width);
-  margin: 0 auto;
-  padding: var(--ui-space-16) var(--ui-space-24) var(--ui-space-48);
+  min-height: 0;
+  padding: 0 0 var(--ui-space-32);
   overflow-y: auto;
 }
 
@@ -42,7 +13,6 @@
   margin: 0;
 }
 
-.intro,
 .status {
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
@@ -52,25 +22,6 @@
   display: flex;
   align-items: center;
   gap: var(--ui-space-8);
-  color: var(--ui-fg-2);
-}
-
-.message {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--ui-space-8);
-  padding: var(--ui-space-24) 0;
-}
-
-.messageTitle {
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-15);
-  font-weight: var(--ui-weight-strong);
-}
-
-.messageBody {
-  max-width: 56ch;
   color: var(--ui-fg-2);
 }
 
@@ -101,8 +52,8 @@
 
 .title {
   margin: 0;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-15);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-13);
   font-weight: var(--ui-weight-strong);
   line-height: var(--ui-leading-tight);
   overflow-wrap: anywhere;
@@ -111,42 +62,6 @@
 .meta {
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
-}
-
-.abstract {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  color: var(--ui-fg);
-}
-
-.why {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--ui-space-4) var(--ui-space-8);
-  color: var(--ui-fg-3);
-  font-size: var(--ui-text-12);
-}
-
-.why > span:first-child {
-  color: var(--ui-fg-2);
-}
-
-.why a,
-.why > span:not(:first-child) {
-  max-width: 28ch;
-  overflow: hidden;
-  color: var(--ui-fg-2);
-  text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.why a:hover {
-  color: var(--ui-fg);
-  text-decoration: underline;
 }
 
 .actions {
@@ -171,14 +86,36 @@
   text-decoration: underline;
 }
 
-.noAdd {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-space-8);
-  color: var(--ui-fg-3);
-  font-size: var(--ui-text-12);
+.cards[data-view="grid"] {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--ui-card-min)), 1fr)
+  );
+  gap: var(--ui-space-20);
 }
 
-.spacer {
-  flex: 1;
+.cards[data-view="grid"] .card {
+  padding: var(--ui-space-12);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-12);
+}
+
+.cover {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  margin-bottom: var(--ui-space-8);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-3);
+}
+
+.cards[data-view="grid"] .actions {
+  margin-top: auto;
+  padding-top: var(--ui-space-12);
+}
+
+.skeleton {
+  composes: skeleton from "../Management.module.css";
 }

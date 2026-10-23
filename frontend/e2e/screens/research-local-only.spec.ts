@@ -24,14 +24,13 @@ test("the hosted site sends research to the local edition", async ({
   await page.goto("/#projects");
   const notice = page.getByTestId("research-local-only");
   await expect(notice).toBeVisible();
-  await expect(notice.getByRole("heading")).toHaveText(
-    "研究 Agent 在你自己的电脑上运行",
-  );
-  await expect(notice.locator("pre")).toContainText("backend.local");
+  await expect(notice.getByRole("heading")).toHaveText("在本机版研究");
+  await expect(notice.locator("pre")).toHaveCount(0);
+  await expect(notice.getByRole("button")).toBeVisible();
   await expect(page.getByTestId("home-research")).toHaveCount(0);
 
+  // Machines moved to Customize, which the hosted site does not offer.
   await page.goto("/#settings/environments");
-  const settings = page.getByRole("dialog", { name: "设置" });
-  await expect(settings).toBeVisible();
-  await expect(settings.getByText("研究环境", { exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/#customize\/machines$/);
+  await expect(page.getByTestId("research-local-only")).toBeVisible();
 });

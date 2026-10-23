@@ -1,0 +1,196 @@
+.page {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--ui-bg-1);
+  container: management / inline-size;
+  scrollbar-gutter: stable;
+}
+
+.content {
+  composes: content from "../Management.module.css";
+}
+
+.header {
+  composes: header from "../Management.module.css";
+}
+
+.header > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-8);
+  min-width: 0;
+}
+
+.header h1 {
+  margin: 0;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-24);
+  font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
+}
+
+.actions {
+  composes: actions from "../Management.module.css";
+}
+
+.search {
+  composes: search from "../Management.module.css";
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-16);
+  min-width: 0;
+  min-height: var(--ui-control-lg);
+  padding: var(--ui-space-12) 0;
+  border-radius: var(--ui-r-12);
+}
+
+.row:hover,
+.row:focus-within {
+  background: var(--ui-hover);
+}
+
+.icon {
+  flex: none;
+  padding: 0;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
+  color: var(--ui-fg-2);
+}
+
+.rowText,
+.rowButton {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+
+.rowButton {
+  padding: var(--ui-space-4) 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.rowButton:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+  border-radius: var(--ui-r-4);
+}
+
+.name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--ui-fg);
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-regular);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status,
+.empty {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.empty {
+  composes: empty from "../Management.module.css";
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-16);
+}
+
+.fields p {
+  margin: 0;
+  font-size: var(--ui-text-14);
+}
+
+.fields[aria-label] {
+  min-height: var(--ui-space-48);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-fill);
+}
+
+.fields[aria-label] > p {
+  visibility: hidden;
+}
+
+.markdown {
+  overflow-wrap: anywhere;
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-14);
+  line-height: var(--ui-leading-loose);
+}
+
+.markdown pre {
+  padding: var(--ui-space-12);
+  overflow-x: auto;
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
+}
+
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown :is(td, th) {
+  padding: var(--ui-space-6) var(--ui-space-10);
+  border: 1px solid var(--ui-edge-subtle);
+}
+
+.models > section {
+  margin-top: 0;
+}
+
+.skeleton {
+  composes: skeleton from "../Management.module.css";
+}
+
+.row > :last-child:not(.rowText):not(.rowButton):not(.icon):not(input) {
+  opacity: 0;
+}
+
+.row:hover > :last-child,
+.row:focus-within > :last-child {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .row > :last-child:not(.rowText):not(.rowButton):not(.icon):not(input) {
+    opacity: 1;
+  }
+}
+
+.workflowContent {
+  max-width: calc(var(--ui-space-48) * 20);
+  padding: var(--ui-space-32);
+}

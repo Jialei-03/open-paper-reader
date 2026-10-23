@@ -11,7 +11,7 @@ import {
 } from "react";
 import { api, send, type Paper } from "../api";
 import { clearPaperCovers } from "../features/PaperCover";
-import { I18nProvider, useI18n } from "../i18n/I18nProvider";
+import { useI18n } from "../i18n/I18nProvider";
 import { closeFileDownload } from "../lib/file-download";
 import {
   downloadUnsyncedNotes,
@@ -33,7 +33,6 @@ import {
 import { SetupScreen } from "../screens/SetupScreen";
 import {
   Shell,
-  Spinner,
   Toaster,
   currentPlatformIsMac,
   matchesShortcut,
@@ -45,9 +44,16 @@ import { useLocal } from "./edition";
 import { QuickOpen } from "./QuickOpen";
 import { parseAppRoute, type AppRoute } from "./routes";
 import { ProjectPage } from "../screens/research/projects/ProjectPage";
-import { ProjectsHome } from "../screens/research/projects/ProjectsHome";
+import { NewResearch } from "../screens/research/NewResearch";
+import {
+  WorkspaceScreen,
+  CollectionScreen,
+} from "../screens/research/ResearchLibrary";
+import { ResearchNavigationProvider } from "../screens/research/ResearchNavigation";
 import { LocalOnly } from "../screens/research/LocalOnly";
 import { ResearchProject } from "../screens/research/ResearchProject";
+import { ScheduleCenter } from "../screens/schedules/ScheduleCenter";
+import { CustomizeScreen } from "../screens/customize/CustomizeScreen";
 
 // The reader is most of the code: it loads as a chunk of its own, when a paper is opened.
 const ReaderScreen = lazy(() =>
@@ -77,9 +83,9 @@ function readRoute(): AppRoute {
  */
 export function AppShell(props: { user: User; setUser: (user: null) => void }) {
   return (
-    <I18nProvider>
+    <ResearchNavigationProvider key={props.user.id}>
       <App {...props} />
-    </I18nProvider>
+    </ResearchNavigationProvider>
   );
 }
 
@@ -88,14 +94,14 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
   const [route, setRoute] = useState(readRoute);
   // The settings are a window over what was open: that stays drawn beneath.
   const under = useRef<{ route: AppRoute; hash: string }>({
-    route: { screen: "home" },
-    hash: "home",
+    route: { screen: "new-research" },
+    hash: "new",
   });
   // The address is read only when it still says what is drawn: a click on the
   // settings link changes it a moment before this renders with the new route.
   const here = location.hash.slice(1);
   if (route.screen !== "settings" && !here.startsWith("settings"))
-    under.current = { route, hash: here || "home" };
+    under.current = { route, hash: here || "new" };
   const [papers, setPapers] = useState<Paper[]>([]);
   const [tick, setTick] = useState(0);
   const [quickOpen, setQuickOpen] = useState(false);
@@ -103,6 +109,13 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
   // This machine's own server (`mode: "local"`) has one person and no session
   // to end; until the server says, the sign-out stays: the safer way to be wrong.
   const local = useLocal();
+  useLayoutEffect(() => {
+    if (local === true) document.documentElement.dataset.oraLocal = "true";
+    else delete document.documentElement.dataset.oraLocal;
+    return () => {
+      delete document.documentElement.dataset.oraLocal;
+    };
+  }, [local]);
   const floating = useMediaQuery(SIDEBAR_FLOATS);
   const reload = useCallback(() => setTick((n) => n + 1), []);
   const go = useCallback((hash: string) => {
@@ -204,8 +217,15 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
     [user.id, screenKey, quickOpen],
   );
 
+  useEffect(() => {
+    if (local === true && route.screen === "home") go("new");
+  }, [local, route.screen, go]);
   const shown: AppRoute =
-    route.screen === "settings" ? under.current.route : route;
+    route.screen === "settings"
+      ? under.current.route
+      : local === true && route.screen === "home"
+        ? { screen: "new-research" }
+        : route;
   const category = (
     route.screen === "settings" &&
     CATEGORIES.includes(route.category as SettingsCategory)
@@ -226,6 +246,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
       onClose={() => setQuickOpen(false)}
       papers={papers}
       visits={visits}
+      includeProjects={local === true}
       go={go}
     />
   );
@@ -259,12 +280,21 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
 
   const screen = (
     <AppActions.Provider value={actions}>
-      <div className={styles.root} data-app-screen={shown.screen}>
+      <div
+        className={`${styles.root} ${local === true ? styles.localFrame : ""}`}
+        data-app-screen={shown.screen}
+      >
         <Shell
           sidebar={
             <AppSidebar
               floating={floating}
               screen={route.screen}
+              contextHash={
+                route.screen === "settings" ? under.current.hash : here
+              }
+              researchId={
+                shown.screen === "research" ? shown.projectId : undefined
+              }
               papers={papers}
               visits={visits}
               go={go}
@@ -290,8 +320,20 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
           {shown.screen === "discover" && (
             <DiscoverScreen papers={papers} go={go} reload={reload} />
           )}
-          {(shown.screen === "research" || shown.screen === "projects") &&
-            local === false && <LocalOnly />}
+          {[
+            "research",
+            "projects",
+            "new-research",
+            "research-board",
+            "workspaces",
+            "research-collections",
+            "schedules",
+            "customize",
+          ].includes(shown.screen) &&
+            local === false &&
+            !(shown.screen === "customize" && shown.section === "models") && (
+              <LocalOnly />
+            )}
           {shown.screen === "research" &&
             local !== false &&
             shown.projectId && (
@@ -301,9 +343,42 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
                 go={go}
               />
             )}
-          {shown.screen === "projects" &&
-            local !== false &&
-            (shown.workspaceId ? (
+          {local !== false && shown.screen === "new-research" && (
+            <NewResearch
+              workspaceId={shown.workspaceId}
+              collectionId={shown.collectionId}
+              go={go}
+            />
+          )}
+          {local !== false && shown.screen === "schedules" && (
+            <ScheduleCenter
+              id={shown.scheduleId}
+              template={shown.template}
+              go={go}
+            />
+          )}
+          {shown.screen === "customize" &&
+            (local !== false || shown.section === "models") && (
+              <CustomizeScreen section={shown.section} />
+            )}
+          {local !== false && shown.screen === "workspaces" && (
+            <WorkspaceScreen
+              key={shown.workspaceId || "all"}
+              id={shown.workspaceId}
+              tab={shown.tab}
+              go={go}
+            />
+          )}
+          {local !== false && shown.screen === "research-collections" && (
+            <CollectionScreen
+              key={shown.collectionId || "all"}
+              id={shown.collectionId}
+              go={go}
+            />
+          )}
+          {local !== false &&
+            shown.screen === "projects" &&
+            shown.workspaceId && (
               <ProjectPage
                 key={shown.workspaceId}
                 id={shown.workspaceId}
@@ -311,9 +386,7 @@ function App({ user, setUser }: { user: User; setUser: (user: null) => void }) {
                 item={shown.item}
                 go={go}
               />
-            ) : (
-              <ProjectsHome go={go} />
-            ))}
+            )}
         </Shell>
         <Toaster />
       </div>
@@ -373,7 +446,8 @@ function Loading() {
       aria-label={t("common.loading")}
       className={styles.loading}
     >
-      <Spinner />
+      <div className={styles.loadingTitle} />
+      <div className={styles.loadingBody} />
     </div>
   );
 }

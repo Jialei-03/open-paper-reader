@@ -294,17 +294,14 @@ export function GuideTab({
             />
           </CiteProvider>
           {view.kind === "ready" && !view.content.cited && (
-            <p className={styles.legacy}>
-              {t("reader.cite.regenerateHint")}{" "}
-              <button
-                type="button"
-                className={styles.regenerate}
-                disabled={guide.busy}
-                onClick={() => guide.generate(true)}
-              >
-                {t("reader.cite.regenerate")}
-              </button>
-            </p>
+            <button
+              type="button"
+              className={styles.regenerate}
+              disabled={guide.busy}
+              onClick={() => guide.generate(true)}
+            >
+              {t("reader.cite.regenerate")}
+            </button>
           )}
           {view.kind === "ready" && keypoints && onJumpKeypoint && (
             <KeypointsSection keypoints={keypoints} onJump={onJumpKeypoint} />

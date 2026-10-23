@@ -91,7 +91,7 @@ export function ImportDrop({
         <span className={styles.title}>
           {over ? t("import.drop.release") : t("import.drop.title")}
         </span>
-        <span className={styles.hint}>{t("import.drop.hint")}</span>
+
         <span className={styles.visuallyHidden}>{t("import.drop.choose")}</span>
       </button>
       <input

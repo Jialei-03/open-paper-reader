@@ -18,6 +18,12 @@ def env(cloud_env):  # noqa: F811
 
 
 BASE = "/api/v1/research/projects"
+# What every research's worktree starts with from its project (research_repo).
+PROJECT_FILES = {".gitignore", "PROJECT.md", "memory", "shared"}
+
+
+def mine(entries):
+    return [e for e in entries if e["name"] not in PROJECT_FILES]
 
 
 def project(app, a, settings):
@@ -43,14 +49,14 @@ def test_lists_and_reads_files(env):
     (root / "plot.png").write_bytes(b"\x89PNG\r\n\x1a\n")
 
     listed = a.get(url(p, "list")).json()
-    assert [e["name"] for e in listed["entries"]] == [
+    assert [e["name"] for e in mine(listed["entries"])] == [
         "src",
         "data.csv",
         "model.pt",
         "notes.md",
         "plot.png",
     ]
-    assert listed["entries"][0]["type"] == "dir"
+    assert mine(listed["entries"])[0]["type"] == "dir"
     assert listed["path"] == "" and listed["round"] is None
     inner = a.get(url(p, "list"), params={"path": "src"}).json()
     assert [e["path"] for e in inner["entries"]] == ["src/train.py"]
@@ -152,8 +158,11 @@ def test_upload_conflicts(env):
 def test_upload_respects_the_quota(env, monkeypatch):
     app, a, _b, settings = env
     p = project(app, a, settings)
-    (workdir(settings, p["id"]) / "big.bin").write_bytes(b"x" * 100)
-    monkeypatch.setattr(research_sandbox, "WORKSPACE_BYTES", 120)
+    root = workdir(settings, p["id"])
+    (root / "big.bin").write_bytes(b"x" * 100)
+    monkeypatch.setattr(
+        research_sandbox, "WORKSPACE_BYTES", research_sandbox._size(root) + 20
+    )
     r = a.post(url(p, "upload"), files={"file": ("more.bin", b"y" * 30)})
     assert r.status_code == 413
     # Replacing a file counts what it frees.
@@ -240,7 +249,7 @@ def test_marks_what_the_latest_round_changed(env):
     listed = a.get(url(p, "list")).json()
     assert listed["round"] == 2
     assert listed["changed"] == ["edited.py", "src/train.py"]
-    changed = {e["name"]: e["changed"] for e in listed["entries"]}
+    changed = {e["name"]: e["changed"] for e in mine(listed["entries"])}
     assert changed == {
         "src": True,
         "empty": False,

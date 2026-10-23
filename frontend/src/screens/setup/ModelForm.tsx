@@ -29,6 +29,8 @@ export interface ModelFormProps {
   }): void;
   /** Once connected, the form stays filled in and stops taking changes. */
   connected?: boolean;
+  compact?: boolean;
+  onCancel?(): void;
 }
 
 /**
@@ -40,6 +42,8 @@ export function ModelForm({
   local,
   onConnected,
   connected = false,
+  compact = false,
+  onCancel,
 }: ModelFormProps) {
   const i18n = useI18n();
   const { t, tn } = i18n;
@@ -183,15 +187,6 @@ export function ModelForm({
               { value: "lmstudio", label: t("model.local.lmstudio") },
             ]}
           />
-          <p className={styles.hint}>
-            {t("model.local.hint", {
-              app: t(
-                app === "ollama"
-                  ? "model.local.ollama"
-                  : "model.local.lmstudio",
-              ),
-            })}
-          </p>
         </div>
       )}
       <TextField
@@ -201,8 +196,9 @@ export function ModelForm({
         autoComplete="off"
         spellCheck={false}
         value={draft.base_url}
-        placeholder={kind === "local" ? LOCAL_APPS[app] : placeholder}
-        description={kind === "key" ? t("model.baseUrl.hint") : undefined}
+        placeholder={
+          compact ? undefined : kind === "local" ? LOCAL_APPS[app] : placeholder
+        }
         disabled={locked}
         onChange={(event) => change({ base_url: event.target.value }, true)}
       />
@@ -213,8 +209,7 @@ export function ModelForm({
           autoComplete="new-password"
           spellCheck={false}
           value={draft.api_key}
-          placeholder={t("model.key.placeholder")}
-          description={t("model.key.hint")}
+          placeholder={compact ? undefined : t("model.key.placeholder")}
           disabled={locked}
           onChange={(event) => change({ api_key: event.target.value }, true)}
         />
@@ -224,14 +219,9 @@ export function ModelForm({
           label={t("model.name")}
           models={models}
           value={draft.model}
-          placeholder={t("model.name.placeholder")}
+          placeholder={compact ? undefined : t("model.name.placeholder")}
           disabled={locked}
           error={listError || undefined}
-          description={
-            models && !listError
-              ? tn("model.fetched", models.length)
-              : undefined
-          }
           onChange={(model) => change({ model })}
         />
         <div>
@@ -256,6 +246,11 @@ export function ModelForm({
         </p>
       )}
       <div className={styles.actions}>
+        {onCancel && (
+          <Button variant="ghost" disabled={testing} onClick={onCancel}>
+            {t("common.cancel")}
+          </Button>
+        )}
         {connected ? (
           <p role="status" className={styles.success}>
             <Check size={14} aria-hidden="true" />
@@ -264,7 +259,7 @@ export function ModelForm({
         ) : (
           <Button
             type="submit"
-            variant="secondary"
+            variant={compact ? "primary" : "secondary"}
             icon={Plug}
             loading={testing}
           >

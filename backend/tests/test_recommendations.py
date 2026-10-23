@@ -62,6 +62,27 @@ def test_no_identifiable_papers_explains_itself_and_asks_nobody(env):
     assert a.get("/api/v1/discover/recommendations").json() == {"state": "no_seeds", "items": []}
 
 
+def test_discovery_survives_string_venue_and_ignores_malformed_titles(env, monkeypatch):
+    app, a, _, _ = env
+    library(a)
+    monkeypatch.setattr(recommendations, "_post", lambda *args: {
+        "recommendedPapers": [
+            {"title": ["malformed"]},
+            {
+                "title": "A useful new recommendation",
+                "publicationVenue": "NeurIPS",
+                "externalIds": {"DOI": "10.1234/recommendation"},
+            },
+        ]
+    })
+    app.state.recommendation_fetcher = recommendations.gather
+    result = a.get("/api/v1/discover/recommendations")
+    assert result.status_code == 200, result.text
+    assert result.json()["state"] == "ok"
+    assert len(result.json()["items"]) == 1
+    assert result.json()["items"][0]["venue"] == "NeurIPS"
+
+
 def test_recommendations_are_kept_a_day_left_out_when_known_or_dismissed(env):
     app, a, b, _ = env
     seed = library(a)

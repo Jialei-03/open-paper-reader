@@ -52,17 +52,22 @@ test("the sidebar goes to each screen and marks where it is", async ({
   await signIn(page);
   await expect(screen(page)).toHaveAttribute("data-app-screen", "home");
 
+  // From home the library is one link; inside it, its own list takes over.
+  await sidebar(page).getByRole("link", { name: "文库", exact: true }).click();
+  await expect(page).toHaveURL(/#library$/);
+  await expect(screen(page)).toHaveAttribute("data-app-screen", "library");
   for (const [name, hash] of [
-    ["文库", "library"],
+    ["全部", "library"],
     ["发现", "discover"],
     ["首页", "home"],
   ]) {
     await sidebar(page).getByRole("link", { name, exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`#${hash}$`));
     await expect(screen(page)).toHaveAttribute("data-app-screen", hash);
-    await expect(
-      sidebar(page).getByRole("link", { name, exact: true }),
-    ).toHaveAttribute("aria-current", "page");
+    if (hash !== "home")
+      await expect(
+        sidebar(page).getByRole("link", { name, exact: true }),
+      ).toHaveAttribute("aria-current", "page");
   }
   // The settings are a window over the page, which stays as it was under them.
   await sidebar(page).getByRole("link", { name: "设置", exact: true }).click();
@@ -103,8 +108,8 @@ test("a paper read is listed in the sidebar on every screen", async ({
     page.getByRole("main").getByRole("heading", { level: 1, name: title }),
   ).toBeVisible();
 
-  await sidebar(page).getByRole("link", { name: "首页" }).click();
-  const reading = sidebar(page).getByRole("group", { name: "正在读" });
+  await page.goto("/#library");
+  const reading = sidebar(page).getByRole("group", { name: "最近阅读" });
   await expect(reading.getByRole("link", { name: title })).toBeVisible();
   await reading.getByRole("link", { name: title }).click();
   await expect(page).toHaveURL(new RegExp(`#read/${paperId}$`));

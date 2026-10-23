@@ -1,4 +1,12 @@
-import { ArrowUpDown, Download, LayoutGrid, List, Plus } from "lucide-react";
+import {
+  ArrowUpDown,
+  BookOpen,
+  Download,
+  LayoutGrid,
+  List,
+  FileUp,
+  Search,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { api, send, type Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
@@ -14,7 +22,6 @@ import { readerHash } from "../reader/route";
 import {
   Button,
   Card,
-  CardHeader,
   Dialog,
   Menu,
   SegmentedControl,
@@ -22,7 +29,8 @@ import {
   toast,
   type MenuEntry,
 } from "../ui";
-import { ImportDrop, ImportJobs, useFileDrop } from "./home/ImportDrop";
+import { ImportJobs, useFileDrop } from "./home/ImportDrop";
+import { LibraryImport } from "./library/LibraryImport";
 import { PaperDetails } from "./library/PaperDetails";
 import { PaperCard, PaperRow } from "./library/PaperItem";
 import { sortPapers, type SortKey } from "./library/paper-meta";
@@ -58,6 +66,38 @@ function queryFromAddress() {
   return path === "library" ? (new URLSearchParams(search).get("q") ?? "") : "";
 }
 
+/** The reading-status view selected in the materials sidebar. */
+function filterFromAddress(): Filter {
+  const [path, search = ""] = location.hash.slice(1).split("?");
+  const value =
+    path === "library" ? new URLSearchParams(search).get("view") : null;
+  return value === "unread" || value === "reading" || value === "read"
+    ? value
+    : "all";
+}
+
+function importFromAddress() {
+  const [path, search = ""] = location.hash.slice(1).split("?");
+  return (
+    path === "library" && new URLSearchParams(search).get("import") === "1"
+  );
+}
+
+/** Dismissing a sidebar import keeps the selected view and search on reload. */
+function clearImportRequest() {
+  const [path, search = ""] = location.hash.slice(1).split("?");
+  if (path !== "library") return;
+  const params = new URLSearchParams(search);
+  if (!params.has("import")) return;
+  params.delete("import");
+  history.replaceState(
+    history.state,
+    "",
+    `#library${params.size ? `?${params}` : ""}`,
+  );
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
 /**
  * Every paper, as cards with the first page or as a compact list: searched,
  * filtered by reading status and sorted, opened in the reader, looked into in a
@@ -72,10 +112,22 @@ export function LibraryScreen({
 }: LibraryScreenProps) {
   const { t, tn, locale } = useI18n();
   const [query, setQuery] = useState(queryFromAddress);
-  const [filter, setFilter] = useState<Filter>("all");
+  const changeQuery = (value: string) => {
+    setQuery(value);
+    const params = new URLSearchParams(location.hash.split("?")[1] || "");
+    if (value) params.set("q", value);
+    else params.delete("q");
+    history.replaceState(
+      history.state,
+      "",
+      `#library${params.size ? `?${params}` : ""}`,
+    );
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  };
+  const [filter, setFilter] = useState<Filter>(filterFromAddress);
   const [view, setView] = usePreference<View>(
     "paper-library-view",
-    "grid",
+    "list",
     VIEWS,
   );
   const [sort, setSort] = usePreference<SortKey>(
@@ -83,7 +135,7 @@ export function LibraryScreen({
     "opened",
     SORTS,
   );
-  const [importing, setImporting] = useState(false);
+  const [importing, setImporting] = useState(importFromAddress);
   const [looking, setLooking] = useState<string | null>(null);
   const [doomed, setDoomed] = useState<Paper | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -92,6 +144,7 @@ export function LibraryScreen({
     reload();
     if (only) {
       setImporting(false);
+      clearImportRequest();
       go(readerHash({ paperId: paper.id }).slice(1));
     }
   });
@@ -104,12 +157,18 @@ export function LibraryScreen({
   // Quick open sends a search here, also while this screen is already showing.
   useEffect(() => {
     const changed = () => {
-      const asked = queryFromAddress();
-      if (asked) setQuery(asked);
+      setQuery(queryFromAddress());
+      setFilter(filterFromAddress());
+      setImporting(importFromAddress());
     };
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
   }, []);
+
+  const closeImport = () => {
+    setImporting(false);
+    clearImportRequest();
+  };
 
   const visits = useMemo(() => recentPapers(owner), [owner]);
   const shown = useMemo(
@@ -213,6 +272,8 @@ export function LibraryScreen({
     setSelecting(false);
     setChosen(new Set());
   };
+  const allShownSelected =
+    shown.length > 0 && shown.every((paper) => chosen.has(paper.id));
   const exportBib = () => {
     const picked = papers.filter((paper) => chosen.has(paper.id));
     const text = formatBibtexFile(
@@ -237,46 +298,48 @@ export function LibraryScreen({
   return (
     <Card as="main" className={styles.root} aria-labelledby="library-title">
       <div className={styles.frame} data-over={over || undefined} {...handlers}>
-        <CardHeader>
-          <h1 id="library-title" className={styles.heading}>
-            {t("library.title")}
-          </h1>
-          <span className={styles.count}>
-            {tn("library.count", papers.length)}
-          </span>
-          <div className={styles.search}>
+        <header className={styles.header}>
+          <div className={styles.headingGroup}>
+            <div className={styles.titleLine}>
+              <h1 id="library-title" className={styles.heading}>
+                {t(
+                  filter === "all"
+                    ? "library.filter.all"
+                    : filter === "reading"
+                      ? "library.status.reading"
+                      : filter === "unread"
+                        ? "library.status.unread"
+                        : "library.status.read",
+                )}
+              </h1>
+            </div>
+          </div>
+          <div
+            className={styles.search}
+            role="search"
+            aria-label={t("library.search")}
+          >
+            <Search size={16} aria-hidden className={styles.searchIcon} />
             <TextField
               type="search"
               label={t("library.search")}
               hideLabel
               placeholder={t("library.search.placeholder")}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => changeQuery(event.target.value)}
             />
           </div>
-          <Button
-            variant="primary"
-            size="sm"
-            icon={Plus}
-            onClick={() => setImporting(true)}
-          >
-            {t("library.import")}
-          </Button>
-        </CardHeader>
-        <div className={styles.tools}>
-          <SegmentedControl
-            kind="radio"
-            size="sm"
-            label={t("library.filter")}
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { value: "all", label: t("library.filter.all") },
-              { value: "unread", label: t("library.status.unread") },
-              { value: "reading", label: t("library.status.reading") },
-              { value: "read", label: t("library.status.read") },
-            ]}
+          <LibraryImport
+            imports={imports}
+            open={importing}
+            onOpen={() => setImporting(true)}
+            onClose={closeImport}
           />
+        </header>
+        <div className={styles.tools}>
+          <span className={styles.resultCount} aria-live="polite">
+            {tn("library.count", shown.length)}
+          </span>
           <span className={styles.spacer} />
           {selecting ? (
             <>
@@ -288,14 +351,14 @@ export function LibraryScreen({
                 size="sm"
                 onClick={() =>
                   setChosen(
-                    chosen.size === shown.length
+                    allShownSelected
                       ? new Set()
                       : new Set(shown.map((paper) => paper.id)),
                   )
                 }
               >
                 {t(
-                  chosen.size === shown.length && shown.length > 0
+                  allShownSelected
                     ? "library.select.none"
                     : "library.select.all",
                 )}
@@ -331,32 +394,52 @@ export function LibraryScreen({
               </Button>
             )}
           />
-          <SegmentedControl
-            kind="radio"
-            size="sm"
-            label={t("library.view")}
-            value={view}
-            onChange={setView}
-            options={[
-              {
-                value: "grid",
-                label: t("library.view.grid"),
-                icon: LayoutGrid,
-              },
-              { value: "list", label: t("library.view.list"), icon: List },
-            ]}
-          />
-        </div>
-        {!importing && (
-          <div className={styles.jobs}>
-            <ImportJobs imports={imports} />
+          <div className={styles.viewSwitch}>
+            <SegmentedControl
+              kind="radio"
+              size="sm"
+              label={t("library.view")}
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: "grid",
+                  label: t("library.view.grid"),
+                  icon: LayoutGrid,
+                },
+                { value: "list", label: t("library.view.list"), icon: List },
+              ]}
+            />
           </div>
-        )}
+        </div>
+        <div className={styles.jobs}>
+          <ImportJobs imports={imports} />
+        </div>
         <div className={styles.list}>
           {papers.length === 0 ? (
-            <p className={styles.message}>{t("library.empty")}</p>
+            <div className={styles.message}>
+              <BookOpen size={32} aria-hidden />
+              <p>{t("library.empty")}</p>
+              <Button
+                size="sm"
+                icon={FileUp}
+                onClick={() => setImporting(true)}
+              >
+                {t("library.import")}
+              </Button>
+            </div>
           ) : shown.length === 0 ? (
-            <p className={styles.message}>{t("library.noMatch")}</p>
+            <div className={styles.message}>
+              <Search size={32} aria-hidden />
+              <p>{t("library.noMatch")}</p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => (query ? changeQuery("") : setImporting(true))}
+              >
+                {t(query ? "library.resetSearch" : "library.import")}
+              </Button>
+            </div>
           ) : view === "grid" ? (
             <div className={styles.grid} data-view="grid">
               {shown.map((paper) => (
@@ -374,14 +457,11 @@ export function LibraryScreen({
               <thead>
                 <tr>
                   <th scope="col">{t("library.column.title")}</th>
-                  <th scope="col" className={styles.progress}>
-                    {t("library.column.progress")}
+                  <th scope="col" className={styles.source}>
+                    {t("library.column.source")}
                   </th>
-                  <th scope="col" className={styles.status}>
-                    {t("library.column.status")}
-                  </th>
-                  <th scope="col" className={styles.updated}>
-                    {t("library.column.updated")}
+                  <th scope="col" className={styles.opened}>
+                    {t("library.column.opened")}
                   </th>
                   <th scope="col" className={styles.actions}>
                     <span className={styles.visuallyHidden}>
@@ -396,6 +476,7 @@ export function LibraryScreen({
                     key={paper.id}
                     paper={paper}
                     meta={records[paper.id]}
+                    lastOpened={visits[paper.id]}
                     selected={chosen.has(paper.id)}
                     {...itemProps}
                   />
@@ -414,19 +495,9 @@ export function LibraryScreen({
         onDelete={asked}
       />
       <Dialog
-        open={importing}
-        onClose={() => setImporting(false)}
-        title={t("library.import.title")}
-      >
-        <ImportDrop imports={imports} />
-      </Dialog>
-      <Dialog
         open={doomed !== null}
         onClose={() => !deleting && setDoomed(null)}
         title={t("library.delete.title")}
-        description={
-          doomed ? t("library.delete.body", { title: title(doomed) }) : ""
-        }
         size="sm"
         footer={
           <>
@@ -439,6 +510,7 @@ export function LibraryScreen({
           </>
         }
       >
+        {doomed && <p className={styles.deleteName}>{title(doomed)}</p>}
         {deleteError && (
           <p className={styles.error} role="alert">
             {deleteError}

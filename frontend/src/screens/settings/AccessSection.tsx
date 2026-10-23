@@ -1,8 +1,9 @@
+import { Ban, MoreHorizontal } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api, type Paper } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
 import { readerHash } from "../../reader/route";
-import { Button, toast } from "../../ui";
+import { IconButton, Menu, toast } from "../../ui";
 import { failure } from "../setup/model-api";
 import { ConfirmDialog, Section, formatDate } from "./Section";
 import styles from "./Settings.module.css";
@@ -120,19 +121,20 @@ export function AccessSection({ go }: { go(hash: string): void }) {
 
   const title = (paper: Paper) => paper.title || t("reader.untitled");
   return (
-    <Section
-      title={t("settings.access.title")}
-      lead={t("settings.access.lead")}
-    >
+    <Section hideHeading title={t("settings.access.title")}>
       <h3 className={styles.subTitle}>{t("settings.shares.title")}</h3>
       {shareError ? (
         <p role="alert" className={styles.error}>
           {shareError}
         </p>
       ) : !shares ? (
-        <p className={styles.muted}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : shares.length === 0 ? (
-        <p className={styles.muted}>{t("settings.shares.empty")}</p>
+        <div className={styles.empty}>{t("settings.shares.empty")}</div>
       ) : (
         <ul className={styles.list} aria-label={t("settings.shares.title")}>
           {shares.map((row) => (
@@ -152,16 +154,27 @@ export function AccessSection({ go }: { go(hash: string): void }) {
                   })}
                 </span>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={t("settings.shares.revokeNamed", {
-                  title: title(row.paper),
-                })}
-                onClick={() => setPending({ kind: "share", item: row })}
-              >
-                {t("settings.revoke")}
-              </Button>
+              <div className={styles.rowActions}>
+                <Menu
+                  label={t("customize.more", { name: title(row.paper) })}
+                  items={[
+                    {
+                      id: "revoke",
+                      icon: Ban,
+                      label: t("settings.revoke"),
+                      danger: true,
+                      onSelect: () => setPending({ kind: "share", item: row }),
+                    },
+                  ]}
+                  trigger={(props) => (
+                    <IconButton
+                      {...props}
+                      icon={MoreHorizontal}
+                      label={t("customize.more", { name: title(row.paper) })}
+                    />
+                  )}
+                />
+              </div>
             </li>
           ))}
         </ul>
@@ -172,9 +185,13 @@ export function AccessSection({ go }: { go(hash: string): void }) {
           {tokenError}
         </p>
       ) : !tokens ? (
-        <p className={styles.muted}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : tokens.length === 0 ? (
-        <p className={styles.muted}>{t("settings.tokens.empty")}</p>
+        <div className={styles.empty}>{t("settings.tokens.empty")}</div>
       ) : (
         <ul className={styles.list} aria-label={t("settings.tokens.title")}>
           {tokens.map((token) => (
@@ -192,16 +209,28 @@ export function AccessSection({ go }: { go(hash: string): void }) {
                   })}
                 </span>
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={t("settings.tokens.revokeNamed", {
-                  name: token.name,
-                })}
-                onClick={() => setPending({ kind: "token", item: token })}
-              >
-                {t("settings.revoke")}
-              </Button>
+              <div className={styles.rowActions}>
+                <Menu
+                  label={t("customize.more", { name: token.name })}
+                  items={[
+                    {
+                      id: "revoke",
+                      icon: Ban,
+                      label: t("settings.revoke"),
+                      danger: true,
+                      onSelect: () =>
+                        setPending({ kind: "token", item: token }),
+                    },
+                  ]}
+                  trigger={(props) => (
+                    <IconButton
+                      {...props}
+                      icon={MoreHorizontal}
+                      label={t("customize.more", { name: token.name })}
+                    />
+                  )}
+                />
+              </div>
             </li>
           ))}
         </ul>
@@ -213,13 +242,6 @@ export function AccessSection({ go }: { go(hash: string): void }) {
             ? "settings.tokens.revokeTitle"
             : "settings.shares.revokeTitle",
         )}
-        description={
-          pending?.kind === "token"
-            ? t("settings.tokens.revokeBody", { name: pending.item.name })
-            : t("settings.shares.revokeBody", {
-                title: pending ? title(pending.item.paper) : "",
-              })
-        }
         confirm={t("settings.revoke")}
         busy={busy}
         onClose={() => setPending(null)}

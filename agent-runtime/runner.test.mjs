@@ -162,6 +162,9 @@ test('a model that falls silent, before or during its answer, still times out', 
 
 // The runner as the backend drives it: Pi's AgentSession against a local model server.
 import {spawn} from 'node:child_process';
+import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 async function fakeModel(reply) {
   const seen = [];
   const server = http.createServer(async (request, response) => {
@@ -170,7 +173,7 @@ async function fakeModel(reply) {
     const payload = JSON.parse(body);
     seen.push(payload);
     response.writeHead(200, {'content-type':'text/event-stream'});
-    for (const delta of reply(payload, seen.length)) response.write(frame(delta));
+    for await (const delta of reply(payload, seen.length)) response.write(frame(delta));
     response.write(frame({}, reply.finish?.(payload, seen.length) || 'stop'));
     // Like a real service: how many tokens the request took (about one per three characters here).
     const prompt = Math.round(body.length / 3);
@@ -180,9 +183,9 @@ async function fakeModel(reply) {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   return {seen, base:`http://127.0.0.1:${server.address().port}/v1`, close:() => { server.closeAllConnections(); server.close(); }};
 }
-function runRunner(payload, onTool = () => ({result:{ok:true}})) {
+function runRunner(payload, onTool = () => ({result:{ok:true}}), onEvent = () => {}, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [new URL('./runner.mjs', import.meta.url).pathname], {env:{...process.env, NODE_ENV:'test'}});
+    const child = spawn(process.execPath, [new URL('./runner.mjs', import.meta.url).pathname], {cwd:options.cwd, env:{...process.env, NODE_ENV:'test', ...options.env}});
     const out = [];
     let buffer = '';
     child.stdout.on('data', chunk => {
@@ -193,9 +196,13 @@ function runRunner(payload, onTool = () => ({result:{ok:true}})) {
         if (!line) continue;
         const event = JSON.parse(line);
         out.push(event);
-        if (event.type === 'tool') child.stdin.write(JSON.stringify({id:event.id, ...onTool(event)}) + '\n');
+        if (event.type === 'tool') {
+          const reply = onTool(event, child);
+          if (reply !== null) child.stdin.write(JSON.stringify({id:event.id, ...reply}) + '\n');
+        }
         // The backend reserves each model request against the budget.
         if (event.type === 'model_request') { if (payload.deny) child.kill(); else child.stdin.write(JSON.stringify({id:event.id}) + '\n'); }
+        onEvent(event, child);
       }
     });
     let err = '';
@@ -205,6 +212,114 @@ function runRunner(payload, onTool = () => ({result:{ok:true}})) {
   });
 }
 const config = base => ({base_url:base, api_key:'k', model:'m', protocol:'openai'});
+
+test('Pi describes the actual tool cwd while local resource loading stays isolated across turns', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'ora-cwd-test-'));
+  const physical = join(root, 'paper-agent-physical'), toolCwd = join(root, 'selected remote directory'), home = join(root, 'host-home');
+  const poison = 'HOST_PI_CONFIG_MUST_NOT_LOAD';
+  for (const dir of [physical, toolCwd, home]) await mkdir(dir, {recursive:true});
+  // The remote path happens to exist on this machine. Pi must not discover its
+  // settings, append prompt, context files or extensions, nor this HOME's Pi setup.
+  for (const dir of [join(toolCwd, '.pi'), join(home, '.pi', 'agent')]) {
+    await mkdir(join(dir, 'extensions'), {recursive:true});
+    await writeFile(join(dir, 'SYSTEM.md'), poison);
+    await writeFile(join(dir, 'APPEND_SYSTEM.md'), poison);
+    await writeFile(join(dir, 'settings.json'), JSON.stringify({defaultModel:poison, defaultThinkingLevel:'high'}));
+    await writeFile(join(dir, 'extensions', 'poison.mjs'), `throw Error('${poison}');`);
+    await writeFile(join(dir, 'AGENTS.md'), poison);
+  }
+  await writeFile(join(toolCwd, 'AGENTS.md'), poison);
+  const model = await fakeModel((_payload, n) => [{content:`answer ${n}`}]);
+  const payload = {config:config(model.base), tool_cwd:toolCwd, system_prompt:'Trusted research instructions', tools:[]};
+  const options = {cwd:physical, env:{HOME:home}};
+  try {
+    const first = await runRunner({...payload, prompt:'Remember this first request'}, undefined, undefined, options);
+    const entries = first.filter(e => e.type === 'entry').map(e => e.entry);
+    const id = first.find(e => e.type === 'done').session_id;
+    const second = await runRunner({...payload, prompt:'Continue the same research', session:{id, entries}}, undefined, undefined, options);
+    assert.equal(second.find(e => e.type === 'done').session_id, id);
+    assert.equal(second.find(e => e.type === 'answer').text, 'answer 2');
+    for (const request of model.seen) {
+      const system = request.messages.find(m => m.role === 'system').content;
+      assert.ok(system.includes(`Current working directory: ${toolCwd}`), system);
+      assert.ok(system.includes('Trusted research instructions'));
+      assert.ok(!system.includes(physical), system);
+      assert.ok(!JSON.stringify(request).includes(poison));
+      assert.equal(request.model, 'm');
+      assert.ok(!request.tools?.length);
+    }
+    assert.match(JSON.stringify(model.seen[1].messages), /Remember this first request/);
+    assert.match(JSON.stringify(model.seen[1].messages), /answer 1/);
+  } finally { model.close(); await rm(root, {recursive:true, force:true}); }
+});
+
+test('native steering and follow-up are acknowledged and saved in the same Pi run', async () => {
+  let queued;
+  const accepted = new Promise(resolve => { queued = resolve; });
+  const model = await fakeModel(async function* (_payload, n) {
+    yield {content:`answer-${n}`};
+    if (n === 1) await accepted;
+  });
+  let sent = false, count = 0;
+  try {
+    const out = await runRunner({run_id:'r', config:config(model.base), prompt:'start', tools:[]}, undefined, (event, child) => {
+      if (event.type === 'delta' && !sent) {
+        sent = true;
+        for (const [id,kind,text] of [['s','steer','change direction'],['f','follow_up','then inspect results']])
+          child.stdin.write(JSON.stringify({type:'control',id,kind,text,expected_run_id:'r'})+'\n');
+      }
+      if (event.type === 'control' && event.status === 'accepted' && ++count === 2) queued();
+    });
+    assert.equal(model.seen.length, 3);
+    for (const id of ['s','f']) assert.ok(out.some(e => e.type === 'control' && e.id === id && e.status === 'applied'));
+    assert.match(JSON.stringify(model.seen[1].messages), /change direction/);
+    assert.match(JSON.stringify(model.seen[2].messages), /then inspect results/);
+    assert.match(JSON.stringify(out.filter(e => e.type === 'entry')), /change direction/);
+    assert.match(JSON.stringify(out.filter(e => e.type === 'entry')), /then inspect results/);
+  } finally { queued(); model.close(); }
+});
+
+test('abort confirms only after partial Pi history is emitted and rejects a stale run', async () => {
+  let finish;
+  const stopped = new Promise(resolve => { finish = resolve; });
+  const model = await fakeModel(async function* () {
+    yield {content:'partial response'};
+    await stopped;
+  });
+  let sent = false;
+  try {
+    const out = await runRunner({run_id:'r', config:config(model.base), prompt:'start', tools:[]}, undefined, (event, child) => {
+      if (event.type === 'delta' && !sent) {
+        sent = true;
+        for (const [id,expected] of [['stale','old-r'],['stop','r'],['stop','r']])
+          child.stdin.write(JSON.stringify({type:'control',id,kind:'abort',expected_run_id:expected})+'\n');
+      }
+      if (event.type === 'control' && event.id === 'stop' && event.status === 'applied') finish();
+    });
+    assert.ok(out.some(e => e.type === 'control' && e.id === 'stale' && e.status === 'rejected'));
+    const confirmed = out.findIndex(e => e.type === 'control' && e.id === 'stop' && e.status === 'applied');
+    assert.ok(confirmed > 0);
+    assert.ok(out.slice(0,confirmed).some(e => e.type === 'entry' && e.entry.message?.role === 'user'));
+    assert.ok(out.slice(0,confirmed).some(e => e.type === 'entry' && e.entry.message?.role === 'assistant'));
+    assert.equal(out.find(e => e.type === 'done').aborted, true);
+  } finally { finish(); model.close(); }
+});
+
+test('abort releases a pending host tool and saves its interrupted result', async () => {
+  const reply = () => [{role:'assistant', tool_calls:[{index:0,id:'tool-1',type:'function',function:{name:'wait_here',arguments:'{}'}}]}];
+  reply.finish = () => 'tool_calls';
+  const model = await fakeModel(reply);
+  try {
+    const out = await runRunner({run_id:'r', config:config(model.base), prompt:'start', tools:[{name:'wait_here',parameters:{type:'object',properties:{}}}]}, (_event, child) => {
+      child.stdin.write(JSON.stringify({type:'control',id:'stop',kind:'abort',expected_run_id:'r'})+'\n');
+      return null;
+    });
+    assert.equal(model.seen.length, 1);
+    assert.ok(out.some(e => e.type === 'control' && e.id === 'stop' && e.status === 'applied'));
+    assert.ok(out.some(e => e.type === 'entry' && e.entry.message?.role === 'toolResult' && e.entry.message.isError));
+    assert.equal(out.find(e => e.type === 'done').aborted, true);
+  } finally { model.close(); }
+});
 
 test('a conversation continues from the entries the backend kept', async () => {
   const model = await fakeModel((payload, n) => [{content:`第 ${n} 次回答`}]);
@@ -301,5 +416,20 @@ test('a model request the backend refuses is never sent', async () => {
     // The backend, finding the budget spent, stops the runner rather than answer.
     await assert.rejects(runRunner({config:config(model.base), prompt:'你好', tools:[], deny:true}));
     assert.equal(model.seen.length, 0);
+  } finally { model.close(); }
+});
+
+test('a model that stops without a word after a tool is asked to go on', async () => {
+  const model = await fakeModel(async function* (_payload, n) {
+    if (n === 1) yield {tool_calls:[{index:0, id:'c1', type:'function', function:{name:'read_file', arguments:'{}'}}]};
+    else if (n === 2) yield {content:''};
+    else yield {content:'做完了'};
+  });
+  model.finish = undefined;
+  try {
+    const out = await runRunner({config:config(model.base), prompt:'go', tools:[{name:'read_file', description:'read', parameters:{type:'object', properties:{}}}]});
+    assert.equal(model.seen.length, 3);
+    assert.match(JSON.stringify(model.seen[2].messages), /上一条回复是空的/);
+    assert.equal(out.filter(e => e.type === 'answer').at(-1).text, '做完了');
   } finally { model.close(); }
 });

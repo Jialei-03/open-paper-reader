@@ -64,6 +64,20 @@ describe("a run, read as a turn", () => {
     ]);
   });
 
+  it("reports project supervision without claiming to execute commands or experiments", () => {
+    expect(
+      summary([
+        step("project_overview"),
+        step("research_read"),
+        step("start_research"),
+        step("message_research"),
+      ]),
+    ).toEqual([
+      ["read", 2],
+      ["record", 2],
+    ]);
+  });
+
   it("names what a step was about, and what came back", () => {
     expect(
       target(
@@ -72,6 +86,13 @@ describe("a run, read as a turn", () => {
         }),
       ),
     ).toBe("nvidia-smi");
+    expect(
+      target(
+        step("research_read", "completed", {
+          arguments: { research_id: "research-1" },
+        }),
+      ),
+    ).toBe("research-1");
     const printed = JSON.stringify({
       content: [{ type: "text", text: "RTX 5060 Ti" }],
     });

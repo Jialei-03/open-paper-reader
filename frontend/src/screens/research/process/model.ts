@@ -86,6 +86,8 @@ export const KIND: Record<string, Kind> = {
   job_logs: "read",
   job_status: "read",
   research_map_read: "read",
+  project_overview: "read",
+  research_read: "read",
   write: "write",
   edit: "write",
   grep: "search",
@@ -98,6 +100,8 @@ export const KIND: Record<string, Kind> = {
   add_node: "record",
   advise: "record",
   propose_plan: "record",
+  start_research: "record",
+  message_research: "record",
   focus: "record",
   end_sprint: "record",
 };
@@ -142,6 +146,9 @@ export function target(step: RunStep): string {
     "query",
     "intent",
     "title",
+    "research_id",
+    "node_id",
+    "id",
     "job_id",
   ]
     .map((k) => a[k])

@@ -1,0 +1,462 @@
+import {
+  applyNodeChanges,
+  type Connection,
+  type Edge,
+  type Node,
+  type NodeChange,
+  type XYPosition,
+} from "@xyflow/react";
+import type { Translator } from "../../../i18n/i18n";
+
+// References and payloads follow docs/design/agent-team-contract.md.
+export interface WorkflowMember {
+  id: string;
+  name: string;
+  kind: "human" | "agent";
+  role: string;
+}
+export interface WorkflowChannel {
+  id: string;
+  name: string;
+  kind: "channel" | "dm";
+}
+export const RULE_EVENTS = [
+  "message",
+  "mention",
+  "job_finished",
+  "plan_approved",
+  "conclusion_proposed",
+  "review_failed",
+  "schedule",
+] as const;
+export const RULE_ACTIONS = [
+  "wake",
+  "review",
+  "wait_for_owner",
+  "post",
+] as const;
+export const MESSAGE_KINDS = [
+  "text",
+  "result",
+  "plan",
+  "conclusion",
+  "draft",
+  "review",
+] as const;
+export interface WorkflowRule {
+  id: string;
+  enabled: boolean;
+  when: {
+    event: (typeof RULE_EVENTS)[number];
+    channel?: string;
+    from_role?: string;
+    from_member?: string;
+    kind?: (typeof MESSAGE_KINDS)[number];
+    cron?: string;
+    timezone?: string;
+  };
+  then: {
+    action: (typeof RULE_ACTIONS)[number];
+    member?: string;
+    role?: string;
+    instruction?: string;
+    on_fail?: string;
+    max_rounds?: number;
+    channel?: string;
+    text?: string;
+  };
+  limit: { per_thread: number };
+  position?: XYPosition;
+}
+export interface Workflow {
+  id: string;
+  name: string;
+  builtin: boolean;
+  version: number;
+  rules: WorkflowRule[];
+  layout: {
+    members: Record<string, XYPosition>;
+    channels: Record<string, XYPosition>;
+  };
+}
+export interface WorkflowRuntime {
+  members: Record<string, "idle" | "working" | "waiting">;
+  fired: { rule: string; at: string }[];
+}
+export interface WorkflowDataProps {
+  workflow: Workflow;
+  members: WorkflowMember[];
+  channels: WorkflowChannel[];
+  onChange(workflow: Workflow): void;
+}
+export type WorkflowNodeTarget = { kind: "member" | "channel"; id: string };
+export type WorkflowNode = Node<
+  {
+    kind: "member" | "channel" | "trigger" | "owner";
+    ref: string;
+    name: string;
+    status?: WorkflowRuntime["members"][string];
+    event?: WorkflowRule["when"]["event"];
+    human?: boolean;
+    when?: WorkflowRule["when"];
+  },
+  "workflow"
+>;
+export type WorkflowEdge = Edge<{
+  rule: string;
+  kind: WorkflowRule["then"]["action"] | "return" | "subscription" | "schedule";
+}>;
+
+export const nodeId = (kind: WorkflowNode["data"]["kind"], id: string) =>
+  `${kind}:${id}`;
+export const memberFor = (
+  members: WorkflowMember[],
+  id?: string,
+  role?: string,
+) =>
+  (id ? members.find((member) => member.id === id) : undefined) ??
+  (role ? members.find((member) => member.role === role) : undefined);
+
+export function ruleSummary(
+  rule: WorkflowRule,
+  members: WorkflowMember[],
+  channels: WorkflowChannel[],
+  t: Translator["t"],
+) {
+  const memberName = (id?: string, role?: string) =>
+    memberFor(members, id, role)?.name ??
+    id ??
+    role ??
+    t("teamWorkflow.anyMember");
+  const channelName = (id?: string) =>
+    channels.find((channel) => channel.id === id)?.name ?? id;
+  const source = [
+    channelName(rule.when.channel),
+    rule.when.from_member || rule.when.from_role
+      ? memberName(rule.when.from_member, rule.when.from_role)
+      : "",
+    t(`teamWorkflow.event.${rule.when.event}`),
+    rule.when.kind ? t(`teamWorkflow.kind.${rule.when.kind}`) : "",
+    rule.when.event === "schedule"
+      ? `${rule.when.cron ?? ""} ${rule.when.timezone ?? ""}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  const target =
+    rule.then.action === "post"
+      ? channelName(rule.then.channel)
+      : rule.then.action === "wait_for_owner"
+        ? t("teamWorkflow.me")
+        : memberName(rule.then.member, rule.then.role);
+  const action = [
+    target,
+    t(`teamWorkflow.action.${rule.then.action}`),
+    rule.then.instruction,
+    rule.then.text,
+    rule.then.action === "review" && rule.then.on_fail
+      ? t("teamWorkflow.returnTo", {
+          name: memberName(rule.then.on_fail, rule.then.on_fail),
+          count: rule.then.max_rounds ?? 3,
+        })
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return t("teamWorkflow.summary", { source, action });
+}
+
+export function newRule(id: string): WorkflowRule {
+  return {
+    id,
+    enabled: true,
+    when: { event: "message" },
+    then: { action: "wake" },
+    limit: { per_thread: 10 },
+  };
+}
+
+export function saveRule(workflow: Workflow, rule: WorkflowRule): Workflow {
+  const found = workflow.rules.some((item) => item.id === rule.id);
+  return {
+    ...workflow,
+    rules: found
+      ? workflow.rules.map((item) => (item.id === rule.id ? rule : item))
+      : [...workflow.rules, rule],
+  };
+}
+
+export function moveRule(workflow: Workflow, id: string, to: number): Workflow {
+  const from = workflow.rules.findIndex((rule) => rule.id === id);
+  if (from < 0 || to < 0 || to >= workflow.rules.length || from === to)
+    return workflow;
+  const rules = [...workflow.rules];
+  rules.splice(to, 0, rules.splice(from, 1)[0]);
+  return { ...workflow, rules };
+}
+
+/** Edges carry identity, never a second editable copy of a rule. */
+export function edgeToRule(
+  edge: WorkflowEdge,
+  workflow: Workflow,
+): WorkflowRule | undefined {
+  return workflow.rules.find((rule) => rule.id === edge.data?.rule);
+}
+
+export function workflowToFlow(
+  workflow: Workflow,
+  members: WorkflowMember[],
+  channels: WorkflowChannel[],
+  runtime?: WorkflowRuntime,
+) {
+  const nodes = new Map<string, WorkflowNode>();
+  const edges: WorkflowEdge[] = [];
+  const add = (
+    kind: WorkflowNode["data"]["kind"],
+    ref: string,
+    name: string,
+    position?: XYPosition,
+    event?: WorkflowRule["when"]["event"],
+  ) => {
+    const id = nodeId(kind, ref);
+    if (!nodes.has(id))
+      nodes.set(id, {
+        id,
+        type: "workflow",
+        position: position ?? {
+          x: (nodes.size % 3) * 300,
+          y: Math.floor(nodes.size / 3) * 180,
+        },
+        data: {
+          kind,
+          ref,
+          name,
+          event,
+          human:
+            kind === "member" &&
+            members.some((item) => item.id === ref && item.kind === "human"),
+          status:
+            kind === "member" ? (runtime?.members[ref] ?? "idle") : undefined,
+        },
+        ariaLabel: name,
+        focusable: true,
+        draggable: kind !== "owner",
+      });
+    return id;
+  };
+  const member = (id?: string, role?: string) => {
+    const value = memberFor(members, id, role);
+    const ref = value?.id ?? id;
+    return ref
+      ? add("member", ref, value?.name ?? ref, workflow.layout.members[ref])
+      : undefined;
+  };
+  const channel = (id: string) =>
+    add(
+      "channel",
+      id,
+      channels.find((item) => item.id === id)?.name ?? id,
+      workflow.layout.channels[id],
+    );
+  for (const id of Object.keys(workflow.layout.members)) member(id);
+  for (const id of Object.keys(workflow.layout.channels)) channel(id);
+  for (const rule of workflow.rules) {
+    const source =
+      rule.when.event === "schedule"
+        ? add(
+            "trigger",
+            rule.id,
+            rule.when.cron ?? "",
+            rule.position,
+            "schedule",
+          )
+        : (member(rule.when.from_member, rule.when.from_role) ??
+          (rule.when.channel
+            ? channel(rule.when.channel)
+            : add("trigger", rule.id, "", rule.position, rule.when.event)));
+    // A channel filter remains visible even when an author is the source.
+    if (rule.when.channel) channel(rule.when.channel);
+    if (nodes.get(source)?.data.kind === "trigger")
+      nodes.get(source)!.data.when = rule.when;
+    let target: string | undefined;
+    if (rule.then.action === "post") {
+      if (rule.then.channel) target = channel(rule.then.channel);
+    } else if (rule.then.action === "wait_for_owner") {
+      const owner =
+        members.find(
+          (item) => item.role === "owner" && item.kind === "human",
+        ) ?? members.find((item) => item.kind === "human");
+      target = owner ? member(owner.id) : add("owner", "owner", "");
+    } else target = member(rule.then.member, rule.then.role);
+    // Incomplete rules still have an editable event node, without inventing references.
+    if (!target) {
+      add("trigger", rule.id, "", rule.position, rule.when.event);
+      continue;
+    }
+    const kind =
+      rule.when.event === "schedule"
+        ? "schedule"
+        : rule.then.action === "wake" &&
+            rule.when.event === "message" &&
+            rule.when.channel &&
+            !rule.when.from_member &&
+            !rule.when.from_role
+          ? "subscription"
+          : rule.then.action;
+    edges.push({
+      id: `rule:${rule.id}`,
+      source,
+      target,
+      sourceHandle: "out",
+      targetHandle: "in",
+      type: "smoothstep",
+      data: { rule: rule.id, kind },
+      focusable: true,
+      reconnectable: false,
+    });
+    if (rule.then.action === "review" && rule.then.on_fail) {
+      const back = member(rule.then.on_fail, rule.then.on_fail);
+      if (back)
+        edges.push({
+          id: `return:${rule.id}`,
+          source: target,
+          target: back,
+          sourceHandle: "return-out",
+          targetHandle: "return-in",
+          type: "smoothstep",
+          data: { rule: rule.id, kind: "return" },
+          focusable: true,
+          reconnectable: false,
+        });
+    }
+  }
+  return { nodes: [...nodes.values()], edges };
+}
+
+/** A connection seeds the shared editor; only Save adds it to the workflow. */
+export function connectionToRule(
+  connection: Connection,
+  nodes: WorkflowNode[],
+  id: string,
+): WorkflowRule | undefined {
+  const source = nodes.find((node) => node.id === connection.source)?.data;
+  const target = nodes.find((node) => node.id === connection.target)?.data;
+  if (!source || !target || target.kind === "trigger") return undefined;
+  const rule = newRule(id);
+  if (source.kind === "member") rule.when.from_member = source.ref;
+  if (source.kind === "channel") rule.when.channel = source.ref;
+  if (source.kind === "trigger") {
+    rule.when = { ...source.when, event: source.event ?? "message" };
+  }
+  if (target.kind === "channel")
+    rule.then = { action: "post", channel: target.ref };
+  else if (target.kind === "owner" || target.human)
+    rule.then = { action: "wait_for_owner" };
+  else rule.then.member = target.ref;
+  return rule;
+}
+
+/** Preserve off-canvas positions and all rule fields when persisting a move. */
+export function layoutFromNodes(
+  workflow: Workflow,
+  nodes: WorkflowNode[],
+): Workflow {
+  const layout = {
+    members: { ...workflow.layout.members },
+    channels: { ...workflow.layout.channels },
+  };
+  const positions = new Map<string, XYPosition>();
+  for (const { data, position } of nodes) {
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) continue;
+    if (data.kind === "member") layout.members[data.ref] = { ...position };
+    if (data.kind === "channel") layout.channels[data.ref] = { ...position };
+    if (data.kind === "trigger") positions.set(data.ref, { ...position });
+  }
+  return {
+    ...workflow,
+    layout,
+    rules: workflow.rules.map((rule) =>
+      positions.has(rule.id)
+        ? { ...rule, position: positions.get(rule.id)! }
+        : rule,
+    ),
+  };
+}
+
+export function updateCanvasNodes(
+  workflow: Workflow,
+  nodes: WorkflowNode[],
+  changes: NodeChange<WorkflowNode>[],
+  onChange: WorkflowDataProps["onChange"],
+): WorkflowNode[] {
+  const next = applyNodeChanges(changes, nodes);
+  if (
+    changes.some(
+      (change) =>
+        change.type === "position" && change.position && !change.dragging,
+    )
+  )
+    onChange(layoutFromNodes(workflow, next));
+  return next;
+}
+
+export function validateRule(rule: WorkflowRule): boolean {
+  if (!Number.isSafeInteger(rule.limit.per_thread) || rule.limit.per_thread < 1)
+    return false;
+  if (rule.when.event === "schedule") {
+    if (!validCron(rule.when.cron ?? "") || !rule.when.timezone) return false;
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: rule.when.timezone });
+    } catch {
+      return false;
+    }
+  }
+  if (rule.then.action === "wake" || rule.then.action === "review") {
+    if (!rule.then.member && !rule.then.role?.trim()) return false;
+  }
+  if (
+    rule.then.action === "review" &&
+    (!rule.then.on_fail ||
+      !Number.isSafeInteger(rule.then.max_rounds) ||
+      rule.then.max_rounds! < 1)
+  )
+    return false;
+  return (
+    rule.then.action !== "post" ||
+    !!(rule.then.channel && rule.then.text?.trim())
+  );
+}
+
+function validCron(value: string) {
+  const fields = value.trim().split(/\s+/);
+  return (
+    fields.length === 5 &&
+    fields.every((field, index) =>
+      field.split(",").every((part) => {
+        const match = /^(\*|\d+(?:-\d+)?)(?:\/(\d+))?$/.exec(part);
+        if (!match || (match[2] && Number(match[2]) < 1)) return false;
+        if (match[1] === "*") return true;
+        const [start, end = start] = match[1].split("-").map(Number);
+        return (
+          start >= [0, 0, 1, 1, 0][index] &&
+          end <= [59, 23, 31, 12, 7][index] &&
+          start <= end
+        );
+      }),
+    )
+  );
+}
+
+export function recentFired(
+  runtime: WorkflowRuntime | undefined,
+  now: number,
+): Set<string> {
+  return new Set(
+    (runtime?.fired ?? [])
+      .filter(({ at }) => {
+        const age = now - Date.parse(at);
+        return age >= 0 && age < 1600;
+      })
+      .map(({ rule }) => rule),
+  );
+}

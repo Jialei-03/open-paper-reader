@@ -55,7 +55,6 @@ export function MascotDialog({
       open={open}
       onClose={onClose}
       title={t("research.scene.looks")}
-      description={t("research.scene.looks.description")}
       size="md"
     >
       <ul className={styles.looks}>

@@ -4,7 +4,7 @@
 }
 
 .tip {
-  --tooltip-max-width: 280px;
+  --tooltip-max-width: var(--ui-tooltip-width);
   display: flex;
   align-items: center;
   gap: var(--ui-space-8);

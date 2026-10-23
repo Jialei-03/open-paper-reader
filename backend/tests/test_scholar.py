@@ -74,6 +74,22 @@ def test_lookup_reads_semantic_scholar_and_caches(monkeypatch):
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize("venue", ["NeurIPS", {"name": "NeurIPS"}, None, []])
+def test_semantic_scholar_accepts_venue_names_and_missing_optional_metadata(venue):
+    found = scholar._from_s2({
+        "title": "A valid recommendation",
+        "publicationVenue": venue,
+        "venue": "Fallback journal",
+        "externalIds": "",
+        "journal": "",
+        "authors": [{"name": " A. Author "}, {"name": 1}],
+    })
+    assert found["title"] == "A valid recommendation"
+    assert found["venue"] == ("NeurIPS" if venue else "Fallback journal")
+    assert found["authors"] == ["A. Author"]
+    assert found["doi"] == found["arxiv"] == ""
+
+
 def test_falls_back_to_openalex_and_arxiv_and_fills_gaps(monkeypatch):
     openalex = {
         "title": "A paper",

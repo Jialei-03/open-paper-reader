@@ -93,7 +93,21 @@ def _root(settings, project_id):
 
 
 def workdir(settings, project_id):
+    """The research's working folder: its worktree in the project's repository
+    (research_repo), which this path links to, or a plain folder before that."""
+    from .research_locations import read_binding
+
+    location = read_binding(settings, project_id)
+    if location.get("kind") == "local":
+        bound = Path(location["path"])
+        if not bound.is_dir():
+            raise ValueError("绑定的工作目录不存在")
+        return bound.resolve()
     path = _root(settings, project_id) / "work"
+    if path.is_symlink():
+        if path.exists():
+            return path.resolve()
+        path.unlink()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -232,7 +246,9 @@ def pi_call(settings, project_id, name, args, d=None):
     or in the remote workspace of a project that runs over SSH."""
     project = d.get(ResearchProject, project_id) if d is not None else None
     if project is not None:
-        item = research_settings.compute(settings, project.compute_id)
+        from .research_locations import execution_compute
+
+        item = execution_compute(settings, d, project)
         if item["kind"] == "ssh":
             from . import research_remote
 
@@ -296,10 +312,23 @@ def _size(path):
     )
 
 
+def _workspace_over_quota(settings, project_id):
+    from .research_locations import read_binding
+
+    # An attached user folder may already contain large datasets. The app's
+    # private workspace quota must not treat those pre-existing files as a job leak.
+    return (
+        read_binding(settings, project_id).get("kind") != "local"
+        and _size(workdir(settings, project_id)) > WORKSPACE_BYTES
+    )
+
+
 def start_job(settings, d, project, node, sprint, command, timeout_seconds):
     """Starts a background experiment bound to the node being worked on,
     on the project's compute."""
-    item = research_settings.compute(settings, project.compute_id)
+    from .research_locations import execution_compute, read_binding
+
+    item = execution_compute(settings, d, project)
     if item["kind"] == "docker":
         _ready()
         _check_visible(settings, project.id)
@@ -308,7 +337,10 @@ def start_job(settings, d, project, node, sprint, command, timeout_seconds):
         raise ValueError("命令不能为空")
     if not 1 <= timeout_seconds <= JOB_MAX_SECONDS:
         raise ValueError(f"作业超时时间须在 1 到 {JOB_MAX_SECONDS} 秒之间")
-    if _size(workdir(settings, project.id)) > WORKSPACE_BYTES:
+    if (
+        read_binding(settings, project.id).get("kind") != "local"
+        and _size(workdir(settings, project.id)) > WORKSPACE_BYTES
+    ):
         raise ValueError("工作区已超过配额，先清理不需要的文件再启动作业")
     job = ResearchJob(
         project_id=project.id,
@@ -408,7 +440,9 @@ def queue_position(d, job):
 def _start_queued(settings, d, job):
     """A queued job's turn: it starts now, and its time counts from now."""
     project = d.get(ResearchProject, job.project_id)
-    item = research_settings.compute(settings, job.compute_id)
+    from .research_locations import execution_compute
+
+    item = execution_compute(settings, d, project)
     job.status = "running"
     job.started_at = now()
     _away(item["kind"]).start(settings, d, item, project, job)
@@ -675,7 +709,7 @@ def _sweep_one(settings, d, job):
         _kill(job)
         _charge(d, job)
         _finish(settings, d, job, "timeout", None)
-    elif _size(workdir(settings, job.project_id)) > WORKSPACE_BYTES:
+    elif _workspace_over_quota(settings, job.project_id):
         # A job may not fill the disk: it is stopped, and its log says why.
         _kill(job)
         _charge(d, job)

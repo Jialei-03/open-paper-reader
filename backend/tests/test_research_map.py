@@ -35,7 +35,7 @@ def test_create_project_makes_root_and_session(db):
     assert root.kind == "question" and root.title == "Does L2 help?"
     assert root.parent_id is None
     session = d.get(AgentSession, project.session_id)
-    assert session.owner == owner and session.title.startswith("研究：")
+    assert session.owner == owner and session.title == project.title
 
 
 def test_hypothesis_requires_kill_if(db):
@@ -192,3 +192,48 @@ def test_value_and_cost_estimates_shown(db):
         )
     text = rm.snapshot(d, project)
     assert "value=high cost=low" in text
+
+
+@pytest.mark.parametrize(
+    "question, expected",
+    [
+        ("在 MNIST 上，同一个小 CNN 比较 AdamW 和 SGD", "在 MNIST 上，同一个小"),
+        ("Compare AdamW with stochastic gradient descent", "Compare AdamW"),
+        ("supercalifragilistic model comparison", "supercalifragilistic"),
+        (
+            "连续中文没有任何分隔也不能把一个词语从中间截断",
+            "连续中文没有任何分隔也不能把一个词语从中间截断",
+        ),
+    ],
+)
+def test_rule_title_only_ends_at_punctuation_or_space(question, expected):
+    assert rm.short_title(question) == expected
+
+
+def test_research_language_comes_from_first_message_and_survives_rewritten_question(db):
+    d, owner = db
+    project = rm.create_project(
+        d,
+        owner,
+        "Compare two optimizers",
+        "",
+        "m",
+        first_message="比较两种优化器。Use MNIST.",
+    )
+    assert rm.language(d, project) == "zh"
+    project.question = "An English plan question"
+    assert rm.language(d, project) == "zh"
+    assert rm.researcher_language("Compare AdamW and SGD. 然后看结果。") == "en"
+    record = d.scalars(
+        select(ResearchEvent).where(ResearchEvent.project_id == project.id)
+    ).one()
+    assert record.detail["language"] == "zh"
+
+
+def test_all_tool_labels_are_short_names():
+    from backend.agent_tools import TOOLS
+
+    assert len({t["name"] for t in TOOLS}) == len(TOOLS)
+    for tool in TOOLS:
+        assert 2 <= len(tool["label"]) <= 6, tool["name"]
+        assert tool["label"] != tool["description"]

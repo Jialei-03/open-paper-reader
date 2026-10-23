@@ -91,6 +91,8 @@ async function startBackend() {
         AGENT_NODE: process.execPath,
         ELECTRON_RUN_AS_NODE: "1",
         AGENT_RUNTIME_DIR: runtime,
+        // The git the app carries, for the projects' repositories.
+        ...(resources ? { ORA_GIT_DIR: path.join(resources, "git") } : {}),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },

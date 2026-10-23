@@ -34,7 +34,6 @@ export function SetupScreen({ onDone }: { onDone(): void }) {
           <h1 id="setup-title" className={styles.title}>
             {t("setup.title")}
           </h1>
-          <p className={styles.lead}>{t("setup.lead")}</p>
         </header>
         <ModelForm
           local={allowsLocal(settings)}

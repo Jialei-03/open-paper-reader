@@ -23,35 +23,40 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 
 ## How it works
 
-- **It starts with a conversation**: say in one sentence what you want to find out. The advisor talks it through and writes a plan card: the metric, the baseline, what comes first, and what result would sink each hypothesis (its kill condition). Experiments start when you approve it.
-- **Projects, a board, and chats**: research is organized in projects, with a board showing where every research, hypothesis and experiment stands. Each project holds chats where you can ask how things are going; chats only read, so they never disturb work in progress.
-- **Research map**: the direction lives in a persistent tree, not in chat history: north-star question → sub-questions → hypotheses → experiments → findings. Every change records who made it and why. Each round starts from the map and the last handoff, so work can run for many rounds over days.
-- **Focus before acting**: before running code, writing files or changing the map, the executor must say which node it advances; if it does not, or that branch has been refuted, the action is refused and logged.
-- **The advisor judges, you decide**: a read-only advisor reviews the map, checks numbers against the logs, and decides to continue, invest, drop or pivot, asking you when it needs to. The plan, the conclusion and any extra budget are your call.
-- **Environments set up by an agent**: experiments run directly on your computer (using an Apple-silicon or NVIDIA GPU), or on a lab machine over SSH. An agent installs what is needed, and the system checks it before calling it ready.
-- **Evidence**: the system collects each experiment's logs, settings and metrics instead of trusting the agent to copy them. A result can only cite real log lines or a paper's own sentences, and its numbers must appear in them verbatim. Runs can be mirrored to SwanLab or Weights & Biases.
-- **Playbook (self-improvement across projects)**: when a research ends, a distiller turns what happened into judgment rules ("in this situation, do this"). A rule takes effect once two researches support it, and later researches read it. It has not been shown to help yet (see the status below).
+<p align="center"><img src="docs/images/plan.png" alt="A research plan agreed with the advisor" width="900"></p>
 
-Details are in [Research](docs/RESEARCH.md) (Chinese).
+- **It starts with one sentence**: in New research, say what you want to find out and pick a project, a workflow and a model. The advisor talks it through and writes a plan card: the metric, the baseline, what comes first, and what result would sink each hypothesis. Experiments start when you press Start experiments.
+- **Used like Codex**: projects and their conversations on the left, with status (working, waiting for you, done); each round of a conversation folds into "took X", followed by what it said and its cards (plan, experiments, file changes, conclusion); the side panel lists changes, sub-researches, experiments, the plan and sources. No explanatory clutter.
+- **Research map**: the direction lives in a persistent tree, not in chat history: north-star question → sub-questions → hypotheses → experiments → findings. Each round starts from the map and the last handoff. The executor must name the node it advances before acting; drift is refused and logged.
+- **The advisor judges, you decide**: a read-only advisor reviews the map, checks numbers against the logs, decides to continue, invest, drop or pivot, and asks you about choices it cannot make. The plan, the conclusion and any extra budget are your call.
+- **Every project is a git repository, every research a branch**: a research writes its code and results in its own worktree, with a checkpoint commit at the end of every round. Fork a new research from any round to try another way; conclusions merge back into the project's memory, code into the main line once you confirm. The desktop app carries its own git.
+- **Workflows**: built-in Research, Literature review, Reproduce a paper, Write a paper and From reading to writing, or your own steps; managed under Customize.
+- **Scheduled tasks**: start a conversation or say something in one on a schedule: a daily paper digest, a weekly research report, extra seeds overnight.
+- **Experiments on your machines**: on this computer (Apple MPS or NVIDIA GPUs), or on any SSH host from `~/.ssh/config` once switched on; the system checks it can reach it and what GPUs and Python it has. Nothing to prepare ahead: experiments install what they lack in a virtual environment in their workspace, and on multi-GPU hosts the executor picks idle GPUs each time.
+- **Evidence**: logs, hyperparameters and metrics are collected by the system. A conclusion may only cite real log lines or paper sentences, and numbers must match exactly. Runs can be mirrored to SwanLab or Weights & Biases.
+- **Research playbook (cross-project self-improvement)**: after each research, a distiller writes "in this situation, do this" rules, which take effect once two researches support them. Not yet shown to help (see Status).
+
+<p align="center"><img src="docs/images/panel.png" alt="A conversation and its side panel: changes and experiments" width="900"></p>
+
+**An example**: asked "On MNIST, with the same small CNN, which reaches higher test accuracy in 3 epochs, AdamW or SGD with momentum?", it spent 2.5 hours, 13 rounds and 14 experiments on an M5 Pro and concluded: with each learning rate tuned, AdamW is 0.16–0.46 points higher, about the size of seed noise, and the two tie once BatchNorm and light augmentation are added. Along the way it found SGD at a high learning rate collapses on MPS but not on the CPU, moved the main comparison to the CPU, and wrote down where the result holds.
+
+<p align="center"><img src="docs/images/conclusion.png" alt="The conclusion card" width="900"></p>
+
+Details: [Research](docs/RESEARCH.md).
+
+## In progress: a research team
+
+Next, ORA becomes a research team: you lead, and the team is agents you define (advisor, executor, librarian, reviewer, writer…). You talk with them as in Slack, in channels, direct messages and threads; `@` wakes whoever you name, and agents `@` each other to hand work on; a message to a busy agent can wait in a queue or interrupt at once. A workflow is the team's rules ("when…, who does what"), edited as a list or wired on a canvas, and the same question can be run again with another way of working, side by side. Design: [Research team](docs/design/agent-team.md).
 
 ## Status
 
-This is an early version. What actually works end to end:
+An early version. What really works today:
 
-- **The whole research flow**: projects and board, scoping by conversation, local / SSH environments, the advisor, evidence checks, the playbook, the research report. Run with a real model on an M1 Mac on a CIFAR-10 question, with experiments on MPS.
-- **Seven evaluation rounds** on held-out tasks covering four kinds of research judgment:
-
-  | Task | The right behavior |
-  |---|---|
-  | Find the best threshold | A number matching the precomputed truth |
-  | Missing data | Report it honestly and stop to ask |
-  | Tempting dead end | Refute it and stop |
-  | Label leak | Distrust a near-perfect score and find the leaking column |
-
-  Each round's main failures were fixed without changing the model. In the latest round 17 of 18 runs ended the right way; on a pre-registered set of new tasks never used in development, all 15 runs without the playbook ended the right way. See the [evaluation record](docs/research/2026-10-20-third-results.md).
-- **The advisor's value is knowing when to stop**: without it the executor stayed honest and its numbers were right, but all 6 runs used the whole budget, at 1.3 to 2.5 times the cost.
-- **The playbook has not been shown to help**: rules learned from an empty playbook cut cost by 27% on the tasks used during development, but this **did not replicate** on a pre-registered set of new tasks. See the [controlled comparison](docs/research/2026-10-20-learned-playbook.md) and the [fresh held-out set](docs/research/2026-10-20-fresh-heldout-plan.md).
-- **Not yet**: event-driven scheduling (rounds are polled today) and research in the hosted version (it runs locally only).
+- **The whole research loop**: conversational planning, local and SSH environments, the advisor, evidence checks, the playbook, reports, project repositories and branches, workflows, scheduled tasks. The MNIST example above ran end to end with a real model (MiniMax).
+- **Seven rounds of evaluation** on sealed tasks covering four kinds of research judgment (find the best threshold; report missing data and stop; drop a tempting dead end; suspect a near-perfect score and find the leaking column). The latest round ended correctly in 17 of 18 runs; on a pre-registered set of new tasks, all 15 runs without the playbook ended correctly. See the [evaluation record](docs/research/2026-10-20-third-results.md).
+- **The advisor's value is knowing when to stop**: without it, the executor stays honest and its numbers right, but all 6 runs exhaust the budget, costing 1.3 to 2.5 times as much.
+- **The playbook is not yet shown to help**: rules learned from an empty playbook cut cost by 27% on tasks used during development but did **not** carry over to a pre-registered fresh set. See the [ablation](docs/research/2026-10-20-learned-playbook.md) and the [fresh held-out set](docs/research/2026-10-20-fresh-heldout-plan.md).
+- **Not yet**: the research team (in progress), research on the hosted site (it runs on your computer only).
 
 ## Reading papers
 
@@ -61,7 +66,9 @@ The other half of the agent is reading papers. That part also works on its own, 
 - Select text to explain, translate, highlight, comment or keep in notes. Box a figure or formula to ask about it.
 - The assistant can see attached images and boxed regions, with a model that has vision.
 - Parallel translation, layout translation and LaTeX recompilation.
-- Markdown notes, a library, related papers and recommendations.
+- Markdown notes, materials (all / reading / unread / read), related papers and recommendations.
+
+<p align="center"><img src="docs/images/library.png" alt="Materials" width="900"></p>
 
 ## Run it on your computer
 
@@ -83,7 +90,7 @@ cd open-research-agent
 make start     # installs what is missing, rebuilds what changed, opens the app
 ```
 
-On first open, add a model in Settings → Models (an API key or a local model), then prepare an environment in Settings → Research environments: for the default one (this computer, listed as “本机”), press “Let an agent prepare it” and an agent sets up a separate Python environment in the data folder. Data lives in `~/.open-paper-reader/` by default. See [Local build](docs/LOCAL.md) and [Research](docs/RESEARCH.md).
+On first open, add a model (an API key or a local model) and you can start. Experiments run on this computer by default; to use a lab machine, switch on its SSH connection under Customize → Machines. Data lives in `~/.open-paper-reader/` by default. See [Local build](docs/LOCAL.md) and [Research](docs/RESEARCH.md).
 
 ## Development
 

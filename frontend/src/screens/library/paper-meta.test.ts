@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { authorList, paperIds, progressOf } from "./paper-meta";
+import type { Paper } from "../../api";
+import { authorList, paperIds, paperSource, progressOf } from "./paper-meta";
 
 describe("paperIds", () => {
   it("reads arXiv ids and the year", () => {
@@ -16,6 +17,27 @@ describe("paperIds", () => {
   });
   it("knows nothing from nothing", () => {
     expect(paperIds("")).toEqual({ arxiv: "", doi: "", year: 0 });
+  });
+});
+
+describe("paperSource", () => {
+  const paper = { external_id: "arxiv:1706.03762" } as Paper;
+  it("prefers a known venue and falls back to the identifier's source", () => {
+    expect(
+      paperSource(paper, { paper_id: "p", status: "ok", venue: "NeurIPS" }),
+    ).toBe("NeurIPS");
+    expect(paperSource(paper)).toBe("arXiv");
+    expect(
+      paperSource(paper, {
+        paper_id: "p",
+        status: "missing",
+        venue: "NeurIPS",
+      }),
+    ).toBe("arXiv");
+    expect(
+      paperSource({ external_id: "10.1145/3292500.3330701" } as Paper),
+    ).toBe("DOI");
+    expect(paperSource({ external_id: "" } as Paper)).toBe("");
   });
 });
 

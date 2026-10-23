@@ -55,7 +55,7 @@
 
 .lines i {
   display: block;
-  height: 3px;
+  height: var(--ui-space-4);
   border-radius: var(--ui-r-pill);
   background: var(--ui-edge-subtle);
 }

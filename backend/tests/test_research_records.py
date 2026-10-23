@@ -93,7 +93,7 @@ def test_scoping_is_a_conversation_and_spends_no_sprint(world):
         assert sprint.role == "scoping"
         run = d.get(AgentRun, sprint.run_id)
         assert "想把手写数字识别准确率再提一提" in run.prompt
-        assert "mnist" in run.prompt  # the datasets the system can fetch
+        assert "mnist" in run.context  # context is refreshed without repeating it in Pi's user history
         assert d.get(ResearchProject, world.pid).spent["sprints"] == 0
     _finish_run(world, "基线现在多少？")
     with world.maker() as d:
@@ -294,7 +294,7 @@ def test_run_job_is_refused_while_scoping(world):
         d.commit()
         research = {"project_id": p.id, "sprint_id": sprint.id, "role": "executor"}
     with pytest.raises(ValueError, match="实验阶段"):
-        _run(world.app, "o", research, "run_job", {"command": "ls"})
+        _run(world.app, p.owner, research, "run_job", {"command": "ls"})
 
 
 def test_the_ora_module_prints_what_it_records(tmp_path, monkeypatch, capsys):
@@ -349,10 +349,9 @@ def test_a_remote_job_runs_detached_and_reports_its_exit(world, monkeypatch):
         rr.start(world.settings, d, item, p, job)
         assert job.remote == {"host": "gpu-box", "base": f"~/ora/{p.id}", "pid": 4242}
         launch = fake.calls[-1][-1]
-        assert (
-            "CUDA_VISIBLE_DEVICES=1" in launch
-            and "'(set -o pipefail; python t.py); echo $?" in launch
-        )
+        # The executor picks GPUs per command; the setting no longer hides any.
+        assert "CUDA_VISIBLE_DEVICES" not in launch
+        assert "'(\nset -o pipefail; python t.py\n)\necho $?" in launch
         assert rr.state(job) == {"Running": True}
         fake.state = "0"
         assert rr.state(job) == {"Running": False, "ExitCode": 0}
@@ -1011,21 +1010,133 @@ def test_a_download_is_on_the_project_record_as_it_goes(world, monkeypatch):
     assert "校验不符" in failed.detail["reason"]
 
 
-def test_briefs_name_the_language_the_researcher_asked_in(world):
+def test_all_briefs_put_the_recorded_language_first(world):
     from backend.research_brief import (
         advisor_brief,
         executor_brief,
-        researcher_language,
+        scoping_brief,
+        distiller_brief,
+        workflow_brief,
     )
 
-    assert researcher_language("能否把 MNIST 准确率推到 99%？") == "中文"
-    assert researcher_language("Can a small CNN reach 99% on MNIST?") == "英文"
-    assert researcher_language("MNISTで99%に届くか？") == "日语"
-    assert researcher_language("Un réseau léger atteint-il 99 % sur MNIST ?") == "研究问题所用的语言"
     with world.maker() as d:
         p = d.get(ResearchProject, world.pid)
-        p.question = "在 MPS 上能否把 MNIST 测试集准确率稳定推到 99%？"
-        for brief in (executor_brief(d, p, 2), advisor_brief(d, p, 2)):
-            assert "## 语言\n研究者用中文提问" in brief
-        p.question = "Can a small CNN reach 99% on MNIST?"
-        assert "研究者用英文提问" in executor_brief(d, p, 2)
+        p.question = "The approved plan changed the question to English"
+        for make_brief in (
+            executor_brief,
+            advisor_brief,
+            scoping_brief,
+            distiller_brief,
+            workflow_brief,
+        ):
+            assert make_brief(d, p, 2).startswith(
+                "## 语言\n研究者用中文提问。用研究者的语言说话"
+            )
+        created = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "create_project")
+        ).one()
+        created.detail = {**created.detail, "language": "en"}
+        assert executor_brief(d, p, 2).startswith("## 语言\n研究者用英文提问")
+
+
+def test_first_round_focuses_plan_order_and_can_switch(world):
+    from backend.research_tools import _focus
+
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        p.stage = "experiments"
+        root = rm.root(d, p)
+        later = rm.add_node(
+            d, p, root.id, "hypothesis", "Later", kill_if="k", actor="human"
+        )
+        first = rm.add_node(
+            d, p, root.id, "hypothesis", "First", kill_if="k", actor="human"
+        )
+        p.plan = {"hypotheses": [{"title": "First"}, {"title": "Later"}]}
+        rw._start(world.app, d, p, None, "executor", {"model": "m"})
+        sprint = d.scalars(select(ResearchSprint)).one()
+        run = d.get(AgentRun, sprint.run_id)
+        assert sprint.focus_node_id == first.id and first.status == "active"
+        assert "本轮聚焦：First" in run.prompt
+        _focus(d, p, sprint, {"node_id": later.id, "intent": "Switch"})
+        rw._auto_focus(d, p, sprint)
+        assert sprint.focus_node_id == later.id
+        first.status = "supported"
+        rw._start(world.app, d, p, sprint, "executor", {"model": "m"})
+        second = d.scalars(
+            select(ResearchSprint).where(ResearchSprint.number == 2)
+        ).one()
+        assert second.focus_node_id == later.id
+
+
+@pytest.mark.parametrize(
+    "reply, mode, expected",
+    [
+        ("手写数字优化器对比", "fake-ok", "手写数字优化器对比"),
+        ("", "fake-empty", None),
+        ("Title longer than sixteen characters", "fake-ok", None),
+        ("ignored", "fake-500", None),
+    ],
+)
+def test_title_uses_one_cheap_request_and_falls_back(
+    world, monkeypatch, reply, mode, expected
+):
+    from backend import research_titles, translation_settings
+    from backend.devtools.fake_model import FakeModel
+    from backend.models import AgentSession, ModelUsage
+
+    monkeypatch.setattr(translation_settings, "validate_endpoint", lambda url: url)
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        original = p.title
+        rw._start(world.app, d, p, None, "scoping", {"model": mode})
+        run_id = d.scalars(select(ResearchSprint)).one().run_id
+        d.commit()
+    with FakeModel(reply) as fake:
+        config = {
+            "model": mode,
+            "base_url": fake.base_url,
+            "api_key": "fake",
+            "protocol": "openai",
+        }
+        research_titles.prepare(world.app, run_id, config)
+        research_titles.prepare(world.app, run_id, config)
+        assert len(fake.requests) == 1
+        assert fake.requests[0]["max_tokens"] == 256
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        assert p.title == (expected or original)
+        assert d.get(AgentSession, p.session_id).title == p.title
+        assert d.scalars(select(ModelUsage)).one().source == "research_title"
+
+
+def test_existing_or_renamed_conversations_do_not_get_titles(world, monkeypatch):
+    from backend import research_titles
+
+    calls = []
+
+    def unexpected(*args, **kwargs):
+        calls.append(args)
+        raise AssertionError("No model request expected")
+
+    monkeypatch.setattr(research_titles, "complete", unexpected)
+    with world.maker() as d:
+        p = d.get(ResearchProject, world.pid)
+        created = d.scalars(
+            select(ResearchEvent).where(ResearchEvent.action == "create_project")
+        ).one()
+        created.detail = {"question": p.question}
+        rw._start(world.app, d, p, None, "scoping", {"model": "m"})
+        run_id = d.scalars(select(ResearchSprint)).one().run_id
+        d.commit()
+    research_titles.prepare(world.app, run_id, {})
+    with world.maker() as d:
+        created = d.get(ResearchEvent, created.id)
+        created.detail = {**created.detail, "title_pending": True}
+        p = d.get(ResearchProject, world.pid)
+        p.title = "User title"
+        d.commit()
+    research_titles.prepare(world.app, run_id, {})
+    with world.maker() as d:
+        assert d.get(ResearchProject, world.pid).title == "User title"
+    assert not calls

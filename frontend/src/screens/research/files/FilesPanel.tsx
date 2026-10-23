@@ -200,9 +200,7 @@ export function FilesPanel({
           }}
         />
       </div>
-      {root?.compute === "ssh" && (
-        <p className={styles.note}>{t("research.files.sshCopy")}</p>
-      )}
+
       {selected ? (
         <FileView
           projectId={projectId}
@@ -254,7 +252,7 @@ export function FilesPanel({
           />
         </ul>
       )}
-      <p className={styles.hint}>{t("research.files.dropHint")}</p>
+
       <Dialog
         open={!!clash}
         onClose={() => setClash(null)}

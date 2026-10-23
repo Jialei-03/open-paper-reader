@@ -15,7 +15,7 @@ type Storage = {
   categories: Record<string, number>;
 };
 
-/** Where the space goes, and taking everything away as one file. */
+/** Reading-material storage and export; research directories have their own lifecycle. */
 export function DataSection() {
   const i18n = useI18n();
   const { t } = i18n;
@@ -41,13 +41,17 @@ export function DataSection() {
     : 0;
 
   return (
-    <Section title={t("settings.data.title")} lead={t("settings.data.lead")}>
+    <Section hideHeading title={t("settings.data.title")}>
       {error ? (
         <p role="alert" className={styles.error}>
           {error}
         </p>
       ) : !storage ? (
-        <p className={styles.muted}>{t("common.loading")}</p>
+        <div
+          className={styles.skeleton}
+          role="status"
+          aria-label={t("common.loading")}
+        />
       ) : (
         <>
           <div className={styles.setting}>
@@ -99,9 +103,6 @@ export function DataSection() {
       <div className={styles.setting}>
         <div className={styles.rowText}>
           <span>{t("settings.data.export")}</span>
-          <span className={styles.rowMeta}>
-            {t("settings.data.exportHint")}
-          </span>
         </div>
         <Button
           size="sm"

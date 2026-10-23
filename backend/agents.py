@@ -34,10 +34,13 @@ from .translation_settings import read_config
 
 
 class SessionInput(Strict):
+    title: str | None = Field(default=None, min_length=1, max_length=100)
+    pinned: bool | None = None
+    archived: bool | None = None
+
+
+class CreateSessionInput(Strict):
     title: str = Field(default="新会话", min_length=1, max_length=100)
-
-
-class CreateSessionInput(SessionInput):
     paper_id: str | None = Field(default=None, pattern=r"^[0-9a-f-]{36}$")
 
 
@@ -70,6 +73,9 @@ def paper_session_id(owner, paper_id):
 
 def install_agent_routes(app, settings, db, auth, human, owned):
     install_attachment_routes(app, settings, db, auth, human, owned)
+    from .agent_controls import install_control_routes
+
+    install_control_routes(app, settings, db, auth, human, owned)
 
     def output(r, d):
         return {
@@ -136,10 +142,18 @@ def install_agent_routes(app, settings, db, auth, human, owned):
             AgentRun.owner == owner,
             AgentRun.runtime["reading_artifact_id"].as_string().is_not(None),
         )
+        from .models import ResearchProject
+
+        research_sessions = select(ResearchProject.session_id).where(
+            ResearchProject.owner == owner
+        )
         return (
             AgentSession.owner == owner,
             # A research project's conversations live in that project.
             AgentSession.workspace_id.is_(None),
+            AgentSession.kind.not_in(["research", "artifact"]),
+            AgentSession.id.not_in(research_sessions),
+            AgentSession.archived_at.is_(None),
             AgentSession.id.not_in(artifact_sessions),
             AgentSession.id.not_in(generated_sessions),
         )
@@ -182,7 +196,11 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         session = d.get(AgentSession, session_id)
         if not session:
             session = AgentSession(
-                id=session_id, owner=a["id"], title=paper.title[:100], paper_id=paper.id
+                id=session_id,
+                owner=a["id"],
+                title=paper.title[:100],
+                paper_id=paper.id,
+                kind="paper",
             )
             d.add(session)
             try:
@@ -207,31 +225,62 @@ def install_agent_routes(app, settings, db, auth, human, owned):
             raise HTTPException(409, "最多保留 100 个会话，请删除不需要的会话")
         if body.paper_id:
             owned(d, Paper, body.paper_id, a)
-        s = AgentSession(owner=a["id"], title=body.title, paper_id=body.paper_id)
+        s = AgentSession(
+            owner=a["id"],
+            title=body.title,
+            paper_id=body.paper_id,
+            kind="paper" if body.paper_id else "chat",
+        )
         d.add(s)
         d.commit()
         return public(s)
 
+    @app.get("/api/v1/agent/sessions/{id}")
+    def session(id: str, a=Depends(auth), d=Depends(db)):
+        from .research_chat import session_out
+
+        human(a)
+        return session_out(d, owned(d, AgentSession, id, a))
+
     @app.patch("/api/v1/agent/sessions/{id}")
     def rename(id: str, body: SessionInput, a=Depends(auth), d=Depends(db)):
+        from .research_chat import lock_session, session_out, update_session
+
         human(a)
         s = owned(d, AgentSession, id, a)
-        s.title = body.title
-        s.updated_at = now()
+        lock_session(d, s)
+        try:
+            update_session(d, s, **body.model_dump(exclude_unset=True))
+        except ValueError as e:
+            raise HTTPException(409, str(e)) from None
         d.commit()
-        return public(s)
+        return public(s) | session_out(d, s)
 
     @app.delete("/api/v1/agent/sessions/{id}")
     def remove(id: str, a=Depends(auth), d=Depends(db)):
         human(a)
         d.scalar(select(User).where(User.id == a["id"]).with_for_update())
         s = owned(d, AgentSession, id, a)
+        from .research_chat import lock_session, session_kind
+
+        lock_session(d, s)
+        if session_kind(d, s) in {"research", "artifact"}:
+            raise HTTPException(409, "请在研究或阅读资料里管理这个会话")
+        if s.workspace_id:
+            from .models import ResearchWorkspace
+
+            workspace = d.get(ResearchWorkspace, s.workspace_id)
+            if workspace is not None and workspace.session_id == s.id:
+                raise HTTPException(409, "项目主会话不能删除")
         if d.scalar(
             select(AgentRun).where(
                 AgentRun.session_id == id, AgentRun.status.in_(["queued", "running"])
             )
         ):
             raise HTTPException(409, "请先停止正在运行的任务")
+        from .models import AgentControl
+
+        d.execute(delete(AgentControl).where(AgentControl.session_id == id))
         d.execute(delete(AgentRun).where(AgentRun.session_id == id))
         d.execute(delete(AgentSessionEntry).where(AgentSessionEntry.session_id == id))
         d.delete(s)
@@ -259,6 +308,19 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         human(a)
         d.scalar(select(User).where(User.id == a["id"]).with_for_update())
         s = owned(d, AgentSession, id, a)
+        from .research_chat import lock_session, session_kind
+
+        lock_session(d, s)
+        if s.workspace_id or session_kind(d, s) in {
+            "research",
+            "project_lead",
+            "project_chat",
+        }:
+            raise HTTPException(409, "请在项目对话里发送消息")
+        if s.archived_at:
+            raise HTTPException(409, "请先恢复这个会话")
+        if session_kind(d, s) == "artifact" and reading_artifact is None:
+            raise HTTPException(409, "请在阅读资料里管理这个会话")
         source = None
         if body.resume_run_id:
             source = owned(d, AgentRun, body.resume_run_id, a)
@@ -349,11 +411,15 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         ):
             raise HTTPException(
                 409,
-                f"最多同时翻译 {limit} 页，请稍候"
-                if lane
-                else "你已有一个 Agent 任务，请等待完成或先停止它"
-                if limit == 1
-                else f"你已有 {limit} 个 Agent 任务，请等待完成或先停止其中一个",
+                (
+                    f"最多同时翻译 {limit} 页，请稍候"
+                    if lane
+                    else (
+                        "你已有一个 Agent 任务，请等待完成或先停止它"
+                        if limit == 1
+                        else f"你已有 {limit} 个 Agent 任务，请等待完成或先停止其中一个"
+                    )
+                ),
             )
         quota = None
         if settings.agent_daily_runs and not lane:
@@ -428,6 +494,7 @@ def install_agent_routes(app, settings, db, auth, human, owned):
         d.add(r)
         d.flush()
         if reading_artifact:
+            s.kind = "artifact"
             reading_artifact.run_id = r.id
             reading_artifact.session_id = id
         if source:
@@ -439,10 +506,11 @@ def install_agent_routes(app, settings, db, auth, human, owned):
 
     @app.post("/api/v1/agent/runs/{id}/cancel")
     def cancel(id: str, a=Depends(auth), d=Depends(db)):
+        from .agent_controls import request_abort
+
         human(a)
         r = owned(d, AgentRun, id, a)
         if r.status in {"queued", "running"}:
-            r.status = "cancelled"
-            r.updated_at = now()
+            request_abort(d, r, client_id=f"cancel:{r.id}")
             d.commit()
         return output(r, d)

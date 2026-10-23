@@ -5,9 +5,10 @@
   flex-direction: column;
   gap: var(--ui-space-12);
   min-width: 0;
-  padding: var(--ui-space-8) var(--ui-space-8) var(--ui-space-12);
-  border-radius: var(--ui-r-16);
-  background: var(--ui-bg-1);
+  padding: var(--ui-space-10) var(--ui-space-10) var(--ui-space-16);
+  border-radius: var(--ui-r-12);
+  border: 1px solid var(--ui-edge-subtle);
+  background: var(--ui-bg);
   transition:
     background-color var(--ui-dur-2) var(--ui-ease-out),
     box-shadow var(--ui-dur-2) var(--ui-ease-out);
@@ -16,11 +17,11 @@
 .card:hover,
 .card:focus-within {
   background: var(--ui-bg-2);
-  box-shadow: var(--ui-elev-1);
+  border-color: var(--ui-edge);
 }
 
 .cover {
-  aspect-ratio: 5 / 4;
+  aspect-ratio: 4 / 3;
 }
 
 .text {
@@ -34,10 +35,10 @@
 
 .title {
   margin: 0;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-15);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-13);
   font-weight: var(--ui-weight-strong);
-  line-height: var(--ui-leading-tight);
+  line-height: var(--ui-leading);
 }
 
 .link {
@@ -54,7 +55,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  border-radius: var(--ui-r-16);
+  border-radius: var(--ui-r-12);
 }
 
 .link:focus-visible {
@@ -65,79 +66,13 @@
   box-shadow: var(--ui-focus-ring);
 }
 
-.byline,
-.source {
+.byline {
   margin: 0;
   overflow: hidden;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.byline {
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-}
-
-.source {
-  color: var(--ui-fg-3);
-  font-family: var(--ui-font-mono);
-  font-size: var(--ui-text-11);
-}
-
-.foot {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-6);
-  margin-top: auto;
-  padding-top: var(--ui-space-8);
-}
-
-.bar,
-.rowBar {
-  display: block;
-  overflow: hidden;
-  height: 3px;
-  border-radius: var(--ui-r-pill);
-  background: var(--ui-edge-subtle);
-}
-
-.bar i,
-.rowBar i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--ui-fg-2);
-}
-
-.meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-space-8);
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-}
-
-.progress {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--ui-space-6);
-  color: var(--ui-fg-2);
-  white-space: nowrap;
-}
-
-/* Orange is the "being read" dot and nothing else. */
-.status[data-status="reading"]::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: var(--ui-r-pill);
-  background: var(--ui-accent);
 }
 
 .actions {
@@ -151,11 +86,11 @@
   top: var(--ui-space-12);
   right: var(--ui-space-12);
   padding: var(--ui-space-2);
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
   background: var(--ui-elev);
   box-shadow: var(--ui-elev-1);
   opacity: 0;
-  transform: translateY(-2px);
+  transform: translateY(calc(-1 * var(--ui-space-2)));
   transition:
     opacity var(--ui-dur-1) var(--ui-ease-out),
     transform var(--ui-dur-1) var(--ui-ease-out);
@@ -175,18 +110,10 @@
   }
 }
 
-.starred {
-  color: var(--ui-accent-text);
-}
-
-.starred svg {
-  fill: currentcolor;
-}
-
 /* ---- Row ---- */
 .row td {
-  padding: var(--ui-space-2) var(--ui-space-8);
-  border-top: 1px solid var(--ui-edge-subtle);
+  padding: var(--ui-space-4) var(--ui-space-8);
+  border-bottom: 1px solid var(--ui-edge-subtle);
   vertical-align: middle;
 }
 
@@ -204,6 +131,10 @@
   width: auto;
 }
 
+.row .cellMain {
+  padding-left: 0;
+}
+
 /* Choosing papers: a checkbox in the corner of the card, or at the start of the row. */
 .pickCard,
 .pickRow {
@@ -217,21 +148,21 @@
   z-index: 2;
   top: var(--ui-space-16);
   left: var(--ui-space-16);
-  width: 16px;
-  height: 16px;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
 }
 
 .card[data-selected] {
   background: var(--ui-bg-2);
-  box-shadow: inset 0 0 0 1.5px var(--ui-fg-3);
+  box-shadow: inset 0 0 0 1px var(--ui-fg-3);
 }
 
 .pickRow {
   position: absolute;
   top: 50%;
   left: var(--ui-space-8);
-  width: 15px;
-  height: 15px;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
   transform: translateY(-50%);
 }
 
@@ -243,33 +174,23 @@
   background: var(--ui-bg-2);
 }
 
-.cellProgress {
-  width: 150px;
+.cellSource {
+  overflow: hidden;
   color: var(--ui-fg-2);
-}
-
-.cellProgress .rowBar {
-  margin-bottom: var(--ui-space-4);
-}
-
-.cellProgress .progress {
   font-size: var(--ui-text-12);
-}
-
-.cellStatus {
-  width: 88px;
-  font-size: var(--ui-text-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cellDate {
-  width: 120px;
+  width: var(--ui-library-date-width);
   color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
   white-space: nowrap;
 }
 
 .cellActions {
-  width: 112px;
+  width: var(--ui-space-40);
 }
 
 .cellActions .actions {
@@ -291,12 +212,31 @@
 
 .rowLink {
   display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-2);
+  align-items: center;
+  gap: var(--ui-space-12);
   min-width: 0;
-  padding: var(--ui-space-8) 0;
+  padding: var(--ui-space-12) 0;
   color: inherit;
   text-decoration: none;
+}
+
+.rowFileIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
+  border-radius: var(--ui-r-8);
+  background: var(--ui-bg-2);
+  color: var(--ui-fg-3);
+}
+
+.rowCopy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  min-width: 0;
 }
 
 .rowTitle {
@@ -308,9 +248,9 @@
 
 .rowName {
   overflow: hidden;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-14);
-  font-weight: var(--ui-weight-strong);
+  font-family: var(--ui-font-sans);
+  font-size: var(--ui-text-13);
+  font-weight: var(--ui-weight-regular);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -326,17 +266,21 @@
   fill: currentcolor;
 }
 
-.rowBy {
-  overflow: hidden;
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-@media (max-width: 760px) {
-  .cellProgress,
-  .cellDate {
+@container paper-library (max-width: 420px) {
+  .cellSource {
     display: none;
+  }
+
+  .rowLink {
+    gap: var(--ui-space-8);
+  }
+
+  .rowFileIcon {
+    width: var(--ui-space-16);
+    height: var(--ui-space-16);
+  }
+
+  .cellDate {
+    font-size: var(--ui-text-11);
   }
 }

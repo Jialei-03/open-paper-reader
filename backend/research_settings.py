@@ -162,6 +162,15 @@ def check_compute(item):
         python = (item.get("python") or "python3").strip()
         if not REMOTE_DIR.match(python):
             raise ValueError("Python 路径不合法")
+        try:
+            port = int(item.get("port") or 22)
+        except (TypeError, ValueError):
+            raise ValueError("SSH 端口不合法") from None
+        if not 1 <= port <= 65535:
+            raise ValueError("SSH 端口须在 1 至 65535 之间")
+        identity = str(item.get("identity_file") or "")
+        if any(c in identity for c in ("\0", "\r", "\n")):
+            raise ValueError("SSH 密钥文件路径不合法")
         return {
             "id": item["id"],
             "name": name,
@@ -171,6 +180,8 @@ def check_compute(item):
             "runner": runner,
             "python": python,
             "gpus": gpus,
+            "port": port,
+            "identity_file": identity,
         }
     raise ValueError("环境类型只能是 host、docker 或 ssh")
 

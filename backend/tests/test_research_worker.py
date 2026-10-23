@@ -26,6 +26,7 @@ def env(cloud_env):  # noqa: F811
     cloud_env[3].mode = "local"
     return cloud_env
 
+
 SKILL_FIRST_LINE = "# 研究执行者"
 
 
@@ -116,6 +117,17 @@ def lab(env, monkeypatch):
         "/api/v1/research/projects",
         json={"question": "Does L2 regularization help?", "model_config_id": model},
     ).json()
+    # These tests exercise the already-approved autonomous experiment loop;
+    # human creation now starts with scoping (covered by test_research_hub).
+    with app.state.maker() as d:
+        from backend import research_stages
+
+        approved = d.get(ResearchProject, project["id"])
+        approved.stage, approved.compute_id = "experiments", "local"
+        research_stages.say(
+            d, approved, "system", "Test fixture: experiment plan already approved"
+        )
+        d.commit()
     holder = {}
     original = worker.read_config
     monkeypatch.setattr(
@@ -129,7 +141,9 @@ def lab(env, monkeypatch):
     monkeypatch.setattr(
         rs,
         "pi_call",
-        lambda settings, pid, name, args: {"content": [{"type": "text", "text": "ok"}]},
+        lambda settings, pid, name, args, d=None: {
+            "content": [{"type": "text", "text": "ok"}]
+        },
     )
 
     def start_job(settings, d, project, node, sprint, command, timeout):
@@ -204,7 +218,9 @@ def test_tick_creates_first_sprint_with_brief(lab):
             "role": "executor",
         }
         assert "Does L2 regularization help?" in run.prompt
-        assert "question/open" in run.prompt
+        assert "question/active" in run.prompt
+        assert sprint.focus_node_id is not None
+        assert "Focus this round：Does L2 regularization help?" in run.prompt
         assert "end_sprint" in run.prompt
         assert d.get(ResearchProject, project["id"]).spent["sprints"] == 1
     rw.tick(app)
@@ -317,7 +333,10 @@ def test_scripted_sprint_end_to_end(lab):
 def test_abnormal_end_gets_fallback_summary(lab):
     app, project, run_sprint = lab
     rw.tick(app)
-    run_sprint([("tool", "research_map_read", {}), ("text", "")])
+    # Silent even when asked to go on (the runner asks twice).
+    run_sprint(
+        [("tool", "research_map_read", {}), ("text", ""), ("text", ""), ("text", "")]
+    )
     rw.tick(app)
     first, second = sprints(app, project["id"])
     assert first.status == "abnormal"
@@ -860,8 +879,16 @@ def test_votes_only_count_for_rules_the_project_ran_with(lab):
     pb.save(app.state.settings, book)
     active_id, pending_id = book["rules"][0]["id"], book["rules"][1]["id"]
     rw.tick(app)  # first sprint records the playbook in effect
+    run_sprint(
+        [
+            ("tool", "end_sprint", {"summary": "tried the active rules"}),
+            ("text", "done"),
+        ]
+    )
+    assert sprints(app, project["id"])[-1].status == "ended"
     finish(app, project["id"])
     rw.tick(app)
+    assert sprints(app, project["id"])[-1].role == "distiller"
     run_sprint(
         [
             (

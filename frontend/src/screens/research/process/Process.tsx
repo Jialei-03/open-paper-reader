@@ -60,14 +60,22 @@ const ICONS: Record<string, LucideIcon> = {
   record_result: ClipboardCheck,
   advise: Stamp,
   propose_plan: FileText,
+  finish_step: ClipboardCheck,
+  review_step: Stamp,
+  start_research: Play,
+  message_research: FilePen,
 };
 
 const AGENT: Record<string, Agent> = {
   executor: "executor",
+  workflow: "executor",
+  review: "advisor",
   advisor: "advisor",
   scoping: "advisor",
+  discussion: "advisor",
   distiller: "distiller",
   chat: "advisor",
+  lead: "advisor",
 };
 
 const OUTPUT_LINES = 40;
@@ -76,9 +84,9 @@ function useVerb() {
   const { t } = useI18n();
   return (step: Pick<RunStep, "name" | "label">) => {
     const key = `research.tool.${step.name}` as MessageKey;
-    // A tool without a verb of its own reads as its label, never as nothing.
+    // Old runs may carry descriptions as labels; never render those.
     const said = t(key);
-    return said && said !== key ? said : step.label || step.name;
+    return said && said !== key ? said : step.name;
   };
 }
 
@@ -274,10 +282,12 @@ export function Trail({ steps }: { steps: RunStep[]; live?: boolean }) {
 /** "已处理 · 运行 5 条命令 · 读了 2 处": the work of a finished run, in one line. */
 export function SummaryLine({
   steps,
+  status,
   open,
   onToggle,
 }: {
   steps: RunStep[];
+  status?: string;
   open: boolean;
   onToggle(): void;
 }) {
@@ -285,15 +295,22 @@ export function SummaryLine({
   const parts = summary(steps).map(([kind, n]) =>
     t(`research.process.sum.${kind}` as MessageKey, { n }),
   );
+  const label =
+    status === "failed"
+      ? "research.process.failed"
+      : status === "cancelled"
+        ? "research.process.cancelled"
+        : "research.process.done";
   return (
     <button
       type="button"
       className={styles.summary}
+      data-status={status}
       aria-expanded={open}
       onClick={onToggle}
     >
       <ChevronRight size={12} className={styles.chevron} aria-hidden />
-      {[t("research.process.done"), ...parts].join(" · ")}
+      {[t(label), ...parts].join(" · ")}
     </button>
   );
 }
@@ -309,7 +326,11 @@ export function RunTurn({
   title,
   final,
   children,
+  elapsed,
+  footer,
 }: {
+  elapsed?: number;
+  footer?: ReactNode;
   run: ResearchRun | undefined;
   role: string;
   title: string;
@@ -329,14 +350,16 @@ export function RunTurn({
       : "";
   return (
     <section className={styles.turn} data-live={live || undefined}>
-      <header className={styles.who}>
-        <Mascot
-          agent={AGENT[role] ?? "executor"}
-          size={20}
-          pose={live ? "work" : "idle"}
-        />
-        <span>{title}</span>
-      </header>
+      {live && (
+        <header className={styles.who}>
+          <Mascot
+            agent={AGENT[role] ?? "executor"}
+            size={20}
+            pose={live ? "work" : "idle"}
+          />
+          <span>{title}</span>
+        </header>
+      )}
       {live ? (
         <>
           <Trail steps={steps} live />
@@ -353,20 +376,44 @@ export function RunTurn({
         </>
       ) : (
         <>
-          {steps.length > 0 && (
-            <SummaryLine
-              steps={steps}
-              open={open}
-              onToggle={() => setOpen(!open)}
-            />
-          )}
+          <button
+            type="button"
+            className={styles.summary}
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+          >
+            {t("research.turn.elapsed", {
+              time: clock(
+                run?.runtime?.execution_seconds ??
+                  elapsed ??
+                  (run
+                    ? (Date.parse(run.updated_at) -
+                        Date.parse(run.created_at)) /
+                      1000
+                    : 0),
+              ),
+            })}
+            <ChevronRight size={13} className={styles.chevron} aria-hidden />
+          </button>
           {open && <Trail steps={steps} live={false} />}
           {final && <Words text={final} live={false} />}
+          {steps.length === 0 &&
+            (run?.status === "cancelled" ||
+              (run?.status === "failed" && !run.error)) && (
+              <p className={styles.pending}>
+                {t(
+                  run.status === "failed"
+                    ? "research.process.failed"
+                    : "research.process.cancelled",
+                )}
+              </p>
+            )}
           {run?.status === "failed" && run.error && (
             <p className={styles.error}>{run.error}</p>
           )}
         </>
       )}
+      {footer}
       {children}
     </section>
   );

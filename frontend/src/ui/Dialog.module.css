@@ -5,18 +5,21 @@
  * can be a transition too: `display` and `overlay` change only when it is over.
  */
 .dialog {
-  --dialog-width-sm: 400px;
-  --dialog-width-md: 520px;
-  --dialog-width-lg: 720px;
+  --dialog-width-sm: var(--ui-dialog-sm);
+  --dialog-width-md: var(--ui-dialog-md);
+  --dialog-width-lg: var(--ui-dialog-lg);
   --dialog-width: var(--dialog-width-md);
   --dialog-scale-from: 0.98;
   /* The reset takes the browser's `margin: auto` away, which is what centers a modal. */
   margin: auto;
   width: var(--dialog-width);
   max-width: calc(100vw - 2 * var(--ui-space-16));
+  max-height: calc(100dvh - var(--app-top, 0px) - 2 * var(--ui-space-16));
+  box-sizing: border-box;
+  font: var(--ui-text-14) / var(--ui-leading) var(--ui-font-sans);
   padding: 0;
   border: 0;
-  border-radius: var(--ui-r-20);
+  border-radius: var(--ui-r-16);
   background: var(--ui-elev);
   box-shadow: var(--ui-elev-2);
   color: var(--ui-fg);
@@ -105,7 +108,9 @@
   font-size: var(--ui-text-16);
   font-weight: var(--ui-weight-strong);
   line-height: var(--ui-leading-tight);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .description {
@@ -136,7 +141,7 @@
 
 /* The sheet: a card at the right edge of the window, 8px in from it like the cards of the shell. */
 .side {
-  --dialog-width: 460px;
+  --dialog-width: var(--ui-sheet-width);
   /* Below the desktop app's window buttons (--app-top, 0 in a browser). */
   height: calc(100dvh - var(--app-top, 0px) - 2 * var(--ui-space-8));
   max-height: none;

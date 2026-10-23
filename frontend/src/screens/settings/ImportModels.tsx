@@ -178,7 +178,7 @@ export function ImportModels({
         latest = await readModels().catch(() => latest);
         onImported(latest!, added);
         if (!picked.length || added === picked.length) {
-          close();
+          finish();
         } else {
           setPicked([]);
           setNames((old) => old);
@@ -191,11 +191,13 @@ export function ImportModels({
     }
   };
 
-  const close = () => {
-    if (adding) return;
+  const finish = () => {
     setApiKey("");
     reset();
     onClose();
+  };
+  const close = () => {
+    if (!adding) finish();
   };
 
   const providerItems: MenuEntry[] = [
@@ -218,27 +220,31 @@ export function ImportModels({
       open={open}
       onClose={close}
       title={t("settings.import.title")}
-      description={t("settings.import.lead")}
       size="lg"
       footer={
-        names && (
-          <>
-            <span className={styles.count} role="status">
-              {tn("settings.import.selected", picked.length)}
-            </span>
-            <Button
-              variant="primary"
-              icon={Download}
-              loading={adding}
-              disabled={picked.length === 0}
-              onClick={() => void submit()}
-            >
-              {adding
-                ? t("settings.import.adding")
-                : tn("settings.import.add", picked.length)}
-            </Button>
-          </>
-        )
+        <>
+          <Button variant="ghost" disabled={adding} onClick={close}>
+            {t("common.cancel")}
+          </Button>
+          {names && (
+            <>
+              <span className={styles.count} role="status">
+                {tn("settings.import.selected", picked.length)}
+              </span>
+              <Button
+                variant="primary"
+                icon={Download}
+                loading={adding}
+                disabled={picked.length === 0}
+                onClick={() => void submit()}
+              >
+                {adding
+                  ? t("settings.import.adding")
+                  : tn("settings.import.add", picked.length)}
+              </Button>
+            </>
+          )}
+        </>
       }
     >
       <div className={styles.form}>
@@ -256,11 +262,6 @@ export function ImportModels({
               </Button>
             )}
           />
-          {localPreset && (
-            <p className={styles.hint}>
-              {t("settings.import.localHint", { app: current!.label })}
-            </p>
-          )}
         </div>
         {preset === CUSTOM && (
           <div className={styles.field}>
@@ -272,6 +273,7 @@ export function ImportModels({
               label={t("settings.import.protocol")}
               value={protocol}
               onChange={(next: Protocol) => {
+                if (adding) return;
                 setProtocol(next);
                 reset();
               }}
@@ -289,7 +291,6 @@ export function ImportModels({
           autoComplete="off"
           spellCheck={false}
           value={baseUrl}
-          placeholder="https://api.example.com/v1"
           disabled={adding}
           onChange={(event) => {
             setBaseUrl(event.target.value);
@@ -303,7 +304,6 @@ export function ImportModels({
             autoComplete="new-password"
             spellCheck={false}
             value={apiKey}
-            description={t("settings.import.keyHint")}
             disabled={adding}
             onChange={(event) => {
               setApiKey(event.target.value);

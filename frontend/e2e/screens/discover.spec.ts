@@ -64,7 +64,7 @@ async function setup(page: Page) {
   return createPaperWithPdf(page, { pages: 1, title: "Memory for Agents" });
 }
 
-test("recommendations show why, and can be previewed, added or dismissed", async ({
+test("recommendations show names and can be previewed, added or dismissed", async ({
   page,
 }) => {
   const seed = await setup(page);
@@ -107,18 +107,14 @@ test("recommendations show why, and can be previewed, added or dismissed", async
     "Ada Lovelace, Alan Turing, Grace Hopper",
   );
   await expect(cards.first()).toContainText("被引 321 次");
-  await expect(cards.first()).toContainText("相关的文库论文");
-  await expect(
-    cards.first().getByRole("link", { name: "Memory for Agents" }),
-  ).toHaveAttribute("href", new RegExp(`#read/${seed.paperId}`));
+  await expect(cards.first()).not.toContainText("相关的文库论文");
   await expect(page.getByRole("main")).toContainText("来源：Semantic Scholar");
   expect(log.gets[0]).toContain("limit=30");
 
-  // Not addable without arXiv, and it says why.
+  // Not addable without arXiv: no button to press.
   await expect(
     cards.nth(1).getByRole("button", { name: /加入文库/ }),
-  ).toBeDisabled();
-  await expect(cards.nth(1)).toContainText("没有 arXiv 版本，无法一键加入。");
+  ).toHaveCount(0);
 
   // Preview beside, from the abstract.
   await cards.first().getByRole("button", { name: /预览/ }).click();
@@ -186,18 +182,16 @@ test("each state of the screen says what it is", async ({ page }) => {
     await page.reload();
   };
   await show("no_seeds");
-  await expect(main).toContainText("还没有可以用来推荐的论文");
-  await expect(main).toContainText("DOI 或 arXiv 标识");
+  await expect(main).toContainText("暂无推荐");
   await main.getByRole("button", { name: "去文库" }).click();
   await expect(page).toHaveURL(/#library$/);
 
   await show("offline");
-  await expect(main).toContainText("离线模式");
+  await expect(main).toContainText("离线");
   await show("unavailable");
-  await expect(main).toContainText("连不上论文服务");
-  await expect(main).toContainText("Semantic Scholar 和 OpenAlex 都没有回应");
+  await expect(main).toContainText("推荐不可用");
   await show("ok");
-  await expect(main).toContainText("暂时没有新的推荐");
+  await expect(main).toContainText("暂无推荐");
   // Refresh asks the service to look again.
   mode = "refreshed";
   await main.getByRole("button", { name: "刷新" }).click();

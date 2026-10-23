@@ -42,3 +42,216 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Local research has a dedicated app rail and a calm, independent thread list. */
+.researchSidebar {
+  --research-rail-bg: var(--ora-chrome, var(--ui-bg-3));
+  --research-pane-bg: var(--ui-bg-2);
+  display: flex;
+  flex: none;
+  min-width: 0;
+  color: var(--ui-fg-1);
+}
+
+.researchRail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  width: var(--ui-rail-width);
+  padding: var(--ui-space-10) var(--ui-space-4);
+  border-radius: var(--ui-r-12) 0 0 var(--ui-r-12);
+  background: var(--research-rail-bg);
+}
+
+.railToggle {
+  flex: none;
+  margin-bottom: var(--ui-space-20);
+  color: var(--ui-fg-2);
+}
+
+:global(html[data-desktop]) .railToggle {
+  position: fixed;
+  top: var(--ui-space-6);
+  left: calc(var(--ui-space-40) * 4);
+  z-index: 2147483647;
+  margin: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.railDestinations,
+.railFooter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-8);
+}
+
+.railFooter {
+  margin-top: auto;
+  padding-top: var(--ui-space-16);
+}
+
+.railItem {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--ui-space-40);
+  height: var(--ui-space-40);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-r-10);
+  background: transparent;
+  color: var(--ui-fg-3);
+  text-decoration: none;
+}
+
+.railItem:hover,
+.railItem[aria-current] {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+}
+
+.researchPane {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--research-sidebar-width, var(--ui-sidebar-width));
+  min-width: 0;
+  border-right: 1px solid var(--ui-edge-subtle);
+  background: var(--research-pane-bg);
+}
+
+/* The research shell has no card gap for the shared resize handle to reclaim. */
+.researchPane + div {
+  margin-right: 0;
+}
+
+.researchBrandRow {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--ui-sidebar-top);
+  padding: 0 var(--ui-space-16);
+}
+
+.researchBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-4) var(--ui-space-2);
+  border: 0;
+  border-radius: var(--ui-r-6);
+  background: transparent;
+  color: var(--ui-fg);
+  font: inherit;
+  font-size: var(--ui-text-20);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.researchBrand svg {
+  color: var(--ui-fg-3);
+}
+
+.researchSearch {
+  color: var(--ui-fg-3);
+}
+
+.researchScroll {
+  min-height: 0;
+  padding: var(--ui-space-8) var(--ui-space-10) var(--ui-space-24);
+  overflow: auto;
+  scrollbar-width: thin;
+}
+
+.researchActions {
+  display: grid;
+  gap: var(--ui-space-4);
+  margin-bottom: var(--ui-space-24);
+}
+
+.researchActions a {
+  height: var(--ui-control-md);
+  gap: var(--ui-space-10);
+  padding-inline: var(--ui-space-10);
+  font-size: var(--ui-text-13);
+}
+
+.researchReading {
+  margin-top: var(--ui-control-sm);
+  padding-top: var(--ui-space-16);
+  border-top: 1px solid var(--ui-edge-subtle);
+}
+
+.railDivider {
+  width: var(--ui-space-24);
+  height: 1px;
+  margin: var(--ui-space-12) 0;
+  background: var(--ui-edge-subtle);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--ui-text-20);
+  font-weight: var(--ui-weight-strong);
+  color: var(--ui-fg);
+}
+
+.sectionLinks {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+
+.sectionLinks a,
+.sectionGroup a,
+.taskNew a {
+  height: var(--ui-control-md);
+  padding-inline: var(--ui-space-10);
+  font-size: var(--ui-text-13);
+}
+
+.sectionGroup {
+  margin-top: var(--ui-control-sm);
+}
+
+.taskNavigation {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.taskNew {
+  padding: var(--ui-space-8) var(--ui-space-10) var(--ui-space-20);
+}
+
+.researchSidebar[data-floating] {
+  width: var(--ui-rail-width);
+}
+
+.researchSidebar[data-floating] .researchPane {
+  position: fixed;
+  z-index: 20;
+  top: var(--ui-space-8);
+  bottom: var(--ui-space-8);
+  left: calc(var(--ui-rail-width) + var(--ui-space-8));
+  width: min(
+    var(--research-sidebar-width, var(--ui-sidebar-width)),
+    calc(100vw - calc(var(--ui-rail-width) + var(--ui-space-24)))
+  );
+  border-radius: 0 var(--ui-r-12) var(--ui-r-12) 0;
+  box-shadow: var(--ui-elev-2);
+}
+
+.researchSidebar[data-collapsed] .researchRail {
+  border-radius: var(--ui-r-12);
+}
+
+.railItem:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}

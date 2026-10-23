@@ -75,6 +75,24 @@ def _research(name, description, properties=None, required=None):
 
 RESEARCH_TOOLS = [
     _research(
+        "start_research",
+        "（仅项目导师）在本项目派出一个研究，从定题开始。返回后告诉研究者到研究页面批准计划；本工具不能批准计划或启动实验。只有问题需要新实验、且研究者要求推进时使用，普通提问直接回答。",
+        {
+            "question": {"type": "string", "minLength": 1, "maxLength": 2000},
+            "background": {"type": "string", "maxLength": 20000},
+        },
+        ["question"],
+    ),
+    _research(
+        "message_research",
+        "（仅项目导师）给本项目已有的研究带话，下一轮读取。不批准任何事项，不中断当前实验，不恢复暂停的研究。",
+        {
+            "research_id": ID,
+            "text": {"type": "string", "minLength": 1, "maxLength": 8000},
+        },
+        ["research_id", "text"],
+    ),
+    _research(
         "research_map_read",
         "读取研究地图：北极星问题、全部节点（状态、置信度、kill_if、疑点）、预算和当前焦点。每轮开始先调用。",
     ),
@@ -406,6 +424,50 @@ RESEARCH_TOOLS.append(
         ["hypotheses", "metric", "summary"],
     )
 )
+RESEARCH_TOOLS.extend(
+    [
+        _research(
+            "finish_step",
+            "Complete the current agent step with a summary and output paths or cards.",
+            {
+                "summary": {"type": "string", "minLength": 1, "maxLength": 8000},
+                "outputs": {
+                    "type": "array",
+                    "maxItems": 30,
+                    "items": {
+                        "oneOf": [
+                            {"type": "string", "maxLength": 500},
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "path": {"type": "string", "maxLength": 500},
+                                    "title": {"type": "string", "maxLength": 300},
+                                    "content": {"type": "string", "maxLength": 100000},
+                                    "kind": {
+                                        "type": "string",
+                                        "enum": ["card", "idea"],
+                                    },
+                                },
+                                "required": ["title", "content"],
+                                "additionalProperties": False,
+                            },
+                        ]
+                    },
+                },
+            },
+            ["summary", "outputs"],
+        ),
+        _research(
+            "review_step",
+            "Review the preceding step, passing it or returning revision notes.",
+            {
+                "pass": {"type": "boolean"},
+                "notes": {"type": "string", "minLength": 1, "maxLength": 8000},
+            },
+            ["pass", "notes"],
+        ),
+    ]
+)
 RESEARCH_NAMES = {t["name"] for t in RESEARCH_TOOLS}
 # What the advisor may use: it looks and judges; it does not do.
 ADVISOR_TOOLS = FOCUS_FREE - {"focus", "end_sprint"} | {"advise"}
@@ -424,9 +486,15 @@ LITERATURE = {
 DISTILLER_TOOLS = {"research_map_read", "job_status", "job_logs", "distill"}
 # A conversation in a project reads; it changes nothing and starts nothing.
 CHAT_TOOLS = {"project_overview", "research_read", "job_status", "job_logs"}
+LEAD_WRITES = {"start_research", "message_research"}
+LEAD_TOOLS = CHAT_TOOLS | LEAD_WRITES
 # What the advisor may use while a conversation has no approved plan: the
 # map, the literature, the plan card, and reading the project like a chat.
-SCOPING_TOOLS = {"research_map_read", "propose_plan"} | CHAT_TOOLS
+SCOPING_TOOLS = {"research_map_read", "propose_plan"} | LEAD_TOOLS
+WORKSPACE_READ = {"read", "ls", "find", "grep"}
+WORKFLOW_READ = CHAT_TOOLS | LITERATURE | WORKSPACE_READ | {"research_map_read"}
+WORKFLOW_TOOLS = WORKFLOW_READ | {"bash", "write", "edit", "finish_step"}
+REVIEW_TOOLS = WORKFLOW_READ | {"review_step"}
 CHAT_REFUSED = (
     "项目对话是只读的：可以查看项目里的研究、实验和日志，但不能做实验或改动研究。"
     "要推进研究，请研究者在研究页面里说"
@@ -457,18 +525,55 @@ def _blocked(d, project, sprint, tool_name, reason, message, node=None):
     raise ValueError(message)
 
 
-def gate(app, research, name):
+def gate(app, research, name, owner=None):
     """Refuses a step that does something before saying which live node it advances."""
     role = research.get("role", "executor")
-    if role == "chat":
-        if name not in CHAT_TOOLS | LITERATURE:
+    if role in {"workflow", "review"}:
+        if name not in (WORKFLOW_TOOLS if role == "workflow" else REVIEW_TOOLS):
+            raise ValueError("当前工作流步骤不能调用这个工具")
+        with app.state.maker() as d:
+            from .research_workflows import current
+
+            project, sprint = _context(d, research)
+            if owner is not None and project.owner != owner:
+                raise ValueError("研究任务不存在")
+            spec = current(project)
+            if (
+                not spec
+                or spec["type"] != ("agent" if role == "workflow" else "review")
+                or sprint.role != role
+            ):
+                raise ValueError("工作流步骤已经更新")
+            state = project.workflow_state
+            if (
+                research.get("workflow_index") != state["current"]
+                or research.get("workflow_attempt")
+                != state["steps"][state["current"]]["attempt"]
+            ):
+                raise ValueError("工作流步骤已经更新")
+        return
+    if name in {"finish_step", "review_step"}:
+        raise ValueError("当前步骤不能结束工作流步骤")
+    if role == "lead":
+        if name not in LEAD_TOOLS | LITERATURE:
+            raise ValueError(
+                "项目导师只能读项目、派出研究和带话，不能批准事项、做实验或修改研究文件"
+            )
+        return
+    if name in LEAD_WRITES and role not in {"scoping", "discussion"}:
+        raise ValueError("只能在项目对话中派出研究或带话")
+    if role in {"chat", "discussion"}:
+        if name not in (
+            LEAD_TOOLS if role == "discussion" else CHAT_TOOLS
+        ) | LITERATURE | (WORKSPACE_READ if role == "discussion" else set()):
             raise ValueError(CHAT_REFUSED)
+        if role == "discussion":
+            with app.state.maker() as d:
+                _context(d, research)
         return
     if role == "scoping":
-        if name not in SCOPING_TOOLS | LITERATURE:
-            raise ValueError(
-                "实验开始前只能读项目和文献，用 propose_plan 写计划卡片"
-            )
+        if name not in SCOPING_TOOLS | LITERATURE | WORKSPACE_READ:
+            raise ValueError("实验开始前只能读项目和文献，用 propose_plan 写计划卡片")
         with app.state.maker() as d:
             _context(d, research)
         return
@@ -579,7 +684,9 @@ def _record(app, d, owner, project, sprint, args):
         "refuted"
         if args["kill_triggered"] == "yes" and node.kind == "hypothesis"
         # A node with a result is under way, as focusing on it would make it.
-        else "active" if node.status == "open" else None
+        else "active"
+        if node.status == "open"
+        else None
     )
     doubts = None
     if args["kill_triggered"] == "unsure":
@@ -717,7 +824,9 @@ def _wait(settings, d, job, seconds):
         deadline = begun + seconds if job.status == "running" else None
         while job.status in research_sandbox.ACTIVE:
             clock = time.monotonic()
-            if (deadline is not None and clock >= deadline) or clock - begun >= WAIT_MAX:
+            if (
+                deadline is not None and clock >= deadline
+            ) or clock - begun >= WAIT_MAX:
                 break
             time.sleep(WAIT_POLL)
             d.refresh(job)
@@ -746,14 +855,88 @@ def _wait(settings, d, job, seconds):
     }
 
 
-def _chat(app, research, name, args):
+def _chat(app, owner, research, name, args):
     from . import research_chat
-    from .models import ResearchWorkspace
+    from .models import AgentRun, AgentSession, ResearchWorkspace
 
+    allowed = (
+        LEAD_TOOLS
+        if research.get("role")
+        in {"lead", "scoping", "discussion", "workflow", "review"}
+        else CHAT_TOOLS
+    )
+    if name not in allowed:
+        raise ValueError("项目对话不能调用这个工具")
     settings = app.state.settings
     with app.state.maker() as d:
         if not research.get("workspace_id"):
             raise ValueError("这个研究不在任何项目里")
+        workspace = d.get(ResearchWorkspace, research["workspace_id"])
+        if workspace is None or workspace.owner != owner:
+            raise ValueError("这个研究不在这个项目里")
+        if (
+            research.get("role") == "lead"
+            and research.get("session_id") != workspace.session_id
+        ):
+            raise ValueError("项目主会话不可用")
+        source = None
+        if research.get("role") in {"scoping", "discussion", "workflow", "review"}:
+            source, _ = _context(d, research)
+            if source.owner != owner or source.workspace_id != workspace.id:
+                raise ValueError("项目对话不可用")
+            session = d.get(AgentSession, source.session_id)
+            if session is None or session.archived_at or workspace.archived:
+                raise ValueError("请先恢复项目或对话")
+        if name == "start_research":
+            prompt = (
+                d.scalars(
+                    select(AgentRun.prompt)
+                    .where(AgentRun.session_id == research.get("session_id"))
+                    .order_by(AgentRun.created_at.desc())
+                    .limit(1)
+                ).first()
+                if source is None
+                else None
+            )
+            project = research_chat.start_research(
+                settings,
+                d,
+                owner,
+                workspace,
+                args["question"],
+                args.get("background", ""),
+                (
+                    source.model_config_id
+                    if source
+                    else research.get("model_config_id", "")
+                ),
+                language=(
+                    research_map.language(d, source)
+                    if source
+                    else research_map.researcher_language(prompt or args["question"])
+                ),
+            )
+            if source:
+                project.parent_id = source.id
+            d.commit()
+            return {
+                "research_id": project.id,
+                "question": project.question,
+                "stage": project.stage,
+                "status": project.status,
+                "url": f"#research/{project.id}",
+                "hint": "请在研究里批准计划，批准后才会开始实验",
+            }
+        if name == "message_research":
+            project = research_chat.message_research(
+                d, research, args["research_id"], args["text"]
+            )
+            d.commit()
+            return {
+                "research_id": project.id,
+                "status": project.status,
+                "delivered": True,
+            }
         if name == "project_overview":
             workspace = d.get(ResearchWorkspace, research["workspace_id"])
             return {"text": research_chat.overview(d, workspace, settings)}
@@ -773,12 +956,35 @@ def _chat(app, research, name, args):
 
 def _run(app, owner, research, name, args):
     settings = app.state.settings
-    if research.get("role") == "chat" or (
-        research.get("role") == "scoping" and name in CHAT_TOOLS
+    if (
+        research.get("role") in {"chat", "lead", "discussion"}
+        or (research.get("role") == "scoping" and name in LEAD_TOOLS)
+        or (research.get("role") in {"workflow", "review"} and name in CHAT_TOOLS)
     ):
-        return _chat(app, research, name, args)
+        return _chat(app, owner, research, name, args)
     with app.state.maker() as d:
         project, sprint = _context(d, research)
+        if project.owner != owner:
+            raise ValueError("研究任务不存在")
+        if name in {"end_sprint", "advise", "distill", "finish_step", "review_step"}:
+            from . import research_chat, research_workspaces
+            from .models import AgentSession, ResearchWorkspace
+
+            session = d.get(AgentSession, project.session_id)
+            if session is None or session.owner != owner:
+                raise ValueError("研究会话不可用")
+            research_chat.lock_session(d, session)
+            if project.workspace_id:
+                workspace = d.get(ResearchWorkspace, project.workspace_id)
+                if workspace is None or workspace.owner != owner:
+                    raise ValueError("项目不可用")
+                research_workspaces.lock_workspace(d, workspace)
+                if workspace.archived:
+                    raise ValueError("请先恢复这个项目")
+            d.refresh(project)
+            d.refresh(sprint)
+            if sprint.status != "running":
+                raise ValueError("本轮已结束，不能再调用工具")
         if name == "research_map_read":
             return {
                 "question": project.question,
@@ -787,7 +993,14 @@ def _run(app, owner, research, name, args):
                 "spent": project.spent,
                 "focus": sprint.focus_node_id,
             }
-        if name == "focus":
+        if name in {"finish_step", "review_step"}:
+            from .research_workflows import finish_step, review_step
+
+            workflow_index = project.workflow_state["current"]
+            result = (finish_step if name == "finish_step" else review_step)(
+                settings, d, project, sprint, args
+            )
+        elif name == "focus":
             result = _focus(d, project, sprint, args)
         elif name == "add_node":
             parent = research_map.node_by_prefix(d, project, args["parent_id"])
@@ -953,6 +1166,18 @@ def _run(app, owner, research, name, args):
             )
         else:
             raise ValueError("不支持的研究工具")
+        if name in {"end_sprint", "advise", "distill", "finish_step", "review_step"}:
+            from .research_worker import capture_handoff
+
+            captured = capture_handoff(settings, d, project, sprint)
+            if name in {"finish_step", "review_step"} and not captured:
+                raise ValueError("步骤检查点提交失败")
+            if name in {"finish_step", "review_step"}:
+                from copy import deepcopy
+
+                state = deepcopy(project.workflow_state)
+                state["steps"][workflow_index]["commit_sha"] = sprint.commit_sha
+                project.workflow_state = state
         d.commit()
         return result
 

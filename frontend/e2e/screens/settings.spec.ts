@@ -61,9 +61,9 @@ test.afterEach(async ({ page }) => {
 
 test("models are added, chosen, tested and removed", async ({ page }) => {
   await page.goto(SETTINGS("models"));
-  await expect(page.getByRole("dialog", { name: "设置" })).toBeVisible();
+  await expect(page).toHaveURL(/#customize\/models$/);
   const section = page.getByRole("region", { name: "模型" });
-  await expect(section.getByText("还没有模型。")).toBeVisible();
+  await expect(section.getByText("暂无条目")).toBeVisible();
 
   await addModel(page, "gpt-test-first");
   const list = section.getByRole("list", { name: "模型" });
@@ -81,7 +81,10 @@ test("models are added, chosen, tested and removed", async ({ page }) => {
   await expect(second).toContainText("当前");
   await expect(first).not.toContainText("当前");
 
-  await first.getByRole("button", { name: "使用 gpt-test-first" }).click();
+  await first
+    .getByRole("button", { name: "gpt-test-first 的更多操作" })
+    .click();
+  await page.getByRole("menuitem", { name: "使用", exact: true }).click();
   await expect(first).toContainText("当前");
   await expect(second).not.toContainText("当前");
   const ids = (await settings(page)).models.map(
@@ -91,12 +94,18 @@ test("models are added, chosen, tested and removed", async ({ page }) => {
     ids.find((row: { model: string }) => row.model === "gpt-test-first").id,
   );
 
-  await second.getByRole("button", { name: "测试 gpt-test-second" }).click();
+  await second
+    .getByRole("button", { name: "gpt-test-second 的更多操作" })
+    .click();
+  await page.getByRole("menuitem", { name: "测试", exact: true }).click();
   await expect(page.getByText("gpt-test-second 连接正常。")).toBeVisible();
 
-  await second.getByRole("button", { name: "移除 gpt-test-second" }).click();
+  await second
+    .getByRole("button", { name: "gpt-test-second 的更多操作" })
+    .click();
+  await page.getByRole("menuitem", { name: "移除", exact: true }).click();
   const confirm = page.getByRole("dialog", { name: "移除这个模型？" });
-  await expect(confirm).toContainText("gpt-test-second 和它的密钥");
+  await expect(confirm).not.toHaveAttribute("aria-describedby");
   await confirm.getByRole("button", { name: "移除" }).click();
   await expect(confirm).toBeHidden();
   await expect(list.getByRole("listitem")).toHaveCount(1);
@@ -176,9 +185,10 @@ test("share links and credentials can only be revoked", async ({ page }) => {
   );
 
   await shareRow
-    .getByRole("button", { name: `撤销《${paper.title}》的分享链接` })
+    .getByRole("button", { name: `${paper.title} 的更多操作` })
     .click();
-  const confirmShare = page.getByRole("dialog", { name: "撤销这个分享链接？" });
+  await page.getByRole("menuitem", { name: "撤销", exact: true }).click();
+  const confirmShare = page.getByRole("dialog", { name: "撤销这个链接？" });
   await confirmShare.getByRole("button", { name: "撤销" }).click();
   await expect(confirmShare).toBeHidden();
   await expect(shareRow).toHaveCount(0);
@@ -190,7 +200,10 @@ test("share links and credentials can only be revoked", async ({ page }) => {
   const tokens = access.getByRole("list", { name: "Agent 凭据" });
   const tokenRow = tokens.getByRole("listitem").filter({ hasText: tokenName });
   await expect(tokenRow).toContainText("只读");
-  await tokenRow.getByRole("button", { name: `撤销 ${tokenName}` }).click();
+  await tokenRow
+    .getByRole("button", { name: `${tokenName} 的更多操作` })
+    .click();
+  await page.getByRole("menuitem", { name: "撤销", exact: true }).click();
   const confirmToken = page.getByRole("dialog", { name: "撤销这个凭据？" });
   await confirmToken.getByRole("button", { name: "撤销" }).click();
   await expect(tokenRow).toHaveCount(0);
@@ -200,5 +213,5 @@ test("share links and credentials can only be revoked", async ({ page }) => {
   ).toBe(true);
 
   await page.reload();
-  await expect(access.getByText("没有正在使用的分享链接。")).toBeVisible();
+  await expect(access.getByText("暂无分享链接")).toBeVisible();
 });

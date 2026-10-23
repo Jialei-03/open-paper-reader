@@ -31,10 +31,10 @@
   display: none;
 }
 
-/* In: it fades and settles up 4px. Out: nothing, it is gone at once. */
+/* In: it fades and settles up var(--ui-space-4). Out: nothing, it is gone at once. */
 @starting-style {
   :where(.floating) {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(var(--ui-space-4));
   }
 }

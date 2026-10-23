@@ -1,9 +1,16 @@
-import { FileText, Library } from "lucide-react";
+import {
+  FileText,
+  Folder,
+  Library,
+  MessageSquare,
+  Microscope,
+} from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
-import type { Paper } from "../api";
+import { api, type Paper } from "../api";
 import { useI18n } from "../i18n/I18nProvider";
 import { readerHash } from "../reader/route";
 import { Dialog, TextField } from "../ui";
+import type { ProjectSession } from "../screens/research/research-api";
 import styles from "./QuickOpen.module.css";
 
 /** How many papers the list shows at once. */
@@ -50,18 +57,25 @@ export function QuickOpen({
   onClose,
   papers,
   visits,
+  includeProjects = false,
   go,
 }: {
   open: boolean;
   onClose: () => void;
   papers: Paper[];
   visits: Record<string, number>;
+  includeProjects?: boolean;
   /** Takes an address without its `#`. */
   go: (hash: string) => void;
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [chosen, setChosen] = useState(0);
+  const [sessions, setSessions] = useState<
+    (ProjectSession & { workspace_name: string })[]
+  >([]);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [searching, setSearching] = useState(false);
   const list = useId();
   const matches = useMemo(
     () => matchPapers(papers, query, visits),
@@ -71,10 +85,40 @@ export function QuickOpen({
     if (open) setQuery("");
   }, [open]);
   useEffect(() => setChosen(0), [query, open]);
+  useEffect(() => {
+    if (!open || !includeProjects) return;
+    const controller = new AbortController();
+    setSessions([]);
+    setSearchFailed(false);
+    setSearching(true);
+    const timer = window.setTimeout(() => {
+      api<{ items: (ProjectSession & { workspace_name: string })[] }>(
+        `/research/sessions?limit=8&search=${encodeURIComponent(query.trim())}`,
+        { signal: controller.signal },
+      ).then(
+        (result) => {
+          if (!controller.signal.aborted) {
+            setSessions(result.items);
+            setSearching(false);
+          }
+        },
+        () => {
+          if (!controller.signal.aborted) {
+            setSearchFailed(true);
+            setSearching(false);
+          }
+        },
+      );
+    }, 150);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, includeProjects, query]);
 
   // With something typed, one more choice after the papers: the same words searched in the library.
   const asked = query.trim();
-  const total = matches.length + (asked ? 1 : 0);
+  const total = matches.length + sessions.length + (asked ? 1 : 0);
   const openLibrary = () => {
     onClose();
     go("library?q=" + encodeURIComponent(asked));
@@ -82,6 +126,16 @@ export function QuickOpen({
   const openPaper = (paper: Paper) => {
     onClose();
     go(readerHash({ paperId: paper.id }).slice(1));
+  };
+  const openSession = (session: ProjectSession) => {
+    onClose();
+    go(
+      session.kind === "research" && session.research_id
+        ? `research/${session.research_id}`
+        : session.kind === "project_lead"
+          ? `projects/${session.workspace_id}`
+          : `projects/${session.workspace_id}/chats/${session.id}`,
+    );
   };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
@@ -91,9 +145,16 @@ export function QuickOpen({
       const step = event.key === "ArrowDown" ? 1 : -1;
       setChosen((at) => (at + step + total) % total);
     } else if (event.key === "Enter") {
+      if (searching && !matches[chosen]) {
+        event.preventDefault();
+        return;
+      }
       if (matches[chosen]) {
         event.preventDefault();
         openPaper(matches[chosen]);
+      } else if (sessions[chosen - matches.length]) {
+        event.preventDefault();
+        openSession(sessions[chosen - matches.length]);
       } else if (asked) {
         event.preventDefault();
         openLibrary();
@@ -103,11 +164,20 @@ export function QuickOpen({
 
   const optionId = (index: number) => `${list}-${index}`;
   return (
-    <Dialog open={open} onClose={onClose} title={t("app.quickOpen")} size="md">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={t(includeProjects ? "app.quickOpen.all" : "app.quickOpen")}
+      size="md"
+    >
       <TextField
-        label={t("app.quickOpen.field")}
+        label={t(includeProjects ? "app.quickOpen.all" : "app.quickOpen.field")}
         hideLabel
-        placeholder={t("app.quickOpen.placeholder")}
+        placeholder={t(
+          includeProjects
+            ? "app.quickOpen.allPlaceholder"
+            : "app.quickOpen.placeholder",
+        )}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         onKeyDown={onKeyDown}
@@ -120,16 +190,31 @@ export function QuickOpen({
         spellCheck={false}
         data-autofocus
       />
-      {matches.length === 0 && (
+      {matches.length === 0 && sessions.length === 0 && !searchFailed && (
         <p className={styles.empty} role="status">
-          {t(papers.length ? "app.quickOpen.none" : "app.quickOpen.noPapers")}
+          {t(
+            includeProjects && searching
+              ? "common.loading"
+              : includeProjects
+                ? "app.quickOpen.allNone"
+                : papers.length
+                  ? "app.quickOpen.none"
+                  : "app.quickOpen.noPapers",
+          )}
+        </p>
+      )}
+      {searchFailed && (
+        <p className={styles.empty} role="status">
+          {t("app.quickOpen.projectsFailed")}
         </p>
       )}
       {total > 0 && (
         <ul
           id={list}
           role="listbox"
-          aria-label={t("app.quickOpen.results")}
+          aria-label={t(
+            includeProjects ? "app.quickOpen.all" : "app.quickOpen.results",
+          )}
           className={styles.list}
         >
           {matches.map((paper, index) => (
@@ -153,13 +238,50 @@ export function QuickOpen({
               </span>
             </li>
           ))}
+          {sessions.map((session, offset) => {
+            const index = matches.length + offset;
+            const project = session.kind === "project_lead";
+            const Icon = project
+              ? Folder
+              : session.kind === "research"
+                ? Microscope
+                : MessageSquare;
+            return (
+              <li
+                key={`session-${session.id}`}
+                id={optionId(index)}
+                role="option"
+                aria-selected={index === chosen}
+                className={styles.option}
+                onPointerMove={() => setChosen(index)}
+                onClick={() => openSession(session)}
+              >
+                <Icon size={16} aria-hidden="true" />
+                <span className={styles.text}>
+                  <span className={styles.title}>
+                    {project ? session.workspace_name : session.title}
+                  </span>
+                  <span className={styles.authors}>
+                    {t(
+                      project
+                        ? "projects.title"
+                        : session.kind === "research"
+                          ? "projects.kind.research"
+                          : "projects.kind.chat",
+                    )}
+                    {!project && ` · ${session.workspace_name}`}
+                  </span>
+                </span>
+              </li>
+            );
+          })}
           {asked && (
             <li
-              id={optionId(matches.length)}
+              id={optionId(matches.length + sessions.length)}
               role="option"
-              aria-selected={chosen === matches.length}
+              aria-selected={chosen === matches.length + sessions.length}
               className={styles.option}
-              onPointerMove={() => setChosen(matches.length)}
+              onPointerMove={() => setChosen(matches.length + sessions.length)}
               onClick={openLibrary}
             >
               <Library size={16} aria-hidden="true" />

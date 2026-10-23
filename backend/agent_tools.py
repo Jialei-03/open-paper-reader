@@ -10,7 +10,7 @@ import httpx
 from . import agent_limits
 from .models import File, Paper, TranslationJob
 
-from .tool_spec import ID, REV, TEXT, tool
+from .tool_spec import ID, REV, TEXT, LABELS, tool
 
 
 PAGING = {
@@ -266,6 +266,8 @@ from .research_tools import RESEARCH_TOOLS
 
 # Only research runs are given these (agent_worker leaves them out elsewhere).
 TOOLS.extend(RESEARCH_TOOLS)
+for spec in TOOLS:
+    spec["label"] = LABELS[spec["name"]]
 TOOL_MAP = {t["name"]: t for t in TOOLS}
 
 
@@ -288,7 +290,7 @@ async def execute(
     if (
         not isinstance(args, dict)
         or set(args) - set(spec["parameters"]["properties"])
-        or not set(spec["parameters"]["required"]) <= set(args)
+        or not set(spec["parameters"].get("required", [])) <= set(args)
     ):
         raise ValueError("工具参数不合法")
     for field in ("id", "paper_id"):
@@ -301,7 +303,7 @@ async def execute(
         from .research_tools import gate, run_pi, run_research_tool
 
         # Doing anything needs a live node of the map to be in focus first.
-        await asyncio.to_thread(gate, app, research, name)
+        await asyncio.to_thread(gate, app, research, name, owner)
         if spec.get("research"):
             return await run_research_tool(app, owner, research, name, args)
         if name in PI_NAMES:

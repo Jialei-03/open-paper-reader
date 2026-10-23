@@ -33,7 +33,7 @@
 .md {
   height: var(--ui-control-md);
   padding: 0 var(--ui-space-12);
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
   font-size: var(--ui-text-13);
 }
 
@@ -118,7 +118,7 @@
   width: var(--icon-button-size);
   height: var(--icon-button-size);
   padding: 0;
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
   color: var(--ui-fg-2);
 }
 

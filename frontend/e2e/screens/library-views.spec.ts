@@ -41,7 +41,7 @@ async function patchPaper(
   expect(response.ok()).toBeTruthy();
 }
 
-test("the library shows cards with the first page, and a list on request", async ({
+test("the library starts as a list, opens paper cards on request and remembers either view", async ({
   page,
 }) => {
   await signIn(page);
@@ -56,6 +56,9 @@ test("the library shows cards with the first page, and a list on request", async
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
 
   const card = library.locator(`[data-paper="${paper.paperId}"]`);
+  const view = library.getByRole("radiogroup", { name: "视图" });
+  await expect(library.locator("[data-view=list]")).toBeVisible();
+  await view.getByRole("radio", { name: "卡片" }).click();
   await expect(library.locator("[data-view=grid]")).toBeVisible();
   // The first page is the server's picture, not drawn in the browser.
   await expect(card.locator('img[data-thumb="image"]')).toHaveAttribute(
@@ -64,15 +67,9 @@ test("the library shows cards with the first page, and a list on request", async
   );
   await expect(card.getByRole("heading", { name: paper.title })).toBeVisible();
   await expect(card).toContainText("A. Author, B. Author");
-  await expect(card).toContainText("arXiv 2301.12345 · 2023");
-  await expect(card).toContainText("还没开始读");
-  await expect(card.getByRole("progressbar")).toHaveAttribute(
-    "aria-valuenow",
-    "0",
-  );
+  await expect(card.getByRole("progressbar")).toHaveCount(0);
 
   // The list is a table; the choice is remembered.
-  const view = library.getByRole("radiogroup", { name: "视图" });
   await view.getByRole("radio", { name: "列表" }).click();
   await expect(library.locator("[data-view=list]")).toBeVisible();
   await expect(
@@ -85,11 +82,11 @@ test("the library shows cards with the first page, and a list on request", async
   ).toBe("list");
   await view.getByRole("radio", { name: "卡片" }).click();
   await expect(library.locator("[data-view=grid]")).toBeVisible();
+  await page.reload();
+  await expect(library.locator("[data-view=grid]")).toBeVisible();
 });
 
-test("a card shows reading progress from the page left at", async ({
-  page,
-}) => {
+test("the list shows when a paper was last opened", async ({ page }) => {
   await signIn(page);
   const stamp = Date.now().toString(36);
   const paper = await createPaperWithPdf(page, {
@@ -120,11 +117,13 @@ test("a card shows reading progress from the page left at", async ({
   const library = page.getByRole("main");
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
   const card = library.locator(`[data-paper="${paper.paperId}"]`);
-  await expect(card).toContainText("第 4 / 8 页");
-  await expect(card.getByRole("progressbar")).toHaveAttribute(
-    "aria-valuenow",
-    "50",
+  await expect(card.locator("time")).toHaveAttribute(
+    "datetime",
+    /^\d{4}-\d{2}-\d{2}T/,
   );
+  await expect(
+    library.getByRole("columnheader", { name: "上次打开时间" }),
+  ).toBeVisible();
 });
 
 test("papers can be sorted by title and by when they were added", async ({
@@ -178,7 +177,8 @@ test("the details sheet shows a paper, stars it and edits its title", async ({
   await page.goto(LIBRARY);
   const library = page.getByRole("main");
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
-  await library.getByRole("button", { name: `${paper.title} 的详情` }).click();
+  await library.getByRole("button", { name: `${paper.title} 的操作` }).click();
+  await page.getByRole("menuitem", { name: "论文详情" }).click();
 
   const sheet = page.getByRole("dialog", { name: "论文详情" });
   await expect(sheet).toContainText(paper.title);
@@ -192,20 +192,24 @@ test("the details sheet shows a paper, stars it and edits its title", async ({
   await expect(sheet.getByText("3 页")).toBeVisible();
   await expect(sheet.getByText("高亮")).toBeVisible();
   await expect(sheet.getByText("添加时间")).toBeVisible();
-  await expect(sheet.getByText("还没开始读")).toBeVisible();
+  await expect(sheet.getByText("未读", { exact: true }).first()).toBeVisible();
 
   // Star.
-  await sheet.getByRole("button", { name: "收藏", exact: true }).click();
+  await sheet.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "收藏", exact: true }).click();
+  await sheet.getByRole("button", { name: "更多", exact: true }).click();
   await expect(
-    sheet.getByRole("button", { name: "已收藏", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+    page.getByRole("menuitem", { name: "已收藏", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
   expect(
     (await (await page.request.get(`/api/v1/papers/${paper.paperId}`)).json())
       .favorite,
   ).toBe(true);
 
   // Edit the title.
-  await sheet.getByRole("button", { name: "编辑", exact: true }).click();
+  await sheet.getByRole("button", { name: "更多", exact: true }).click();
+  await page.getByRole("menuitem", { name: "编辑", exact: true }).click();
   const renamed = `Renamed ${stamp}`;
   await sheet.getByRole("textbox", { name: "标题" }).fill(renamed);
   await sheet.getByRole("button", { name: "保存", exact: true }).click();
@@ -255,6 +259,10 @@ test("covers come from the thumbnail route and the PDF itself is not downloaded"
   });
   const response = page.waitForResponse(/\/thumbnail$/);
   await page.goto(LIBRARY);
+  await page
+    .getByRole("radiogroup", { name: "视图" })
+    .getByRole("radio", { name: "卡片" })
+    .click();
   const card = page
     .getByRole("main")
     .locator(`[data-paper="${paper.paperId}"]`);

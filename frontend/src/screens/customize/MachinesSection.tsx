@@ -1,4 +1,4 @@
-import { MoreHorizontal, Plus } from "lucide-react";
+import { Monitor, Server, MoreHorizontal, Pencil, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import {
@@ -20,8 +20,9 @@ import {
   type ResearchSettings,
   type SshHost,
 } from "../research/research-api";
-import { Section } from "./Section";
-import styles from "./Settings.module.css";
+import { CustomizeHeader } from "./CustomizeHeader";
+import layout from "./CustomizeScreen.module.css";
+import styles from "../settings/Settings.module.css";
 
 const slug = (text: string) =>
   text
@@ -60,25 +61,16 @@ interface Draft {
   id?: string;
 }
 
-/**
- * Research environments: this machine, and the SSH connections of this Mac
- * (~/.ssh/config), each switched on to run experiments there. Nothing is
- * prepared ahead: an environment is checked (reachable, and what it offers),
- * and experiments install what they lack in their own workspace. Also where
- * run numbers are mirrored.
- */
-export function ResearchSection({
-  part,
-}: {
-  /** One half only: where experiments run, or where their numbers go. */
-  part?: "environments" | "tracker";
-} = {}) {
+export function MachinesSection() {
   const { t } = useI18n();
   const [data, setData] = useState<ResearchSettings | null>(null);
   const [hosts, setHosts] = useState<SshHost[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [checking, setChecking] = useState<Record<string, boolean>>({});
-  const [key, setKey] = useState("");
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState(false);
+  const [reads, setReads] = useState(0);
+  const [concurrency, setConcurrency] = useState<Compute | null>(null);
   const [busy, setBusy] = useState(false);
 
   const fail = (error: unknown) =>
@@ -100,22 +92,40 @@ export function ResearchSection({
   };
 
   useEffect(() => {
+    let cancelled = false;
+    setError(false);
     readResearchSettings().then(
       (d) => {
+        if (cancelled) return;
         setData(d);
         // Whether each environment can be reached now, checked on opening.
-        if (part !== "tracker")
-          for (const c of d.computes) if (c.kind !== "docker") void check(c.id);
+        for (const c of d.computes) if (c.kind !== "docker") void check(c.id);
       },
-      () => setData(null),
+      () => {
+        if (!cancelled) setError(true);
+      },
     );
-    if (part !== "tracker") sshHosts().then(setHosts, () => setHosts([]));
-  }, []);
+    sshHosts().then(
+      (value) => {
+        if (!cancelled) setHosts(value);
+      },
+      () => {
+        if (!cancelled) setHosts([]);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [reads]);
 
   const save = async (body: Parameters<typeof saveResearchSettings>[0]) => {
     setBusy(true);
     try {
-      setData(await saveResearchSettings(body));
+      const next = await saveResearchSettings(body);
+      setData((current) => ({
+        ...next,
+        states: next.states ?? current?.states ?? {},
+      }));
       return true;
     } catch (error) {
       fail(error);
@@ -125,17 +135,56 @@ export function ResearchSection({
     }
   };
 
-  if (!data)
+  const header = (
+    <CustomizeHeader
+      title={t("customize.machines")}
+      query={query}
+      onQuery={setQuery}
+      action={
+        <Button
+          variant="primary"
+          icon={Plus}
+          disabled={!data}
+          onClick={() =>
+            setDraft({
+              name: "",
+              host: "",
+              gpus: "",
+              remote_dir: "~/ora-research",
+            })
+          }
+        >
+          {t("settings.research.addSsh")}
+        </Button>
+      }
+    />
+  );
+  if (!data || error)
     return (
-      <Section title={t("settings.research.title")}>
-        <p className={styles.muted}>{t("common.loading")}</p>
-      </Section>
+      <>
+        {header}
+        {error ? (
+          <div role="alert">
+            <p>{t("settings.loadError")}</p>
+            <Button onClick={() => setReads((n) => n + 1)}>
+              {t("common.retry")}
+            </Button>
+          </div>
+        ) : (
+          <div
+            className={layout.skeleton}
+            role="status"
+            aria-label={t("common.loading")}
+          />
+        )}
+      </>
     );
 
-  const tracker = data.tracker;
   const computes = data.computes;
   const enabled = async (item: Compute) => {
-    if (await save({ computes: [...computes, item] })) void check(item.id);
+    const done = await save({ computes: [...computes, item] });
+    if (done) void check(item.id);
+    return done;
   };
   const disable = (c: Compute) =>
     save({
@@ -145,7 +194,9 @@ export function ResearchSection({
     });
   const newSsh = (host: string, name = host, gpus = "", dir = ""): Compute => {
     let id = slug(name);
-    while (computes.some((c) => c.id === id)) id = `${id}-2`.slice(0, 40);
+    let suffix = 2;
+    while (computes.some((c) => c.id === id))
+      id = `${slug(name).slice(0, 32)}-${suffix++}`;
     return {
       id,
       name,
@@ -201,6 +252,15 @@ export function ResearchSection({
       label={t("settings.research.more", { name: c.name })}
       placement={{ side: "bottom", align: "end" }}
       items={[
+        ...(c.kind === "host"
+          ? [
+              {
+                id: "concurrency",
+                label: t("settings.research.concurrency", { name: c.name }),
+                onSelect: () => setConcurrency(c),
+              },
+            ]
+          : []),
         {
           id: "check",
           label: t("settings.research.recheck"),
@@ -219,6 +279,7 @@ export function ResearchSection({
           ? [
               {
                 id: "edit",
+                icon: Pencil,
                 label: t("settings.research.edit"),
                 onSelect: () =>
                   setDraft({
@@ -236,6 +297,7 @@ export function ResearchSection({
         <IconButton
           {...props}
           size="sm"
+          disabled={busy}
           icon={MoreHorizontal}
           label={t("settings.research.more", { name: c.name })}
         />
@@ -261,201 +323,94 @@ export function ResearchSection({
             {[s.text, meta].filter(Boolean).join(" · ")}
           </span>
         </div>
-        {actions(c)}
       </>
     );
   };
 
+  const q = query.trim().toLowerCase();
+  const localRows = computes.filter(
+    (c) => c.kind !== "ssh" && c.name.toLowerCase().includes(q),
+  );
+  const sshRows = rows.filter((r) =>
+    `${r.compute?.name || ""} ${r.host} ${r.meta}`.toLowerCase().includes(q),
+  );
   return (
-    <Section
-      title={t(
-        part === "tracker"
-          ? "settings.research.tracker"
-          : "settings.research.title",
-      )}
-    >
-      {part !== "tracker" && (
-        <>
-          <div className={styles.list}>
-            {computes
-              .filter((c) => c.kind !== "ssh")
-              .map((c) => (
-                <div key={c.id} className={styles.row}>
-                  {line(c, c.name, "")}
-                </div>
-              ))}
-          </div>
-          <div className={styles.listHead}>
-            <h3 className={styles.subTitle}>
-              {t("settings.research.sshTitle")}
-            </h3>
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={Plus}
-              onClick={() =>
-                setDraft({
-                  name: "",
-                  host: "",
-                  gpus: "",
-                  remote_dir: "~/ora-research",
-                })
+    <>
+      {header}
+      <ul className={layout.list}>
+        {localRows.map((c) => (
+          <li key={c.id} className={layout.row}>
+            <Monitor className={layout.icon} size={22} aria-hidden />
+            {line(c, c.name, "")}
+            {actions(c)}
+          </li>
+        ))}
+        {sshRows.map((r) => (
+          <li key={r.compute?.id || r.host} className={layout.row}>
+            <Server className={layout.icon} size={22} aria-hidden />
+            {r.compute ? (
+              line(
+                r.compute,
+                r.compute.name,
+                r.compute.name !== r.host ? r.host : r.meta,
+              )
+            ) : (
+              <div className={styles.rowText}>
+                <span className={styles.rowTitle}>{r.host}</span>
+                <span className={styles.rowMeta}>
+                  <span className={styles.dot} data-tone="idle" aria-hidden />
+                  {t("settings.research.off")}
+                </span>
+              </div>
+            )}
+            <input
+              type="checkbox"
+              role="switch"
+              className={styles.switch}
+              checked={!!r.compute}
+              disabled={busy}
+              aria-label={t("settings.research.use", { name: r.host })}
+              onChange={() =>
+                r.compute ? disable(r.compute) : enabled(newSsh(r.host))
               }
-            >
-              {t("settings.research.addSsh")}
-            </Button>
-          </div>
-          {rows.length === 0 ? (
-            <p className={styles.settingHint}>
-              {t("settings.research.sshEmpty")}
-            </p>
-          ) : (
-            <div className={styles.list}>
-              {rows.map((r) => (
-                <div key={r.host} className={styles.row}>
-                  <input
-                    type="checkbox"
-                    role="switch"
-                    className={styles.switch}
-                    checked={!!r.compute}
-                    disabled={busy}
-                    aria-label={t("settings.research.use", { name: r.host })}
-                    onChange={() =>
-                      r.compute ? disable(r.compute) : enabled(newSsh(r.host))
-                    }
-                  />
-                  {r.compute ? (
-                    line(
-                      r.compute,
-                      r.compute.name,
-                      r.compute.name !== r.host ? r.host : r.meta,
-                    )
-                  ) : (
-                    <div className={styles.rowText}>
-                      <span className={styles.rowTitle}>{r.host}</span>
-                      <span className={styles.rowMeta}>
-                        {r.meta || t("settings.research.off")}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      {part !== "tracker" &&
-        computes
-          .filter((c) => c.kind === "host")
-          .map((c) => (
-            <div key={`${c.id}-at-once`}>
-              <h3 className={styles.subTitle}>
-                {t("settings.research.concurrency", { name: c.name })}
-              </h3>
-              <div className={styles.setting}>
-                <SegmentedControl
-                  kind="radio"
-                  size="sm"
-                  label={t("settings.research.concurrency", { name: c.name })}
-                  value={String(c.concurrency ?? 1)}
-                  onChange={(n) =>
-                    save({
-                      computes: computes.map((x) =>
-                        x.id === c.id ? { ...x, concurrency: Number(n) } : x,
-                      ),
-                    })
-                  }
-                  options={["1", "2", "3", "4"].map((n) => ({
-                    value: n,
-                    label: n,
-                  }))}
-                />
-              </div>
-            </div>
-          ))}
-
-      {part !== "environments" && (
-        <>
-          {!part && (
-            <>
-              <h3 className={styles.subTitle}>
-                {t("settings.research.tracker")}
-              </h3>
-            </>
-          )}
-          <div className={styles.setting}>
-            <SegmentedControl
-              kind="radio"
-              size="sm"
-              label={t("settings.research.tracker")}
-              value={tracker.kind}
-              onChange={(kind) => save({ tracker: { kind } })}
-              options={[
-                { value: "none", label: t("settings.research.none") },
-                { value: "swanlab", label: "SwanLab" },
-                { value: "wandb", label: "W&B" },
-              ]}
             />
-          </div>
-          {tracker.kind !== "none" && (
-            <>
-              <div className={styles.setting}>
-                <SegmentedControl
-                  kind="radio"
-                  size="sm"
-                  label={t("settings.research.mode")}
-                  value={tracker.mode}
-                  onChange={(mode) => save({ tracker: { mode } })}
-                  options={[
-                    { value: "local", label: t("settings.research.local") },
-                    { value: "cloud", label: t("settings.research.cloud") },
-                  ]}
-                />
-              </div>
-              <TextField
-                label={t("settings.research.project")}
-                defaultValue={tracker.project}
-                onBlur={(event) =>
-                  event.target.value.trim() !== tracker.project &&
-                  save({ tracker: { project: event.target.value.trim() } })
-                }
-              />
-              {tracker.mode === "cloud" && (
-                <form
-                  className={styles.setting}
-                  onSubmit={async (event) => {
-                    event.preventDefault();
-                    if (
-                      key.trim() &&
-                      (await save({ tracker: { api_key: key.trim() } }))
-                    )
-                      setKey("");
-                  }}
-                >
-                  <TextField
-                    label={t("settings.research.key")}
-                    type="password"
-                    autoComplete="off"
-                    value={key}
-                    placeholder={
-                      tracker.has_key ? t("settings.research.keySaved") : ""
-                    }
-                    onChange={(event) => setKey(event.target.value)}
-                  />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={!key.trim() || busy}
-                  >
-                    {t("settings.research.save")}
-                  </Button>
-                </form>
-              )}
-            </>
-          )}
-        </>
-      )}
-
+            {r.compute && actions(r.compute)}
+          </li>
+        ))}
+        {!localRows.length && !sshRows.length && (
+          <li className={layout.empty}>{t("customize.empty")}</li>
+        )}
+      </ul>
+      <Dialog
+        open={!!concurrency}
+        onClose={() => setConcurrency(null)}
+        title={t("settings.research.concurrency", {
+          name: concurrency?.name || "",
+        })}
+      >
+        {concurrency && (
+          <SegmentedControl
+            kind="radio"
+            size="sm"
+            label={t("settings.research.concurrency", {
+              name: concurrency.name,
+            })}
+            value={String(
+              computes.find((c) => c.id === concurrency.id)?.concurrency ?? 1,
+            )}
+            onChange={(n) =>
+              save({
+                computes: computes.map((c) =>
+                  c.id === concurrency.id
+                    ? { ...c, concurrency: Number(n) }
+                    : c,
+                ),
+              })
+            }
+            options={["1", "2", "3", "4"].map((n) => ({ value: n, label: n }))}
+          />
+        )}
+      </Dialog>
       <Dialog
         open={!!draft}
         onClose={() => setDraft(null)}
@@ -484,7 +439,7 @@ export function ResearchSection({
                             ...c,
                             name,
                             host,
-                            gpus: draft.gpus.trim(),
+                            gpus: "",
                             remote_dir: dir || c.remote_dir,
                           }
                         : c,
@@ -496,8 +451,7 @@ export function ResearchSection({
                   }
                   return;
                 }
-                setDraft(null);
-                await enabled(newSsh(host, name, draft.gpus.trim(), dir));
+                if (await enabled(newSsh(host, name, "", dir))) setDraft(null);
               }}
             >
               {t(
@@ -512,20 +466,12 @@ export function ResearchSection({
             <TextField
               label={t("settings.research.host")}
               value={draft.host}
-              placeholder="user@server"
               onChange={(e) => setDraft({ ...draft, host: e.target.value })}
             />
             <TextField
               label={t("settings.research.name")}
               value={draft.name}
-              placeholder={t("settings.research.namePlaceholder")}
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            />
-            <TextField
-              label="GPU"
-              value={draft.gpus}
-              placeholder="0"
-              onChange={(e) => setDraft({ ...draft, gpus: e.target.value })}
             />
             <TextField
               label={t("settings.research.remoteDir")}
@@ -537,6 +483,6 @@ export function ResearchSection({
           </div>
         )}
       </Dialog>
-    </Section>
+    </>
   );
 }

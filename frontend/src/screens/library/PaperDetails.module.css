@@ -8,7 +8,7 @@
 
 .name {
   margin: 0;
-  font-family: var(--ui-font-display);
+  font-family: var(--ui-font-sans);
   font-size: var(--ui-text-20);
   font-weight: var(--ui-weight-strong);
   line-height: var(--ui-leading-tight);
@@ -101,8 +101,8 @@
 
 .bar {
   display: block;
-  width: 72px;
-  height: 3px;
+  width: calc(var(--ui-space-24) * 3);
+  height: var(--ui-space-4);
   overflow: hidden;
   border-radius: var(--ui-r-pill);
   background: var(--ui-edge);
@@ -125,8 +125,14 @@
   color: var(--ui-danger-text);
 }
 
-/* The one action that cannot be undone sits apart, at the start of the row. */
-.delete {
-  margin-right: auto;
-  color: var(--ui-danger-text);
+.fact {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.fact dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.progressLine {
+  flex-wrap: wrap;
 }

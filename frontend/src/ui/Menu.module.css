@@ -1,11 +1,15 @@
 /* The surface of a list of actions. The layer it floats in has none of its own. */
 .list {
-  --menu-min-width: 180px;
+  --menu-min-width: var(--ui-menu-width);
   display: flex;
   flex-direction: column;
   min-width: var(--menu-min-width);
+  max-width: 100%;
+  max-height: calc(100dvh - 2 * var(--ui-space-16));
+  overflow-y: auto;
+  box-sizing: border-box;
   padding: var(--ui-space-4);
-  border-radius: var(--ui-r-16);
+  border-radius: var(--ui-r-12);
   background: var(--ui-elev);
   box-shadow: var(--ui-elev-2);
   outline: none;
@@ -29,7 +33,7 @@
   gap: var(--ui-space-8);
   height: var(--ui-control-md);
   padding: 0 var(--ui-space-10);
-  border-radius: var(--ui-r-10);
+  border-radius: var(--ui-r-8);
   color: var(--ui-fg-1);
   font-size: var(--ui-text-13);
   line-height: var(--ui-leading-tight);
@@ -58,7 +62,7 @@
 .item:focus-visible {
   background: var(--ui-selected);
   color: var(--ui-fg);
-  box-shadow: none;
+  box-shadow: inset var(--ui-focus-ring);
   outline: none;
 }
 

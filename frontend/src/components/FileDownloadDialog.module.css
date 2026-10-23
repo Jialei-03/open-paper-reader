@@ -1,0 +1,26 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-12);
+}
+
+.name,
+.status,
+.error {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--ui-text-14);
+}
+
+.status {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
+.error {
+  color: var(--ui-danger-text);
+}
+.progress {
+  width: 100%;
+  accent-color: var(--ui-accent);
+}

@@ -59,9 +59,7 @@ def env(settings, item, extra=None):
         ORA_DATA=str(research_datasets.cache(settings)),
         PYTHONUNBUFFERED="1",
     )
-    gpus = item.get("gpus") or ""
-    if gpus and gpus != "all":
-        out["CUDA_VISIBLE_DEVICES"] = gpus
+    # Every GPU is visible: the executor picks the idle ones per command.
     return {**out, **(extra or {})}
 
 
@@ -101,8 +99,8 @@ def start(settings, d, item, project, job):
     log = research_sandbox.logdir(settings, project.id) / f"{job.id}.log"
     exit_file = run_dir / ".exit"
     wrapped = (
-        f"({research_sandbox.strict(job.command)}); "
-        f"echo $? > {shlex.quote(str(exit_file))}"
+        f"(\n{research_sandbox.strict(job.command)}\n)\n"
+        f"echo $? > {shlex.quote(str(exit_file))}\n"
     )
     with open(log, "w") as out:
         process = subprocess.Popen(

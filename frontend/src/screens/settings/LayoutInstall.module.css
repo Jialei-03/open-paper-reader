@@ -3,7 +3,7 @@
  * do, and while it installs a thin bar like the reader's translation progress.
  */
 .section {
-  --install-bar-height: 4px;
+  --install-bar-height: var(--ui-space-4);
   display: flex;
   flex-direction: column;
   gap: var(--ui-space-8);
@@ -63,7 +63,7 @@
 }
 
 .details {
-  max-height: 10em;
+  max-height: var(--ui-skeleton-height);
   margin: 0;
   padding: var(--ui-space-8);
   border-radius: var(--ui-r-4);

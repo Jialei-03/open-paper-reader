@@ -1,8 +1,14 @@
 /* The card sets what a reset would give it (the new screens do not load one). */
 .root {
-  --search-width: 320px;
-  --card-min: 220px;
+  --card-min: var(--ui-card-min);
+  min-width: 0;
   flex: 1;
+  container: paper-library / inline-size;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border-radius: 0;
+  background: var(--ui-bg-1);
+  box-shadow: none;
   color: var(--ui-fg);
   font: var(--ui-text-13) / var(--ui-leading) var(--ui-font-sans);
   -webkit-font-smoothing: antialiased;
@@ -18,6 +24,11 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  width: 100%;
+  max-width: var(--ui-page-width);
+  margin: 0 auto;
+  padding: var(--ui-space-32) var(--ui-space-32) 0;
+  box-sizing: border-box;
   transition: background-color var(--ui-dur-2) var(--ui-ease-out);
 }
 
@@ -25,23 +36,62 @@
   background: var(--ui-accent-soft);
 }
 
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-24);
+  margin-bottom: var(--ui-space-24);
+}
+
+.headingGroup {
+  flex: 1;
+  min-width: 0;
+}
+
+.titleLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-12);
+}
+
 .heading {
   margin: 0;
-  font-family: var(--ui-font-display);
-  font-size: var(--ui-text-16);
+  font-size: var(--ui-text-24);
   font-weight: var(--ui-weight-strong);
+  line-height: var(--ui-leading-tight);
 }
 
-.count {
-  color: var(--ui-fg-2);
-  font-size: var(--ui-text-12);
-}
-
-/* In the header, level with the title and the import button, and taking the room between them. */
 .search {
-  flex: 0 1 var(--search-width);
+  position: relative;
+  flex: 0 1 var(--ui-search-width);
+  width: var(--ui-search-width);
   min-width: 0;
-  margin-left: auto;
+}
+
+.searchIcon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: var(--ui-space-12);
+  color: var(--ui-fg-3);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.search input {
+  height: var(--ui-control-md);
+  padding-left: var(--ui-space-40);
+  border: 1px solid var(--ui-edge-subtle);
+  border-radius: var(--ui-r-pill);
+  background: var(--ui-bg-2);
+  font-size: var(--ui-text-13);
+}
+
+.search input:focus {
+  border-color: var(--ui-edge);
 }
 
 .spacer {
@@ -52,12 +102,44 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  flex: none;
   gap: var(--ui-space-8);
-  padding: var(--ui-space-4) var(--ui-space-16) var(--ui-space-12);
+  padding: var(--ui-space-12) 0;
+}
+
+.resultCount {
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+  white-space: nowrap;
+}
+
+.viewSwitch {
+  flex: none;
+}
+
+.viewSwitch [role="radio"] {
+  justify-content: center;
+  width: var(--ui-control-md);
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.viewSwitch [role="radio"] > span {
+  position: absolute;
+  width: var(--ui-sr-only);
+  height: var(--ui-sr-only);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.viewSwitch svg {
+  width: var(--ui-space-16);
+  height: var(--ui-space-16);
 }
 
 .jobs {
-  padding: 0 var(--ui-space-16);
+  flex: none;
 }
 
 .jobs:not(:empty) {
@@ -68,19 +150,40 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 var(--ui-space-16) var(--ui-space-24);
+  padding: 0 0 var(--ui-space-32);
 }
 
 .message {
-  margin: var(--ui-space-40) auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-16);
+  min-height: var(--ui-empty-height);
+  padding: var(--ui-space-24);
   color: var(--ui-fg-2);
   text-align: center;
 }
 
+.message > svg {
+  color: var(--ui-fg-3);
+  width: var(--ui-space-32);
+  height: var(--ui-space-32);
+}
+
+.message p {
+  max-width: 100%;
+  margin: 0;
+  line-height: var(--ui-leading);
+}
+
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
-  gap: var(--ui-space-12);
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--card-min)), 1fr)
+  );
+  gap: var(--ui-space-20);
 }
 
 .table {
@@ -90,34 +193,42 @@
 }
 
 .table th {
-  padding: var(--ui-space-6) var(--ui-space-8);
-  color: var(--ui-fg-2);
+  padding: var(--ui-space-12) var(--ui-space-8);
+  border-bottom: 1px solid var(--ui-edge-subtle);
+  color: var(--ui-fg-3);
   font-size: var(--ui-text-12);
   font-weight: var(--ui-weight-regular);
   text-align: left;
 }
 
-.progress {
-  width: 150px;
+.table thead {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  background: var(--ui-bg-1);
 }
 
-.status {
-  width: 88px;
+.table th:first-child {
+  padding-left: 0;
 }
 
-.updated {
-  width: 120px;
+.source {
+  width: 23%;
+}
+
+.opened {
+  width: var(--ui-library-date-width);
 }
 
 .actions {
-  width: 112px;
+  width: var(--ui-space-40);
   text-align: right;
 }
 
 .visuallyHidden {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  width: var(--ui-sr-only);
+  height: var(--ui-sr-only);
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
@@ -128,10 +239,53 @@
   color: var(--ui-danger-text);
 }
 
-@media (max-width: 760px) {
-  .progress,
-  .updated {
+@container paper-library (max-width: 720px) {
+  .frame {
+    padding: var(--ui-space-32) var(--ui-space-32) 0;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .headingGroup {
+    flex-basis: 100%;
+  }
+
+  .search {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .source {
+    width: 20%;
+  }
+
+  .opened {
+    width: var(--ui-library-date-width);
+  }
+}
+
+@container paper-library (max-width: 420px) {
+  .frame {
+    padding: var(--ui-space-32) var(--ui-space-32) 0;
+  }
+
+  .header {
+    gap: var(--ui-space-8);
+  }
+
+  .source {
     display: none;
+  }
+
+  .opened {
+    width: calc(var(--ui-space-48) * 2);
+  }
+
+  .tools {
+    gap: var(--ui-space-6);
   }
 }
 
@@ -140,4 +294,28 @@
   font-size: var(--ui-text-12);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.importOptions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-24);
+}
+
+.arxiv {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ui-space-8);
+  width: 100%;
+}
+
+.arxiv > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.deleteName {
+  margin: 0;
+  overflow-wrap: anywhere;
 }

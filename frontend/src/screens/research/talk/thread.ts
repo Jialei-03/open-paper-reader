@@ -13,6 +13,14 @@ import type {
  * block), the decisions waiting for the researcher, and where stages changed.
  */
 export type ThreadItem =
+  | {
+      kind: "workflow";
+      id: string;
+      index: number;
+      status: string;
+      outputs: string[];
+      at: string;
+    }
   | { kind: "message"; id: string; who: string; text: string; at: string }
   | {
       kind: "plan";
@@ -36,6 +44,8 @@ export type ThreadItem =
       kind: "work";
       id: string;
       sprint: ResearchSprint;
+      reply?: string;
+      replyAt?: string;
       steps: Step[];
       jobs: ResearchJob[];
       at: string;
@@ -92,15 +102,80 @@ export function buildThread(
   for (const event of events) {
     if (HIDDEN.has(event.action)) continue;
     const at = event.created_at;
+    const sprint = event.sprint_id ? bySprint.get(event.sprint_id) : undefined;
+    if (
+      event.action === "message" &&
+      event.actor !== "human" &&
+      event.actor !== "lead" &&
+      event.actor !== "system" &&
+      sprint
+    ) {
+      let block = blocks.get(sprint.id);
+      if (!block) {
+        block = {
+          kind: "work",
+          id: sprint.id,
+          sprint,
+          steps: [],
+          jobs: inOrder(jobs, sprint.id),
+          at,
+        };
+        blocks.set(sprint.id, block);
+        items.push(block);
+      }
+      block.reply = str(event.detail.text);
+      block.replyAt = at;
+      continue;
+    }
     if (event.action === "message") {
       items.push({
         kind: "message",
         id: event.id,
-        who: event.actor,
+        // The backend records conversational replies as advisor messages.
+        // Their sprint distinguishes chat from an experiment review.
+        who:
+          event.actor === "advisor" &&
+          (sprint?.role === "scoping" || sprint?.role === "discussion")
+            ? "discussion"
+            : event.actor,
         text: str(event.detail.text),
         at,
       });
       continue;
+    }
+    if (
+      [
+        "workflow_step_started",
+        "workflow_step_finished",
+        "workflow_step_checkpoint",
+      ].includes(event.action)
+    ) {
+      items.push({
+        kind: "workflow",
+        id: event.id,
+        index: Number(event.detail.index),
+        status: str(event.detail.status) || "completed",
+        outputs: Array.isArray(event.detail.outputs)
+          ? event.detail.outputs.filter(
+              (path): path is string => typeof path === "string",
+            )
+          : [],
+        at,
+      });
+      continue;
+    }
+    if (event.action === "workflow_child_started") continue;
+    if (sprint && !blocks.has(sprint.id)) {
+      const block: Extract<ThreadItem, { kind: "work" }> = {
+        kind: "work",
+        id: sprint.id,
+        sprint,
+        steps: [],
+        jobs: inOrder(jobs, sprint.id),
+        at,
+      };
+      blocks.set(sprint.id, block);
+      items.push(block);
     }
     if (event.action === "plan_proposed") {
       items.push({
@@ -154,7 +229,6 @@ export function buildThread(
       });
       continue;
     }
-    const sprint = event.sprint_id ? bySprint.get(event.sprint_id) : undefined;
     const step: Step = {
       id: event.id,
       actor: event.actor,

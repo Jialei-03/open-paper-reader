@@ -1,16 +1,30 @@
-import { Check, EyeOff, Eye, Plus, RefreshCw } from "lucide-react";
+import {
+  Check,
+  Compass,
+  EyeOff,
+  Eye,
+  FileText,
+  LayoutGrid,
+  List,
+  Plus,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { useState } from "react";
 import type { Paper } from "../../api";
+import { useImports } from "../../import/useImports";
 import { useI18n } from "../../i18n/I18nProvider";
 import { PreviewPanel } from "../../reader/citations/PreviewPanel";
 import { byline, type CitedWork } from "../../reader/citations/lookup";
 import { useLibraryAdd } from "../../reader/citations/useLibraryAdd";
 import { followLink, readerHash } from "../../reader/route";
-import { Button, Card, CardHeader, Spinner, toast } from "../../ui";
+import { Button, Card, SegmentedControl, TextField, toast } from "../../ui";
+import { ImportJobs, useFileDrop } from "../home/ImportDrop";
+import { LibraryImport } from "../library/LibraryImport";
+import { usePreference } from "../library/usePreference";
+import layout from "../library/LibraryScreen.module.css";
 import styles from "./DiscoverScreen.module.css";
 import { useRecommendations, type Recommendation } from "./useRecommendations";
-
-const WHY_SHOWN = 3;
 
 const asCited = (item: Recommendation): CitedWork => ({
   title: item.title,
@@ -37,12 +51,23 @@ export interface DiscoverScreenProps {
  * is suggested (which of the person's papers it relates to), and what to do
  * about it: preview it, add it, or say it is not of interest.
  */
-export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
+export function DiscoverScreen({ go, reload }: DiscoverScreenProps) {
   const { t, locale } = useI18n();
   const recs = useRecommendations(30);
   const adding = useLibraryAdd();
   const [preview, setPreview] = useState<Recommendation | null>(null);
-  const known = new Set(papers.map((paper) => paper.id));
+  const [query, setQuery] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [view, setView] = usePreference<"grid" | "list">(
+    "paper-library-view",
+    "list",
+    ["grid", "list"],
+  );
+  const imports = useImports((paper, only) => {
+    reload();
+    if (only) go(readerHash({ paperId: paper.id }).slice(1));
+  });
+  const { over, handlers } = useFileDrop(imports.importFiles);
 
   const time = (stamp?: string) =>
     stamp
@@ -89,43 +114,71 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
 
   const data = recs.data;
   const header = (
-    <CardHeader>
-      <h1 id="discover-title" className={styles.heading}>
+    <header className={layout.header}>
+      <h1
+        id="discover-title"
+        className={`${layout.heading} ${layout.headingGroup}`}
+      >
         {t("discover.title")}
       </h1>
-      <span className={styles.spacer} />
-      <Button
-        size="sm"
-        icon={RefreshCw}
-        loading={recs.refreshing}
-        disabled={recs.status === "loading"}
-        onClick={recs.refresh}
+      <div
+        className={layout.search}
+        role="search"
+        aria-label={t("library.search")}
       >
-        {t("discover.refresh")}
-      </Button>
-    </CardHeader>
+        <Search size={16} aria-hidden className={layout.searchIcon} />
+        <TextField
+          type="search"
+          label={t("library.search")}
+          hideLabel
+          placeholder={t("library.search.placeholder")}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+      <LibraryImport
+        imports={imports}
+        open={importing}
+        onOpen={() => setImporting(true)}
+        onClose={() => setImporting(false)}
+      />
+    </header>
   );
 
-  const message = (title: string, body: string, action?: React.ReactNode) => (
-    <div className={styles.message} role="status">
-      <p className={styles.messageTitle}>{title}</p>
-      <p className={styles.messageBody}>{body}</p>
+  const message = (title: string, action?: React.ReactNode) => (
+    <div className={layout.message} role="status">
+      <Compass size={32} aria-hidden />
+      <p>{title}</p>
       {action}
     </div>
   );
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const items =
+    data?.items.filter((item) => {
+      const text = [
+        item.title,
+        ...item.authors,
+        item.venue,
+        item.arxiv,
+        item.doi,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return words.every((word) => text.includes(word));
+    }) ?? [];
 
   let body: React.ReactNode;
   if (recs.status === "loading") {
     body = (
-      <p className={styles.loading} role="status" aria-busy="true">
-        <Spinner size={14} />
-        {t("discover.loading")}
-      </p>
+      <div
+        className={styles.skeleton}
+        role="status"
+        aria-label={t("discover.loading")}
+      />
     );
   } else if (recs.status === "failed" || !data) {
     body = message(
       t("discover.failed", { reason: recs.error }),
-      "",
       <Button size="sm" onClick={recs.reload}>
         {t("common.retry")}
       </Button>,
@@ -133,17 +186,15 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
   } else if (data.state === "no_seeds") {
     body = message(
       t("discover.noSeeds.title"),
-      t("discover.noSeeds.body"),
       <Button size="sm" onClick={() => go("library")}>
         {t("discover.noSeeds.action")}
       </Button>,
     );
   } else if (data.state === "offline") {
-    body = message(t("discover.offline.title"), t("discover.offline.body"));
+    body = message(t("discover.offline.title"));
   } else if (data.state === "unavailable") {
     body = message(
       t("discover.unavailable.title"),
-      t("discover.unavailable.body"),
       <Button size="sm" onClick={recs.refresh} loading={recs.refreshing}>
         {t("common.retry")}
       </Button>,
@@ -170,14 +221,23 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
             {recs.error}
           </p>
         )}
-        {data.items.length === 0 ? (
-          message(t("discover.none.title"), t("discover.none.body"))
+        {items.length === 0 ? (
+          message(t(query ? "library.noMatch" : "discover.none.title"))
         ) : (
-          <ul className={styles.cards} aria-label={t("discover.cards")}>
-            {data.items.map((item) => {
+          <ul
+            className={styles.cards}
+            data-view={view}
+            aria-label={t("discover.cards")}
+          >
+            {items.map((item) => {
               const added = item.arxiv ? adding.states[item.arxiv] : undefined;
               return (
                 <li key={item.key} className={styles.card}>
+                  {view === "grid" && (
+                    <div className={styles.cover} aria-hidden>
+                      <FileText size={38} strokeWidth={1} />
+                    </div>
+                  )}
                   <h2 className={styles.title}>{item.title}</h2>
                   <p className={styles.meta}>
                     {[
@@ -194,31 +254,6 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
                       .filter(Boolean)
                       .join(" · ")}
                   </p>
-                  {item.abstract && (
-                    <p className={styles.abstract}>{item.abstract}</p>
-                  )}
-                  {item.why.length > 0 && (
-                    <p className={styles.why}>
-                      <span>{t("discover.why")}</span>
-                      {item.why.slice(0, WHY_SHOWN).map((w) => {
-                        const hash = readerHash({ paperId: w.paper_id });
-                        return known.has(w.paper_id) ? (
-                          <a
-                            key={w.paper_id}
-                            href={hash}
-                            onClick={followLink(go, hash.slice(1))}
-                          >
-                            {w.title}
-                          </a>
-                        ) : (
-                          <span key={w.paper_id}>{w.title}</span>
-                        );
-                      })}
-                      {item.why.length > WHY_SHOWN && (
-                        <span>+{item.why.length - WHY_SHOWN}</span>
-                      )}
-                    </p>
-                  )}
                   <div className={styles.actions}>
                     <Button
                       size="sm"
@@ -250,22 +285,7 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
                       >
                         {t("reader.cite.add")}
                       </Button>
-                    ) : (
-                      <span className={styles.noAdd}>
-                        <Button
-                          size="sm"
-                          icon={Plus}
-                          disabled
-                          aria-label={`${t("reader.cite.add")}: ${item.title}`}
-                          aria-describedby={`why-no-${item.key}`}
-                        >
-                          {t("reader.cite.add")}
-                        </Button>
-                        <span id={`why-no-${item.key}`}>
-                          {t("reader.related.noArxiv")}
-                        </span>
-                      </span>
-                    )}
+                    ) : null}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -291,13 +311,43 @@ export function DiscoverScreen({ papers, go, reload }: DiscoverScreenProps) {
   }
 
   return (
-    <Card as="main" className={styles.root} aria-labelledby="discover-title">
-      <div className={styles.frame}>
+    <Card as="main" className={layout.root} aria-labelledby="discover-title">
+      <div className={layout.frame} data-over={over || undefined} {...handlers}>
         {header}
-        <div className={styles.body}>
-          <p className={styles.intro}>{t("discover.intro")}</p>
-          {body}
+        <div className={layout.tools}>
+          <span className={layout.spacer} />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={RefreshCw}
+            loading={recs.refreshing}
+            disabled={recs.status === "loading"}
+            onClick={recs.refresh}
+          >
+            {t("discover.refresh")}
+          </Button>
+          <div className={layout.viewSwitch}>
+            <SegmentedControl
+              kind="radio"
+              size="sm"
+              label={t("library.view")}
+              value={view}
+              onChange={setView}
+              options={[
+                {
+                  value: "grid",
+                  label: t("library.view.grid"),
+                  icon: LayoutGrid,
+                },
+                { value: "list", label: t("library.view.list"), icon: List },
+              ]}
+            />
+          </div>
         </div>
+        <div className={layout.jobs}>
+          <ImportJobs imports={imports} />
+        </div>
+        <div className={styles.body}>{body}</div>
       </div>
       {preview && (
         <PreviewPanel

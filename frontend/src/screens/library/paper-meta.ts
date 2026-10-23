@@ -1,4 +1,16 @@
 import type { Paper } from "../../api";
+import type { PaperMetadata } from "../../lib/cite";
+
+export function paperSource(paper: Paper, meta?: PaperMetadata | null) {
+  const known = meta?.status === "ok" ? meta : null;
+  if (known?.venue) return known.venue;
+  const ids = paperIds(paper.external_id);
+  return ids.arxiv || known?.arxiv
+    ? "arXiv"
+    : ids.doi || known?.doi
+      ? "DOI"
+      : "";
+}
 
 /** What a paper's `external_id` says it is, as far as it can be told. */
 export interface PaperIds {

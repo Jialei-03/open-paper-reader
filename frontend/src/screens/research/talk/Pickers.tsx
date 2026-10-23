@@ -23,7 +23,7 @@ function Picker({
       trigger={(props) => (
         <button type="button" className={styles.chip} {...props}>
           <Icon size={14} aria-hidden />
-          {current}
+          <span className={styles.pickerName}>{current}</span>
           <ChevronDown size={12} aria-hidden />
         </button>
       )}

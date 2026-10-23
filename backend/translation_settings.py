@@ -372,7 +372,9 @@ def list_models(settings, owner, values):
         raise ValueError("获取模型列表失败，可重试或手动填写模型名称") from None
 
 
-def complete(config, system, content, *, cancelled=None, on_delta=None):
+def complete(
+    config, system, content, *, cancelled=None, on_delta=None, max_tokens=None
+):
     with model_slot(config, cancelled=cancelled):
         recorder = config.get("_usage_start")
         identifier = recorder() if recorder else None
@@ -384,6 +386,7 @@ def complete(config, system, content, *, cancelled=None, on_delta=None):
                 identifier,
                 cancelled=cancelled,
                 on_delta=on_delta,
+                max_tokens=max_tokens,
             )
         except Exception:
             if identifier:
@@ -421,7 +424,16 @@ async def _post_cancellable(url, headers, body, cancelled, on_delta=None):
                 await request
 
 
-def _complete(config, system, content, usage_id=None, *, cancelled=None, on_delta=None):
+def _complete(
+    config,
+    system,
+    content,
+    usage_id=None,
+    *,
+    cancelled=None,
+    on_delta=None,
+    max_tokens=None,
+):
     base = validate_endpoint(config["base_url"])
     protocol = config.get("protocol", "openai")
     minimax = config.get("model", "").lower().startswith("minimax-") or (
@@ -430,7 +442,11 @@ def _complete(config, system, content, usage_id=None, *, cancelled=None, on_delt
     )
     # M3.1 thinking shares the generation budget with translated text. Treating
     # it as a legacy 8K model can exhaust the budget before the answer is done.
-    budget = output_tokens(config) if minimax else OUTPUT_TOKENS
+    budget = (
+        max_tokens
+        if max_tokens is not None
+        else (output_tokens(config) if minimax else OUTPUT_TOKENS)
+    )
     body = {
         "model": config["model"],
         "messages": [{"role": "user", "content": content}],

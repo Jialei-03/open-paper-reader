@@ -329,6 +329,10 @@
   color: var(--ui-fg-1);
 }
 
+.summary[data-status="failed"] {
+  color: var(--ui-danger-text);
+}
+
 .summary:focus-visible {
   outline: none;
   box-shadow: var(--ui-focus-ring);

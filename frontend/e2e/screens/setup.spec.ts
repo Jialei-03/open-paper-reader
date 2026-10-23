@@ -69,7 +69,6 @@ test("a model is kept only once its connection test passes", async ({
   await expect(
     page.getByRole("heading", { name: "连接一个模型" }),
   ).toBeVisible();
-  await expect(page.getByText("助手需要一个模型来读论文")).toBeVisible();
   const next = page.getByRole("button", { name: "继续" });
   await expect(next).toBeDisabled();
   // Only the local edition offers a model on this computer.
@@ -77,7 +76,7 @@ test("a model is kept only once its connection test passes", async ({
 
   // Nothing filled in: it says what is missing and sends nothing.
   await page.getByRole("button", { name: "测试连接" }).click();
-  await expect(page.getByRole("alert")).toHaveText("请填写服务地址和模型。");
+  await expect(page.getByRole("alert")).toHaveText("缺少服务地址或模型");
 
   await page
     .getByLabel("服务地址", { exact: true })
@@ -87,7 +86,6 @@ test("a model is kept only once its connection test passes", async ({
   await expect(page.getByLabel("模型", { exact: true })).toHaveValue(
     "gpt-test-a",
   );
-  await expect(page.getByText("找到 2 个模型")).toBeVisible();
 
   // A model that does not answer is not kept.
   await page.getByRole("button", { name: "测试连接" }).click();
@@ -145,7 +143,6 @@ test("the local edition offers Ollama and LM Studio at their addresses", async (
   await expect(page.getByLabel("服务地址", { exact: true })).toHaveValue(
     "http://127.0.0.1:1234/v1",
   );
-  await expect(page.getByText("先在这台电脑上打开 LM Studio")).toBeVisible();
 });
 
 test("the setup speaks English", async ({ page }) => {
@@ -164,8 +161,6 @@ test("the setup speaks English", async ({ page }) => {
   await page.getByLabel("Model", { exact: true }).fill("gpt-test-a");
   await page.getByRole("button", { name: "Test connection" }).click();
   // The service's Chinese reason is not shown in the English interface.
-  await expect(page.getByRole("alert")).toHaveText(
-    "The model didn't answer. Check the address, the key and the model name.",
-  );
+  await expect(page.getByRole("alert")).toHaveText("The model did not respond");
   await expect(page.locator("main")).not.toContainText(/[一-鿿]/);
 });

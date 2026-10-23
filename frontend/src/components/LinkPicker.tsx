@@ -55,12 +55,7 @@ export function LinkPicker({
           insert={insert}
         />
       )}
-      <CommandDialog
-        open={open}
-        onOpenChange={setOpen}
-        title="插入关联"
-        description="搜索论文或其他笔记"
-      >
+      <CommandDialog open={open} onOpenChange={setOpen} title="插入关联">
         <CommandInput placeholder="搜索要关联的内容…" />
         <CommandList>
           <CommandEmpty>没有可关联的内容</CommandEmpty>

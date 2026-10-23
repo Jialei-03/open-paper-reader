@@ -85,7 +85,6 @@ export function KeypointsSection() {
           ]}
         />
       </div>
-      <p className={styles.settingHint}>{t("settings.keypoints.hint")}</p>
     </Section>
   );
 }

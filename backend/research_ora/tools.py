@@ -136,6 +136,13 @@ def _files(base, pattern=None):
         )
         for name in sorted(filenames):
             path = Path(dirpath) / name
+            # grep/find share this iterator: never follow a file link out of
+            # the selected workspace (read() already resolves its explicit path).
+            if path.is_symlink() or not path.is_file():
+                continue
+            resolved = path.resolve()
+            if resolved != ROOT and ROOT not in resolved.parents:
+                continue
             rel = str(path.relative_to(base))
             if pattern and not (
                 fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(name, pattern)
@@ -213,7 +220,9 @@ def main():
         else:
             result = tool(args)
         print(json.dumps({"result": result}, ensure_ascii=False))
-    except Exception as e:  # noqa: BLE001 — every failure goes back to the agent as text
+    except (
+        Exception
+    ) as e:  # noqa: BLE001 — every failure goes back to the agent as text
         print(json.dumps({"error": str(e)[:1000]}, ensure_ascii=False))
 
 

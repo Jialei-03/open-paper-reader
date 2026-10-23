@@ -1,5 +1,10 @@
 import {
   ArrowLeft,
+  Folder,
+  Plus,
+  Pencil,
+  GitFork,
+  Archive,
   MoreHorizontal,
   PanelRightClose,
   PanelRightOpen,
@@ -9,13 +14,14 @@ import {
 } from "lucide-react";
 import {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type RefObject,
 } from "react";
-import { followLink } from "../../reader/route";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
 import {
@@ -23,12 +29,12 @@ import {
   Dialog,
   IconButton,
   Menu,
-  Spinner,
   TextArea,
   TextField,
   toast,
 } from "../../ui";
 import {
+  controlChat,
   approvePlan,
   decide,
   getProject,
@@ -44,13 +50,14 @@ import {
   resumeProject,
   sendMessage,
   stopProject,
+  updateChatSession,
+  markResearchRead,
   type Compute,
   type LogLines,
   type ProjectDetail,
   type ResearchEvent,
-  type Stage,
 } from "./research-api";
-import type { ResearchRun } from "./process/model";
+import { isLive, type ResearchRun } from "./process/model";
 import { LiveCard } from "./process/Process";
 import { JumpToLatest } from "../../reader/JumpToLatest";
 import { OPEN_FILES_EVENT } from "./files/files-api";
@@ -59,20 +66,19 @@ import { readModels, type ModelRow } from "../setup/model-api";
 import { copyCommand, modelCommands } from "../../lib/composer-commands";
 import { Composer } from "./talk/Composer";
 import { ModelPicker } from "./talk/Pickers";
-import { RecordPanel, type RecordTab } from "./talk/RecordPanel";
+import { RecordPanel } from "./talk/RecordPanel";
 import { buildThread, working } from "./talk/thread";
 import { ThreadView, type ThreadActions } from "./talk/ThreadView";
+import { ForkDialog, ResearchOrigin } from "./ResearchChanges";
+import { AppActions } from "../../app/AppSidebar";
+import { organizeResearch } from "./navigation-api";
+import { FilesPanel } from "./files/FilesPanel";
+import { settledKey } from "./files/files-api";
+import { refreshResearchNavigation } from "./navigation-api";
 import styles from "./talk/Talk.module.css";
 
 const ACTIVE_POLL = 2500;
 const IDLE_POLL = 12000;
-const STEPS: Stage[] = [
-  "scoping",
-  "experiments",
-  "conclusion",
-  "retrospective",
-];
-const NARROW = "(max-width: 1100px)";
 
 /**
  * One research project as a conversation with the advisor: the plan is talked
@@ -82,11 +88,15 @@ const NARROW = "(max-width: 1100px)";
 export function ResearchProject({
   id,
   go,
+  backHash,
 }: {
   id: string;
   go(hash: string): void;
+  backHash?: string;
 }) {
   const { t, locale } = useI18n();
+  const { owner } = useContext(AppActions);
+  const draftKey = `ora-research-draft:${owner || "local"}:${id}`;
   const [models, setModels] = useState<ModelRow[]>([]);
   useEffect(() => {
     readModels().then(
@@ -101,12 +111,32 @@ export function ResearchProject({
   const [reads, setReads] = useState(0);
   const [rounds, setRounds] = useState(0);
   const [text, setText] = useState("");
+  useEffect(() => {
+    try {
+      setText(localStorage.getItem(draftKey) || "");
+    } catch {
+      setText("");
+    }
+  }, [draftKey]);
+  const changeText = (value: string) => {
+    setText(value);
+    try {
+      value
+        ? localStorage.setItem(draftKey, value)
+        : localStorage.removeItem(draftKey);
+    } catch {
+      /* Private browsing can disable storage. */
+    }
+  };
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState("");
-  const [record, setRecord] = useState(
-    () => !window.matchMedia?.(NARROW).matches,
-  );
-  const [tab, setTab] = useState<RecordTab>("plan");
+  const [record, setRecord] = useState(false);
+  const [outputFile, setOutputFile] = useState("");
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [forking, setForking] = useState<string | null>(null);
+  const [rerunning, setRerunning] = useState(false);
+  const [naming, setNaming] = useState(false);
+  const [title, setTitle] = useState("");
   const [run, setRun] = useState("");
   const [log, setLog] = useState<{ jobId: string; lines: LogLines } | null>(
     null,
@@ -124,11 +154,17 @@ export function ResearchProject({
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
+  useEffect(() => {
+    setRecord(false);
+    setOutputFile("");
+    setFilesOpen(false);
+    setRun("");
+  }, [id]);
+
   // The /files command, or anything else, asks for the files panel.
   useEffect(() => {
     const show = () => {
-      setRecord(true);
-      setTab("files");
+      setFilesOpen(true);
     };
     window.addEventListener(OPEN_FILES_EVENT, show);
     return () => window.removeEventListener(OPEN_FILES_EVENT, show);
@@ -149,10 +185,16 @@ export function ResearchProject({
       listRuns(id),
     ]).then(
       ([value, rows, recent]) => {
+        if (controller.signal.aborted) return;
         setDetail(value);
         setEvents(rows);
         setRuns(recent);
         setFailed("");
+        if (!document.hidden && rows.length)
+          void markResearchRead(id, rows[rows.length - 1].id).then(
+            refreshResearchNavigation,
+            () => undefined,
+          );
       },
       (error: unknown) => {
         if (!controller.signal.aborted)
@@ -189,15 +231,6 @@ export function ResearchProject({
     [events, detail],
   );
 
-  // Before a plan it is a conversation: the record stays closed until there
-  // is one, and opens (where there is room) once there is.
-  const loaded = !!detail;
-  const talking =
-    !!detail && detail.project.stage === "scoping" && !detail.project.plan;
-  useEffect(() => {
-    if (loaded) setRecord(!talking && !window.matchMedia?.(NARROW).matches);
-  }, [loaded, talking]);
-
   // Follow the conversation down, unless the reader scrolled up to look back.
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -216,13 +249,14 @@ export function ResearchProject({
     const words = text.trim();
     if (!words) return;
     setPending(words);
-    setText("");
+    changeText("");
     pinned.current = true;
     try {
       await sendMessage(id, words);
+      refreshResearchNavigation();
       refresh();
     } catch (error) {
-      setText(words);
+      changeText(words);
       fail(error);
     } finally {
       setPending("");
@@ -231,6 +265,15 @@ export function ResearchProject({
 
   const actions: ThreadActions = {
     busy,
+    openOutput: (path) => {
+      setOutputFile(path);
+      setRecord(true);
+    },
+    fork: (sprintId) => {
+      setRerunning(false);
+      setForking(sprintId || "");
+    },
+    changed: refresh,
     approvePlan: async (version) => {
       setBusy(true);
       try {
@@ -270,7 +313,6 @@ export function ResearchProject({
     },
     openRun: (jobId) => {
       setRun(jobId);
-      setTab("runs");
       setRecord(true);
     },
   };
@@ -303,18 +345,35 @@ export function ResearchProject({
             icon={ArrowLeft}
             label={t("research.back")}
             size="sm"
-            onClick={() => go("projects")}
+            onClick={() => go(backHash || "new")}
           />
         </div>
         <div className={styles.thread}>
-          {failed ? <p className={styles.empty}>{failed}</p> : <Spinner />}
+          {failed ? (
+            <p className={styles.empty} role="alert">
+              {failed}
+            </p>
+          ) : (
+            <div
+              className={styles.threadSkeleton}
+              role="status"
+              aria-label={t("common.loading")}
+            >
+              <div />
+              <div />
+              <div />
+              <div />
+            </div>
+          )}
         </div>
       </div>
     );
 
   const p = detail.project;
   const busyNow = working(detail.sprints);
-  const liveRun = busyNow ? runsBySprint.get(busyNow.id) : undefined;
+  const candidateRun = busyNow ? runsBySprint.get(busyNow.id) : undefined;
+  const liveRun =
+    candidateRun && isLive(candidateRun) ? candidateRun : undefined;
   const waitingData = detail.datasets.some((d) => d.status === "pending");
   // How far the download has got, as the worker last wrote it down.
   const fetchNote =
@@ -352,8 +411,7 @@ export function ResearchProject({
       name: "files",
       description: t("commands.files"),
       run: () => {
-        setTab("files");
-        setRecord(true);
+        setFilesOpen(true);
       },
     },
     ...(p.status !== "finished"
@@ -383,103 +441,85 @@ export function ResearchProject({
       ? []
       : modelCommands(t, models, p.model_config_id, chooseModel)),
   ];
-  const stageIndex = STEPS.indexOf(
-    p.stage === "done" ? "retrospective" : p.stage,
+  const pendingPlan = items.find(
+    (item) =>
+      item.kind === "plan" &&
+      item.current &&
+      !item.plan.approved_at &&
+      !item.plan.inherited,
   );
-  const hours = (p.spent.job_seconds ?? 0) / 3600;
-  const maxHours = (p.budget.max_job_seconds ?? 0) / 3600;
-  const ratio =
-    p.stage === "scoping"
-      ? 0
-      : Math.min(
-          1,
-          Math.max(
-            p.spent.sprints / Math.max(p.budget.max_sprints ?? 1, 1),
-            hours / Math.max(maxHours, 0.01),
-          ),
-        );
-
-  const placeholder: MessageKey =
-    p.stage === "scoping"
-      ? "research.composer.scoping"
-      : p.status === "waiting"
-        ? "research.composer.waiting"
-        : "research.composer.experiments";
-
+  const pendingDecision = items.find(
+    (item) => item.kind === "decision" && item.open,
+  );
+  const attention =
+    !liveRun && p.status !== "finished"
+      ? pendingPlan
+        ? { kind: "plan" as const, id: pendingPlan.id }
+        : pendingDecision
+          ? { kind: "decision" as const, id: pendingDecision.id }
+          : null
+      : null;
+  const viewAttention = () => {
+    if (!attention) return;
+    const card = document.getElementById(
+      `research-${attention.kind}-${attention.id}`,
+    );
+    if (!card || !scroller.current?.contains(card)) return;
+    // Keep the reader at the selected card when the next poll arrives.
+    pinned.current = false;
+    card.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+    });
+    card.focus({ preventScroll: true });
+  };
   return (
     <div className={styles.page}>
       <header className={styles.head}>
-        <IconButton
-          icon={ArrowLeft}
-          label={t("research.back")}
-          size="sm"
-          onClick={() =>
-            go(
-              detail?.project.workspace_id
-                ? `projects/${detail.project.workspace_id}`
-                : "projects",
-            )
-          }
-        />
+        <Folder size={17} aria-hidden />
         <h1 className={styles.headTitle}>
-          <button
-            type="button"
-            className={styles.titleButton}
-            title={t("research.question.edit")}
-            disabled={p.status === "finished"}
-            onClick={() => setEditing({ question: p.question, note: "" })}
-          >
-            {p.question}
-          </button>
+          <span title={p.question}>{p.title || p.question}</span>
         </h1>
-        {!talking && (
-          <ol className={styles.stages} aria-label={t("research.stages")}>
-            {STEPS.map((step, i) => (
-              <li key={step} style={{ display: "contents" }}>
-                {i > 0 && <span className={styles.stageLine} aria-hidden />}
-                <span
-                  className={styles.stageStep}
-                  data-state={
-                    finished || i < stageIndex
-                      ? "done"
-                      : i === stageIndex
-                        ? "now"
-                        : "ahead"
-                  }
-                  aria-current={
-                    i === stageIndex && !finished ? "step" : undefined
-                  }
-                >
-                  {t(`research.stage.${step}` as MessageKey)}
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
-        {p.stage !== "scoping" && !p.budget.max_sprints && (
-          <span className={styles.budget}>
-            {t("research.budget.rounds", { sprints: p.spent.sprints })}
-          </span>
-        )}
-        {p.stage !== "scoping" && !!p.budget.max_sprints && (
-          <div className={styles.budget} title={t("research.budget.title")}>
-            <span>
-              {t("research.budget.line", {
-                sprints: p.spent.sprints,
-                max: p.budget.max_sprints,
-                hours: hours.toFixed(1),
-                maxHours: maxHours.toFixed(1),
-              })}
-            </span>
-            <span className={styles.meter}>
-              <span style={{ width: `${Math.round(ratio * 100)}%` }} />
-            </span>
-          </div>
-        )}
         <div className={styles.headTools}>
           <Menu
             label={t("research.actions")}
             items={[
+              {
+                id: "rename",
+                label: t("projects.sessions.rename"),
+                icon: Pencil,
+                onSelect: () => {
+                  setTitle(p.title || p.question);
+                  setNaming(true);
+                },
+              },
+              {
+                id: "fork",
+                label: t("research.fork.action"),
+                icon: GitFork,
+                onSelect: () => {
+                  setRerunning(false);
+                  setForking("");
+                },
+              },
+              {
+                id: "rerun",
+                label: t("compare.rerun"),
+                icon: GitFork,
+                onSelect: () => {
+                  setRerunning(true);
+                  setForking("");
+                },
+              },
+              {
+                id: "compare",
+                label: t("compare.title"),
+                icon: GitFork,
+                disabled: !p.workspace_id,
+                onSelect: () => go(`workspaces/${p.workspace_id}/compare`),
+              },
               p.status === "paused"
                 ? {
                     id: "resume",
@@ -498,8 +538,30 @@ export function ResearchProject({
                 id: "stop",
                 label: t("research.stop"),
                 icon: Square,
-                onSelect: () => move(stopProject),
-                disabled: p.status === "finished",
+                onSelect: () =>
+                  liveRun &&
+                  ["scoping", "discussion"].includes(busyNow?.role || "")
+                    ? void controlChat(p.session_id, liveRun.id, "abort").then(
+                        refresh,
+                        fail,
+                      )
+                    : move(stopProject),
+                disabled: p.status === "finished" && !liveRun,
+              },
+              {
+                id: "archive",
+                label: t("projects.sessions.archive"),
+                icon: Archive,
+                disabled: p.status !== "finished" || !!busyNow,
+                onSelect: async () => {
+                  try {
+                    await updateChatSession(p.session_id, { archived: true });
+                    refreshResearchNavigation();
+                    go(`workspaces/${p.workspace_id}`);
+                  } catch (error) {
+                    fail(error);
+                  }
+                },
               },
             ]}
             trigger={(props) => (
@@ -515,7 +577,9 @@ export function ResearchProject({
             icon={record ? PanelRightClose : PanelRightOpen}
             label={t(record ? "research.record.hide" : "research.record.show")}
             size="sm"
-            onClick={() => setRecord(!record)}
+            onClick={() => {
+              setRecord(!record);
+            }}
           />
         </div>
       </header>
@@ -532,6 +596,11 @@ export function ResearchProject({
               }}
             >
               <div className={styles.thread}>
+                <ResearchOrigin
+                  detail={detail}
+                  go={go}
+                  onResume={() => move(resumeProject)}
+                />
                 <ThreadView
                   items={items}
                   project={p}
@@ -556,25 +625,45 @@ export function ResearchProject({
             <JumpToLatest scroller={scroller} streaming={!!busyNow} />
           </div>
           <div className={styles.dock}>
+            {attention && (
+              <CardJump
+                key={`${id}-${attention.kind}-${attention.id}`}
+                cardId={`research-${attention.kind}-${attention.id}`}
+                scroller={scroller}
+                onClick={viewAttention}
+                label={t(
+                  attention.kind === "plan"
+                    ? "research.attention.viewPlan"
+                    : "research.attention.viewDecision",
+                )}
+              />
+            )}
             {liveRun && busyNow && (
               <LiveCard
                 run={liveRun}
                 role={busyNow.role}
                 name={t(
-                  `research.role.${busyNow.role === "scoping" ? "advisor" : busyNow.role}` as MessageKey,
+                  `research.role.${["scoping", "discussion"].includes(busyNow.role) ? "discussion" : busyNow.role}` as MessageKey,
                 )}
               />
             )}
             <Composer
               value={text}
-              onChange={setText}
+              onChange={changeText}
               onSend={say}
               busy={!!pending}
-              commandsOnly={finished}
               label={t("research.composer.label")}
-              placeholder={t(
-                finished ? "research.composer.finished" : placeholder,
-              )}
+              placeholder={t("research.composer.continue")}
+              leading={
+                <>
+                  <IconButton
+                    icon={Plus}
+                    label={t("research.attach")}
+                    size="sm"
+                    onClick={() => setFilesOpen(true)}
+                  />
+                </>
+              }
               sendLabel={t("research.home.send")}
               commands={commands}
               acceptInserts
@@ -594,22 +683,78 @@ export function ResearchProject({
         </div>
         {record && (
           <RecordPanel
+            outputFile={outputFile}
+            onOutputFile={setOutputFile}
             detail={detail}
-            events={events}
             computes={computes}
-            tab={tab}
-            onTab={setTab}
             run={run}
             onRun={setRun}
             actions={actions}
+            go={go}
           />
         )}
       </div>
+      {forking !== null && (
+        <ForkDialog
+          project={p}
+          initialSprintId={forking || undefined}
+          rerun={rerunning}
+          go={go}
+          onClose={() => setForking(null)}
+        />
+      )}
+      <Dialog
+        open={filesOpen}
+        title={t("research.panel.sources")}
+        onClose={() => {
+          setFilesOpen(false);
+          refresh();
+        }}
+        size="lg"
+      >
+        <FilesPanel
+          projectId={id}
+          settled={settledKey(detail.sprints, detail.jobs)}
+        />
+      </Dialog>
+      <Dialog
+        open={naming}
+        title={t("projects.sessions.rename")}
+        onClose={() => setNaming(false)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setNaming(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!title.trim()}
+              onClick={async () => {
+                try {
+                  await organizeResearch(id, { title: title.trim() });
+                  setNaming(false);
+                  refreshResearchNavigation();
+                  refresh();
+                } catch (error) {
+                  fail(error);
+                }
+              }}
+            >
+              {t("projects.save")}
+            </Button>
+          </>
+        }
+      >
+        <TextField
+          label={t("workspace.researchTitle")}
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+      </Dialog>
       <Dialog
         open={!!editing}
         onClose={() => setEditing(null)}
         title={t("research.question.edit")}
-        description={t("research.question.lead")}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditing(null)}>
@@ -651,7 +796,6 @@ export function ResearchProject({
             <TextField
               label={t("research.question.note")}
               value={editing.note}
-              placeholder={t("research.question.notePlaceholder")}
               onChange={(e) => setEditing({ ...editing, note: e.target.value })}
             />
           </div>
@@ -673,4 +817,36 @@ export function ResearchProject({
       </Dialog>
     </div>
   );
+}
+
+/** A shortcut is useful only while its card is outside the conversation viewport. */
+function CardJump({
+  cardId,
+  scroller,
+  onClick,
+  label,
+}: {
+  cardId: string;
+  scroller: RefObject<HTMLDivElement | null>;
+  onClick(): void;
+  label: string;
+}) {
+  const [outside, setOutside] = useState(false);
+  useEffect(() => {
+    const card = document.getElementById(cardId);
+    if (!card || !scroller.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setOutside(!entry.isIntersecting),
+      { root: scroller.current },
+    );
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [cardId, scroller]);
+  return outside ? (
+    <div className={styles.attention}>
+      <Button size="sm" variant="secondary" onClick={onClick}>
+        {label}
+      </Button>
+    </div>
+  ) : null;
 }
