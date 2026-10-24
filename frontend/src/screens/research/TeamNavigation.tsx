@@ -352,7 +352,9 @@ export function TeamConversationList({
                     (item) =>
                       item && ["working", "queued"].includes(item.status),
                   );
-          const working = !!activeMember;
+          // A run can be active while the member reads "waiting" or "idle"; the preview still says it is working.
+          const working =
+            !!activeMember || !!channel.working_member_ids?.length;
           const target = teamHash(id, channel.id);
           return (
             <div key={channel.id} className={nav.conversationRow}>
@@ -392,16 +394,18 @@ export function TeamConversationList({
                     >
                       {member?.paused
                         ? t("team.status.paused")
-                        : working
-                          ? colleagueStatus(activeMember!, { t, tn })
-                          : last
-                            ? authorName
-                              ? t("team.preview", {
-                                  author: authorName,
-                                  text: last.text,
-                                })
-                              : last.text
-                            : ""}
+                        : activeMember
+                          ? colleagueStatus(activeMember, { t, tn })
+                          : working
+                            ? t("team.workingPreview")
+                            : last
+                              ? authorName
+                                ? t("team.preview", {
+                                    author: authorName,
+                                    text: last.text,
+                                  })
+                                : last.text
+                              : ""}
                     </span>
                     <UnreadBadge count={channel.unread} />
                   </span>

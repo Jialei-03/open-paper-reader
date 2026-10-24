@@ -771,6 +771,7 @@ function MessagePane({
         id: first.id,
         thread_id: first.thread_id,
         channel_id: channel.id,
+        data: {},
       } as TeamMessage);
       return;
     }

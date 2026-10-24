@@ -1833,12 +1833,23 @@ test("needs you opens pending conversations and sidebar entries expose real stat
   state.researches[0].status = "waiting";
   await page.reload();
   const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
-  const advisor = sidebar
-    .getByRole("group", { name: "消息", exact: true })
-    .getByRole("link", { name: "advisor", exact: true });
-  await expect(advisor).toBeVisible();
+  const conversations = sidebar.getByRole("group", {
+    name: "消息",
+    exact: true,
+  });
   await expect(
-    advisor.getByRole("img", { name: "等你", exact: true }),
+    conversations.getByRole("link", { name: "advisor", exact: true }),
+  ).toBeVisible();
+  // The status dot is on the member's card trigger beside the conversation link.
+  await expect(
+    conversations
+      .getByRole("button", {
+        name: createTranslator("zh").t("team.colleague.card", {
+          name: "advisor",
+        }),
+        exact: true,
+      })
+      .getByRole("img", { name: "等你", exact: true }),
   ).toBeVisible();
   await expect(
     sidebar.getByRole("button", { name: "通知", exact: true }),

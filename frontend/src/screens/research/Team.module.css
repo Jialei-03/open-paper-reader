@@ -206,8 +206,10 @@
   opacity: 0;
   pointer-events: none;
 }
+/* An open menu is a top-layer popover: the pointer over it no longer hovers the message, and without this its items would inherit "none" and the toolbar would vanish. */
 :is(.message, .systemMessage):hover .hoverActions,
-:is(.message, .systemMessage):focus-within .hoverActions {
+:is(.message, .systemMessage):focus-within .hoverActions,
+.hoverActions:has([aria-expanded="true"]) {
   opacity: 1;
   pointer-events: auto;
 }

@@ -183,6 +183,11 @@ for (const theme of ["light", "dark"] as const) {
         name: "侧栏",
         exact: true,
       });
+      // Below 900px the sidebar is a rail of the same five links until it is opened.
+      if (width < 900)
+        await sidebar
+          .getByRole("button", { name: "展开侧栏", exact: true })
+          .click();
       await expect(
         sidebar.getByRole("link", { name: "新研究", exact: true }),
       ).toHaveAttribute("aria-current", "page");
@@ -191,6 +196,10 @@ for (const theme of ["light", "dark"] as const) {
           sidebar.getByRole("link", { name, exact: true }).first(),
         ).toBeVisible();
       }
+      if (width < 900)
+        await sidebar
+          .getByRole("button", { name: "收起侧栏", exact: true })
+          .click();
       const pages = [
         ["library", "全部"],
         ["library?view=reading", "在读"],

@@ -508,9 +508,14 @@ test("创建、工具、权限、订阅和成员详情", async ({ page }) => {
     },
     subscriptions: [cid],
   });
+  // The sidebar's avatar is the member's card trigger beside the conversation link.
   await expect(
     page
-      .getByRole("link", { name: "Ada", exact: true })
+      .getByRole("navigation", { name: "侧栏", exact: true })
+      .getByRole("button", {
+        name: createTranslator("zh").t("team.colleague.card", { name: "Ada" }),
+        exact: true,
+      })
       .locator('svg[shape-rendering="crispEdges"]'),
   ).toHaveJSProperty("outerHTML", expectedAvatar);
   await page.getByRole("button", { name: "Ada", exact: true }).click();
@@ -628,9 +633,13 @@ for (const locale of ["zh", "en"] as const) {
         expect(
           await name.evaluate((node) => node.scrollWidth > node.clientWidth),
         ).toBe(true);
-        const timeBox = (await row.locator("time").boundingBox())!;
-        const nameBox = (await name.boundingBox())!;
-        expect(timeBox.x).toBeGreaterThanOrEqual(nameBox.x + nameBox.width);
+        // Both edges come from one layout: the page is still resizing after the viewport changes.
+        const edges = await row.evaluate((element) => ({
+          time: element.querySelector("time")!.getBoundingClientRect().left,
+          name: element.querySelector(":scope > span")!.getBoundingClientRect()
+            .right,
+        }));
+        expect(edges.time).toBeGreaterThanOrEqual(edges.name);
         expect(
           await page.evaluate(
             () => document.documentElement.scrollWidth <= innerWidth,
@@ -900,11 +909,14 @@ test("成员列表、私信侧栏和消息头像使用一致的状态点", async
       document.documentElement.dataset.theme = value;
     }, theme);
     for (const [index, state] of states.entries()) {
+      // The avatar and its dot belong to the card trigger beside the conversation link.
       const sidebar = page
         .getByRole("navigation", { name: "侧栏", exact: true })
         .getByRole("group", { name: "消息", exact: true })
-        .getByRole("link", {
-          name: members[index].name,
+        .getByRole("button", {
+          name: createTranslator("zh").t("team.colleague.card", {
+            name: members[index].name,
+          }),
           exact: true,
         });
       const sidebarDot = sidebar.getByRole("img", {
@@ -959,8 +971,18 @@ for (const locale of ["zh", "en"] as const) {
       name: t("team.member.advisor"),
       exact: true,
     });
+    // The status dot is on the card trigger beside the conversation link.
+    const dot = page
+      .getByRole("navigation", {
+        name: t("reader.region.sidebar"),
+        exact: true,
+      })
+      .getByRole("button", {
+        name: t("team.colleague.card", { name: t("team.member.advisor") }),
+        exact: true,
+      });
     await expect(
-      direct.getByRole("img", { name: t("team.status.paused"), exact: true }),
+      dot.getByRole("img", { name: t("team.status.paused"), exact: true }),
     ).toBeVisible();
     await expect(
       direct.getByText(t("team.status.paused"), { exact: true }),
@@ -980,7 +1002,7 @@ for (const locale of ["zh", "en"] as const) {
     ).toBeVisible();
     expect(saved.at(-1)).toEqual({ paused: false });
     await expect(
-      direct.getByRole("img", { name: t("team.status.idle"), exact: true }),
+      dot.getByRole("img", { name: t("team.status.idle"), exact: true }),
     ).toBeVisible();
   });
 }

@@ -265,6 +265,12 @@ for (const [locale, theme, width] of [
     await expect(
       page.getByRole("complementary", { name: "conclusion.md", exact: true }),
     ).toContainText("Saved conclusion");
+    // At 720px the preview replaces the channel, so the summary is checked
+    // with the preview closed.
+    await page
+      .getByRole("complementary", { name: "conclusion.md", exact: true })
+      .getByRole("button", { name: t("common.close"), exact: true })
+      .click();
     const readBeforePoll = reads;
     data.show = false;
     await page.evaluate(() =>
@@ -286,10 +292,6 @@ for (const [locale, theme, width] of [
     });
     data.show = true;
     data.first_unread = { id: "thread-first", thread_id: "catchup-0" };
-    await page
-      .getByRole("complementary", { name: "conclusion.md", exact: true })
-      .getByRole("button", { name: t("common.close"), exact: true })
-      .click();
     await page.evaluate(() => {
       window.dispatchEvent(new Event("blur"));
       window.dispatchEvent(new Event("focus"));
@@ -2622,10 +2624,23 @@ for (const [locale, width] of [
     await page.evaluate(() =>
       window.dispatchEvent(new Event("research-team-updated")),
     );
+    // Below 900px the sidebar is a rail until it is opened.
+    const sidebar = page.getByRole("navigation", {
+      name: t("reader.region.sidebar"),
+      exact: true,
+    });
+    const openSidebar = async () => {
+      const expand = sidebar.getByRole("button", {
+        name: t("sidebar.expand"),
+        exact: true,
+      });
+      if (await expand.isVisible()) await expand.click();
+    };
+    await openSidebar();
     const activity = page.locator('[data-id="activity"]');
-    await expect(
-      activity.locator("..").getByText("1", { exact: true }),
-    ).toBeVisible();
+    // The count sits beside the entry; the entry itself is wrapped by its tooltip.
+    const shortcut = activity.locator("xpath=ancestor::div[1]");
+    await expect(shortcut.getByText("1", { exact: true })).toBeVisible();
     await activity.click();
     const event = page.locator('[data-activity-id="reminder-event"]');
     await expect(event).toHaveAttribute("data-unread", "true");
@@ -2634,11 +2649,8 @@ for (const [locale, width] of [
     await expect(row).toHaveAttribute("data-located", "true");
     await expect(row).toBeFocused();
     await expect.poll(() => read).toBe(true);
-    await expect(
-      page
-        .locator('[data-id="activity"]')
-        .locator("..")
-        .getByText("1", { exact: true }),
-    ).toHaveCount(0);
+    await openSidebar();
+    await expect(activity).toBeVisible();
+    await expect(shortcut.getByText("1", { exact: true })).toHaveCount(0);
   });
 }

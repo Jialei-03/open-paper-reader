@@ -383,6 +383,7 @@ export async function seedSmokeData(page: Page) {
         return reply({ ...members[1], activity: "", threads: [] });
       if (path.endsWith("/team/library")) return reply([]);
       if (path.endsWith("/team/activity")) return reply([]);
+      if (path.endsWith("/team/saved")) return reply([]);
       if (path.endsWith("/team/workflow")) return reply(workflow);
       if (path.includes("/team")) return route.fallback();
       if (path.endsWith("/events"))

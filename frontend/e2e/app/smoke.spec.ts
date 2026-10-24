@@ -355,27 +355,38 @@ async function menus(page: Page, scope: Page | Locator = page) {
     });
   }
   // These popovers expose dialog semantics and a name, without aria-controls.
-  const dialogNames = await scope
-    .getByRole("button")
-    .and(page.locator('[aria-haspopup="dialog"]'))
-    .evaluateAll((buttons) =>
-      buttons.map((button) => button.getAttribute("aria-label")!),
-    );
+  // A member's card opens from several places (avatar, name, header, sidebar)
+  // under one name, so each trigger of a name is tried in turn.
+  const dialogNames = new Set(
+    await scope
+      .getByRole("button")
+      .and(page.locator('[aria-haspopup="dialog"]'))
+      .evaluateAll((buttons) =>
+        buttons.map((button) => button.getAttribute("aria-label")!),
+      ),
+  );
   for (const name of dialogNames) {
-    const button = scope.getByRole("button", { name, exact: true });
-    if (!(await button.isVisible()) || !(await button.isEnabled())) continue;
-    const before = await page.getByRole("dialog").count();
-    await button.click();
+    const buttons = scope.getByRole("button", { name, exact: true });
+    // A member's card trigger reads "<name> · card"; the card itself is named by the member.
+    const [, cardSuffix] = zh["team.colleague.card"].split("{name}");
     const title = [
       zh["team.switch"],
       zh["workspace.choose"],
       zh["workspace.chooseFolder"],
     ].some((label) => label === name)
       ? zh["workspace.choose"]
-      : name;
-    await expect(page.getByRole("dialog")).toHaveCount(before + 1);
-    await escapeDialog(page, title);
-    await expect(page.getByRole("dialog")).toHaveCount(before);
+      : name.endsWith(cardSuffix)
+        ? name.slice(0, -cardSuffix.length)
+        : name;
+    for (let index = 0; index < (await buttons.count()); index++) {
+      const button = buttons.nth(index);
+      if (!(await button.isVisible()) || !(await button.isEnabled())) continue;
+      const before = await page.getByRole("dialog").count();
+      await button.click();
+      await expect(page.getByRole("dialog")).toHaveCount(before + 1);
+      await escapeDialog(page, title);
+      await expect(page.getByRole("dialog")).toHaveCount(before);
+    }
   }
 }
 

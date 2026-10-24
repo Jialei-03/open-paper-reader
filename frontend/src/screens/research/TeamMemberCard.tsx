@@ -169,7 +169,7 @@ export function TeamMemberCard({
   );
   return (
     <>
-      {heading ? <h1>{trigger}</h1> : trigger}
+      {heading ? <h1 aria-label={name}>{trigger}</h1> : trigger}
       <Floating
         open={open}
         anchor={anchor.current}
