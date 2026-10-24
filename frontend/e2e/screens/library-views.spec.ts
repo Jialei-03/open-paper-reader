@@ -279,7 +279,7 @@ test("the reader's menu opens the same details", async ({ page }) => {
   await page.getByRole("menuitem", { name: "论文详情" }).click();
   const sheet = page.getByRole("dialog", { name: "论文详情" });
   await expect(sheet).toContainText(paper.title);
-  await expect(sheet.getByText("2 页")).toBeVisible();
+  await expect(sheet.getByText(/^2 页 ·/)).toBeVisible();
 });
 
 test("covers come from the thumbnail route and the PDF itself is not downloaded", async ({

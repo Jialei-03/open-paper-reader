@@ -1405,7 +1405,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(own).toHaveAttribute("data-author", "human");
     const ownBubble = own.getByTestId("team-message-bubble");
     const memberBubble = first.getByTestId("team-message-bubble");
-    await expect(ownBubble).toHaveCSS("border-radius", "18px 18px 6px 18px");
+    await expect(ownBubble).toHaveCSS("border-radius", "18px 18px 6px");
     await expect(memberBubble).toHaveCSS("border-radius", "18px 18px 18px 6px");
     for (const bubble of [ownBubble, memberBubble]) {
       await expect(bubble).toHaveCSS("padding", "10px 16px");

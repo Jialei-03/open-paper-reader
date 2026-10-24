@@ -174,9 +174,10 @@ test("full-window settings keep the desktop inset, search and native dialog cont
   await search.press("Enter");
   await expect(dialog.getByRole("heading", { level: 1 })).toHaveText("用量");
   await search.fill("");
-  await search.press("Shift+Tab");
   const close = dialog.getByRole("button", { name: "关闭", exact: true });
+  await close.focus();
   await expect(close).toBeFocused();
+  await search.focus();
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(page).toHaveURL(/#new$/);

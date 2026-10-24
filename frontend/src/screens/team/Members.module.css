@@ -214,7 +214,8 @@ fieldset.field legend {
   color: var(--ui-fg-2);
   font-size: var(--ui-text-13);
 }
-.roleDescription :is(h1, h2, h3) {
+/* Doubled so it outranks the prose headings of the markdown inside: they stay below the member's name. */
+.roleDescription.roleDescription :is(h1, h2, h3) {
   font-size: var(--ui-text-13);
   font-weight: var(--ui-weight-strong);
   margin-block: var(--ui-space-16) var(--ui-space-8);
