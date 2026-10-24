@@ -83,7 +83,9 @@ test("the sheet shows the public record, refreshes it and copies three citations
   await expect(facts).toContainText("2017");
   await expect(facts).toContainText("123,456");
   await expect(facts).toContainText("41");
-  expect(mock.refreshed).toEqual([paper.paperId]);
+  // Workers reuse accounts; the library may also refresh their earlier papers.
+  const refreshes = () => mock.refreshed.filter((id) => id === paper.paperId);
+  expect(refreshes()).toEqual([paper.paperId]);
 
   // Three formats, each copied as shown.
   const text = sheet.getByTestId("citation-text");
@@ -108,7 +110,7 @@ test("the sheet shows the public record, refreshes it and copies three citations
   await sheet.getByRole("button", { name: "重新查询这篇论文" }).click();
   await expect(sheet.getByRole("alert")).toHaveCount(0);
   // Each press asked again (a busy page may ask once more; that is fine).
-  expect(mock.refreshed.length).toBeGreaterThanOrEqual(3);
+  expect(refreshes().length).toBeGreaterThanOrEqual(3);
 });
 
 test("the library shows sources, sorts by citations and exports a .bib", async ({
@@ -137,9 +139,8 @@ test("the library shows sources, sorts by citations and exports a .bib", async (
   await library.getByRole("searchbox", { name: "搜索文库" }).fill(stamp);
   const card = (id: string) => library.locator(`[data-paper="${id}"]`);
   await expect(card(few.paperId)).toContainText("Nature");
-  await expect(card(many.paperId)).toContainText(
-    "Advances in Neural Information Processing Systems",
-  );
+  // Known venues show their short name.
+  await expect(card(many.paperId)).toContainText("NeurIPS");
   await expect(card(none.paperId)).not.toContainText("被引");
 
   await library.getByRole("button", { name: /^排序/ }).click();
