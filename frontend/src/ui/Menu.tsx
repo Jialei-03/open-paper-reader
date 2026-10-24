@@ -13,7 +13,7 @@ import {
 import { Floating } from "./Floating";
 import { Kbd } from "./Kbd";
 import styles from "./Menu.module.css";
-import { Tooltip } from "./Tooltip";
+import { RETURNED_FOCUS, Tooltip } from "./Tooltip";
 import type { Placement } from "./position";
 import { ariaKeyShortcuts, currentPlatformIsMac } from "./shortcut";
 
@@ -299,7 +299,11 @@ export function Menu({
   const close = (returnFocus: boolean) => {
     // Before the list goes: the focus is then never on something that is leaving. After Tab, the
     // browser moves on from the button, to whatever follows it.
-    if (returnFocus) anchor?.focus();
+    if (returnFocus && anchor) {
+      anchor.setAttribute(RETURNED_FOCUS, "");
+      anchor.focus();
+      anchor.removeAttribute(RETURNED_FOCUS);
+    }
     setOpen(false);
   };
 

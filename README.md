@@ -23,7 +23,7 @@ Open Research Agent 主攻的就是这些：**研究判断力**、**持续不偏
 
 ## 它怎么工作
 
-<p align="center"><img src="docs/images/plan.png" alt="和导师定下的研究计划" width="900"></p>
+<p align="center"><img src="docs/images/home.zh.png" alt="新研究：一句话开始" width="900"></p>
 
 - **从一句话开始**：在「新研究」里说你想弄清楚什么，选好项目、工作流和模型。导师和你聊几句，写出一张计划卡片：指标、基线、先做什么、每个假设什么结果算失败（止损条件）。你点「开始实验」，实验才开始。
 - **像飞书一样协作**：频道和成员私信在一个会话列表里，按最近活动排序，有预览、未读和「工作中」。你的消息在右，成员的回复是卡片：工作过程折叠成一行，产出的文件可直接打开，改过的文件可以查看 diff 或撤销。一项研究在线程里推进。
@@ -36,7 +36,7 @@ Open Research Agent 主攻的就是这些：**研究判断力**、**持续不偏
 - **证据**：实验的日志、超参和指标由系统采集，不靠 Agent 自己抄。结论只能引用真实的日志行或论文原句，数字必须逐字对得上。可以同步到 SwanLab 或 Weights & Biases。
 - **研究手册（跨项目自我改进）**：每个研究结束后，提炼者把经过写成「在什么情况下该怎么做」的判断规则，被两个研究支持后才生效，之后的研究都会读到。目前还没有证明它有效（见下面的现状）。
 
-<p align="center"><img src="docs/images/panel.png" alt="对话和右侧面板：变更、实验" width="900"></p>
+<p align="center"><img src="docs/images/research.zh.png" alt="研究线程：计划、实验与结果" width="900"></p>
 
 **一个例子**：问「在 MNIST 上，同一个小 CNN，AdamW 和带动量的 SGD 哪个在 3 个 epoch 内测试准确率更高？」。它在一台 M5 Pro 上用 2.5 小时、13 轮、14 个实验给出的结论是：各自调好学习率后 AdamW 高 0.16–0.46 个百分点，但和种子噪声同一量级，加上 BatchNorm 和轻度增强后打平；顺带发现 MPS 上高学习率的 SGD 会崩溃而 CPU 上不会，于是把主对照改到 CPU 上做，并把适用范围写清楚。
 
@@ -46,7 +46,7 @@ Open Research Agent 主攻的就是这些：**研究判断力**、**持续不偏
 
 ## 研究团队
 
-<p align="center"><img src="docs/images/team.png" alt="团队会话：成员回复卡片、文件与改动" width="900"></p>
+<p align="center"><img src="docs/images/team.zh.png" alt="团队会话：成员回复卡片、文件与改动" width="900"></p>
 
 你是负责人，团队成员是你自定义的 agent。内置导师、执行者、文献员、评审、写手、提炼者，可以按项目修改。
 
@@ -86,7 +86,7 @@ Open Research Agent 主攻的就是这些：**研究判断力**、**持续不偏
 - 对照翻译、版面翻译、源码重编译；
 - Markdown 笔记、资料库（全部 / 在读 / 未读 / 已读）、相关论文与推荐。
 
-<p align="center"><img src="docs/images/library.png" alt="资料" width="900"></p>
+<p align="center"><img src="docs/images/reader.zh.png" alt="阅读器与助手" width="900"></p>
 
 ## 在自己电脑上运行
 

@@ -32,7 +32,7 @@ export function TeamMessageChanges({
   workspace: string;
   message: TeamMessage;
 }) {
-  const { t } = useI18n();
+  const { t, tn } = useI18n();
   const [view, setView] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -49,9 +49,9 @@ export function TeamMessageChanges({
     <div
       className={styles.messageChanges}
       role="group"
-      aria-label={t("team.changes.files", { n: changes.files.length })}
+      aria-label={tn("team.changes.files", changes.files.length)}
     >
-      <span>{t("team.changes.files", { n: changes.files.length })}</span>
+      <span>{tn("team.changes.files", changes.files.length)}</span>
       <ChangeNumbers changes={changes} />
       <div className={styles.changeActions}>
         <Button variant="ghost" size="sm" onClick={() => setView(true)}>

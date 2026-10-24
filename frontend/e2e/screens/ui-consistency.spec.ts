@@ -128,10 +128,10 @@ for (const theme of ["light", "dark"] as const) {
       const home = page.getByTestId("new-research");
       await expect(
         home.getByRole("heading", { name: "想研究什么？" }),
-      ).toHaveCSS("font-size", "24px");
+      ).toHaveCSS("font-size", "30px");
       await expect(
         home.getByRole("heading", { name: "想研究什么？" }),
-      ).toHaveCSS("font-weight", "600");
+      ).toHaveCSS("font-weight", "400");
       for (const name of ["附加文件", "选择项目", "添加模型", "工作流"]) {
         await expect(
           home.getByRole("button", { name, exact: true }),
@@ -183,7 +183,7 @@ for (const theme of ["light", "dark"] as const) {
         });
         await expect(heading).toBeVisible();
         await expect(heading).toHaveCSS("font-size", "24px");
-        await expect(heading).toHaveCSS("font-weight", "600");
+        await expect(heading).toHaveCSS("font-weight", "400");
         const box = (await heading.boundingBox())!;
         left ??= box.x;
         expect(box.x).toBeCloseTo(left, 0);

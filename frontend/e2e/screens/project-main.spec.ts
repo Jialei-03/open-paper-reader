@@ -1595,9 +1595,13 @@ test("SSH connections validate before a remote folder can become a workspace", a
     connection_id: "ssh-test",
   });
   expect(state.direct).toEqual([]);
-  await expect(page.getByRole("main")).toContainText(
-    "实验服务器 · /home/runner/ORA/lab",
-  );
+  await expect(
+    page
+      .getByRole("main")
+      .getByTitle("实验服务器 · SSH · runner@lab · /home/runner/ORA/lab", {
+        exact: true,
+      }),
+  ).toHaveText("实验服务器");
   await expect(
     page
       .getByRole("navigation", { name: "侧栏", exact: true })
@@ -1657,9 +1661,13 @@ test("SSH connections validate before a remote folder can become a workspace", a
   await expect(page.getByRole("tab")).toHaveCount(0);
   await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
   await page.goto("/#workspaces/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
-  await expect(page.getByRole("main")).toContainText(
-    "实验服务器 · /home/runner/ORA/lab",
-  );
+  await expect(
+    page
+      .getByRole("main")
+      .getByTitle("实验服务器 · SSH · runner@lab · /home/runner/ORA/lab", {
+        exact: true,
+      }),
+  ).toHaveText("实验服务器");
   await page.getByRole("main").locator(`a[href="#research/${rid}"]`).click();
   await expect(page).toHaveURL(new RegExp(`#research/${rid}$`));
 });

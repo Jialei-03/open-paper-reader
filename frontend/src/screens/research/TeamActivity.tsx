@@ -239,7 +239,7 @@ export function ThreadRow({
   message: TeamMessage;
   open(): void;
 }) {
-  const { t, locale } = useI18n();
+  const { t, tn, locale } = useI18n();
   const channel =
     message.channel ||
     team.channels.find((channel) => channel.id === message.channel_id);
@@ -297,7 +297,7 @@ export function ThreadRow({
             </span>
           )}
           <span className={styles.meta}>
-            {t("team.replies", { n: message.replies })}
+            {tn("team.replies", message.replies)}
           </span>
         </span>
       </span>

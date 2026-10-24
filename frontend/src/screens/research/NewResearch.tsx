@@ -9,6 +9,7 @@ import { useResearchNavigation } from "./ResearchNavigation";
 import { getTeam, teamHash } from "./team-api";
 import { resumeProject, startProject } from "./research-api";
 import { Composer } from "./talk/Composer";
+import { NewRecent } from "./NewRecent";
 import { WorkflowPicker } from "../workflows/WorkflowPicker";
 import { ModelPicker } from "./talk/Pickers";
 import { WorkspacePicker } from "./WorkspaceDialogs";
@@ -130,6 +131,7 @@ export function NewResearch({
           </p>
         )}
       </div>
+      <NewRecent go={go} />
     </main>
   );
 }

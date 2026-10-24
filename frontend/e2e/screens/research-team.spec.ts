@@ -49,7 +49,7 @@ for (const [locale, theme, width] of [
   test(`${locale} ${theme}: member changes support lazy diffs, confirmation and a persistent revert receipt`, async ({
     page,
   }) => {
-    const { t } = createTranslator(locale);
+    const { t, tn } = createTranslator(locale);
     await page.setViewportSize({ width, height: 1000 });
     await page.addInitScript(
       ({ locale, theme }) => {
@@ -108,7 +108,7 @@ for (const [locale, theme, width] of [
       row.getByText(t("team.noAnswer"), { exact: true }),
     ).toHaveCount(0);
     await expect(
-      row.getByText(t("team.changes.files", { n: 2 }), { exact: true }),
+      row.getByText(tn("team.changes.files", 2), { exact: true }),
     ).toBeVisible();
     await expect(row.getByText("+13", { exact: true })).toBeVisible();
     await expect(row.getByText("−2", { exact: true })).toBeVisible();

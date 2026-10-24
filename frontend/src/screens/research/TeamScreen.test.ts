@@ -67,7 +67,7 @@ const message: TeamMessage = {
 
 describe("team member replies", () => {
   for (const locale of ["zh", "en"] as const) {
-    const { t } = createTranslator(locale);
+    const { t, tn } = createTranslator(locale);
     const render = (value: TeamMessage, grouped = false) =>
       renderToStaticMarkup(
         createElement(I18nProvider, {
@@ -118,7 +118,7 @@ describe("team member replies", () => {
       expect(html).toContain(t("team.agent"));
       expect(html).toContain(t("team.handoff", { name: "writer" }));
       expect(html).toContain("offline-model");
-      expect(html).toContain(t("team.replies", { n: 3 }));
+      expect(html).toContain(tn("team.replies", 3));
       expect(html).toContain('aria-label="draft.md"');
       expect(html).toContain('aria-label="data.csv"');
       expect(html).toContain(t("team.open"));
@@ -145,7 +145,7 @@ describe("team member replies", () => {
         html.indexOf('title="Ada"'),
       );
       expect(html.indexOf('title="Ada"')).toBeLessThan(
-        html.indexOf(`<span>${t("team.replies", { n: 5 })}</span>`),
+        html.indexOf(`<span>${tn("team.replies", 5)}</span>`),
       );
       expect(html).toContain(`<time dateTime="${finished}">`);
       expect(html).toContain(`aria-label="${t("team.reply")}"`);
@@ -162,10 +162,10 @@ describe("team member replies", () => {
       expect(html).toContain("Inline answer");
       expect(html).toContain(`aria-label="${t("team.reply")}"`);
       expect(html).not.toContain(t("team.threadParticipants"));
-      expect(html).not.toContain(t("team.replies", { n: 0 }));
+      expect(html).not.toContain(tn("team.replies", 0));
       expect(
         render({ ...message, run: undefined, thread_id: "root", replies: 2 }),
-      ).not.toContain(t("team.replies", { n: 2 }));
+      ).not.toContain(tn("team.replies", 2));
     });
 
     it(`${locale} groups consecutive agent messages without repeating their identity`, () => {
@@ -196,13 +196,13 @@ describe("team member replies", () => {
         run: undefined,
         data: { files: [{ path: "draft.md", name: "draft.md" }], changes },
       });
-      expect(html).toContain(t("team.changes.files", { n: 2 }));
+      expect(html).toContain(tn("team.changes.files", 2));
       expect(html).toContain("+13");
       expect(html).toContain("−3");
       expect(html).toContain(`>${t("team.changes.view")}</span>`);
       expect(html).toContain(`>${t("research.changes.undo")}</span>`);
       expect(html.indexOf('aria-label="draft.md"')).toBeLessThan(
-        html.indexOf(t("team.changes.files", { n: 2 })),
+        html.indexOf(tn("team.changes.files", 2)),
       );
       expect(html).not.toContain(t("team.changes.confirm"));
     });
@@ -228,7 +228,7 @@ describe("team member replies", () => {
           },
         },
       });
-      expect(binary).toContain(t("team.changes.files", { n: 1 }));
+      expect(binary).toContain(tn("team.changes.files", 1));
     });
     it(`${locale} keeps reverted changes reviewable and removes the undo action`, () => {
       const html = render({
@@ -401,7 +401,7 @@ describe("team member replies", () => {
     it(`${locale} preserves file cards, deletions, attachments, links and file errors without reply text`, () => {
       const cases: [TeamMessage["data"], string][] = [
         [{ files: [{ path: "draft.md", name: "draft.md" }] }, "draft.md"],
-        [{ changes }, t("team.changes.files", { n: 2 })],
+        [{ changes }, tn("team.changes.files", 2)],
         [
           {
             changes: {
@@ -411,7 +411,7 @@ describe("team member replies", () => {
               ],
             },
           },
-          t("team.changes.files", { n: 1 }),
+          tn("team.changes.files", 1),
         ],
         [
           { attachments: [{ id: "file", name: "attached.md", url: "/file" }] },

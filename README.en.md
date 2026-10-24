@@ -23,7 +23,7 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 
 ## How it works
 
-<p align="center"><img src="docs/images/plan.png" alt="A research plan agreed with the advisor" width="900"></p>
+<p align="center"><img src="docs/images/home.en.png" alt="New research: start from one sentence" width="900"></p>
 
 - **It starts with one sentence**: in New research, say what you want to find out and pick a project, a workflow and a model. The advisor talks it through and writes a plan card: the metric, the baseline, what comes first, and what result would sink each hypothesis. Experiments start when you press Start experiments.
 - **Work together like in Feishu**: channels and member DMs share one conversation list, newest first, with previews, unread counts and who is working. Your messages sit on the right; member replies are cards with their work folded into one line, files to open, and changed files to diff or revert. Each research runs in a thread.
@@ -36,7 +36,7 @@ Open Research Agent goes after exactly these: **research judgment**, **staying o
 - **Evidence**: logs, hyperparameters and metrics are collected by the system. A conclusion may only cite real log lines or paper sentences, and numbers must match exactly. Runs can be mirrored to SwanLab or Weights & Biases.
 - **Research playbook (cross-project self-improvement)**: after each research, a distiller writes "in this situation, do this" rules, which take effect once two researches support them. Not yet shown to help (see Status).
 
-<p align="center"><img src="docs/images/panel.png" alt="A conversation and its side panel: changes and experiments" width="900"></p>
+<p align="center"><img src="docs/images/research.en.png" alt="A research thread: plan, experiments and results" width="900"></p>
 
 **An example**: asked "On MNIST, with the same small CNN, which reaches higher test accuracy in 3 epochs, AdamW or SGD with momentum?", it spent 2.5 hours, 13 rounds and 14 experiments on an M5 Pro and concluded: with each learning rate tuned, AdamW is 0.16–0.46 points higher, about the size of seed noise, and the two tie once BatchNorm and light augmentation are added. Along the way it found SGD at a high learning rate collapses on MPS but not on the CPU, moved the main comparison to the CPU, and wrote down where the result holds.
 
@@ -46,7 +46,7 @@ Details: [Research](docs/RESEARCH.md).
 
 ## Research team
 
-<p align="center"><img src="docs/images/team.png" alt="Team conversation: member reply cards, files and changes" width="900"></p>
+<p align="center"><img src="docs/images/team.en.png" alt="Team conversation: member reply cards, files and changes" width="900"></p>
 
 You lead a team of agents you define. Built-in members include an advisor, executor, librarian, reviewer, writer and distiller, which you can adapt for each project.
 
@@ -77,7 +77,7 @@ The other half of the agent is reading papers. That part also works on its own, 
 - Parallel translation, layout translation and LaTeX recompilation.
 - Markdown notes, materials (all / reading / unread / read), related papers and recommendations.
 
-<p align="center"><img src="docs/images/library.png" alt="Materials" width="900"></p>
+<p align="center"><img src="docs/images/reader.en.png" alt="The reader and its assistant" width="900"></p>
 
 ## Run it on your computer
 

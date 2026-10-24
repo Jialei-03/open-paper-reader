@@ -15,8 +15,10 @@
 }
 
 .frequent {
+  /* However many there are share the width, so a name has room. */
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   gap: var(--ui-space-4);
   padding: 0 var(--ui-space-4) var(--ui-space-12);
 }

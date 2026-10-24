@@ -50,6 +50,7 @@
   --ui-shadow-k: 1; /* shadow strength */
   --ui-edge-k1: 6%; /* mix of the two hairline strengths */
   --ui-edge-k2: 10%;
+  --ui-edge-k3: 16%;
 
   /* Derived from the primaries */
   --ui-edge-subtle: color-mix(
@@ -58,6 +59,11 @@
     transparent
   );
   --ui-edge: color-mix(in oklab, var(--ui-fg) var(--ui-edge-k2), transparent);
+  --ui-edge-strong: color-mix(
+    in oklab,
+    var(--ui-fg) var(--ui-edge-k3),
+    transparent
+  );
   --ui-hover: color-mix(in oklab, var(--ui-fg) 5%, transparent);
   --ui-selected: color-mix(in oklab, var(--ui-fg) 8%, transparent);
   --ui-fill: color-mix(in oklab, var(--ui-fg) 4%, transparent);
@@ -202,6 +208,7 @@
   --ui-shadow-k: 3;
   --ui-edge-k1: 7%;
   --ui-edge-k2: 11%;
+  --ui-edge-k3: 18%;
 }
 
 /* Without the script that sets data-theme: only keeps the first paint from flashing white. */

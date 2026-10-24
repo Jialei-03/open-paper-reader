@@ -19,7 +19,7 @@ import { memo, useEffect, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useI18n } from "../../../i18n/I18nProvider";
-import type { MessageKey } from "../../../i18n/i18n";
+import type { MessageKey, PluralBase } from "../../../i18n/i18n";
 import { fadeTail, useSmoothText } from "../../../reader/stream";
 import type { Agent } from "../scene/frames";
 import { Mascot } from "../scene/Mascot";
@@ -291,9 +291,9 @@ export function SummaryLine({
   open: boolean;
   onToggle(): void;
 }) {
-  const { t } = useI18n();
+  const { t, tn } = useI18n();
   const parts = summary(steps).map(([kind, n]) =>
-    t(`research.process.sum.${kind}` as MessageKey, { n }),
+    tn(`research.process.sum.${kind}` as PluralBase, n),
   );
   const label =
     status === "failed"

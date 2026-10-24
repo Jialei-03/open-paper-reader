@@ -40,7 +40,7 @@ import {
 import { api } from "../../api";
 import { AppActions } from "../../app/AppSidebar";
 import { useI18n } from "../../i18n/I18nProvider";
-import type { MessageKey } from "../../i18n/i18n";
+import type { MessageKey, PluralBase } from "../../i18n/i18n";
 import { Button, Dialog, IconButton, Menu, TextField, toast } from "../../ui";
 import { readModels, type ModelRow } from "../setup/model-api";
 import { AddModelButton, openModelSetup } from "../setup/ModelSetup";
@@ -834,7 +834,7 @@ function MessageRun({
   member?: TeamMember;
   name: string;
 }) {
-  const { t } = useI18n();
+  const { t, tn } = useI18n();
   const [open, setOpen] = useState(false);
   const run = message.run!;
   const error = run.runtime?.time_limit_reached
@@ -863,7 +863,7 @@ function MessageRun({
             {[
               t("team.status.working"),
               ...summary(run.steps).map(([kind, n]) =>
-                t(`research.process.sum.${kind}` as MessageKey, { n }),
+                tn(`research.process.sum.${kind}` as PluralBase, n),
               ),
             ].join(" · ")}
           </Button>
@@ -910,7 +910,7 @@ export function MessageRow({
   grouped?: boolean;
   modelName?: string;
 }) {
-  const { t, locale } = useI18n();
+  const { t, tn, locale } = useI18n();
   const member =
     team.members.find((m) => m.id === message.author_id) ??
     (message.kind === "research"
@@ -1097,7 +1097,7 @@ export function MessageRow({
           {!message.thread_id && message.replies > 0 && (
             <button
               className={styles.replies}
-              aria-label={t("team.replies", { n: message.replies })}
+              aria-label={tn("team.replies", message.replies)}
               onClick={() => openThread(message)}
             >
               {!!message.reply_authors?.length && (
@@ -1126,7 +1126,7 @@ export function MessageRow({
                   })}
                 </span>
               )}
-              <span>{t("team.replies", { n: message.replies })}</span>
+              <span>{tn("team.replies", message.replies)}</span>
               {message.last_message_at && (
                 <time dateTime={message.last_message_at}>
                   {threadDate(message.last_message_at, locale)}

@@ -5,7 +5,7 @@
   min-height: 0;
   min-width: 0;
   flex: 1;
-  background: var(--ui-bg-1);
+  background: var(--ui-bg);
 }
 .fileImage {
   max-width: 100%;
@@ -250,8 +250,9 @@
   position: relative;
   background: var(--ui-elev);
   box-shadow: var(--ui-elev-composer);
-  border-radius: var(--ui-r-12);
-  padding: var(--ui-space-12);
+  border-radius: var(--ui-r-20);
+  padding: var(--ui-space-12) var(--ui-space-12) var(--ui-space-10)
+    var(--ui-space-16);
 }
 .composer textarea {
   display: block;

@@ -45,8 +45,9 @@
 
 /* Local research has a dedicated app rail and a calm, independent thread list. */
 .researchSidebar {
-  --research-rail-bg: var(--ora-chrome, var(--ui-bg-3));
-  --research-pane-bg: var(--ui-bg-2);
+  /* Both sit on the shell: no surface of their own. */
+  --research-rail-bg: transparent;
+  --research-pane-bg: transparent;
   display: flex;
   flex: none;
   min-width: 0;
@@ -119,7 +120,6 @@
   flex-direction: column;
   width: var(--research-sidebar-width, var(--ui-sidebar-width));
   min-width: 0;
-  border-right: 1px solid var(--ui-edge-subtle);
   background: var(--research-pane-bg);
 }
 
@@ -244,6 +244,7 @@
     calc(100vw - calc(var(--ui-rail-width) + var(--ui-space-24)))
   );
   border-radius: 0 var(--ui-r-12) var(--ui-r-12) 0;
+  background: var(--ui-bg-1);
   box-shadow: var(--ui-elev-2);
 }
 

@@ -18,6 +18,8 @@ export async function mockTeam(
       archived_at?: string | null;
     }[];
     history?: () => TeamMessage[];
+    team?: () => Partial<Team>;
+    messages?: (channel: string, thread: string | null) => TeamMessage[];
   } = {},
 ) {
   await page.route("**/api/v1/research/workspaces/*/team**", (route) => {
@@ -82,6 +84,7 @@ export async function mockTeam(
           },
         ],
         notifications: [],
+        ...options.team?.(),
       };
       return route.fulfill({ json: team });
     }
@@ -89,12 +92,19 @@ export async function mockTeam(
       const thread = url.searchParams.get("thread_id");
       return route.fulfill({
         json: {
-          messages: thread
-            ? []
-            : url.pathname.includes(advisorDM)
-              ? options.history?.() || []
-              : roots,
-          root: roots.find((r) => r.id === thread) || null,
+          messages: options.messages
+            ? options.messages(url.pathname.split("/")[8], thread)
+            : thread
+              ? []
+              : url.pathname.includes(advisorDM)
+                ? options.history?.() || []
+                : roots,
+          root:
+            roots.find((r) => r.id === thread) ||
+            options
+              .messages?.(url.pathname.split("/")[8], null)
+              .find((r) => r.id === thread) ||
+            null,
           research_id: thread?.startsWith("research:") ? thread.slice(9) : null,
         },
       });
@@ -102,7 +112,13 @@ export async function mockTeam(
     if (url.pathname.endsWith("/read"))
       return route.fulfill({ json: { ok: true } });
     if (url.pathname.endsWith("/threads"))
-      return route.fulfill({ json: roots });
+      return route.fulfill({
+        json: options.messages
+          ? options
+              .messages(experiments, null)
+              .filter((message) => message.replies)
+          : roots,
+      });
     if (url.pathname.endsWith("/deliveries"))
       return route.fulfill({ json: [] });
     return route.fulfill({

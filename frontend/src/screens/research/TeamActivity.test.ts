@@ -45,7 +45,7 @@ const message: TeamMessage = {
 };
 describe("team inbox rows", () => {
   for (const locale of ["zh", "en"] as const) {
-    const { t } = createTranslator(locale);
+    const { t, tn } = createTranslator(locale);
     const render = (children: ReturnType<typeof createElement>) =>
       renderToStaticMarkup(createElement(I18nProvider, { locale, children }));
     it(`${locale} shows activity actor, source, action, summary, time and unread state`, () => {
@@ -96,7 +96,7 @@ describe("team inbox rows", () => {
       expect(html).toContain("Root summary");
       expect(html).toContain('aria-label="Lin, Sam, Jo"');
       expect(html.match(/<img /g)).toHaveLength(4);
-      expect(html).toContain(t("team.replies", { n: 4 }));
+      expect(html).toContain(tn("team.replies", 4));
       expect(html).toContain(`dateTime="${message.last_message_at}"`);
       expect(html).toContain('data-unread="true"');
       const direct = render(

@@ -168,8 +168,9 @@
   margin: 0;
   padding-right: var(--ui-space-32);
   color: var(--ui-fg);
+  font-family: var(--ui-font-display);
   font-size: var(--ui-text-24);
-  font-weight: var(--ui-weight-strong);
+  font-weight: var(--ui-weight-regular);
   line-height: var(--ui-leading-tight);
 }
 

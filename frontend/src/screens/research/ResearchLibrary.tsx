@@ -70,8 +70,10 @@ export function WorkspaceScreen({
         <div>
           <h1>{workspace?.name || t("workspace.workspaces")}</h1>
           {workspace && (
-            <p title={machine(workspace.location).title}>
-              {machine(workspace.location).label} · {workspace.location.path}
+            <p
+              title={`${machine(workspace.location).title} · ${workspace.location.path}`}
+            >
+              {machine(workspace.location).label}
             </p>
           )}
         </div>
@@ -175,8 +177,10 @@ export function WorkspaceScreen({
                 <Folder size={22} aria-hidden />
                 <span>
                   <strong>{item.name}</strong>
-                  <small title={machine(item.location).title}>
-                    {machine(item.location).label} · {item.location.path}
+                  <small
+                    title={`${machine(item.location).title} · ${item.location.path}`}
+                  >
+                    {machine(item.location).label}
                   </small>
                 </span>
                 <span>{item.researches.length}</span>

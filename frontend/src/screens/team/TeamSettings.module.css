@@ -33,8 +33,9 @@
 }
 .header h1 {
   margin: 0;
+  font-family: var(--ui-font-display);
   font-size: var(--ui-text-24);
-  font-weight: var(--ui-weight-strong);
+  font-weight: var(--ui-weight-regular);
 }
 .members {
   list-style: none;
