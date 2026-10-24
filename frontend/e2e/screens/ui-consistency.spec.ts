@@ -132,7 +132,7 @@ for (const theme of ["light", "dark"] as const) {
       await expect(
         home.getByRole("heading", { name: "想研究什么？" }),
       ).toHaveCSS("font-weight", "600");
-      for (const name of ["附加文件", "选择项目", "选择模型", "工作流"]) {
+      for (const name of ["附加文件", "选择项目", "添加模型", "工作流"]) {
         await expect(
           home.getByRole("button", { name, exact: true }),
         ).toBeVisible();

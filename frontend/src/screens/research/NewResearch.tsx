@@ -201,7 +201,6 @@ function FirstMessage({
       },
       (reason: unknown) => {
         if (!cancelled) {
-          setModelKnown(true);
           setError(reason instanceof Error ? reason.message : String(reason));
         }
       },
@@ -317,6 +316,7 @@ function FirstMessage({
         busy={busy}
         disabled={busy}
         sendDisabled={!workspaceId || !modelId}
+        needsModel={modelKnown && models.length === 0}
         leading={
           <>
             <IconButton
@@ -347,15 +347,6 @@ function FirstMessage({
         }
         autoFocus
       />
-      {modelKnown && !modelId && (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => go("customize/models")}
-        >
-          {t("workspace.configureModel")}
-        </Button>
-      )}
       {error && (
         <p className={styles.error} role="alert">
           {error}

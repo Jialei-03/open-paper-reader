@@ -10,6 +10,7 @@ import {
   useSlashCommands,
 } from "../../../ui";
 import { INSERT_EVENT, type InsertDetail } from "../files/files-api";
+import { AddModelButton, openModelSetup } from "../../setup/ModelSetup";
 import styles from "./Talk.module.css";
 
 /**
@@ -27,6 +28,7 @@ export function Composer({
   busy = false,
   disabled = false,
   sendDisabled = false,
+  needsModel = false,
   autoFocus = false,
   tools,
   leading,
@@ -45,6 +47,8 @@ export function Composer({
   busy?: boolean;
   disabled?: boolean;
   sendDisabled?: boolean;
+  /** The settings were read successfully and contain no models. */
+  needsModel?: boolean;
   autoFocus?: boolean;
   /** Pickers beside the send button (model, compute). */
   tools?: ReactNode;
@@ -92,7 +96,7 @@ export function Composer({
     value.trim().length > 0 &&
     !busy &&
     !disabled &&
-    !sendDisabled &&
+    (!sendDisabled || needsModel) &&
     !commandsOnly;
   // Actions that need text stay in the slash palette. These run without
   // replacing an unsent draft, and model choices already have their picker.
@@ -101,7 +105,9 @@ export function Composer({
   );
   const send = () => {
     if (slash.submit()) return;
-    if (ready) onSend();
+    if (!ready) return;
+    if (needsModel) openModelSetup();
+    else onSend();
   };
   return (
     <form
@@ -160,11 +166,11 @@ export function Composer({
           {status && <span className={styles.composerStatus}>{status}</span>}
         </div>
         <div className={styles.composerEnd}>
-          {tools}
+          {needsModel ? <AddModelButton disabled={busy || disabled} /> : tools}
           <Tooltip content={sendLabel}>
             <Button
               type="submit"
-              variant="primary"
+              variant={needsModel ? "secondary" : "primary"}
               icon={ArrowUp}
               className={styles.send}
               disabled={!ready}

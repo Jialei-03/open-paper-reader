@@ -630,7 +630,7 @@ for (const theme of ["light", "dark"] as const) {
     const screen = page.getByTestId("team-screen");
     const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
     const switcher = sidebar.getByRole("button", {
-      name: "切换团队",
+      name: "切换项目",
       exact: true,
     });
     await expect(switcher).toHaveText("表示学习");

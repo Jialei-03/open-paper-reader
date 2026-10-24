@@ -24,7 +24,7 @@ import {
   type TeamMember,
 } from "./team-api";
 import { useResearchNavigation } from "./ResearchNavigation";
-import { WorkspacePicker } from "./WorkspaceDialogs";
+import { CreateWorkspaceDialog, WorkspacePicker } from "./WorkspaceDialogs";
 import styles from "./Team.module.css";
 import { defaultChannelNames, threadDate } from "./team-model";
 import nav from "./TeamNavigation.module.css";
@@ -135,17 +135,28 @@ export function TeamNavigation({
   const id = useTeamWorkspace(hash);
   const { team, error, reload } = useTeam(id);
   const [creating, setCreating] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
   const [name, setName] = useState("");
   const [failure, setFailure] = useState("");
   const [saving, setSaving] = useState(false);
   if (!id)
     return (
-      <SidebarItem
-        icon={Plus}
-        label={t("team.create")}
-        href="#workspaces"
-        onClick={followLink(go, "workspaces")}
-      />
+      <>
+        <SidebarItem
+          icon={Plus}
+          label={t("team.create")}
+          onClick={() => setCreatingProject(true)}
+        />
+        {creatingProject && (
+          <CreateWorkspaceDialog
+            onClose={() => setCreatingProject(false)}
+            onCreated={(workspace) => {
+              setCreatingProject(false);
+              go(teamHash(workspace.id));
+            }}
+          />
+        )}
+      </>
     );
   return (
     <>

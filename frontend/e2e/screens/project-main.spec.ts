@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createTranslator } from "../../src/i18n/i18n";
+import type { ModelSettings } from "../../src/screens/setup/model-api";
 import type { Paper } from "../../src/api";
 import type {
   BoardCard,
@@ -270,7 +272,12 @@ async function project(page: Page) {
         ...workspace,
         id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         name: body.name,
-        location: body.location,
+        location: {
+          ...body.location,
+          path: body.create_folder
+            ? `${body.location.path}/${body.name}`
+            : body.location.path,
+        },
       };
       state.workspaces.push(next);
       return route.fulfill({ json: next });
@@ -310,21 +317,34 @@ async function project(page: Page) {
       const given = url.searchParams.get("path") || "";
       const connection_id = url.searchParams.get("connection_id") || "";
       state.folderRequests.push({ kind, path: given, connection_id });
-      const folder =
-        given || (kind === "ssh" ? "/home/runner" : "/home/leslie");
+      const home = kind === "ssh" ? "/home/runner" : "/home/leslie";
+      const folder = given || `${home}/ORA`;
       return route.fulfill({
         json: {
           path: folder,
-          parent: "/home",
+          parent:
+            folder === "/"
+              ? null
+              : folder.slice(0, folder.lastIndexOf("/")) || "/",
+          project_error:
+            folder === "/"
+              ? "root"
+              : folder === home
+                ? "home"
+                : folder === "/System"
+                  ? "system"
+                  : folder === `${home}/Desktop`
+                    ? "personal"
+                    : "",
           entries:
-            folder.endsWith("/ORA") || folder.endsWith("/lab")
-              ? []
-              : [
+            folder === `${home}/ORA`
+              ? [
                   {
-                    name: kind === "ssh" ? "lab" : "ORA",
-                    path: `${folder}/${kind === "ssh" ? "lab" : "ORA"}`,
+                    name: "lab",
+                    path: `${folder}/lab`,
                   },
-                ],
+                ]
+              : [],
         },
       });
     }
@@ -964,6 +984,203 @@ test("global session search failures leave local paper search available", async 
   ).toBeVisible();
 });
 
+for (const [locale, theme, width] of [
+  ["zh", "light", 1440],
+  ["en", "dark", 720],
+] as const) {
+  for (const screen of ["new", "dm", "research"] as const) {
+    test(`${locale} ${screen}: first model setup preserves the draft and returns ready to send`, async ({
+      page,
+    }) => {
+      const { t } = createTranslator(locale);
+      await page.setViewportSize({ width, height: 1000 });
+      await page.addInitScript(
+        ({ locale, theme }) => {
+          localStorage.setItem("paper-locale", locale);
+          localStorage.setItem("paper-appearance", theme);
+        },
+        { locale, theme },
+      );
+      const state = await project(page);
+      const settings: ModelSettings = {
+        active_id: "",
+        configured: false,
+        models: [],
+      };
+      let tests = 0;
+      const sent: Record<string, unknown>[] = [];
+      const switched: string[] = [];
+      await page.route("**/api/v1/translation-settings", (route) =>
+        route.fulfill({ json: settings }),
+      );
+      await page.route("**/api/v1/translation-settings/configs**", (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.endsWith("/test")) {
+          tests++;
+          return route.fulfill({ json: { ok: true } });
+        }
+        if (path.endsWith("/select")) {
+          settings.active_id = "onboarding-model";
+          settings.configured = true;
+        } else if (
+          route.request().method() === "POST" &&
+          path.endsWith("/configs")
+        ) {
+          settings.models.push({
+            id: "onboarding-model",
+            name: "First model",
+            model: "first-test",
+            protocol: "openai",
+            base_url: "https://example.invalid/v1",
+          });
+        } else throw new Error(`Unexpected model request: ${path}`);
+        return route.fulfill({ json: settings });
+      });
+      await page.route(`**/api/v1/research/projects/${rid}/model`, (route) => {
+        switched.push(route.request().postDataJSON().model_config_id);
+        return route.fulfill({ json: {} });
+      });
+      for (const path of [
+        `/api/v1/research/projects/${rid}/messages`,
+        `/api/v1/research/workspaces/${wid}/team/channels/${advisorDM}/messages`,
+      ]) {
+        await page.route(`**${path}`, (route) => {
+          if (route.request().method() !== "POST") return route.fallback();
+          sent.push(route.request().postDataJSON());
+          return route.fulfill({ json: {} });
+        });
+      }
+      const hash =
+        screen === "new"
+          ? `new?workspace=${wid}`
+          : screen === "dm"
+            ? teamHash(wid, advisorDM)
+            : `research/${rid}`;
+      await page.goto(`/#${hash}`);
+      await page.reload();
+      const input = page.getByRole("textbox", {
+        name: t(
+          screen === "new"
+            ? "workspace.firstMessage"
+            : screen === "dm"
+              ? "team.message"
+              : "research.composer.label",
+        ),
+        exact: true,
+      });
+      const composer = input.locator("..");
+      const add = composer.getByRole("button", {
+        name: t("settings.models.add"),
+        exact: true,
+      });
+      await expect(add).toBeVisible();
+      await expect(add).toHaveClass(/primary/);
+      await expect(
+        page.getByRole("button", {
+          name: t("settings.models.add"),
+          exact: true,
+        }),
+      ).toHaveCount(1);
+      await expect(
+        composer.getByRole("button", {
+          name: t("research.home.model"),
+          exact: true,
+        }),
+      ).toHaveCount(0);
+      // Empty drafts can enter setup through the primary button.
+      await add.click();
+      const dialog = page.getByRole("dialog", {
+        name: t("settings.models.dialog"),
+        exact: true,
+      });
+      await expect(dialog).toBeVisible();
+      await dialog
+        .getByRole("button", { name: t("common.cancel"), exact: true })
+        .click();
+      await page.goBack();
+      await expect(input).toBeEmpty();
+      const draft = "Keep this unsent question";
+      await input.fill(draft);
+      const send = composer.getByRole("button", {
+        name: t("research.home.send"),
+        exact: true,
+      });
+      await expect(send).toBeEnabled();
+      if (screen === "dm") await input.press("Enter");
+      else await send.click();
+      await expect(page).toHaveURL(
+        (url) =>
+          url.hash.startsWith("#customize/models?") &&
+          new URLSearchParams(url.hash.split("?")[1]).get("returnTo") === hash,
+      );
+      await expect(dialog).toBeVisible();
+      expect(state.direct).toEqual([]);
+      expect(sent).toEqual([]);
+      expect(switched).toEqual([]);
+      // Reopening the page restores the saved draft before a model exists.
+      await dialog
+        .getByRole("button", { name: t("common.cancel"), exact: true })
+        .click();
+      await page.goBack();
+      await expect(input).toHaveValue(draft);
+      await page.reload();
+      await expect(input).toHaveValue(draft);
+      await expect(add).toBeVisible();
+      await input.press("Enter");
+      await expect(dialog).toBeVisible();
+      await dialog
+        .getByLabel(t("model.baseUrl"), { exact: true })
+        .fill("https://example.invalid/v1");
+      await dialog
+        .getByLabel(t("model.key"), { exact: true })
+        .fill("test-only-placeholder");
+      await dialog
+        .getByLabel(t("model.name"), { exact: true })
+        .fill("first-test");
+      await dialog
+        .getByRole("button", { name: t("model.test"), exact: true })
+        .click();
+      await expect(page).toHaveURL((url) => url.hash === `#${hash}`);
+      await expect(input).toHaveValue(draft);
+      await expect(add).toHaveCount(0);
+      await expect(
+        composer.getByRole("button", { name: "First model", exact: true }),
+      ).toBeVisible();
+      await expect(send).toBeEnabled();
+      expect(tests).toBe(1);
+      await send.click();
+      if (screen === "new") {
+        await expect
+          .poll(() => state.direct)
+          .toEqual([
+            expect.objectContaining({
+              message: draft,
+              model_config_id: "onboarding-model",
+            }),
+          ]);
+      } else {
+        await expect
+          .poll(() => sent)
+          .toEqual([
+            expect.objectContaining({
+              text: draft,
+              ...(screen === "dm"
+                ? { model_config_id: "onboarding-model" }
+                : {}),
+            }),
+          ]);
+        if (screen === "research")
+          expect(switched).toEqual(["onboarding-model"]);
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    });
+  }
+}
+
 test("new research stays empty until the first message chooses a physical workspace and optional project", async ({
   page,
 }, testInfo) => {
@@ -1058,7 +1275,97 @@ test("a missing explicit workspace asks for a folder instead of silently changin
   expect(state.direct).toEqual([]);
 });
 
-test("workspace chooser searches real folders and creates a workspace without an empty research", async ({
+test("a new user opens project creation directly from the sidebar and empty list", async ({
+  page,
+}) => {
+  const state = await project(page);
+  state.workspaces = [];
+  state.researches = [];
+  state.collections = [];
+  await page.goto("/#new");
+  await page.reload();
+  const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+  await sidebar.getByRole("button", { name: "新建项目", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "新建项目", exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(page).not.toHaveURL(/#workspaces/);
+  await expect(sidebar.getByText("新建团队", { exact: true })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await page.goto("/#workspaces");
+  const main = page.getByRole("main");
+  const empty = main.locator('[class*="emptyProjects"]');
+  await expect(empty.locator("svg").first()).toBeVisible();
+  await expect(main.getByText("暂无项目", { exact: true })).toHaveCount(0);
+  await empty.getByRole("button", { name: "新建项目", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "项目名称" })).toHaveValue(
+    "未命名项目",
+  );
+  await expect(
+    dialog.getByRole("region", { name: "已选文件夹" }),
+  ).toContainText("/home/leslie/ORA/未命名项目");
+  await dialog.getByRole("button", { name: "新建项目", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(state.workspaceRequests).toEqual([
+    {
+      name: "未命名项目",
+      create_folder: true,
+      location: { kind: "local", path: "/home/leslie/ORA", connection_id: "" },
+    },
+  ]);
+  expect(state.direct).toEqual([]);
+});
+
+for (const kind of ["local", "ssh"] as const) {
+  test(`${kind} protected folders disable project creation with a short reason`, async ({
+    page,
+  }) => {
+    const state = await project(page);
+    state.connections.push({
+      id: "lab",
+      kind: "ssh",
+      name: "Lab",
+      host: "runner@lab",
+      port: 22,
+      identity_file: "",
+    });
+    await page.goto("/#workspaces");
+    await page.getByRole("button", { name: "新建项目", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "新建项目", exact: true });
+    await dialog
+      .getByRole("radio", { name: "选择已有文件夹", exact: true })
+      .click();
+    if (kind === "ssh")
+      await dialog
+        .getByRole("button", { name: "Lab runner@lab", exact: true })
+        .click();
+    const home = kind === "ssh" ? "/home/runner" : "/home/leslie";
+    const address = dialog.getByRole("textbox", { name: "目录路径" });
+    await expect(address).toHaveValue(`${home}/ORA`);
+    const submit = dialog.getByRole("button", {
+      name: "使用此文件夹",
+      exact: true,
+    });
+    for (const [path, reason] of [
+      [home, "不能用主目录"],
+      ["/", "不能用根目录"],
+      ["/System", "不能用系统目录"],
+      [`${home}/Desktop`, "不能用个人目录"],
+    ]) {
+      await address.fill(path);
+      await expect(submit).toBeDisabled();
+      await address.press("Enter");
+      await expect(dialog.getByRole("status")).toHaveText(reason);
+      await expect(submit).toBeDisabled();
+    }
+    expect(state.workspaceRequests).toEqual([]);
+    await address.fill(`${home}/ORA/lab`);
+    await address.press("Enter");
+    await expect(dialog.getByRole("status")).toHaveCount(0);
+    await expect(submit).toBeEnabled();
+  });
+}
+
+test("workspace chooser creates a new folder without an empty research", async ({
   page,
 }) => {
   const state = await project(page);
@@ -1076,35 +1383,48 @@ test("workspace chooser searches real folders and creates a workspace without an
   await expect(
     dialog.getByRole("button", { name: "本机", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await dialog
-    .getByRole("region", { name: "浏览文件夹" })
-    .getByRole("button", { name: "ORA", exact: true })
-    .click();
-  await expect(dialog.getByRole("textbox", { name: "目录路径" })).toHaveValue(
-    "/home/leslie/ORA",
+  await expect(
+    dialog.getByRole("radio", { name: "新建文件夹", exact: true }),
+  ).toBeChecked();
+  await expect(dialog.getByRole("region", { name: "浏览文件夹" })).toHaveCount(
+    0,
   );
   const selectedFolder = dialog.getByRole("region", { name: "已选文件夹" });
   await expect(selectedFolder).toContainText("本机");
   await expect(selectedFolder).toContainText("/home/leslie/ORA");
-  const name = dialog.getByRole("textbox", { name: "项目名称（可选）" });
-  await expect(name).toBeEmpty();
-  await expect(name).toHaveAttribute("placeholder", "ORA");
+  const name = dialog.getByRole("textbox", { name: "项目名称" });
+  await expect(name).toHaveValue("未命名项目");
+  await expect(name).toBeFocused();
+  expect(
+    await name.evaluate((input: HTMLInputElement) => [
+      input.selectionStart,
+      input.selectionEnd,
+    ]),
+  ).toEqual([0, "未命名项目".length]);
+  await name.fill("");
+  await expect(
+    dialog.getByRole("button", { name: "新建项目", exact: true }),
+  ).toBeDisabled();
+  await name.fill("../escape");
+  await expect(dialog.getByRole("status")).toHaveText("文件夹名称不合法");
+  await expect(
+    dialog.getByRole("button", { name: "新建项目", exact: true }),
+  ).toBeDisabled();
   await name.fill("实验目录");
-  await dialog
-    .getByRole("button", { name: "使用此文件夹", exact: true })
-    .click();
+  await dialog.getByRole("button", { name: "新建项目", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByTestId("new-research")).toContainText("实验目录");
   expect(state.workspaceRequests).toEqual([
     {
       name: "实验目录",
+      create_folder: true,
       location: { kind: "local", path: "/home/leslie/ORA", connection_id: "" },
     },
   ]);
   expect(state.direct).toEqual([]);
   expect(state.folderRequests).toContainEqual({
     kind: "local",
-    path: "/home/leslie/ORA",
+    path: "",
     connection_id: "",
   });
 });
@@ -1122,16 +1442,17 @@ test("workspace folders hide dot directories by default and still open a hidden 
       path: given,
       connection_id: "",
     });
-    const path = given || "/home/leslie";
+    const path = given || "/home/leslie/ORA";
     return route.fulfill({
       json: {
         path,
         parent: "/home/leslie",
+        project_error: "",
         entries:
-          path === "/home/leslie"
+          path === "/home/leslie/ORA"
             ? [
-                { name: ".private", path: "/home/leslie/.private" },
-                { name: "ORA", path: "/home/leslie/ORA" },
+                { name: ".private", path: "/home/leslie/ORA/.private" },
+                { name: "lab", path: "/home/leslie/ORA/lab" },
               ]
             : [],
       },
@@ -1146,11 +1467,14 @@ test("workspace folders hide dot directories by default and still open a hidden 
     .getByRole("button", { name: "新建项目", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "新建项目", exact: true });
+  await dialog
+    .getByRole("radio", { name: "选择已有文件夹", exact: true })
+    .click();
   const folders = dialog.getByRole("region", { name: "浏览文件夹" });
   const hidden = folders.getByRole("button", { name: ".private", exact: true });
   const showHidden = folders.getByRole("checkbox", { name: "显示隐藏文件夹" });
   await expect(
-    folders.getByRole("button", { name: "ORA", exact: true }),
+    folders.getByRole("button", { name: "lab", exact: true }),
   ).toBeVisible();
   await expect(showHidden).not.toBeChecked();
   await expect(hidden).toHaveCount(0);
@@ -1159,27 +1483,27 @@ test("workspace folders hide dot directories by default and still open a hidden 
   await showHidden.uncheck();
   await expect(hidden).toHaveCount(0);
   const address = folders.getByRole("textbox", { name: "目录路径" });
-  await address.fill("/home/leslie/.private");
+  await address.fill("/home/leslie/ORA/.private");
   await expect(
     dialog.getByRole("button", { name: "使用此文件夹" }),
   ).toBeDisabled();
   await address.press("Enter");
   await expect(
     dialog.getByRole("region", { name: "已选文件夹" }),
-  ).toContainText("/home/leslie/.private");
-  await expect(
-    dialog.getByRole("textbox", { name: "项目名称（可选）" }),
-  ).toBeEmpty();
+  ).toContainText("/home/leslie/ORA/.private");
+  await expect(dialog.getByRole("textbox", { name: "项目名称" })).toHaveValue(
+    "未命名项目",
+  );
   await dialog
     .getByRole("button", { name: "使用此文件夹", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
   expect(state.workspaceRequests).toEqual([
     {
-      name: ".private",
+      name: "未命名项目",
       location: {
         kind: "local",
-        path: "/home/leslie/.private",
+        path: "/home/leslie/ORA/.private",
         connection_id: "",
       },
     },
@@ -1221,6 +1545,9 @@ test("SSH connections validate before a remote folder can become a workspace", a
     exact: true,
   });
   await workspaceDialog
+    .getByRole("radio", { name: "选择已有文件夹", exact: true })
+    .click();
+  await workspaceDialog
     .getByRole("button", { name: "实验服务器 runner@lab", exact: true })
     .click();
   await expect(
@@ -1235,16 +1562,16 @@ test("SSH connections validate before a remote folder can become a workspace", a
     .click();
   await expect(
     workspaceDialog.getByRole("textbox", { name: "目录路径" }),
-  ).toHaveValue("/home/runner/lab");
+  ).toHaveValue("/home/runner/ORA/lab");
   await workspaceDialog
-    .getByRole("textbox", { name: "项目名称（可选）" })
+    .getByRole("textbox", { name: "项目名称" })
     .fill("远端实验");
   await expect(
     workspaceDialog.getByRole("region", { name: "已选文件夹" }),
   ).toContainText("实验服务器");
   await expect(
     workspaceDialog.getByRole("region", { name: "已选文件夹" }),
-  ).toContainText("/home/runner/lab");
+  ).toContainText("/home/runner/ORA/lab");
   await workspaceDialog
     .getByRole("button", { name: "使用此文件夹", exact: true })
     .click();
@@ -1254,7 +1581,7 @@ test("SSH connections validate before a remote folder can become a workspace", a
       name: "远端实验",
       location: {
         kind: "ssh",
-        path: "/home/runner/lab",
+        path: "/home/runner/ORA/lab",
         connection_id: "ssh-test",
       },
     });
@@ -1269,12 +1596,12 @@ test("SSH connections validate before a remote folder can become a workspace", a
   });
   expect(state.direct).toEqual([]);
   await expect(page.getByRole("main")).toContainText(
-    "实验服务器 · /home/runner/lab",
+    "实验服务器 · /home/runner/ORA/lab",
   );
   await expect(
     page
       .getByRole("navigation", { name: "侧栏", exact: true })
-      .getByRole("button", { name: "切换团队", exact: true }),
+      .getByRole("button", { name: "切换项目", exact: true }),
   ).toHaveText("远端实验");
   await expect(
     page
@@ -1307,7 +1634,7 @@ test("SSH connections validate before a remote folder can become a workspace", a
     .fill("runner@lab");
   await expect(folderPicker.getByRole("option")).toHaveCount(1);
   await expect(folderPicker.getByRole("option")).toContainText(
-    "实验服务器 · /home/runner/lab",
+    "实验服务器 · /home/runner/ORA/lab",
   );
   await page.keyboard.press("Escape");
   state.researches[0].workspace_id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -1331,7 +1658,7 @@ test("SSH connections validate before a remote folder can become a workspace", a
   await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
   await page.goto("/#workspaces/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   await expect(page.getByRole("main")).toContainText(
-    "实验服务器 · /home/runner/lab",
+    "实验服务器 · /home/runner/ORA/lab",
   );
   await page.getByRole("main").locator(`a[href="#research/${rid}"]`).click();
   await expect(page).toHaveURL(new RegExp(`#research/${rid}$`));
@@ -1544,7 +1871,7 @@ test("team channels keep every research and derived conversation accessible as a
     conversations.getByRole("link", { name: "advisor", exact: true }),
   ).toBeVisible();
   await expect(
-    sidebar.getByRole("button", { name: "切换团队", exact: true }),
+    sidebar.getByRole("button", { name: "切换项目", exact: true }),
   ).toHaveText(workspace.name);
   const channel = page.getByRole("region", { name: "实验", exact: true });
   await expect(channel.getByRole("article")).toHaveCount(7);

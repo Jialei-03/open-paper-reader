@@ -67,6 +67,20 @@
   padding: var(--ui-space-24);
   color: var(--ui-fg-2);
 }
+.emptyProjects {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-16);
+  padding: var(--ui-space-24);
+  color: var(--ui-fg-3);
+}
+.emptyProjects > svg {
+  width: var(--ui-space-32);
+  height: var(--ui-space-32);
+}
 .newPage {
   flex: 1 1 auto;
   width: 100%;

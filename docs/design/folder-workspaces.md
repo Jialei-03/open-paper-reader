@@ -5,6 +5,8 @@
 ## 产品关系
 
 - 工作区是一台机器上的真实文件夹，绑定本机路径或 SSH 连接和远端路径。
+- 界面统一称「项目」。侧栏新建和项目列表空状态直接打开新建对话框，默认在 `~/ORA` 下按必填项目名新建文件夹；初始名称「未命名项目」全选。`~/ORA` 不存在时创建，同名文件夹已存在则拒绝新建。「选择已有文件夹」为另一分段选项，从同一默认目录浏览。
+- 项目目录拒绝根目录、用户主目录、系统目录（`/Users`、`/System`、`/Library`、`/Applications`、`/usr`、`/bin`、`/etc`、`/var`、`/private`）及主目录内 `Library`、`Desktop`、`Documents`、`Downloads` 本身，规范化路径和符号链接后校验；其下独立项目子目录可选。SSH 同样在远端规范化与校验，并在连接前拒绝 `/`、`~` 等明确的受保护路径。浏览仍可进入这些目录，提交按钮禁用并显示短原因。
 - 每个研究会话对应一项研究，作为团队实验频道中的研究线程；普通频道和成员私信使用独立的团队运行。新研究页选择工作区、可选分类、工作流和模型，发送第一条消息才创建；没有额外的固定项目导师层。
 - 项目 `ResearchCollection` 只分类，可跨工作区；归类、显示名和置顶不改变目录、机器或研究问题。
 - 看板以 `ResearchProject.on_board` 为唯一收录依据，不自动加入地图节点或其他研究。
@@ -37,9 +39,9 @@ SSH 分叉先从检查点复制到自己的远端目录。作业结束后先拉�
 0039 新增 workspace.location、ResearchCollection、研究 collection_id / title / on_board。原研究 ID、文件、运行与 Pi 条目保留；旧项目导师与普通项目聊天转换为暂停研究，并生成可见历史。迁移可重复执行；downgrade 保留新数据表和字段，旧 mapper 忽略额外字段，不删除分类或绑定目录。
 
 - `GET /research/navigation`：按工作区列研究及项目分类。
-- `GET /research/folders`：使用 kind / path / connection_id 参数只读浏览目录，不创建目录。
+- `GET /research/folders`：使用 kind / path / connection_id 参数浏览目录，返回 `project_error` 短原因代码。空路径定位到 `~/ORA`，仅默认目录不存在时创建；指定路径不创建目录。
 - `GET/POST /research/connections`：SSH 连接列表、校验与保存。
-- `POST /research/workspaces`：注册已经验证的真实目录；规范化后同一用户不能重复注册同一位置。
+- `POST /research/workspaces`：注册已经验证的真实目录；`create_folder: true` 时以 `location.path` 为父目录、`name` 为单个文件夹名原子新建后绑定。拒绝空名、路径分隔符、`.`、`..` 和已存在目标；规范化后同一用户不能重复注册同一位置。
 - `POST /research/collections`、`PATCH /research/collections/{id}`：新建和修改分类；`PATCH /research/projects/{id}/organization` 更新研究分类、标题、置顶与看板成员。
 - `GET /research/board`：仅返回所选研究。
 

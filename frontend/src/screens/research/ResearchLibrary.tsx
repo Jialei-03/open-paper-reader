@@ -151,6 +151,17 @@ export function WorkspaceScreen({
         )
       ) : id ? (
         <p className={styles.empty}>{t("workspace.notFound")}</p>
+      ) : !data.workspaces.some((item) => !item.archived) ? (
+        <div className={styles.emptyProjects}>
+          <Folder aria-hidden />
+          <Button
+            variant="primary"
+            icon={Plus}
+            onClick={() => setCreating(true)}
+          >
+            {t("workspace.add")}
+          </Button>
+        </div>
       ) : (
         <div className={styles.folderCards}>
           {data.workspaces
@@ -171,9 +182,6 @@ export function WorkspaceScreen({
                 <span>{item.researches.length}</span>
               </a>
             ))}
-          {!data.workspaces.length && (
-            <p className={styles.empty}>{t("workspace.noWorkspaces")}</p>
-          )}
         </div>
       )}
       {creating && (

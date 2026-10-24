@@ -42,6 +42,7 @@ import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
 import { Button, Dialog, IconButton, Menu, TextField, toast } from "../../ui";
 import { readModels, type ModelRow } from "../setup/model-api";
+import { AddModelButton, openModelSetup } from "../setup/ModelSetup";
 import { ModelPicker } from "./talk/Pickers";
 import { Prose } from "./talk/ThreadView";
 import { RunTurn, SummaryLine, Trail } from "./process/Process";
@@ -105,6 +106,7 @@ export function TeamScreen({
   const workspace = data.workspaces.find((w) => w.id === id);
   const { team, error } = useTeam(id);
   const [models, setModels] = useState<ModelRow[]>([]);
+  const [modelsKnown, setModelsKnown] = useState(false);
   const [model, setModel] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -166,8 +168,9 @@ export function TeamScreen({
       (value) => {
         if (!stale) {
           setModels(value.models);
+          setModelsKnown(true);
           setModel(
-            workspace?.model_config_id ||
+            value.models.find((m) => m.id === workspace?.model_config_id)?.id ||
               value.active_id ||
               value.models[0]?.id ||
               "",
@@ -186,7 +189,10 @@ export function TeamScreen({
   useEffect(() => {
     if (channel?.member_id)
       setModel(
-        memberModel || workspace?.model_config_id || models[0]?.id || "",
+        models.find((m) => m.id === memberModel)?.id ||
+          models.find((m) => m.id === workspace?.model_config_id)?.id ||
+          models[0]?.id ||
+          "",
       );
   }, [channel?.member_id, memberModel, workspace?.model_config_id, models]);
   const fail = (reason: unknown) =>
@@ -348,6 +354,7 @@ export function TeamScreen({
               team={team}
               channel={channel}
               models={models}
+              modelsKnown={modelsKnown}
               model={model}
               onModel={setModel}
               openThread={openThread}
@@ -433,6 +440,7 @@ export function TeamScreen({
             channel={channel}
             threadId={threadId}
             models={models}
+            modelsKnown={modelsKnown}
             model={model}
             onModel={setModel}
             openThread={openThread}
@@ -560,6 +568,7 @@ function MessagePane({
   channel,
   threadId,
   models,
+  modelsKnown,
   model,
   onModel,
   openThread,
@@ -576,6 +585,7 @@ function MessagePane({
   channel: TeamChannel;
   threadId?: string;
   models: ModelRow[];
+  modelsKnown: boolean;
   model: string;
   onModel(id: string): void;
   openThread(message: TeamMessage): void;
@@ -784,6 +794,7 @@ function MessagePane({
           channel={channel}
           threadId={threadId}
           models={models}
+          modelsKnown={modelsKnown}
           model={model}
           onModel={onModel}
           sent={() => {
@@ -1257,6 +1268,7 @@ export function TeamComposer({
   channel,
   threadId,
   models,
+  modelsKnown = true,
   model,
   onModel,
   sent,
@@ -1265,11 +1277,16 @@ export function TeamComposer({
   channel: TeamChannel;
   threadId?: string;
   models: ModelRow[];
+  modelsKnown?: boolean;
   model: string;
   onModel(id: string): void;
   sent(): void;
 }) {
   const { t } = useI18n();
+  const needsModel =
+    modelsKnown &&
+    models.length === 0 &&
+    (!!channel.member_id || !!threadId?.startsWith("research:"));
   const key = `team-draft:${team.workspace_id}:${channel.id}:${threadId || ""}`;
   const [text, setText] = useState(() => {
     try {
@@ -1330,6 +1347,10 @@ export function TeamComposer({
   };
   const submit = async (mode: "queue" | "immediate") => {
     if (!text.trim() || busy) return;
+    if (needsModel) {
+      openModelSetup();
+      return;
+    }
     // Clear at once so typing the next message is never wiped by this send.
     const [sending, sendingFiles, clientId] = [text, files, client.current];
     change("");
@@ -1473,13 +1494,17 @@ export function TeamComposer({
             e.target.value = "";
           }}
         />
-        {channel.member_id && (
-          <ModelPicker
-            models={models}
-            value={model}
-            onChange={onModel}
-            label={t("commands.model")}
-          />
+        {needsModel ? (
+          <AddModelButton disabled={busy} />
+        ) : (
+          channel.member_id && (
+            <ModelPicker
+              models={models}
+              value={model}
+              onChange={onModel}
+              label={t("commands.model")}
+            />
+          )
         )}
         <div className={styles.actions}>
           <IconButton
