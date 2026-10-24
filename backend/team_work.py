@@ -524,10 +524,11 @@ def project(d, workspace, *, through=None):
             group = "working"
         elif active or deliveries:
             group = "queued"
+        # A failure with nothing running is not work in progress: it waits on the researcher.
         elif p:
-            group = "working" if failed or p.status == "active" else "queued"
+            group = "waiting" if failed else "working" if p.status == "active" else "queued"
         elif latest or target["deliveries"]:
-            group = "working" if failed else "done"
+            group = "waiting" if failed else "done"
         else:
             continue
         reviewer_running = any(

@@ -366,6 +366,9 @@ def test_team_work_failed_retry_and_reviewer_presence(work_db):
     result = team_work.project(d, workspace)
     items = {i["thread_id"]: i for i in result["items"]}
     assert items["failure"]["stuck"] == ["failed"]
+    # Nothing is running after the failure: it waits on the researcher, it is not in progress.
+    assert items["failure"]["group"] == "waiting"
+    assert items["failure"]["status"] == "failed"
     assert items["review"]["group"] == "review" and not items["review"]["stuck"]
     run(
         d,
