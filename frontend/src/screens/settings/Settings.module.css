@@ -117,6 +117,12 @@
   white-space: nowrap;
 }
 
+.logPath {
+  overflow-wrap: anywhere;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+
 .rowActions {
   display: flex;
   flex: none;

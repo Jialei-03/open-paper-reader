@@ -207,6 +207,11 @@ function guard(contents) {
     } else if (target === "ora:log") {
       event.preventDefault();
       shell.showItemInFolder(logFile);
+    } else if (target === "ora:logs") {
+      event.preventDefault();
+      const logs = path.join(dataDir, "logs");
+      fs.mkdirSync(logs, { recursive: true });
+      shell.openPath(logs);
     } else if (!ours(target) && !target.startsWith("data:")) {
       event.preventDefault();
       if (/^https?:|^mailto:/.test(target)) shell.openExternal(target);

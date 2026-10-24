@@ -1,6 +1,7 @@
 import {
   Background,
   BaseEdge,
+  EdgeLabelRenderer,
   Handle,
   MarkerType,
   Position,
@@ -21,7 +22,15 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { Button, Dialog, IconButton } from "../../../ui";
 import { MemberAvatar } from "../MemberEditor";
@@ -141,23 +150,37 @@ function CanvasEdge({
   markerEnd,
   style,
 }: EdgeProps<WorkflowEdge>) {
+  const openEdge = useContext(EdgeOpen);
   const curve = data?.curve;
   if (!curve) return null;
   return (
-    <BaseEdge
-      id={id}
-      path={curvePath(curve.points)}
-      label={label}
-      labelX={curve.label.x}
-      labelY={curve.label.y}
-      labelShowBg
-      labelBgPadding={[8, 6]}
-      labelBgBorderRadius={4}
-      markerEnd={markerEnd}
-      style={style}
-    />
+    <>
+      <BaseEdge
+        id={id}
+        path={curvePath(curve.points)}
+        markerEnd={markerEnd}
+        style={style}
+      />
+      {label && (
+        <EdgeLabelRenderer>
+          {/* Above the nodes, so a label is never hidden or unclickable. */}
+          <button
+            type="button"
+            className={`${styles.edgeLabel} nodrag nopan`}
+            data-edge-label={id}
+            style={{
+              transform: `translate(-50%, -50%) translate(${curve.label.x}px, ${curve.label.y}px)`,
+            }}
+            onClick={() => openEdge(id)}
+          >
+            {label}
+          </button>
+        </EdgeLabelRenderer>
+      )}
+    </>
   );
 }
+const EdgeOpen = createContext<(id: string) => void>(() => {});
 const edgeTypes = { workflow: CanvasEdge };
 
 function Canvas({
@@ -486,112 +509,119 @@ function Canvas({
           }
         }}
       >
-        <ReactFlow<WorkflowNode, WorkflowEdge>
-          nodes={nodes.map((node) => ({
-            ...node,
-            draggable: readOnly ? false : node.draggable,
-            connectable: !readOnly,
-            ariaLabel:
-              node.data.kind === "trigger"
-                ? `${t(`teamWorkflow.event.${node.data.event ?? "message"}`)} ${node.data.name}`
-                : node.data.kind === "owner" || node.data.human
-                  ? t("teamWorkflow.me")
-                  : node.data.name,
-            data: {
-              ...node.data,
-              status:
-                node.data.kind === "member"
-                  ? (runtime?.members[node.data.ref] ?? "idle")
-                  : undefined,
-            },
-          }))}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          minZoom={WORKFLOW_MIN_ZOOM}
-          maxZoom={2}
-          nodesFocusable
-          nodesDraggable={!readOnly}
-          nodesConnectable={!readOnly}
-          edgesFocusable
-          connectOnClick
-          deleteKeyCode={null}
-          colorMode="system"
-          onNodesChange={(changes) => {
-            setNodes(
-              updateCanvasNodes(
-                workflow,
-                nodes,
-                changes,
-                readOnly ? () => undefined : onChange,
-              ),
-            );
-          }}
-          onConnect={(connection) => {
-            if (readOnly) return;
-            const rule = connectionToRule(
-              connection,
-              nodes,
-              `r-${crypto.randomUUID()}`,
-            );
-            if (rule) onCreate(rule);
-          }}
-          isValidConnection={(connection) =>
-            !!connectionToRule(
-              {
-                ...connection,
-                sourceHandle: connection.sourceHandle ?? null,
-                targetHandle: connection.targetHandle ?? null,
-              },
-              nodes,
-              "draft",
-            )
-          }
-          onNodeClick={(_, node) => openNode(node)}
-          onEdgeClick={(_, edge) => openEdge(edge)}
-          onDragOver={(event) => {
-            if (event.dataTransfer.types.includes(DRAG_TYPE)) {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = "copy";
-            }
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            if (readOnly) return;
-            try {
-              const value: unknown = JSON.parse(
-                event.dataTransfer.getData(DRAG_TYPE),
-              );
-              if (
-                value &&
-                typeof value === "object" &&
-                "kind" in value &&
-                "id" in value &&
-                (value.kind === "member" || value.kind === "channel") &&
-                typeof value.id === "string"
-              )
-                addNode(
-                  { kind: value.kind, id: value.id },
-                  flow.screenToFlowPosition({
-                    x: event.clientX,
-                    y: event.clientY,
-                  }),
-                );
-            } catch {
-              /* Ignore unrelated or malformed drag payloads. */
-            }
-          }}
-          aria-label={t("teamWorkflow.canvas")}
-          ariaLabelConfig={{
-            "node.a11yDescription.default": t("teamWorkflow.nodeKeyboard"),
-            "node.a11yDescription.keyboardDisabled": t(
-              "teamWorkflow.nodeKeyboard",
-            ),
-            "edge.a11yDescription.default": t("teamWorkflow.edgeKeyboard"),
+        <EdgeOpen.Provider
+          value={(id) => {
+            const target = edges.find((e) => e.id === id);
+            if (target) openEdge(target);
           }}
         >
-          <Background color="var(--ui-edge)" />
-        </ReactFlow>
+          <ReactFlow<WorkflowNode, WorkflowEdge>
+            nodes={nodes.map((node) => ({
+              ...node,
+              draggable: readOnly ? false : node.draggable,
+              connectable: !readOnly,
+              ariaLabel:
+                node.data.kind === "trigger"
+                  ? `${t(`teamWorkflow.event.${node.data.event ?? "message"}`)} ${node.data.name}`
+                  : node.data.kind === "owner" || node.data.human
+                    ? t("teamWorkflow.me")
+                    : node.data.name,
+              data: {
+                ...node.data,
+                status:
+                  node.data.kind === "member"
+                    ? (runtime?.members[node.data.ref] ?? "idle")
+                    : undefined,
+              },
+            }))}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            minZoom={WORKFLOW_MIN_ZOOM}
+            maxZoom={2}
+            nodesFocusable
+            nodesDraggable={!readOnly}
+            nodesConnectable={!readOnly}
+            edgesFocusable
+            connectOnClick
+            deleteKeyCode={null}
+            colorMode="system"
+            onNodesChange={(changes) => {
+              setNodes(
+                updateCanvasNodes(
+                  workflow,
+                  nodes,
+                  changes,
+                  readOnly ? () => undefined : onChange,
+                ),
+              );
+            }}
+            onConnect={(connection) => {
+              if (readOnly) return;
+              const rule = connectionToRule(
+                connection,
+                nodes,
+                `r-${crypto.randomUUID()}`,
+              );
+              if (rule) onCreate(rule);
+            }}
+            isValidConnection={(connection) =>
+              !!connectionToRule(
+                {
+                  ...connection,
+                  sourceHandle: connection.sourceHandle ?? null,
+                  targetHandle: connection.targetHandle ?? null,
+                },
+                nodes,
+                "draft",
+              )
+            }
+            onNodeClick={(_, node) => openNode(node)}
+            onEdgeClick={(_, edge) => openEdge(edge)}
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes(DRAG_TYPE)) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "copy";
+              }
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (readOnly) return;
+              try {
+                const value: unknown = JSON.parse(
+                  event.dataTransfer.getData(DRAG_TYPE),
+                );
+                if (
+                  value &&
+                  typeof value === "object" &&
+                  "kind" in value &&
+                  "id" in value &&
+                  (value.kind === "member" || value.kind === "channel") &&
+                  typeof value.id === "string"
+                )
+                  addNode(
+                    { kind: value.kind, id: value.id },
+                    flow.screenToFlowPosition({
+                      x: event.clientX,
+                      y: event.clientY,
+                    }),
+                  );
+              } catch {
+                /* Ignore unrelated or malformed drag payloads. */
+              }
+            }}
+            aria-label={t("teamWorkflow.canvas")}
+            ariaLabelConfig={{
+              "node.a11yDescription.default": t("teamWorkflow.nodeKeyboard"),
+              "node.a11yDescription.keyboardDisabled": t(
+                "teamWorkflow.nodeKeyboard",
+              ),
+              "edge.a11yDescription.default": t("teamWorkflow.edgeKeyboard"),
+            }}
+          >
+            <Background color="var(--ui-edge)" />
+          </ReactFlow>
+        </EdgeOpen.Provider>
         <div className={styles.canvasControls}>
           <IconButton
             icon={LayoutGrid}

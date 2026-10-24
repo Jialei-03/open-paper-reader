@@ -8,14 +8,18 @@ const node = (page: Page, id: string) =>
   page.locator(`.react-flow__node[data-id="${id}"]`);
 const edge = (page: Page, id: string) =>
   page.locator(`.react-flow__edge[data-id="${id}"]`);
+// Edge labels render above the nodes, outside the edge's SVG group.
+const label = (page: Page, id: string) =>
+  page.locator(`[data-edge-label="${id}"]`);
 
 async function expectReadableCanvas(page: Page) {
   await expect
     .poll(() =>
       page.evaluate(() => {
-        const canvas = document
-          .querySelector('[data-testid="workflow-canvas"]')!
-          .getBoundingClientRect();
+        const canvasElement = document.querySelector(
+          '[data-testid="workflow-canvas"]',
+        )!;
+        const canvas = canvasElement.getBoundingClientRect();
         const nodes = [...document.querySelectorAll(".react-flow__node")].map(
           (element) => element.getBoundingClientRect(),
         );
@@ -50,7 +54,7 @@ async function expectReadableCanvas(page: Page) {
           a.bottom > b.top + 1;
         return (
           nodes.length > 0 &&
-          zoom >= 0.75 &&
+          zoom >= 0.85 &&
           zoom <= 1 &&
           (fits
             ? zoom === 1 &&
@@ -68,7 +72,7 @@ async function expectReadableCanvas(page: Page) {
               Math.abs(
                 zoom -
                   Math.max(
-                    0.75,
+                    0.85,
                     Math.min(
                       1,
                       (canvas.width - 48) / graphWidth,
@@ -84,6 +88,22 @@ async function expectReadableCanvas(page: Page) {
           ) &&
           paths.every((path) =>
             /^M [^C]+(?: C [^CLQ]+)+$/.test(path.getAttribute("d") ?? ""),
+          ) &&
+          [...document.querySelectorAll(".react-flow__edge-text")].every(
+            (label) => {
+              const style = getComputedStyle(label);
+              const background = label.parentElement!.querySelector(
+                ".react-flow__edge-textbg",
+              );
+              return (
+                style.fontSize ===
+                  style.getPropertyValue("--ui-text-12").trim() &&
+                background !== null &&
+                background.getBoundingClientRect().width > 0 &&
+                getComputedStyle(background).fill ===
+                  getComputedStyle(canvasElement).backgroundColor
+              );
+            },
           ) &&
           [...document.querySelectorAll('[role="status"][data-status]')].every(
             (dot) => dot.textContent === "" && !!dot.getAttribute("aria-label"),
@@ -109,10 +129,10 @@ for (const locale of ["en", "zh"] as const) {
     await canvasTab.click();
     await expectReadableCanvas(page);
     await expect(page.locator(".react-flow__edge")).toHaveCount(5);
-    await expect(edge(page, "rule:review")).toContainText(
+    await expect(label(page, "rule:review")).toContainText(
       locale === "en" ? "Review ×2 · Wake" : "评审 ×2 · 唤醒",
     );
-    await expect(edge(page, "return:review")).toContainText(
+    await expect(label(page, "return:review")).toContainText(
       locale === "en" ? "Return ×2" : "退回 ×2",
     );
     await expect(edge(page, "rule:wake")).toHaveCount(0);
@@ -236,7 +256,7 @@ for (const locale of ["en", "zh"] as const) {
 }
 
 for (const locale of ["en", "zh"] as const) {
-  test(`${locale} research canvas groups twelve rules, separates feedback and keeps panning readable`, async ({
+  test(`${locale} research canvas groups fifteen rules, separates feedback and keeps panning readable`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1096, height: 800 });
@@ -250,13 +270,19 @@ for (const locale of ["en", "zh"] as const) {
       })
       .click();
     await expect(page.locator(".react-flow__node")).toHaveCount(6);
-    await expect(page.locator(".react-flow__edge")).toHaveCount(9);
+    await expect(page.locator(".react-flow__edge")).toHaveCount(10);
     await expectReadableCanvas(page);
-    expect((await state(page)).rules).toHaveLength(12);
-    await expect(edge(page, "rule:research:approved-start")).toContainText(
+    expect((await state(page)).rules).toHaveLength(15);
+    const labWake = edge(page, "rule:research:lab:job_finished");
+    await expect(
+      label(page, (await labWake.getAttribute("data-id"))!),
+    ).toContainText(locale === "en" ? "Wake ×3" : "唤醒 ×3");
+    await expect(edge(page, "rule:research:lab:plan_approved")).toHaveCount(0);
+    await expect(edge(page, "rule:research:lab:review_failed")).toHaveCount(0);
+    await expect(label(page, "rule:research:approved-start")).toContainText(
       locale === "en" ? "Wake ×2" : "唤醒 ×2",
     );
-    await expect(edge(page, "return:research:1:result")).toContainText(
+    await expect(label(page, "return:research:1:result")).toContainText(
       locale === "en" ? "Return · Wake" : "退回 · 唤醒",
     );
     const midpoint = (id: string) =>
@@ -328,21 +354,62 @@ for (const locale of ["en", "zh"] as const) {
       node(page, "member:executor").locator('[data-size="sm"]'),
     ).toHaveCount(1);
 
-    await edge(page, "rule:research:start")
-      .locator(".react-flow__edge-textwrapper")
-      .click();
     const rules = page.getByRole("dialog", {
       name: locale === "en" ? "Rules" : "规则",
       exact: true,
     });
-    await expect(rules.locator("[data-rule-id]")).toHaveCount(2);
-    await rules
-      .getByRole("button", { name: /^research:discuss-conclusion:/ })
-      .click();
     const editor = page.getByRole("dialog", {
       name: locale === "en" ? "Edit rule" : "编辑规则",
       exact: true,
     });
+    for (const event of ["job_finished", "plan_approved", "review_failed"]) {
+      await page
+        .locator(`[data-edge-label="${await labWake.getAttribute("data-id")}"]`)
+        .click();
+      await expect(rules.locator("[data-rule-id]")).toHaveCount(3);
+      expect(
+        await rules
+          .locator("[data-rule-id]")
+          .evaluateAll((rows) =>
+            rows.map((row) => row.getAttribute("data-rule-id")),
+          ),
+      ).toEqual([
+        "research:lab:job_finished",
+        "research:lab:plan_approved",
+        "research:lab:review_failed",
+      ]);
+      await rules
+        .locator(`[data-rule-id="research:lab:${event}"]`)
+        .getByRole("button")
+        .click();
+      await expect(
+        editor.getByLabel(locale === "en" ? "Event" : "事件", { exact: true }),
+      ).toHaveValue(event);
+      await editor
+        .getByLabel(locale === "en" ? "Instruction" : "指示", { exact: true })
+        .fill(event);
+      await editor
+        .getByRole("button", {
+          name: locale === "en" ? "Save" : "保存",
+          exact: true,
+        })
+        .click();
+    }
+    expect(
+      (await state(page)).rules
+        .filter((rule) => rule.id.startsWith("research:lab:"))
+        .map((rule) => rule.then.instruction),
+    ).toEqual(["job_finished", "plan_approved", "review_failed"]);
+    await expect(
+      label(page, (await labWake.getAttribute("data-id"))!),
+    ).toContainText(locale === "en" ? "Wake ×3" : "唤醒 ×3");
+    await expect(page.locator(".react-flow__edge")).toHaveCount(10);
+
+    await page.locator('[data-edge-label="rule:research:start"]').click();
+    await expect(rules.locator("[data-rule-id]")).toHaveCount(2);
+    await rules
+      .getByRole("button", { name: /^research:discuss-conclusion:/ })
+      .click();
     await expect(
       editor.getByLabel(locale === "en" ? "Message type" : "消息类型", {
         exact: true,
@@ -395,7 +462,7 @@ for (const locale of ["en", "zh"] as const) {
           exact: true,
         })
         .click();
-    await expect.poll(async () => (await viewport()).zoom).toBe(0.75);
+    await expect.poll(async () => (await viewport()).zoom).toBe(0.85);
     await page
       .getByRole("button", {
         name: locale === "en" ? "Fit canvas" : "适应画布",
@@ -440,6 +507,15 @@ for (const theme of ["light", "dark"] as const) {
       .toEqual(["wait", "review", "subscribe", "schedule"]);
 
     await page.getByRole("tab", { name: "Canvas", exact: true }).click();
+    await expectReadableCanvas(page);
+    expect(
+      await page
+        .locator(".react-flow__viewport")
+        .evaluate(
+          (element) =>
+            new DOMMatrixReadOnly(getComputedStyle(element).transform).a,
+        ),
+    ).toBe(0.85);
     await expect(node(page, "member:executor")).toBeVisible();
     await expect(
       node(page, "member:executor").getByRole("status", {

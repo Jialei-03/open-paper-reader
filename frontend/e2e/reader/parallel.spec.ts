@@ -317,6 +317,57 @@ test("a page that failed says why, and is translated again on retry", async ({
   expect(service.posts.filter((post) => post.page === 2)).toHaveLength(1);
 });
 
+test("prepared page failures stay on their own page and out of the guide", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/papers/*/preparation", (route) =>
+    route.fulfill({
+      json: {
+        enabled: true,
+        status: "failed",
+        guide_status: "failed",
+        translation_status: "failed",
+        layout_status: "unavailable",
+        error: "导读失败；第 1 页翻译失败；第 2 页翻译失败",
+      },
+    }),
+  );
+  await open(page, (fileId) => ({
+    rows: new Map([
+      [
+        "pt-1",
+        translation(fileId, 1, { status: "failed", error: "第 1 页翻译失败" }),
+      ],
+      [
+        "pt-2",
+        translation(fileId, 2, { status: "failed", error: "第 2 页翻译失败" }),
+      ],
+      [
+        "guide-1",
+        {
+          id: "guide-1",
+          file_id: fileId,
+          kind: "guide",
+          status: "failed",
+          error: "导读失败",
+          parameters: { preparation_id: "preparation-1" },
+        },
+      ],
+    ]),
+  }));
+  const assistant = page.getByRole("tabpanel");
+  await expect(assistant.getByRole("alert")).toHaveText("导读失败");
+  await expect(assistant).not.toContainText("翻译失败");
+  await mode(page, "对照").click();
+  await expect(column(page, 1).getByRole("alert")).toHaveText(
+    "第 1 页翻译失败",
+  );
+  await expect(column(page, 1)).not.toContainText("第 2 页翻译失败");
+  await expect(column(page, 2).getByRole("alert")).toHaveText(
+    "第 2 页翻译失败",
+  );
+});
+
 test("a regenerate that fails keeps the earlier translation beside the reason", async ({
   page,
 }) => {

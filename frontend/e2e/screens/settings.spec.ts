@@ -155,6 +155,67 @@ test("the data, its use and the export are shown", async ({ page }) => {
   await expect(usage.getByText("Tokens", { exact: true })).toBeVisible();
 });
 
+test("local browser data settings show a copyable log folder", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/storage-usage", (route) =>
+    route.fulfill({
+      json: {
+        used_bytes: 0,
+        limit_bytes: 1024,
+        categories: {},
+        logs_path: "/tmp/ora data/logs",
+      },
+    }),
+  );
+  await page.goto(SETTINGS("data"));
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (value: string) => {
+          document.documentElement.dataset.copiedLogPath = value;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+  const data = page.getByRole("region", { name: "数据" });
+  await expect(
+    data.getByText("/tmp/ora data/logs", { exact: true }),
+  ).toBeVisible();
+  await data.getByRole("button", { name: "复制路径" }).click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-copied-log-path",
+    "/tmp/ora data/logs",
+  );
+});
+
+test("desktop data settings use the log folder action", async ({ page }) => {
+  await page.route("**/api/v1/storage-usage", (route) =>
+    route.fulfill({
+      json: {
+        used_bytes: 0,
+        limit_bytes: 1024,
+        categories: {},
+        logs_path: "/tmp/ora/logs",
+      },
+    }),
+  );
+  await page.goto(SETTINGS("data"));
+  // As the desktop preload does; the section reads it when it renders.
+  await page.evaluate(() => {
+    document.documentElement.dataset.desktop = "darwin";
+  });
+  await page.getByRole("button", { name: "常规" }).click();
+  await page.getByRole("button", { name: "数据" }).click();
+  const data = page.getByRole("region", { name: "数据" });
+  await expect(
+    data.getByRole("button", { name: "打开日志文件夹" }),
+  ).toBeVisible();
+  await expect(data.getByRole("button", { name: "复制路径" })).toHaveCount(0);
+});
+
 test("share links and credentials can only be revoked", async ({ page }) => {
   const paper = await createPaperWithPdf(page);
   const share = await page.request.post(

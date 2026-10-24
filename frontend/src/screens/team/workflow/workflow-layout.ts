@@ -47,7 +47,9 @@ export function layoutWorkflow(
   const source = (node: WorkflowNode) =>
     node.data.kind === "owner" ||
     node.data.human ||
-    node.data.kind === "trigger";
+    node.data.kind === "trigger" ||
+    (node.data.kind === "channel" &&
+      !edges.some((edge) => edge.target === node.id));
   const disconnected = (node: WorkflowNode) =>
     !edges.some((edge) => edge.source === node.id || edge.target === node.id);
   const ranks = new Map(
@@ -257,7 +259,7 @@ export function workflowBounds(
   };
 }
 
-export const WORKFLOW_MIN_ZOOM = 0.75;
+export const WORKFLOW_MIN_ZOOM = 0.85;
 
 /** Center a graph that fits at 1:1; otherwise fit from the left with a 24px inset. */
 export function workflowViewport(

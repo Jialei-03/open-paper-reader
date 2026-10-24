@@ -77,7 +77,7 @@ export const workflowFixture: Workflow = {
   },
 };
 
-// Twelve-rule research topology, including review feedback and a self-loop.
+// Research topology with parallel channel rules, review feedback and a self-loop.
 export const researchWorkflowFixture: Workflow = {
   id: "research",
   name: "Research",
@@ -280,6 +280,14 @@ export const researchWorkflowFixture: Workflow = {
         per_thread: 0,
       },
     },
+    ...(["job_finished", "plan_approved", "review_failed"] as const).map(
+      (event) => ({
+        id: `research:lab:${event}`,
+        enabled: true,
+        when: { event, channel: "lab" },
+        then: { action: "wake" as const, role: "executor" },
+      }),
+    ),
   ],
   layout: {
     members: {},

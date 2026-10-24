@@ -917,6 +917,10 @@ def create_app(settings=None):
             "used_bytes": sum(amounts.values()),
             "limit_bytes": settings.storage_limit,
             "categories": amounts,
+            "logs_path": (
+                str(Path(settings.storage).absolute().parent / "logs")
+                if settings.mode == "local" else None
+            ),
         }
 
     @app.post("/api/v1/papers/{id}/files")

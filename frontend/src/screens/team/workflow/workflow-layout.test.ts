@@ -152,17 +152,18 @@ describe("workflow layered layout", () => {
 });
 
 describe("grouped workflow edges", () => {
-  it("merges twelve research rules into nine directed pairs without losing rules", () => {
+  it("merges fifteen research rules into ten directed pairs without losing rules", () => {
     const workflow = structuredClone(researchWorkflowFixture);
     const { nodes, edges } = workflowToFlow(
       workflow,
       researchWorkflowMembers,
       workflowChannels,
     );
-    expect(workflow.rules).toHaveLength(12);
+    expect(workflow.rules).toHaveLength(15);
     expect(nodes).toHaveLength(6);
+    expect(edges).toHaveLength(16);
     const grouped = mergeWorkflowEdges(edges);
-    expect(grouped).toHaveLength(9);
+    expect(grouped).toHaveLength(10);
     expect(
       new Set(grouped.map((edge) => JSON.stringify([edge.source, edge.target])))
         .size,
@@ -182,8 +183,20 @@ describe("grouped workflow edges", () => {
       "research:approved-start",
       "research:reopen",
     ]);
+    const labWake = grouped.find(
+      (edge) =>
+        edge.source === "channel:lab" && edge.target === "member:executor",
+    )!;
+    expect(edgeRules(labWake, workflow).map((rule) => rule.id)).toEqual([
+      "research:lab:job_finished",
+      "research:lab:plan_approved",
+      "research:lab:review_failed",
+    ]);
     for (const locale of ["zh", "en"] as const) {
       const t = createTranslator(locale).t;
+      expect(workflowEdgeLabel(labWake, t)).toBe(
+        locale === "zh" ? "唤醒 ×3" : "Wake ×3",
+      );
       expect(workflowEdgeLabel(wake, t)).toBe(
         locale === "zh" ? "唤醒 ×2" : "Wake ×2",
       );
@@ -211,19 +224,32 @@ describe("grouped workflow edges", () => {
     }
   });
 
-  it("counts repeated kinds, combines mixed kinds and keeps both directions", () => {
+  it("ignores handles and rule origins when grouping, combines kinds and keeps both directions", () => {
     const { edges, workflow } = graph();
     const base = edges[0];
     const grouped = mergeWorkflowEdges([
       { ...base, id: "wake-1", data: { rule: "review", kind: "wake" } },
-      { ...base, id: "wake-2", data: { rule: "wait", kind: "wake" } },
-      { ...base, id: "wake-3", data: { rule: "subscribe", kind: "wake" } },
+      {
+        ...base,
+        id: "wake-2",
+        sourceHandle: "back-out",
+        targetHandle: "back-in",
+        data: { rule: "wait", kind: "wake" },
+      },
+      {
+        ...base,
+        id: "wake-3",
+        sourceHandle: "loop-out",
+        targetHandle: "loop-in",
+        data: { rule: "subscribe", kind: "wake" },
+      },
       { ...base, id: "back", source: base.target, target: base.source },
     ]);
     expect(grouped).toHaveLength(2);
     const t = createTranslator("zh").t;
     expect(workflowEdgeLabel(grouped[0], t)).toBe("唤醒 ×3");
     expect(edgeRules(grouped[0], workflow)).toHaveLength(3);
+    expect(mergeWorkflowEdges(grouped)).toEqual(grouped);
     expect(
       workflowEdgeLabel(
         mergeWorkflowEdges([
@@ -293,7 +319,7 @@ describe("grouped workflow edges", () => {
 });
 
 describe("compact research layout", () => {
-  it("fits six nodes and twelve rules within 900 × 520, including feedback and the self-loop", () => {
+  it("fits six nodes and fifteen rules within 900 × 520, including feedback and the self-loop", () => {
     const graph = workflowToFlow(
       researchWorkflowFixture,
       researchWorkflowMembers,
@@ -303,7 +329,7 @@ describe("compact research layout", () => {
     const curves = curveWorkflowEdges(nodes, mergeWorkflowEdges(graph.edges));
     const bounds = workflowBounds(nodes, curves.values());
     expect(nodes).toHaveLength(6);
-    expect(researchWorkflowFixture.rules).toHaveLength(12);
+    expect(researchWorkflowFixture.rules).toHaveLength(15);
     expect(bounds.width).toBeLessThanOrEqual(900);
     expect(bounds.height).toBeLessThanOrEqual(520);
     expectNoOverlap(nodes);
@@ -312,6 +338,7 @@ describe("compact research layout", () => {
     const left = nodes
       .filter((node) => node.position.x === 0)
       .sort((a, b) => a.position.y - b.position.y);
+    expect(left.some((node) => node.id === "channel:lab")).toBe(true);
     expect(left.some((node) => node.data.human)).toBe(true);
     expect(left.some((node) => node.data.kind === "trigger")).toBe(true);
     for (let index = 1; index < left.length; index++)
@@ -387,7 +414,7 @@ describe("readable workflow viewport", () => {
     expect(workflowViewport([], 480, 600)).toEqual({ x: 0, y: 0, zoom: 1 });
   });
 
-  it("scales to fit with a 24px left inset, clamping at 0.75 for overflow", () => {
+  it("scales to fit with a 24px left inset, clamping at 0.85 for overflow", () => {
     const { nodes } = workflowToFlow(
       researchWorkflowFixture,
       researchWorkflowMembers,
@@ -396,15 +423,18 @@ describe("readable workflow viewport", () => {
     const bounds = workflowBounds(nodes);
     const viewport = workflowViewport(nodes, 700, 600);
     expect(viewport.zoom).toBeCloseTo((700 - 48) / bounds.width);
-    expect(viewport.zoom).toBeGreaterThan(0.75);
+    expect(viewport.zoom).toBeGreaterThan(0.85);
     expect(bounds.x * viewport.zoom + viewport.x).toBe(24);
     expect((bounds.x + bounds.width) * viewport.zoom + viewport.x).toBeCloseTo(
       676,
     );
     for (const width of [480, 600]) {
       const small = workflowViewport(nodes, width, 600);
-      expect(small.zoom).toBe(0.75);
+      expect(small.zoom).toBe(0.85);
       expect(bounds.x * small.zoom + small.x).toBe(24);
+      expect((bounds.x + bounds.width) * small.zoom + small.x).toBeGreaterThan(
+        width - 24,
+      );
     }
   });
 
@@ -436,7 +466,7 @@ describe("readable workflow viewport", () => {
     expect(centered.zoom).toBe(1);
     expect(bounds.x + centered.x + bounds.width / 2).toBe(700);
     const viewport = workflowViewport(nodes, 480, 120);
-    expect(viewport.zoom).toBe(0.75);
+    expect(viewport.zoom).toBe(0.85);
     expect(bounds.x * viewport.zoom + viewport.x).toBe(24);
     expect(bounds.y * viewport.zoom + viewport.y).toBe(24);
     // The saved owner is on the right: it must not replace the leftmost layer as anchor.

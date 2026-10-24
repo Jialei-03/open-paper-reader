@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Copy, Download, FolderOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../api";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -13,6 +13,7 @@ type Storage = {
   used_bytes: number;
   limit_bytes: number;
   categories: Record<string, number>;
+  logs_path?: string | null;
 };
 
 /** Reading-material storage and export; research directories have their own lifecycle. */
@@ -112,8 +113,44 @@ export function DataSection() {
           {t("settings.data.exportAction")}
         </Button>
       </div>
+      {storage?.logs_path && <LogFolder path={storage.logs_path} />}
       <LayoutInstall />
       <LatexInstall />
     </Section>
+  );
+}
+
+export function LogFolder({ path }: { path: string }) {
+  const { t } = useI18n();
+  const desktop = !!document.documentElement.dataset.desktop;
+  const [error, setError] = useState("");
+  return (
+    <>
+      <div className={styles.setting}>
+        <div className={styles.rowText}>
+          <span>{t("settings.data.logs")}</span>
+          {!desktop && <code className={styles.logPath}>{path}</code>}
+        </div>
+        <Button
+          size="sm"
+          icon={desktop ? FolderOpen : Copy}
+          onClick={() => {
+            if (desktop) window.location.assign("ora:logs");
+            else
+              void navigator.clipboard.writeText(path).then(
+                () => setError(""),
+                () => setError(t("settings.data.copyLogsFailed")),
+              );
+          }}
+        >
+          {t(desktop ? "settings.data.openLogs" : "settings.data.copyLogs")}
+        </Button>
+      </div>
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
+    </>
   );
 }

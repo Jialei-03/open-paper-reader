@@ -289,12 +289,20 @@ test("a failed guide says why, and 重试 asks for it to be made again", async (
   const reason = "模型返回的阅读结果格式不完整，请重试";
   const { service, fileId } = await open(page, (fileId) => ({
     row: running(fileId, { status: "failed", error: reason }),
+    preparation: {
+      enabled: true,
+      status: "failed",
+      guide_status: "failed",
+      error: `${reason}；第 2 页翻译失败`,
+      layout_status: "unavailable",
+    },
   }));
   service.reply = running(fileId, {
     preview: { keywords: GUIDE.keywords },
   });
 
   await expect(panel(page).getByRole("alert")).toHaveText(reason);
+  await expect(panel(page)).not.toContainText("第 2 页翻译失败");
   expect(service.started).toEqual([]);
 
   await panel(page).getByRole("button", { name: "重试", exact: true }).click();
@@ -313,6 +321,28 @@ test("a failed guide says why, and 重试 asks for it to be made again", async (
   await expect(progress(page)).toBeVisible();
   await expect(panel(page).getByRole("alert")).toHaveCount(0);
   await expect(panel(page).getByText("注意力")).toBeVisible();
+});
+
+test("unrelated preparation failures do not appear above the assistant", async ({
+  page,
+}) => {
+  const aggregate = "第 2 页翻译失败；布局引擎未配置，对照翻译和导读已单独保存";
+  await open(page, () => ({
+    row: null,
+    preparation: {
+      enabled: true,
+      status: "failed",
+      guide_status: "waiting",
+      translation_status: "failed",
+      layout_status: "unavailable",
+      error: aggregate,
+    },
+  }));
+  await expect(
+    panel(page).getByRole("button", { name: "生成导读" }),
+  ).toBeVisible();
+  await expect(panel(page).getByRole("alert")).toHaveCount(0);
+  await expect(panel(page)).not.toContainText(aggregate);
 });
 
 test("with the preparation off the guide is made by a button, once", async ({
