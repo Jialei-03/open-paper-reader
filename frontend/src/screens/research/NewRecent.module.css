@@ -1,6 +1,6 @@
 /* Below the first message, as wide as it: a heading row and plain rows. */
 .recent {
-  width: min(var(--ui-conversation-width), 100%);
+  width: min(var(--ui-home-width), 100%);
   margin-top: var(--ui-space-24);
 }
 

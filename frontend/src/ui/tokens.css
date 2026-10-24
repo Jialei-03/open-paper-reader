@@ -65,6 +65,7 @@
     transparent
   );
   --ui-hover: color-mix(in oklab, var(--ui-fg) 5%, transparent);
+  --ui-active: color-mix(in oklab, var(--ui-fg) 12%, transparent); /* pressed */
   --ui-selected: color-mix(in oklab, var(--ui-fg) 8%, transparent);
   --ui-fill: color-mix(in oklab, var(--ui-fg) 4%, transparent);
   --ui-accent-soft: color-mix(in oklab, var(--ui-fg) 7%, transparent);
@@ -90,6 +91,7 @@
   --ui-r-10: 10px;
   --ui-r-12: 12px;
   --ui-r-16: 16px;
+  --ui-r-18: 18px; /* message bubbles */
   --ui-r-20: 20px;
   --ui-r-24: 24px;
   --ui-r-pill: 999px;
@@ -122,6 +124,7 @@
   --ui-leading-tight: 1.3;
   --ui-leading: 1.55;
   --ui-leading-loose: 1.7; /* papers and long answers */
+  --ui-leading-prose: 1.73; /* 15 / 26: conversation prose */
   --ui-weight-regular: 400;
   --ui-weight-strong: 600;
   --ui-font-sans:
@@ -142,7 +145,8 @@
 
   /* App layouts */
   --ui-page-width: 960px;
-  --ui-conversation-width: 760px;
+  --ui-conversation-width: 720px;
+  --ui-home-width: 768px;
   --ui-search-width: 220px;
   --ui-card-min: 220px;
   --ui-dialog-sm: 400px;
@@ -173,6 +177,8 @@
   --ui-dur-3: 260ms;
   --ui-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --ui-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ui-ease-snappy: cubic-bezier(0.23, 1, 0.32, 1);
+  --ui-press: scale(0.98);
 }
 
 :root[data-theme="dark"] {
