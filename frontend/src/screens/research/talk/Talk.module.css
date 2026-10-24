@@ -237,7 +237,21 @@
 
 /* ---------- Project page ---------- */
 
+.layout {
+  position: relative;
+  display: flex;
+  gap: var(--ui-space-8);
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--ui-bg-1);
+}
+
 .page {
+  flex: 1 1 auto;
+  border-radius: var(--ui-r-16);
+  box-shadow: var(--ui-elev-1);
   --research-thread-width: 768px;
   position: relative;
   /* Its parent does not shrink it: a long title must not widen the page. */
@@ -1141,100 +1155,76 @@
   color: var(--ui-danger-text);
 }
 
-/* ---------- The record beside the talk ---------- */
-
+/* ---------- The independent record card ---------- */
 .record {
   display: flex;
   flex-direction: column;
   flex: none;
-  width: 360px;
+  width: var(--panel-width, var(--ui-sheet-width));
+  min-width: 0;
   min-height: 0;
-  border-left: 1px solid var(--ui-edge-subtle);
-  background: var(--ui-bg-1);
-}
-
-.recordHead {
-  flex: none;
-  padding: 18px 16px 0;
-  border-bottom: 1px solid var(--ui-edge-subtle);
-}
-
-.recordTitleRow {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-  margin-bottom: 15px;
-}
-
-.recordTitleRow h2 {
-  margin: 0;
-  color: var(--ui-fg-1);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.recordTitleRow > span {
   overflow: hidden;
-  color: var(--ui-fg-3);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border-radius: var(--ui-r-16);
+  background: var(--ui-bg);
+  box-shadow: var(--ui-elev-1);
 }
-
-.recordTabs {
+.recordHead {
   display: flex;
-  gap: 3px;
-  min-width: 0;
+  align-items: center;
+  flex: none;
+  gap: var(--ui-space-8);
+  min-height: var(--ui-card-header-height);
+  padding: 0 var(--ui-space-12);
 }
-
-.recordTabs > button {
+.recordClose {
+  margin-left: auto;
+  flex: none;
+}
+.recordPane {
+  display: flex;
   flex: 1;
-  min-width: 0;
-  padding: 9px 2px 11px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--ui-fg-3);
-  font: inherit;
-  font-size: 12px;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.recordTabs > button:hover {
-  color: var(--ui-fg);
-}
-
-.recordTabs > button[aria-selected="true"] {
-  border-bottom-color: var(--ui-fg-2);
-  color: var(--ui-fg);
-}
-
-.recordBody {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 16px 12px;
-  display: flex;
   flex-direction: column;
-  gap: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+.recordBody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--ui-space-16) var(--ui-space-16);
   scrollbar-width: thin;
 }
-
 .recordBody > .section {
-  padding: 16px;
-  border: 1px solid var(--ui-edge-subtle);
-  border-radius: 14px;
-  background: var(--ui-bg);
+  padding: var(--ui-space-16) 0;
+  border-bottom: 1px solid var(--ui-edge-subtle);
 }
-
+.recordBody > .section:last-child {
+  border-bottom: 0;
+}
 .recordBody > .section > p {
   margin: 0;
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-13);
 }
-
-.recordBody[data-tab="files"],
-.recordBody[data-tab="scene"] {
-  padding: 16px;
+.experiments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-12);
+}
+.experiments .runLine {
+  flex: none;
+  height: var(--ui-control-md);
+  background: transparent;
+}
+.experiments .runLine:hover {
+  background: var(--ui-hover);
+}
+.experiments .runName {
+  font-size: var(--ui-text-13);
+}
+.experiments .runLine > .workMeta:not(:last-child) {
+  display: none;
 }
 
 .section {
@@ -1372,16 +1362,6 @@
 }
 
 @media (max-width: 1100px) {
-  .record {
-    position: absolute;
-    top: 52px;
-    right: 0;
-    bottom: 0;
-    z-index: 5;
-    width: min(360px, 100%);
-    box-shadow: var(--ui-elev-2);
-  }
-
   .stages,
   .budget {
     display: none;
@@ -1490,42 +1470,6 @@
   }
 }
 
-.body {
-  position: relative;
-  gap: 12px;
-}
-.record {
-  align-self: flex-start;
-  position: relative;
-  top: auto;
-  right: auto;
-  bottom: auto;
-  width: 320px;
-  max-height: calc(100% - 24px);
-  margin: 8px 16px 16px 0;
-  border: 0;
-  border-radius: 20px;
-  background: var(--ui-bg-2);
-  overflow: hidden;
-}
-.recordTitleRow {
-  margin: 0;
-  padding: 20px 20px 8px;
-}
-.recordBody {
-  padding: 0 20px 12px;
-  gap: 0;
-}
-.recordBody > .section {
-  padding: 18px 0;
-  border: 0;
-  border-bottom: 1px solid var(--ui-edge-subtle);
-  border-radius: 0;
-  background: transparent;
-}
-.recordBody > .section:last-child {
-  border-bottom: 0;
-}
 .sectionTitle {
   display: flex;
   align-items: center;
@@ -1587,26 +1531,77 @@ section:hover > .messageActions,
   margin-left: 6px;
 }
 .checkpointCard {
+  overflow: hidden;
+  margin-top: var(--ui-space-12);
+  border-radius: var(--ui-r-12);
+  background: var(--ui-bg-2);
+  font-size: var(--ui-text-13);
+}
+.checkpointHead {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
-  padding: 16px;
-  margin-top: 16px;
-  background: var(--ui-bg-2);
-  border: 1px solid var(--ui-edge-subtle);
-  border-radius: 14px;
-  font-size: 13px;
+  gap: var(--ui-space-8);
+  padding: var(--ui-space-10) var(--ui-space-12);
 }
-.checkpointCard > div:first-of-type {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.checkpointHead > svg {
+  flex: none;
+  color: var(--ui-fg-3);
 }
-.checkpointActions {
-  display: flex;
-  gap: 6px;
+.checkpointHead > strong {
+  font-weight: var(--ui-weight-strong);
+}
+.checkpointHead > button {
   margin-left: auto;
+}
+.filePath {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--ui-font-mono);
+  font-size: var(--ui-text-13);
+  white-space: nowrap;
+}
+.filePath > span:first-child {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ui-fg-3);
+}
+.filePath > span:first-child:not(:empty) {
+  min-width: 2.4ch;
+}
+.filePath > span:last-child {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ui-fg);
+}
+.filePath > span:first-child:not(:empty) + span {
+  max-width: calc(100% - 2.4ch);
+}
+.changedFile {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  width: 100%;
+  min-height: var(--ui-control-md);
+  padding: 0 var(--ui-space-12);
+  border: 0;
+  background: transparent;
+  color: var(--ui-fg);
+  text-align: left;
+  cursor: pointer;
+}
+.changedFile:hover {
+  background: var(--ui-hover);
+}
+.moreFiles > summary {
+  padding: var(--ui-space-8) var(--ui-space-12);
+  color: var(--ui-fg-2);
+  cursor: pointer;
 }
 .changeNumbers {
   display: inline-flex;
@@ -1661,24 +1656,6 @@ section:hover > .messageActions,
 .threadSkeleton > div:last-child {
   width: 64%;
 }
-@media (max-width: 1100px) {
-  .record {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: auto;
-    z-index: 5;
-    width: min(340px, calc(100% - 24px));
-    max-height: calc(100% - 16px);
-    box-shadow: var(--ui-elev-2);
-    margin: 8px 12px;
-  }
-}
-@media (max-width: 600px) {
-  .checkpointActions {
-    width: 100%;
-  }
-}
 @media (hover: none) {
   .messageActions {
     opacity: 1;
@@ -1687,5 +1664,36 @@ section:hover > .messageActions,
 @media (prefers-reduced-motion: reduce) {
   .messageActions {
     transition: none;
+  }
+}
+
+.headHeading {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  flex: 1;
+  min-width: 0;
+}
+.headHeading .headTitle {
+  flex: 0 1 auto;
+  margin: 0;
+}
+.headStats {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+@media (width < 1100px) {
+  .layout > div:has(> [role="separator"]) {
+    display: none;
+  }
+  .record {
+    position: absolute;
+    inset: var(--ui-space-8) var(--ui-space-8) var(--ui-space-8) auto;
+    z-index: 5;
+    width: min(
+      var(--panel-width, var(--ui-sheet-width)),
+      calc(100% - var(--ui-space-16))
+    );
+    box-shadow: var(--ui-elev-2);
   }
 }

@@ -1664,7 +1664,9 @@ test("SSH connections validate before a remote folder can become a workspace", a
   await expect(
     page.getByRole("complementary", { name: "研究记录" }),
   ).toBeVisible();
-  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(
+    page.getByRole("complementary", { name: "研究记录" }).getByRole("tab"),
+  ).toHaveText(["进度", "变更", "实验"]);
   await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
   await page.goto("/#workspaces/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb");
   await expect(
@@ -2211,7 +2213,9 @@ test("a finished research accepts a discussion and stops only its current answer
       .getByRole("complementary", { name: "研究记录" })
       .getByRole("button", { name: "查看变更", exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole("tab")).toHaveCount(0);
+  await expect(
+    page.getByRole("complementary", { name: "研究记录" }).getByRole("tab"),
+  ).toHaveText(["进度", "变更", "实验"]);
   await page.getByRole("button", { name: "收起研究记录", exact: true }).click();
   await input.fill("解释这个结论的适用条件");
   await page.getByRole("button", { name: "发送", exact: true }).click();
@@ -2663,6 +2667,10 @@ test("memory merge requires an evidence preview and explicit confirmation, then 
   await page.getByRole("button", { name: "显示研究记录", exact: true }).click();
   await page
     .getByRole("complementary", { name: "研究记录" })
+    .getByRole("tab", { name: "变更", exact: true })
+    .click();
+  await page
+    .getByRole("complementary", { name: "研究记录" })
     .getByRole("button", { name: "合并到项目", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "合并到项目" });
@@ -2714,6 +2722,10 @@ test("code merge blocks conflicts, binds selected paths, and requires a refreshe
   await page.getByRole("button", { name: "显示研究记录", exact: true }).click();
   await page
     .getByRole("complementary", { name: "研究记录" })
+    .getByRole("tab", { name: "变更", exact: true })
+    .click();
+  await page
+    .getByRole("complementary", { name: "研究记录" })
     .getByRole("button", { name: "合并到项目", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "合并到项目" });
@@ -2763,7 +2775,7 @@ test("code merge blocks conflicts, binds selected paths, and requires a refreshe
   expect(state.cancelled.length).toBeGreaterThanOrEqual(3);
 });
 
-test("conversation turns show checkpoint cards and one ordered content panel", async ({
+test("conversation turns open per-round review in an independent tabbed panel", async ({
   page,
 }, testInfo) => {
   await branches(page);
@@ -2794,7 +2806,7 @@ test("conversation turns show checkpoint cards and one ordered content panel", a
         path: "train.py",
         added: 4,
         removed: 1,
-        diff: "diff --git a/train.py b/train.py\n-old\n+verified result",
+        diff: "diff --git a/train.py b/train.py\n--- a/train.py\n+++ b/train.py\n@@ -1 +1,4 @@\n-old\n+verified result\n+first\n+second\n+third",
       },
     ],
   };
@@ -2804,7 +2816,8 @@ test("conversation turns show checkpoint cards and one ordered content panel", a
       undos++;
       return route.fulfill({ json: { commit_sha: mergedCommit } });
     }
-    if (path.endsWith("/changes")) return route.fulfill({ json: diff });
+    if (path.endsWith("/changes"))
+      return route.fulfill({ json: { ...diff, can_undo: undos === 0 } });
     if (path.endsWith("/runs"))
       return route.fulfill({
         json: [
@@ -2916,37 +2929,111 @@ test("conversation turns show checkpoint cards and one ordered content panel", a
   await expect(page.getByText("对比结果已保存", { exact: true })).toHaveCount(
     1,
   );
-  const changes = page.getByRole("article", { name: "已修改 1 个文件" });
+  const changes = page.getByRole("article", { name: "改了 1 个文件" });
   await expect(changes).toContainText("+4");
+  await expect(changes.getByRole("button", { name: /train.py/ })).toContainText(
+    "−1",
+  );
   const viewChanges = changes.getByRole("button", {
-    name: "查看变更",
+    name: "审阅",
     exact: true,
   });
   await viewChanges.focus();
-  await page.keyboard.press("Shift+Tab");
-  await page.keyboard.press("Tab");
-  await expect(viewChanges).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "查看变更" })).toContainText(
-    "verified result",
-  );
-  await page.keyboard.press("Escape");
-  await changes.getByRole("button", { name: "撤销", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  await expect.poll(() => undos).toBe(1);
-  await page.getByRole("button", { name: "显示研究记录", exact: true }).click();
   const panel = page.getByRole("complementary", { name: "研究记录" });
-  await expect(panel.getByRole("heading", { level: 3 })).toHaveText([
-    "变更+4−1",
-    "实验",
-    "计划",
-    "来源",
-  ]);
-  await expect(panel.getByRole("tab")).toHaveCount(0);
-  await expect(panel).toContainText("维度对比");
+  await expect(panel.getByRole("tab")).toHaveText(["进度", "变更", "实验"]);
+  await expect(
+    panel.getByRole("tab", { name: "变更", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(panel.locator("[data-review-round]")).toHaveAttribute(
+    "data-review-round",
+    turn.id,
+  );
+  await expect(
+    panel.getByRole("button", { name: "对比基准", exact: true }),
+  ).toHaveText("第 2 轮检查点");
+  await expect(panel.locator("pre")).toContainText("+verified result");
+  await expect(panel.locator('[data-kind="del"]')).toContainText("-old");
+  await expect(panel.locator('[data-kind="add"]').first()).toContainText(
+    "+verified result",
+  );
+  await expect(page.getByRole("dialog", { name: "查看变更" })).toHaveCount(0);
+  const reviewedFile = panel.locator('details[data-path="train.py"]');
+  await reviewedFile.locator("summary").click();
+  await expect(reviewedFile).not.toHaveAttribute("open", "");
+  await changes.getByRole("button", { name: /train.py/ }).click();
+  await expect(reviewedFile).toHaveAttribute("open", "");
+  await expect(reviewedFile.locator("summary")).toBeFocused();
+  const separator = page.getByRole("separator", {
+    name: "调整研究记录宽度",
+    exact: true,
+  });
+  const before = Number(await separator.getAttribute("aria-valuenow"));
+  await separator.focus();
+  await separator.press("ArrowLeft");
+  await expect(separator).toHaveAttribute("aria-valuenow", String(before + 24));
+  const main = page.getByTestId("research-conversation");
+  const mainBox = (await main.boundingBox())!;
+  const panelBox = (await panel.boundingBox())!;
+  expect(Math.round(panelBox.x - mainBox.x - mainBox.width)).toBe(8);
+  expect(Math.round(panelBox.y)).toBe(Math.round(mainBox.y));
+  const total = page
+    .getByRole("heading", { name: "表示维度对比", exact: true })
+    .locator("..")
+    .getByRole("button", { name: "审阅", exact: true });
+  await expect(total).toContainText("+4−1");
+  await total.click();
+  await expect(panel.locator("[data-review-round]")).toHaveAttribute(
+    "data-review-round",
+    "",
+  );
+  await panel.getByRole("button", { name: "对比基准", exact: true }).click();
+  await page
+    .getByRole("menuitem", { name: "第 2 轮检查点", exact: true })
+    .click();
+  await panel.getByRole("button", { name: "放弃", exact: true }).click();
+  const confirm = page.getByRole("dialog", {
+    name: "放弃这轮改动？",
+    exact: true,
+  });
+  expect(undos).toBe(0);
+  await confirm.getByRole("button", { name: "放弃", exact: true }).click();
+  await expect.poll(() => undos).toBe(1);
+  await expect(
+    panel.getByRole("button", { name: "放弃", exact: true }),
+  ).toHaveCount(0);
+  await panel.getByRole("tab", { name: "实验", exact: true }).click();
+  const experiment = panel.getByRole("button", { name: /train.py/ });
+  await expect(experiment).toContainText("accuracy");
+  await expect(experiment).toContainText("3m12s");
+  expect((await experiment.boundingBox())!.height).toBe(32);
+  await page.reload();
+  await expect(
+    panel.getByRole("tab", { name: "实验", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await panel.getByRole("button", { name: "关闭", exact: true }).click();
+  await page.reload();
+  await expect(panel).toHaveCount(0);
+  await page.getByRole("button", { name: "显示研究记录", exact: true }).click();
+  await expect(
+    panel.getByRole("tab", { name: "实验", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await panel.getByRole("tab", { name: "进度", exact: true }).click();
+  await expect(panel).toContainText("小表示足够");
   await expect(panel).toContainText("MNIST");
+  await panel.getByRole("tab", { name: "变更", exact: true }).click();
   await page.screenshot({
-    path: testInfo.outputPath("conversation-panel-zh.png"),
+    path: testInfo.outputPath("conversation-review-zh.png"),
+  });
+  await page.setViewportSize({ width: 720, height: 900 });
+  const overlayBox = (await panel.boundingBox())!;
+  const underBox = (await main.boundingBox())!;
+  expect(overlayBox.x).toBeLessThan(underBox.x + underBox.width);
+  expect(overlayBox.x + overlayBox.width).toBeLessThanOrEqual(720);
+  await expect(separator).toBeHidden();
+  await expect(page.locator("body")).toHaveJSProperty("scrollWidth", 720);
+  await page.screenshot({
+    path: testInfo.outputPath("conversation-review-narrow-zh.png"),
   });
 });
 

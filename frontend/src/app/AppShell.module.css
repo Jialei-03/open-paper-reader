@@ -42,6 +42,13 @@
   box-shadow: var(--ui-elev-1);
 }
 
+.localFrame[data-app-screen="research"] > :first-child > :last-child {
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+}
+
 :where(.root) :focus-visible {
   outline: none;
   box-shadow: var(--ui-focus-ring);

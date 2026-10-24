@@ -775,6 +775,9 @@ async function setup(page: import("@playwright/test").Page) {
   await page.route(`**/api/v1/research/projects/${research}/events*`, (route) =>
     route.fulfill({ json: [] }),
   );
+  await page.route(`**/api/v1/research/projects/${research}/changes`, (route) =>
+    route.fulfill({ json: { files: [], added: 0, removed: 0 } }),
+  );
   await page.route(`**/api/v1/research/projects/${research}/runs`, (route) =>
     route.fulfill({ json: [] }),
   );
@@ -2678,5 +2681,149 @@ for (const [locale, width] of [
     await openSidebar();
     await expect(activity).toBeVisible();
     await expect(shortcut.getByText("1", { exact: true })).toHaveCount(0);
+  });
+}
+
+for (const [locale, theme, width] of [
+  ["zh", "light", 1440],
+  ["en", "dark", 720],
+] as const) {
+  test(`${locale} ${theme}: research review handles file folds, previews and panel preferences`, async ({
+    page,
+  }, testInfo) => {
+    const { t } = createTranslator(locale);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(
+      ({ locale, theme }) => {
+        localStorage.setItem("paper-locale", locale);
+        localStorage.setItem("paper-appearance", theme);
+      },
+      { locale, theme },
+    );
+    await setup(page);
+    let empty = false;
+    const files = [
+      {
+        path: "src/train.py",
+        added: 2,
+        removed: 1,
+        diff: "@@ -4 +4,2 @@\n-old\n+verified\n+result\n",
+      },
+      {
+        path: "results/large.csv",
+        added: 250,
+        removed: 0,
+        diff: "@@ -0,0 +1,250 @@\n" + "+1,2\n".repeat(250),
+      },
+      {
+        path: "results/model.bin",
+        added: 0,
+        removed: 0,
+        diff: "Binary files differ",
+        binary: true,
+      },
+      {
+        path: "notes/truncated.md",
+        added: 500,
+        removed: 0,
+        diff: "@@ -0,0 +1,500 @@\n+partial\n",
+        truncated: true,
+      },
+    ];
+    await page.route(
+      `**/api/v1/research/projects/${research}/changes`,
+      (route) =>
+        route.fulfill({
+          json: empty
+            ? { added: 0, removed: 0, files: [] }
+            : { added: 752, removed: 1, files },
+        }),
+    );
+    await page.route(
+      `**/api/v1/research/projects/${research}/workspace/file?**`,
+      (route) =>
+        route.fulfill({
+          json: {
+            path: "src/train.py",
+            name: "train.py",
+            size: 19,
+            modified: 1792749600,
+            kind: "text",
+            content: "Saved training file",
+          },
+        }),
+    );
+    await page.goto(`/#research/${research}`);
+    const total = page
+      .getByRole("heading", { name: "研究问题", exact: true })
+      .locator("..")
+      .getByRole("button", { name: t("research.review.action"), exact: true });
+    await expect(total).toContainText("+752−1");
+    await total.click();
+    const panel = page.getByRole("complementary", {
+      name: t("research.record.title"),
+      exact: true,
+    });
+    await expect(panel.getByRole("tab")).toHaveText([
+      t("research.record.progress"),
+      t("research.panel.changes"),
+      t("research.record.runs"),
+    ]);
+    await expect(
+      panel.getByRole("tab", {
+        name: t("research.panel.changes"),
+        exact: true,
+      }),
+    ).toHaveAttribute("aria-selected", "true");
+    const small = panel.locator('details[data-path="src/train.py"]');
+    const large = panel.locator('details[data-path="results/large.csv"]');
+    const binary = panel.locator('details[data-path="results/model.bin"]');
+    const truncated = panel.locator('details[data-path="notes/truncated.md"]');
+    await expect(small).toHaveAttribute("open", "");
+    for (const file of [large, binary, truncated])
+      await expect(file).not.toHaveAttribute("open", "");
+    await expect(small.locator('[data-kind="del"]')).toContainText("-old");
+    await expect(small.locator('[data-kind="add"]').first()).toContainText(
+      "+verified",
+    );
+    await large.locator("summary").click();
+    await expect(large.locator('[data-kind="add"]')).toHaveCount(250);
+    await large.locator("summary").click();
+    await binary.locator("summary").click();
+    await expect(binary).toContainText(t("research.merge.binary"));
+    await truncated.locator("summary").click();
+    await expect(truncated).toContainText(t("research.changes.truncated"));
+    await small
+      .getByRole("button", { name: t("research.review.openFile"), exact: true })
+      .click();
+    await expect(panel).toContainText("Saved training file");
+    await panel
+      .getByRole("button", { name: t("research.files.back"), exact: true })
+      .click();
+    await expect(small).toHaveAttribute("open", "");
+    await page.screenshot({
+      path: testInfo.outputPath(
+        `research-review-${locale}-${theme}-${width}.png`,
+      ),
+    });
+    await panel
+      .getByRole("button", { name: t("common.close"), exact: true })
+      .click();
+    await page.reload();
+    await expect(panel).toHaveCount(0);
+    await page
+      .getByRole("button", { name: t("research.record.show"), exact: true })
+      .click();
+    await expect(
+      panel.getByRole("tab", {
+        name: t("research.panel.changes"),
+        exact: true,
+      }),
+    ).toHaveAttribute("aria-selected", "true");
+    empty = true;
+    await page.reload();
+    await expect(total).toHaveCount(0);
+    await expect(panel).toContainText(t("research.merge.noChanges"));
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
   });
 }

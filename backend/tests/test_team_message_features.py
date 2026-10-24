@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import sessionmaker
 
 from backend import research_chat, research_team as team
@@ -392,14 +392,38 @@ def test_team_message_features_references_are_scoped_and_snapshots_survive_sourc
     assert reaction(features, mid).status_code == 409
 
 
-def test_team_message_features_migration_roundtrip(features, monkeypatch):
+def test_team_message_features_migration_roundtrip(tmp_path, monkeypatch):
+    from alembic import command
+    from alembic.config import Config
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    from backend.config import Settings
+
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'migration.db'}",
+        storage=str(tmp_path / "files"),
+        testing=True,
+    )
+    monkeypatch.setattr(Settings, "env", classmethod(lambda cls: settings))
+    command.upgrade(Config(toml_file="pyproject.toml"), "0049")
+    engine = create_engine(settings.database_url)
     migration = importlib.import_module(
         "backend.migrations.versions.0050_message_feedback"
     )
     assert migration.down_revision == "0049"
-    with features.engine.begin() as connection:
-        monkeypatch.setattr(migration.op, "get_bind", lambda: connection)
-        migration.downgrade()
-        migration.upgrade()
-        migration.upgrade()
-        assert connection.execute(select(TeamMessageReaction)).all() == []
+    table = TeamMessageReaction.__tablename__
+    with engine.begin() as connection:
+        assert table not in inspect(connection).get_table_names()
+        with Operations.context(MigrationContext.configure(connection)):
+            migration.upgrade()
+            assert {
+                column["name"] for column in inspect(connection).get_columns(table)
+            } == set(TeamMessageReaction.__table__.columns.keys())
+            migration.upgrade()
+            assert connection.execute(select(TeamMessageReaction)).all() == []
+            migration.downgrade()
+            assert table not in inspect(connection).get_table_names()
+            migration.upgrade()
+            assert connection.execute(select(TeamMessageReaction)).all() == []
+    engine.dispose()

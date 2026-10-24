@@ -296,16 +296,15 @@ test("covers come from the thumbnail route and the PDF itself is not downloaded"
     pages: 3,
   });
   const contents: string[] = [];
-  const covers: string[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
     if (/\/files\/[^/]+\/content$/.test(url.pathname))
       contents.push(url.pathname);
-    if (/\/files\/[^/]+\/thumbnail$/.test(url.pathname))
-      covers.push(url.pathname);
   });
-  const response = page.waitForResponse(/\/thumbnail$/);
-  await page.goto(LIBRARY);
+  const thumbnailPath = `/api/v1/files/${paper.fileId}/thumbnail`;
+  const thumbnailUrl = new URL(thumbnailPath, page.url()).href;
+  const response = page.waitForResponse(thumbnailUrl);
+  await page.goto(`${LIBRARY}?q=${stamp}`);
   await page
     .getByRole("radiogroup", { name: "视图" })
     .getByRole("radio", { name: "卡片" })
@@ -314,29 +313,40 @@ test("covers come from the thumbnail route and the PDF itself is not downloaded"
     .getByRole("main")
     .locator(`[data-paper="${paper.paperId}"]`);
   const image = card.locator('img[data-thumb="image"]');
-  await expect(image).toHaveAttribute("src", /\/thumbnail$/);
+  await expect(image).toHaveAttribute("src", thumbnailPath);
   await expect
-    .poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth))
-    .toBeGreaterThan(0);
+    .poll(() =>
+      image.evaluate(
+        (el: HTMLImageElement) => el.complete && el.naturalWidth > 0,
+      ),
+    )
+    .toBe(true);
   const headers = (await response).headers();
   expect(headers["content-type"]).toBe("image/jpeg");
   expect(headers["cache-control"]).toContain("immutable");
   expect(headers["cache-control"]).not.toContain("public");
   // A reload reuses the browser's copy of the picture.
   await page.reload();
-  await page.goto(LIBRARY);
-  await expect(image).toHaveAttribute("src", /\/thumbnail$/);
+  await expect(image).toHaveAttribute("src", thumbnailPath);
   await expect
-    .poll(() => image.evaluate((el: HTMLImageElement) => el.naturalWidth))
-    .toBeGreaterThan(0);
-  const cached = await page.evaluate(() =>
-    performance
-      .getEntriesByType("resource")
-      .filter((e) => e.name.endsWith("/thumbnail"))
-      .map((e) => (e as PerformanceResourceTiming).transferSize),
-  );
-  expect(cached.length).toBeGreaterThan(0);
-  expect(cached, JSON.stringify(cached)).toEqual(cached.map(() => 0));
+    .poll(() =>
+      image.evaluate(
+        (el: HTMLImageElement) => el.complete && el.naturalWidth > 0,
+      ),
+    )
+    .toBe(true);
+  // Wait for this cover's completed timing entry, not every thumbnail on the page.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (url) =>
+          performance
+            .getEntriesByName(url, "resource")
+            .map((e) => (e as PerformanceResourceTiming).transferSize),
+        thumbnailUrl,
+      ),
+    )
+    .toEqual([0]);
   expect(contents).toEqual([]);
   await context.close();
 });

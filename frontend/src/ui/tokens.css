@@ -74,6 +74,8 @@
   --ui-fill: color-mix(in oklab, var(--ui-fg) 4%, transparent);
   --ui-accent-soft: color-mix(in oklab, var(--ui-fg) 7%, transparent);
   --ui-danger-soft: color-mix(in oklab, var(--ui-danger) 14%, transparent);
+  --ui-diff-add: color-mix(in oklab, var(--ui-success-text) 13%, transparent);
+  --ui-diff-del: color-mix(in oklab, var(--ui-danger-text) 11%, transparent);
   /* Neutral, one quiet ring: focus is shown, never decorated. */
   --ui-focus-ring: 0 0 0 3px color-mix(in oklab, var(--ui-fg) 14%, transparent);
   --ui-ring-1: 0 0 0 1px var(--ui-edge-subtle);
