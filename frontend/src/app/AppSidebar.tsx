@@ -376,7 +376,7 @@ function AppResearchSidebar({
   const nav = useRef<HTMLElement>(null);
   const sizing = useResizableWidth({
     key: `research-sidebar-width:${owner || ""}`,
-    fallback: 288,
+    fallback: 264,
     min: 240,
     maxFor: researchSidebarMax,
   });
@@ -433,7 +433,7 @@ function AppResearchSidebar({
         aria-current={active ? "page" : undefined}
         onClick={followLink(choose, hash)}
       >
-        <Icon size={16} aria-hidden />
+        <Icon size={18} aria-hidden />
       </a>
     </Tooltip>
   );
@@ -604,7 +604,7 @@ function AppResearchSidebar({
               width={sizing.width}
               min={240}
               max={sizing.max}
-              fallback={288}
+              fallback={264}
               maxNow={() => researchSidebarMax(window.innerWidth)}
               property="--research-sidebar-width"
               label={t("sidebar.resize")}

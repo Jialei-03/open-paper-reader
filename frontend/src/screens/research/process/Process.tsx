@@ -384,6 +384,7 @@ export function RunTurn({
             aria-expanded={open}
             onClick={() => setOpen(!open)}
           >
+            <ChevronRight size={13} className={styles.chevron} aria-hidden />
             {t("research.turn.elapsed", {
               time: clock(
                 run?.runtime?.execution_seconds ??
@@ -395,7 +396,6 @@ export function RunTurn({
                     : 0),
               ),
             })}
-            <ChevronRight size={13} className={styles.chevron} aria-hidden />
           </button>
           {open && <Trail steps={steps} live={false} />}
           {final && <Words text={final.replaceAll("\\n", "\n")} live={false} />}

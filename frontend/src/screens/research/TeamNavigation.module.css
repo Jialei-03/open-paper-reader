@@ -74,8 +74,16 @@
   position: relative;
 }
 
-.shortcut a {
-  padding-right: var(--ui-space-48);
+.navigation > [role="group"]:has(> .shortcut) {
+  gap: 1px;
+}
+
+.shortcut a,
+.settings a {
+  height: 34px;
+  gap: var(--ui-space-10);
+  padding: 0 var(--ui-space-10);
+  font-size: var(--ui-text-14);
 }
 
 .shortcut > .badge {
@@ -107,17 +115,27 @@
   flex: none;
   align-items: center;
   justify-content: space-between;
-  gap: var(--ui-space-8);
-  padding: var(--ui-space-12) var(--ui-space-8) var(--ui-space-4);
+  gap: var(--ui-space-4);
+  height: 26px;
+  margin-top: 14px;
+  padding: 0 var(--ui-space-6) 0 var(--ui-space-10);
   color: var(--ui-fg-3);
   font-size: var(--ui-text-12);
+  font-weight: var(--ui-weight-regular);
+  letter-spacing: 0.02em;
+}
+
+.heading button {
+  width: var(--ui-space-24);
+  height: var(--ui-space-24);
+  border-radius: var(--ui-r-6);
 }
 
 .conversations {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--ui-space-2);
+  gap: 1px;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -133,10 +151,13 @@
   min-height: var(--ui-space-48);
   padding: var(--ui-space-8);
   border-radius: var(--ui-r-8);
-  color: var(--ui-fg);
+  color: var(--ui-fg-1);
   text-decoration: none;
   font-size: var(--ui-text-13);
   line-height: var(--ui-leading-tight);
+  transition:
+    background-color var(--ui-dur-2) var(--ui-ease-out),
+    color var(--ui-dur-2) var(--ui-ease-out);
 }
 
 .content {
@@ -170,18 +191,15 @@
 
 .preview {
   min-height: var(--ui-space-16);
-  color: var(--ui-fg-1);
+  color: var(--ui-fg-2);
   font-size: var(--ui-text-12);
-}
-
-.preview[data-working] {
-  color: var(--ui-accent-text);
 }
 
 .line time {
   flex: none;
   color: var(--ui-fg-3);
   font-size: var(--ui-text-12);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -195,8 +213,17 @@
   background: var(--ui-hover);
 }
 
+.conversation:hover,
+.conversation[aria-current="page"] {
+  color: var(--ui-fg);
+}
+
 .conversation[aria-current="page"] {
   background: var(--ui-selected);
+}
+
+.conversation:active {
+  background: var(--ui-active);
 }
 
 .navigation a:focus-visible {

@@ -1549,6 +1549,7 @@ export function TeamComposer({
           )}
           <IconButton
             icon={Send}
+            className={styles.send}
             label={t(active ? "team.queue" : "research.home.send")}
             disabled={busy || !text.trim()}
             type="submit"

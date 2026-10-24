@@ -323,6 +323,7 @@ function FirstMessage({
           <>
             <IconButton
               icon={Plus}
+              className={styles.plus}
               label={t("research.attach")}
               size="sm"
               onClick={() => picker.current?.click()}

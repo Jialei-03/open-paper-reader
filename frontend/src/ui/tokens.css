@@ -10,6 +10,10 @@
  */
 :root {
   color-scheme: light;
+  font-feature-settings: "cv11", "ss03", "calt";
+  font-optical-sizing: auto;
+  font-synthesis-weight: none;
+  text-autospace: normal;
 
   /* Surfaces */
   --ui-bg: #fefdfc; /* cards */
@@ -72,15 +76,23 @@
   --ui-danger-soft: color-mix(in oklab, var(--ui-danger) 14%, transparent);
   /* Neutral, one quiet ring: focus is shown, never decorated. */
   --ui-focus-ring: 0 0 0 3px color-mix(in oklab, var(--ui-fg) 14%, transparent);
+  --ui-ring-1: 0 0 0 1px var(--ui-edge-subtle);
+  --ui-ring-2: 0 0 0 1px var(--ui-edge);
   --ui-elev-1:
-    0 0 0 1px var(--ui-edge-subtle),
+    var(--ui-ring-1),
     0 1px 2px rgb(var(--ui-shade) / calc(0.05 * var(--ui-shadow-k)));
   --ui-elev-2:
-    0 0 0 1px var(--ui-edge),
+    var(--ui-ring-2),
+    0 1px 2px rgb(var(--ui-shade) / calc(0.06 * var(--ui-shadow-k))),
     0 4px 12px -2px rgb(var(--ui-shade) / calc(0.09 * var(--ui-shadow-k))),
     0 14px 36px -10px rgb(var(--ui-shade) / calc(0.14 * var(--ui-shadow-k)));
+  --ui-elev-3:
+    var(--ui-ring-2),
+    0 1px 3px rgb(var(--ui-shade) / calc(0.07 * var(--ui-shadow-k))),
+    0 8px 20px -4px rgb(var(--ui-shade) / calc(0.1 * var(--ui-shadow-k))),
+    0 28px 72px -16px rgb(var(--ui-shade) / calc(0.22 * var(--ui-shadow-k)));
   --ui-elev-composer:
-    0 0 0 1px var(--ui-edge),
+    var(--ui-ring-2),
     0 2px 4px rgb(var(--ui-shade) / calc(0.04 * var(--ui-shadow-k))),
     0 12px 28px -12px rgb(var(--ui-shade) / calc(0.16 * var(--ui-shadow-k)));
 
@@ -150,17 +162,17 @@
   --ui-search-width: 220px;
   --ui-card-min: 220px;
   --ui-dialog-sm: 400px;
-  --ui-dialog-md: 520px;
+  --ui-dialog-md: 540px;
   --ui-dialog-lg: 720px;
   --ui-sheet-width: 460px;
   --ui-settings-width: 1100px;
   --ui-settings-height: 820px;
-  --ui-settings-nav: 240px;
+  --ui-settings-nav: 260px;
   --ui-rail-width: 52px;
   --ui-window-top: 44px;
-  --ui-sidebar-width: 288px;
+  --ui-sidebar-width: 264px;
   --ui-reader-sidebar-width: 220px;
-  --ui-sidebar-top: 56px;
+  --ui-sidebar-top: 52px;
   --ui-card-header-height: 52px;
   --ui-switch-width: 32px;
   --ui-switch-height: 20px;
@@ -215,6 +227,10 @@
   --ui-edge-k1: 7%;
   --ui-edge-k2: 11%;
   --ui-edge-k3: 18%;
+  --ui-ring-1:
+    inset 0 0 0 1px rgb(255 255 255 / 6%), 0 0 0 1px rgb(0 0 0 / 40%);
+  --ui-ring-2:
+    inset 0 0 0 1px rgb(255 255 255 / 10%), 0 0 0 1px rgb(0 0 0 / 50%);
 }
 
 /* Without the script that sets data-theme: only keeps the first paint from flashing white. */

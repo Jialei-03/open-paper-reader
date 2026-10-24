@@ -737,6 +737,8 @@ for (const theme of ["light", "dark"] as const) {
       }
     }
     const header = screen.locator("header").first();
+    await expect(header).toHaveCSS("height", "52px");
+    await expect(header).toHaveCSS("border-bottom-width", "0px");
     await expect(
       header.getByRole("button", { name: "新研究", exact: true }),
     ).toHaveCount(0);
@@ -749,6 +751,20 @@ for (const theme of ["light", "dark"] as const) {
     await input.focus();
     await expect(input).toHaveCSS("border-top-width", "0px");
     await expect(input).toHaveCSS("box-shadow", "none");
+    await expect(input).toHaveCSS("font-size", "15px");
+    await expect(input).toHaveCSS("line-height", "24px");
+    await expect(input).toHaveCSS("min-height", "36px");
+    await expect(input).toHaveCSS("max-height", "280px");
+    await expect(input).toHaveCSS("padding", "4px 6px 8px");
+    const composer = input.locator("..");
+    await expect(composer).toHaveCSS("padding", "10px 10px 10px 12px");
+    await expect(composer.locator("footer")).toHaveCSS("gap", "2px");
+    await expect(composer.locator("footer")).toHaveCSS("padding-top", "0px");
+    const send = composer.getByRole("button", { name: "发送", exact: true });
+    await expect(send).toHaveCSS("width", "34px");
+    await expect(send).toHaveCSS("height", "34px");
+    await expect(send).toHaveCSS("opacity", "1");
+    await expect(send.locator("svg")).toHaveCSS("width", "18px");
     expect(
       await input
         .locator("..")
@@ -1364,6 +1380,13 @@ for (const theme of ["light", "dark"] as const) {
       first.getByText("folded-notes.md", { exact: true }),
     ).toHaveCount(0);
     const fold = first.getByRole("button", { name: /^已处理/ });
+    await expect(fold).toHaveCSS("padding", "0px 10px 0px 6px");
+    await expect(fold).toHaveCSS("border-radius", "8px");
+    await expect(fold).toHaveCSS("line-height", "18px");
+    await expect(fold).toHaveCSS("font-variant-numeric", "tabular-nums");
+    await expect(fold.locator(":scope > :first-child")).toHaveClass(
+      /lucide-chevron-right/,
+    );
     await fold.click();
     await expect(
       first.getByText("folded-notes.md", { exact: true }),
@@ -1380,6 +1403,17 @@ for (const theme of ["light", "dark"] as const) {
     ).toBeVisible();
     const own = screen.locator('[data-message-id="my-message"]');
     await expect(own).toHaveAttribute("data-author", "human");
+    const ownBubble = own.getByTestId("team-message-bubble");
+    const memberBubble = first.getByTestId("team-message-bubble");
+    await expect(ownBubble).toHaveCSS("border-radius", "18px 18px 6px 18px");
+    await expect(memberBubble).toHaveCSS("border-radius", "18px 18px 18px 6px");
+    for (const bubble of [ownBubble, memberBubble]) {
+      await expect(bubble).toHaveCSS("padding", "10px 16px");
+      await expect(bubble.locator("p")).toHaveCSS("font-size", "15px");
+      await expect(bubble.locator("p")).toHaveCSS("line-height", "24px");
+    }
+    await expect(own).toHaveCSS("max-width", "720px");
+    await expect(own).toHaveCSS("padding", "10px 0px");
     await expect(
       own.locator('svg[shape-rendering="crispEdges"], img, strong'),
     ).toHaveCount(0);
@@ -1410,6 +1444,8 @@ for (const theme of ["light", "dark"] as const) {
   test(`${theme}: sidebar merges conversations, badges and frequent members at narrow widths`, async ({
     page,
   }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.setViewportSize({ width: 1440, height: 1000 });
     await page.addInitScript(
       (value) => localStorage.setItem("paper-appearance", value),
       theme,
@@ -1479,10 +1515,51 @@ for (const theme of ["light", "dark"] as const) {
     );
     await page.reload();
     const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
+    const rail = sidebar.locator(":scope > div").first();
+    await expect(rail).toHaveCSS("padding", "8px 0px 12px");
+    await expect(rail).toHaveCSS("border-radius", "0px");
+    const destination = rail.getByRole("link", { name: "研究", exact: true });
+    await expect(destination).toHaveCSS("width", "36px");
+    await expect(destination).toHaveCSS("height", "36px");
+    await expect(destination).toHaveCSS("border-radius", "10px");
+    await expect(destination.locator("svg")).toHaveAttribute("width", "18");
+    await expect(destination.locator("svg")).toHaveCSS("stroke-width", "2px");
+    await expect(destination).not.toHaveCSS("box-shadow", "none");
+    const pane = sidebar.locator(":scope > div").nth(1);
+    await expect(pane).toHaveCSS("width", "264px");
+    const switcher = sidebar.getByRole("button", {
+      name: "切换项目",
+      exact: true,
+    });
+    await expect(switcher).toHaveCSS("font-size", "14px");
+    await expect(switcher.locator("xpath=../..")).toHaveCSS("height", "52px");
+    const resize = page.getByRole("separator", {
+      name: "调整侧栏宽度",
+      exact: true,
+    });
+    await expect(resize).toHaveAttribute("aria-valuenow", "264");
+    for (const label of ["新研究", "线程", "动态"]) {
+      const row = sidebar.getByRole("link", { name: label, exact: true });
+      await expect(row).toHaveCSS("height", "34px");
+      await expect(row).toHaveCSS("font-size", "14px");
+      await expect(row).toHaveCSS("padding", "0px 10px");
+      await expect(row).toHaveCSS("gap", "10px");
+    }
+    const messagesHeading = sidebar
+      .getByText("消息", { exact: true })
+      .locator("..");
+    await expect(messagesHeading).toHaveCSS("height", "26px");
+    await expect(messagesHeading).toHaveCSS("font-size", "12px");
+    await expect(messagesHeading).toHaveCSS("font-weight", "400");
+    const addChannel = messagesHeading.getByRole("button");
+    await expect(addChannel).toHaveCSS("width", "24px");
+    await expect(addChannel).toHaveCSS("height", "24px");
+    await expect(addChannel).toHaveCSS("border-radius", "6px");
     const conversations = sidebar.getByRole("group", {
       name: "消息",
       exact: true,
     });
+    await expect(conversations).toHaveCSS("gap", "1px");
     const frequent = sidebar.getByRole("group", {
       name: "常用成员",
       exact: true,
@@ -1529,6 +1606,10 @@ for (const theme of ["light", "dark"] as const) {
       "3",
     );
     await expect(advisor.locator("time")).toHaveText("14:50");
+    await expect(advisor.locator("time")).toHaveCSS(
+      "font-variant-numeric",
+      "tabular-nums",
+    );
     await expect(
       conversations
         .getByRole("link", { name: "executor", exact: true })

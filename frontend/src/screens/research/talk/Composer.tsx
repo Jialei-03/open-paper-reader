@@ -156,6 +156,7 @@ export function Composer({
               trigger={(props) => (
                 <IconButton
                   icon={Plus}
+                  className={styles.plus}
                   label={t("research.composer.actions")}
                   disabled={disabled}
                   {...props}
