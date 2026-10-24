@@ -41,7 +41,9 @@ export function WorkspacePicker({
   onChange,
   prominent = false,
   label,
+  "data-id": dataId,
 }: {
+  "data-id"?: string;
   value: string;
   onChange(id: string): void;
   prominent?: boolean;
@@ -87,6 +89,7 @@ export function WorkspacePicker({
       {prominent ? (
         <Button
           ref={anchor}
+          data-id={dataId}
           variant="primary"
           icon={Folder}
           aria-label={t("workspace.chooseFolder")}
@@ -100,6 +103,7 @@ export function WorkspacePicker({
         <button
           type="button"
           ref={anchor}
+          data-id={dataId}
           className={styles.chip}
           aria-label={label || t("workspace.choose")}
           aria-expanded={open}

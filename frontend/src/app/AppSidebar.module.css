@@ -300,3 +300,11 @@
     transform: none;
   }
 }
+
+.pagination {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-4) var(--ui-space-2);
+}

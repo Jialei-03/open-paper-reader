@@ -1275,7 +1275,7 @@ test("a missing explicit workspace asks for a folder instead of silently changin
   expect(state.direct).toEqual([]);
 });
 
-test("a new user opens project creation directly from the sidebar and empty list", async ({
+test("a new user creates a project through the fixed switcher and empty list", async ({
   page,
 }) => {
   const state = await project(page);
@@ -1285,7 +1285,13 @@ test("a new user opens project creation directly from the sidebar and empty list
   await page.goto("/#new");
   await page.reload();
   const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
-  await sidebar.getByRole("button", { name: "新建项目", exact: true }).click();
+  for (const id of ["threads", "activity", "team-settings", "create-channel"])
+    await expect(sidebar.locator(`[data-id="${id}"]`)).toBeDisabled();
+  await sidebar.getByRole("button", { name: "切换项目", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "选择项目", exact: true })
+    .getByRole("button", { name: "新建项目", exact: true })
+    .click();
   const dialog = page.getByRole("dialog", { name: "新建项目", exact: true });
   await expect(dialog).toBeVisible();
   await expect(page).not.toHaveURL(/#workspaces/);
@@ -1820,7 +1826,7 @@ test("the project list puts search before archive filtering and clamps research 
   await expect(oldResearch).toHaveCount(0);
 });
 
-test("notifications open pending conversations and sidebar entries expose real state", async ({
+test("needs you opens pending conversations and sidebar entries expose real state", async ({
   page,
 }) => {
   const state = await project(page);
@@ -1834,16 +1840,21 @@ test("notifications open pending conversations and sidebar entries expose real s
   await expect(
     advisor.getByRole("img", { name: "等你", exact: true }),
   ).toBeVisible();
-  await sidebar.getByRole("button", { name: "通知", exact: true }).click();
-  const notifications = page.getByRole("dialog", { name: "通知", exact: true });
-  await expect(notifications).toContainText(research.question);
-  await notifications
-    .getByRole("button", { name: new RegExp(research.question) })
+  await expect(
+    sidebar.getByRole("button", { name: "通知", exact: true }),
+  ).toHaveCount(0);
+  const attention = sidebar.getByRole("region", {
+    name: "需要你",
+    exact: true,
+  });
+  await expect(attention).toContainText(research.question);
+  await expect(attention).toContainText("等你决定");
+  await attention
+    .getByRole("link", { name: new RegExp(research.question) })
     .click();
   await expect(page).toHaveURL(
     (url) => url.hash === `#${teamHash(wid, "", `research:${rid}`)}`,
   );
-  await expect(notifications).toHaveCount(0);
   const thread = page.getByRole("region", { name: "线程", exact: true });
   await expect(
     thread.getByRole("heading", { name: research.question, exact: true }),

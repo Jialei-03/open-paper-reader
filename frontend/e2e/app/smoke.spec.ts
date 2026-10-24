@@ -4,6 +4,8 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import { PLACES, type SidebarPlace } from "../../src/app/sidebar-entries";
+import { seedSidebarState } from "../fixtures/sidebar";
 import { parseAppRoute } from "../../src/app/routes";
 import { createTranslator } from "../../src/i18n/i18n";
 import { zh } from "../../src/i18n/messages/zh";
@@ -375,15 +377,6 @@ async function menus(page: Page, scope: Page | Locator = page) {
     await escapeDialog(page, title);
     await expect(page.getByRole("dialog")).toHaveCount(before);
   }
-  // This popover's trigger exposes aria-expanded rather than aria-haspopup.
-  const notifications = scope.getByRole("button", {
-    name: zh["research.notifications"],
-    exact: true,
-  });
-  if (await notifications.isVisible()) {
-    await notifications.click();
-    await escapeDialog(page, zh["research.notifications"]);
-  }
 }
 
 /** Click the actual links (including the rail), then restore the screen. */
@@ -441,7 +434,7 @@ async function navigation(page: Page, data: SmokeData) {
       await collapseSidebar(page, false);
     });
   }
-  // Exercise the collapsed rail on each screen too; its extra actions differ.
+  // Exercise the fixed rail on each screen too.
   await collapseSidebar(page, true);
   await menus(page, nav);
   const railTargets = [
@@ -940,4 +933,152 @@ test("首页与深色主题下的首页、团队会话和文库", async ({ page,
   await screen(page, smoke, `team/${smoke.workspaceId}/${experiments}`);
   await screen(page, smoke, "library");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+});
+
+test("侧栏入口登记表、按需事项、分页和固定 rail", async ({ page, smoke }) => {
+  const fixture = await seedSidebarState(page, smoke);
+  const seen = new Map<SidebarPlace, Set<string>>();
+  // Parse the registry by place; a nested section cannot satisfy its parent's ids.
+  const collect = async (place: SidebarPlace) => {
+    // From the page: a place may be the sidebar's own element (the hosted one is).
+    const ids = await page
+      .locator(`[data-sidebar-place="${place}"]`)
+      .evaluateAll(
+        (scopes, place) =>
+          scopes
+            .flatMap((scope) => [scope, ...scope.querySelectorAll("[data-id]")])
+            .filter(
+              (node) =>
+                node
+                  .closest("[data-sidebar-place]")
+                  ?.getAttribute("data-sidebar-place") === place,
+            )
+            .map((node) => node.getAttribute("data-id"))
+            .filter((id): id is string => !!id),
+        place,
+      );
+    const entries = seen.get(place) || new Set<string>();
+    for (const id of ids) entries.add(id);
+    seen.set(place, entries);
+  };
+  const railIds = () =>
+    sidebar(page)
+      .locator('[data-sidebar-place="rail"] [data-id]')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("data-id")).sort(),
+      );
+  const fixedRail = [...PLACES.rail].sort();
+  const assertRail = async () => {
+    await expect.poll(railIds).toEqual(fixedRail);
+    await collapseSidebar(page, true);
+    await expect.poll(railIds).toEqual(fixedRail);
+    await collapseSidebar(page, false);
+    await expect.poll(railIds).toEqual(fixedRail);
+  };
+  await visit(page, smoke, `team/${smoke.workspaceId}/${experiments}`);
+  const nav = sidebar(page);
+  await expect(nav.locator('[data-id="conversation"]')).toHaveCount(11);
+  for (const index of [32, 33, 34])
+    await expect(
+      nav.getByRole("link", {
+        name: index === 32 ? "冒烟频道" : `侧栏会话 ${index}`,
+        exact: true,
+      }),
+    ).toBeVisible();
+  await expect(
+    nav.getByRole("group", { name: "常用成员", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    nav.getByRole("button", { name: "通知", exact: true }),
+  ).toHaveCount(0);
+  const attention = nav.getByRole("region", {
+    name: zh["sidebar.needsYou"],
+    exact: true,
+  });
+  await expect(attention.getByRole("link")).toHaveCount(2);
+  await expect(attention).toContainText(zh["sidebar.waiting"]);
+  for (const place of [
+    "rail",
+    "research",
+    "attention",
+    "messages",
+    "team",
+  ] as const)
+    await collect(place);
+  await assertRail();
+  await nav.locator('[data-id="messages-more"]').click();
+  await expect(nav.locator('[data-id="conversation"]')).toHaveCount(31);
+  await collect("messages");
+  await page.reload();
+  await expect(nav.locator('[data-id="conversation"]')).toHaveCount(31);
+  await nav.locator('[data-id="messages-more"]').click();
+  await expect(nav.locator('[data-id="conversation"]')).toHaveCount(35);
+  await expect(nav.locator('[data-id="messages-more"]')).toHaveCount(0);
+  // A second project starts at eight; returning restores the first project's limit.
+  await page.goto(`/#new?workspace=${fixture.otherWorkspace}`);
+  await expect(nav.locator('[data-id="conversation"]')).toHaveCount(10);
+  await page.goto(`/#team/${smoke.workspaceId}/${experiments}`);
+  await expect(nav.locator('[data-id="conversation"]')).toHaveCount(35);
+  await nav.locator('[data-id="messages-less"]').click();
+  await expect(nav.locator('[data-id="conversation"]')).toHaveCount(11);
+  await attention.getByRole("link", { name: /冒烟决定/ }).click();
+  await expect(page).toHaveURL(
+    (url) =>
+      new URLSearchParams(url.hash.split("?")[1]).get("thread") ===
+      smoke.threadId,
+  );
+  await attention
+    .getByRole("link", { name: /冒烟研究|核对离线研究页面/ })
+    .click();
+  await expect(page).toHaveURL(
+    (url) =>
+      new URLSearchParams(url.hash.split("?")[1]).get("thread") ===
+      `research:${smoke.researchId}`,
+  );
+  fixture.navigation.workspaces[0].researches[0].status = "finished";
+  fixture.navigation.workspaces[0].researches[0].unread = true;
+  fixture.team.notifications[0].data = {}; // a normal mention is not a decision
+  await page.reload();
+  await expect(attention).toHaveCount(0);
+  for (const id of ["new-research", "threads", "activity"])
+    await expect(nav.locator(`[data-id="${id}"]`)).toHaveCount(1);
+  await assertRail();
+
+  await visit(page, smoke, "library");
+  await expect(nav.locator('[data-id="recent-paper"]')).toHaveCount(5);
+  await collect("materials");
+  await collect("recent");
+  await nav.locator('[data-id="recent-more"]').click();
+  await expect(nav.locator('[data-id="recent-paper"]')).toHaveCount(25);
+  await collect("recent");
+  await page.reload();
+  await expect(nav.locator('[data-id="recent-paper"]')).toHaveCount(25);
+  await nav.locator('[data-id="recent-more"]').click();
+  await expect(nav.locator('[data-id="recent-paper"]')).toHaveCount(32);
+  await nav.locator('[data-id="recent-less"]').click();
+  await expect(nav.locator('[data-id="recent-paper"]')).toHaveCount(5);
+  await assertRail();
+  await visit(page, smoke, "customize/playbook");
+  await collect("customize");
+  await assertRail();
+  await visit(page, smoke, "schedules");
+  await expect(nav.locator('[data-id="task"]')).toHaveCount(1);
+  await collect("tasks");
+  await assertRail();
+
+  // The hosted edition keeps its sign-out action at the foot of the sidebar.
+  await page.route("**/api/v1/health", (route) =>
+    route.fulfill({ json: { status: "ok", mode: "cloud", version: "smoke" } }),
+  );
+  await page.goto("/?smoke-edition=cloud#home");
+  await ready(page, { ...smoke, edition: "cloud" });
+  await expect(nav.locator('[data-id="sign-out"]')).toBeVisible();
+  await collect("account");
+  await collect("hosted");
+  for (const [place, ids] of Object.entries(PLACES))
+    for (const id of ids)
+      expect(
+        seen.get(place as SidebarPlace)?.has(id),
+        `${place}:${id} must render in its own place`,
+      ).toBe(true);
 });

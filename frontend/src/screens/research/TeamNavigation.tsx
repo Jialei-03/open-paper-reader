@@ -2,7 +2,7 @@ import { MemberAvatar } from "../team/MemberEditor";
 import { followLink } from "../../reader/route";
 import { memberName } from "../team/member-model";
 import { Bell, Hash, MessageSquare, Plus, Settings } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { parseAppRoute } from "../../app/routes";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { MessageKey } from "../../i18n/i18n";
@@ -23,8 +23,17 @@ import {
   type Team,
   type TeamMember,
 } from "./team-api";
-import { useResearchNavigation } from "./ResearchNavigation";
-import { CreateWorkspaceDialog, WorkspacePicker } from "./WorkspaceDialogs";
+import { ResearchAttention, useResearchNavigation } from "./ResearchNavigation";
+import { AppActions } from "../../app/AppSidebar";
+import { sidebarId } from "../../app/sidebar-entries";
+import {
+  MESSAGE_FIRST,
+  pageRows,
+  sidebarPageKey,
+  SidebarPagination,
+  useSidebarPage,
+} from "../../app/sidebar-pagination";
+import { WorkspacePicker } from "./WorkspaceDialogs";
 import styles from "./Team.module.css";
 import { defaultChannelNames, threadDate } from "./team-model";
 import nav from "./TeamNavigation.module.css";
@@ -99,6 +108,7 @@ export function TeamSwitcher({
     <div className={styles.switcher}>
       <WorkspacePicker
         value={id}
+        data-id={sidebarId("workspace")}
         label={t("team.switch")}
         onChange={(next) => go(teamHash(next))}
       />
@@ -135,29 +145,9 @@ export function TeamNavigation({
   const id = useTeamWorkspace(hash);
   const { team, error, reload } = useTeam(id);
   const [creating, setCreating] = useState(false);
-  const [creatingProject, setCreatingProject] = useState(false);
   const [name, setName] = useState("");
   const [failure, setFailure] = useState("");
   const [saving, setSaving] = useState(false);
-  if (!id)
-    return (
-      <>
-        <SidebarItem
-          icon={Plus}
-          label={t("team.create")}
-          onClick={() => setCreatingProject(true)}
-        />
-        {creatingProject && (
-          <CreateWorkspaceDialog
-            onClose={() => setCreatingProject(false)}
-            onCreated={(workspace) => {
-              setCreatingProject(false);
-              go(teamHash(workspace.id));
-            }}
-          />
-        )}
-      </>
-    );
   return (
     <>
       <TeamConversationList
@@ -241,6 +231,11 @@ export function TeamConversationList({
   onCreate(): void;
 }) {
   const { t, locale } = useI18n();
+  const { owner = "" } = useContext(AppActions);
+  const [limit, choose] = useSidebarPage(
+    sidebarPageKey(owner, id, "messages"),
+    MESSAGE_FIRST,
+  );
   const route = parseAppRoute(hash);
   const members = new Map(team?.members.map((member) => [member.id, member]));
   const channels = (team?.channels || [])
@@ -255,11 +250,25 @@ export function TeamConversationList({
         (Date.parse(b.last_at ?? "") || 0) -
           (Date.parse(a.last_at ?? "") || 0) || a.id.localeCompare(b.id),
     );
-  const frequent = channels
-    .filter((channel) => channel.member_id && channel.last_message)
-    .slice(0, 5);
+  const selectedChannel =
+    route.screen === "team"
+      ? team?.channels.find(
+          (channel) =>
+            channel.id === route.channelId ||
+            channel.key === (route.channelId || "experiments"),
+        )
+      : undefined;
   const current = (channel: string) =>
-    route.screen === "team" && route.channelId === channel;
+    route.screen === "team" &&
+    (route.channelId === channel || selectedChannel?.id === channel);
+  const { rows, hidden } = pageRows(
+    channels,
+    limit,
+    (channel) =>
+      current(channel.id) ||
+      !!channel.working_member_ids?.length ||
+      channel.unread > 0,
+  );
   const avatar = (member: TeamMember) => (
     <span className={nav.memberAvatar}>
       <MemberAvatar member={member} />
@@ -268,31 +277,6 @@ export function TeamConversationList({
   );
   return (
     <div className={nav.navigation}>
-      {frequent.length >= 3 && (
-        <div
-          className={nav.frequent}
-          role="group"
-          aria-label={t("team.frequentMembers")}
-        >
-          {frequent.map((channel) => {
-            const member = members.get(channel.member_id!)!;
-            const name = memberName(member, t);
-            const target = teamHash(id, channel.id);
-            return (
-              <a
-                key={channel.id}
-                href={`#${target}`}
-                onClick={followLink(go, target)}
-                aria-label={name}
-                title={name}
-              >
-                {avatar(member)}
-                <span className={nav.frequentName}>{name}</span>
-              </a>
-            );
-          })}
-        </div>
-      )}
       <SidebarSection>
         {(
           [
@@ -306,9 +290,11 @@ export function TeamConversationList({
         ).map(([key, icon, count]) => (
           <div key={key} className={nav.shortcut}>
             <SidebarItem
+              data-id={sidebarId(key === "mentions" ? "activity" : "threads")}
               icon={icon}
               label={t(key === "mentions" ? "team.activity" : "team.threads")}
-              href={`#${teamHash(id, key)}`}
+              href={id ? `#${teamHash(id, key)}` : undefined}
+              disabled={!id}
               active={current(key)}
               onClick={followLink(go, teamHash(id, key))}
             />
@@ -316,9 +302,12 @@ export function TeamConversationList({
           </div>
         ))}
       </SidebarSection>
-      <div className={nav.heading}>
+      <ResearchAttention go={go} />
+      <div className={nav.heading} data-sidebar-place="messages">
         <span id="team-conversations">{t("team.messages")}</span>
         <IconButton
+          data-id={sidebarId("create-channel")}
+          disabled={!id}
           icon={Plus}
           label={t("team.addChannel")}
           onClick={onCreate}
@@ -326,10 +315,12 @@ export function TeamConversationList({
       </div>
       <div
         className={nav.conversations}
+        data-sidebar-place="messages"
+        data-id={sidebarId("messages")}
         role="group"
         aria-labelledby="team-conversations"
       >
-        {channels.map((channel) => {
+        {rows.map((channel) => {
           const member = channel.member_id
             ? members.get(channel.member_id)
             : undefined;
@@ -352,6 +343,7 @@ export function TeamConversationList({
             <a
               key={channel.id}
               className={nav.conversation}
+              data-id={sidebarId("conversation")}
               href={`#${target}`}
               aria-label={name}
               aria-current={current(channel.id) ? "page" : undefined}
@@ -400,12 +392,21 @@ export function TeamConversationList({
             </a>
           );
         })}
+        <SidebarPagination
+          list="messages"
+          first={MESSAGE_FIRST}
+          limit={limit}
+          hidden={hidden}
+          choose={choose}
+        />
       </div>
-      <div className={nav.settings}>
+      <div className={nav.settings} data-sidebar-place="team">
         <SidebarItem
+          data-id={sidebarId("team-settings")}
           icon={Settings}
           label={t("team.settings")}
-          href={`#${teamHash(id, "settings")}`}
+          href={id ? `#${teamHash(id, "settings")}` : undefined}
+          disabled={!id}
           active={current("settings")}
           onClick={followLink(go, teamHash(id, "settings"))}
         />

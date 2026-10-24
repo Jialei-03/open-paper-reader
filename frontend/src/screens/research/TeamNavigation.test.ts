@@ -84,7 +84,6 @@ describe("team conversation navigation", () => {
       "dm-2",
       "dm-1",
       "channel-old",
-      "dm-0",
       "settings",
     ]);
     expect(html).toContain('aria-label="channel-new" aria-current="page"');
@@ -93,48 +92,44 @@ describe("team conversation navigation", () => {
     expect(team.channels[0].id).toBe("channel-old");
   });
 
-  it("shows the five most recent members with message history as DM shortcuts", () => {
-    const html = render();
-    const frequent = html.split('aria-label="常用成员"')[1].split("</div>")[0];
-    expect(
-      [...frequent.matchAll(/href="#team\/workspace\/([^"?]+)"/g)].map(
-        (match) => match[1],
+  it("keeps current, working and unread conversations beyond the first eight", () => {
+    const extra = Array.from({ length: 12 }, (_, index) => ({
+      ...channel(
+        `extra-${index}`,
+        null,
+        new Date(Date.UTC(2026, 9, 24, 0, 12 - index)).toISOString(),
       ),
-    ).toEqual(["dm-5", "dm-4", "dm-3", "dm-2", "dm-1"]);
-    expect(frequent).toContain("<svg");
-    expect(frequent).not.toContain("empty-dm");
-    expect(render({ ...team, channels: [] })).not.toContain(
-      'aria-label="常用成员"',
+      id: index === 9 ? newChannel : `extra-${index}`,
+      unread: index === 11 ? 1 : 0,
+      working_member_ids: index === 10 ? ["member-0"] : [],
+    }));
+    const html = render({ ...team, channels: extra });
+    const ids = [
+      ...html.matchAll(
+        /data-id="conversation" href="#team\/workspace\/([^"?]+)"/g,
+      ),
+    ].map((match) => match[1]);
+    expect(ids).toEqual(
+      [...extra.slice(0, 8), ...extra.slice(9)].map((row) => row.id),
     );
+    expect(html).not.toContain('href="#team/workspace/extra-8"');
   });
 
   for (const locale of ["zh", "en"] as const) {
-    it(`${locale} only shows frequent members with at least three eligible DMs`, () => {
-      const { t } = createTranslator(locale);
-      const eligible = team.channels.filter((c) =>
-        ["dm-0", "dm-1", "dm-2"].includes(c.id),
+    it(`${locale} has fixed navigation and no duplicate member shortcuts`, () => {
+      const html = render(team, locale);
+      for (const id of ["threads", "activity", "team-settings"])
+        expect(html).toContain(`data-id="${id}"`);
+      expect(html).not.toContain('aria-label="常用成员"');
+      expect(html).not.toContain('aria-label="Frequent members"');
+      expect((html.match(/href="#team\/workspace\/dm-5"/g) || []).length).toBe(
+        1,
       );
-      for (const count of [0, 1, 2, 3]) {
-        const html = render(
-          {
-            ...team,
-            channels: [
-              ...eligible.slice(0, count),
-              ...team.channels.filter((c) =>
-                ["empty-dm", "dm-6", "missing-member", "channel-old"].includes(
-                  c.id,
-                ),
-              ),
-            ],
-          },
-          locale,
-        );
-        expect(html.includes(`aria-label="${t("team.frequentMembers")}"`)).toBe(
-          count >= 3,
-        );
-        for (const c of eligible.slice(0, count))
-          expect(html).toContain(`href="#team/workspace/${c.id}"`);
-      }
+      expect(html).toContain('data-id="messages-more"');
+      expect(html).toContain(locale === "zh" ? "再显示 1 个" : "Show 1 more");
+      expect(render({ ...team, channels: [] }, locale)).toContain(
+        'data-id="threads"',
+      );
     });
 
     it(`${locale} shows per-conversation work and numeric unread badges`, () => {
@@ -145,7 +140,9 @@ describe("team conversation navigation", () => {
           channels: team.channels.map((c) =>
             c.id === newChannel
               ? { ...c, unread: 42, working_member_ids: ["member-0"] }
-              : c,
+              : c.id === "dm-0"
+                ? { ...c, unread: 1 }
+                : c,
           ),
         },
         locale,

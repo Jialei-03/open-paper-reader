@@ -1441,7 +1441,7 @@ for (const theme of ["light", "dark"] as const) {
     ).toBeVisible();
   });
 
-  test(`${theme}: sidebar merges conversations, badges and frequent members at narrow widths`, async ({
+  test(`${theme}: sidebar keeps fixed entries and merges conversations with badges at narrow widths`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -1564,14 +1564,7 @@ for (const theme of ["light", "dark"] as const) {
       name: "常用成员",
       exact: true,
     });
-    await expect(frequent.getByRole("link")).toHaveCount(5);
-    await expect(frequent.getByRole("link")).toHaveText([
-      "advisor",
-      "executor",
-      "librarian",
-      "reviewer",
-      "writer",
-    ]);
+    await expect(frequent).toHaveCount(0);
     await expect(conversations.getByRole("link")).toHaveCount(7);
     for (const [index, name] of [
       "advisor",
@@ -1650,7 +1643,9 @@ for (const theme of ["light", "dark"] as const) {
       page.getByRole("dialog", { name: "新建频道", exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "取消", exact: true }).click();
-    await frequent.getByRole("link", { name: "writer", exact: true }).click();
+    await conversations
+      .getByRole("link", { name: "writer", exact: true })
+      .click();
     await expect(page).toHaveURL(new RegExp(directs[4].id));
     await expect(
       conversations.getByRole("link", { name: "writer", exact: true }),
@@ -1676,7 +1671,7 @@ for (const theme of ["light", "dark"] as const) {
     const allDirects = [...directs];
     for (const count of [2, 1, 0, 3]) {
       directs.splice(0, directs.length, ...allDirects.slice(0, count));
-      await expect(frequent).toHaveCount(count >= 3 ? 1 : 0);
+      await expect(frequent).toHaveCount(0);
       await expect(conversations.getByRole("link")).toHaveCount(count + 1);
     }
   });

@@ -56,10 +56,18 @@ describe("project creation", () => {
       expect(html).not.toContain(t("workspace.noWorkspaces"));
     });
 
-    it(`${locale} uses a project creation button in the empty sidebar`, () => {
+    it(`${locale} keeps the empty sidebar entries fixed and unavailable until a project exists`, () => {
       const html = render(createElement(TeamNavigation, { hash: "", go() {} }));
-      expect(html).toContain("<button");
-      expect(html).toContain(t("workspace.add"));
+      for (const id of [
+        "threads",
+        "activity",
+        "team-settings",
+        "create-channel",
+      ])
+        expect(html).toMatch(
+          new RegExp(`<button[^>]*data-id="${id}"[^>]*disabled=""`),
+        );
+      expect(html).not.toContain(t("workspace.add"));
       expect(html).not.toContain("#workspaces");
       expect(t("team.switch")).toBe(
         locale === "zh" ? "切换项目" : "Switch project",

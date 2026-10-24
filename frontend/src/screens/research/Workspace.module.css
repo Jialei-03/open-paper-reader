@@ -981,67 +981,12 @@
   display: flex;
   margin-left: auto;
 }
-.treeDot,
-.bellDot {
+.treeDot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #3b82f6;
   flex: none;
-}
-.notificationAnchor {
-  position: relative;
-  display: flex;
-}
-.bellDot {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  pointer-events: none;
-}
-.notifications {
-  width: min(340px, calc(100vw - 24px));
-  padding: 12px;
-  border: 1px solid var(--ui-edge);
-  border-radius: 14px;
-  background: var(--ui-elev);
-  box-shadow: var(--ui-elev-2);
-  max-height: 60vh;
-  overflow: auto;
-}
-.notifications h3 {
-  font-size: 14px;
-  margin: 0 0 10px;
-}
-.notifications button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 6px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ui-fg);
-  text-align: left;
-  cursor: pointer;
-}
-.notifications button:hover {
-  background: var(--ui-hover);
-}
-.notifications button > span:not([role="img"]) {
-  flex: 1;
-}
-.notifications small {
-  color: var(--ui-fg-3);
-}
-.notificationEmpty {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px;
-  color: var(--ui-fg-3);
 }
 .attachments {
   display: flex;
