@@ -107,7 +107,13 @@ def test_mentions_reply_location_and_uncapped_relay(world):
         reply = d.scalar(
             select(TeamMessage).where(TeamMessage.source_key == f"run:{initial.run_id}")
         )
-        assert run.runtime["team"]["thread_id"] == first["id"]
+        assert reply.thread_id is None
+        assert run.runtime["team"]["thread_id"] is None
+        assert run.runtime["team"]["routing_scope"] == [
+            world[6],
+            first["channel_id"],
+            None,
+        ]
     for n in range(13):
         last = deliveries(app)[-1]
         with app.state.maker() as d:
@@ -126,7 +132,6 @@ def test_mentions_reply_location_and_uncapped_relay(world):
     assert len(deliveries(app)) == 15  # Handoffs are never cut off.
     response = a.get(
         base + f"/channels/{first['channel_id']}/messages",
-        params={"thread_id": first["id"]},
     ).json()["messages"]
     assert any(
         m.get("run", {}).get("response") == "@reviewer check this" for m in response
@@ -138,6 +143,9 @@ def test_queue_edit_withdraw_immediate_and_fifo(world):
     dm = next(c["id"] for c in overview["channels"] if c["key"] == "dm:advisor")
     send(world, "first", dm)
     run_id = deliveries(app)[0].run_id
+    with app.state.maker() as d:
+        d.get(AgentRun, run_id).status = "running"
+        d.commit()
     send(world, "second", dm)
     queued = deliveries(app)[1]
     assert queued.status == "queued" and queued.run_id is None
@@ -473,14 +481,14 @@ def test_member_reply_uses_terminal_time_and_keeps_active_position(world, status
     app, a, _, settings, _, _, _, base, _ = world
     root = send(world, "@librarian find papers")
     delivery = deliveries(app)[0]
-    progress = send(world, "Another update", thread_id=root["id"])
+    progress = send(world, "Another update")
     started = "2026-10-23T15:27:00+00:00"
     working = "2026-10-23T15:35:00+00:00"
     finished = "2026-10-23T15:44:00+00:00"
     path = base + f"/channels/{root['channel_id']}/messages"
 
     def messages():
-        return a.get(path, params={"thread_id": root["id"]}).json()["messages"]
+        return [m for m in a.get(path).json()["messages"] if m["id"] != root["id"]]
 
     with app.state.maker() as d:
         response = d.scalar(
@@ -563,7 +571,7 @@ def test_research_immediate_targets_current_round_and_cross_channel_reply(world)
         world, "change now", experiments, thread_id=f"research:{pid}", mode="immediate"
     )
     dm = next(c["id"] for c in overview["channels"] if c["key"] == "dm:executor")
-    incoming = send(world, "answer here too", dm, mode="immediate")
+    send(world, "answer here too", dm, mode="immediate")
     rows = deliveries(app)
     assert all(row.run_id == run_id and row.status == "steering" for row in rows)
     with app.state.maker() as d:
@@ -572,9 +580,7 @@ def test_research_immediate_targets_current_round_and_cross_channel_reply(world)
         d.commit()
     finish(app, run_id, "adjusted the work")
     team.settle(settings, app.state.maker)
-    history = a.get(
-        base + f"/channels/{dm}/messages", params={"thread_id": incoming["id"]}
-    ).json()["messages"]
+    history = a.get(base + f"/channels/{dm}/messages").json()["messages"]
     assert any(
         m["author_id"]
         != next(m["id"] for m in overview["members"] if m["role"] == "human")

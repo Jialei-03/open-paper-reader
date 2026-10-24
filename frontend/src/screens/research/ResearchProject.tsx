@@ -90,11 +90,13 @@ export function ResearchProject({
   go,
   backHash,
   embedded = false,
+  locateId,
 }: {
   id: string;
   go(hash: string): void;
   backHash?: string;
   embedded?: boolean;
+  locateId?: string;
 }) {
   const { t, locale } = useI18n();
   const { owner } = useContext(AppActions);
@@ -159,6 +161,7 @@ export function ResearchProject({
   );
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
+  const located = useRef("");
 
   useEffect(() => {
     setRecord(false);
@@ -242,6 +245,23 @@ export function ResearchProject({
     const el = scroller.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
   }, [items.length, pending, detail?.sprints, runs]);
+
+  const locatedItem = items.some((item) => item.id === locateId)
+    ? locateId
+    : events.find((event) => event.id === locateId)?.sprint_id;
+  useLayoutEffect(() => {
+    if (!locatedItem || located.current === locatedItem) return;
+    const row = [
+      ...(scroller.current?.querySelectorAll<HTMLElement>(
+        "[data-research-item]",
+      ) || []),
+    ].find((element) => element.dataset.researchItem === locatedItem);
+    if (!row) return;
+    pinned.current = false;
+    row.scrollIntoView({ block: "center" });
+    row.focus({ preventScroll: true });
+    located.current = locatedItem;
+  }, [locatedItem, items]);
 
   const fail = (error: unknown) =>
     toast.show({
@@ -631,6 +651,7 @@ export function ResearchProject({
                     computes={computes}
                     actions={actions}
                     runs={runsBySprint}
+                    locateId={locatedItem || undefined}
                   />
                 )}
                 <ThreadView
@@ -639,6 +660,7 @@ export function ResearchProject({
                   computes={computes}
                   actions={actions}
                   runs={runsBySprint}
+                  locateId={locatedItem || undefined}
                 />
                 {pending && <div className={styles.mine}>{pending}</div>}
                 {waitingData && p.stage === "experiments" && (

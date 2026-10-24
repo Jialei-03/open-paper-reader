@@ -8,7 +8,7 @@ import json
 from copy import deepcopy
 
 from fastapi import HTTPException
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, delete, or_, select, update
 
 from . import team_rules
 from .models import (
@@ -327,8 +327,7 @@ def provenance(flow, action):
 
 
 def unstarted(d, message):
-    root = message.thread_id or getattr(message, "id", None)
-    if root is None:
+    if message.thread_id is None and getattr(message, "id", None) is None:
         return []  # Timer events have no message or thread to merge.
     return list(
         d.scalars(
@@ -340,7 +339,7 @@ def unstarted(d, message):
             )
             .where(
                 TeamMessage.channel_id == message.channel_id,
-                func.coalesce(TeamMessage.thread_id, TeamMessage.id) == root,
+                TeamMessage.thread_id == message.thread_id,
                 or_(
                     and_(
                         TeamDelivery.status == "queued", TeamDelivery.run_id.is_(None)
@@ -498,7 +497,7 @@ def route_message(d, workspace, message, *, trigger="message"):
     if channel.member_id and author and author.role == "human" and not tagged:
         tagged = [channel.member_id]
     flow = None
-    thread = message.thread_id or (message.id if tagged else None)
+    thread = message.thread_id
     if thread and thread.startswith("research:"):
         project = d.get(ResearchProject, thread[9:])
         from .research_workflows import adopt_project
@@ -527,14 +526,6 @@ def route_message(d, workspace, message, *, trigger="message"):
                 )
                 if active_run(d, m) and m.role != "human"
             ][:1]
-    elif author and author.role != "human" and not message.thread_id and tagged:
-        thread = message.id
-        state = deepcopy(workspace.workflow_state)
-        old = json.dumps([workspace.id, channel.id, None], separators=(",", ":"))
-        new = json.dumps([workspace.id, channel.id, thread], separators=(",", ":"))
-        if old in state.get("threads", {}) and new not in state["threads"]:
-            state["threads"][new] = deepcopy(state["threads"][old])
-        workspace.workflow_state = state
     proxy = SimpleNamespace(
         id=message.id,
         channel_id=message.channel_id,

@@ -1448,6 +1448,14 @@
   flex-direction: column;
   gap: 5px;
 }
+.located {
+  background: var(--ui-highlight);
+  border-radius: var(--ui-r-8);
+}
+.located:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
 .message[data-human] {
   align-items: flex-end;
 }

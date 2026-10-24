@@ -7,6 +7,7 @@ import {
   ArrowRight,
   AtSign,
   Bot,
+  Bell,
   ChevronRight,
   Copy,
   GitFork,
@@ -49,6 +50,7 @@ import { RunTurn, SummaryLine, Trail } from "./process/Process";
 import { summary } from "./process/model";
 import { ResearchProject } from "./ResearchProject";
 import { TeamFilePreview } from "./TeamFilePreview";
+import { TeamInbox } from "./TeamActivity";
 import { TeamMessageChanges } from "./TeamMessageChanges";
 import { TeamFileCard, TeamSidePanel } from "./TeamSidePanel";
 import { startProject } from "./research-api";
@@ -66,7 +68,6 @@ import {
   sendTeamMessage,
   teamHash,
   ruleHash,
-  teamThreads,
   TEAM_EVENT,
   type Delivery,
   type Team,
@@ -80,9 +81,7 @@ import {
   mentionMatches,
   mentionQuery,
   orderedMessages,
-  recentThreads,
   sendMode,
-  threadActivity,
   threadDate,
 } from "./team-model";
 import styles from "./Team.module.css";
@@ -205,7 +204,7 @@ export function TeamScreen({
         ? defaultChannelNames[channel.key] === channel.name
           ? t(`team.channel.${channel.key}` as MessageKey)
           : channel.name
-        : "") || t(channelId === "mentions" ? "team.mentions" : "team.threads");
+        : "") || t(channelId === "mentions" ? "team.activity" : "team.threads");
   const receiveConversation = useCallback(
     (messages: TeamMessage[], deliveries: Delivery[]) => {
       setConversation({ channelId: channel?.id || "", messages, deliveries });
@@ -245,8 +244,9 @@ export function TeamScreen({
           aria-label={title}
         >
           <header className={styles.header}>
-            {channel?.member_id ||
-            ["threads", "mentions"].includes(channelId || "") ? (
+            {channelId === "mentions" ? (
+              <Bell size={16} aria-hidden />
+            ) : channel?.member_id || channelId === "threads" ? (
               <MessageSquare size={16} aria-hidden />
             ) : (
               <Hash size={16} aria-hidden />
@@ -361,13 +361,17 @@ export function TeamScreen({
               fork={fork}
               onFile={setFile}
               onConversation={receiveConversation}
+              locateId={!threadId ? locateMessage : undefined}
             />
           ) : (
             team && (
-              <ThreadList
-                id={id}
-                mentions={channelId === "mentions"}
-                open={openThread}
+              <TeamInbox
+                team={team}
+                activity={channelId === "mentions"}
+                open={(message) => {
+                  setLocateMessage(message.id);
+                  go(teamHash(id, message.channel_id, message.thread_id || ""));
+                }}
               />
             )
           )}
@@ -515,54 +519,6 @@ export function TeamScreen({
   );
 }
 
-function ThreadList({
-  id,
-  mentions,
-  open,
-}: {
-  id: string;
-  mentions: boolean;
-  open(message: TeamMessage): void;
-}) {
-  const { locale } = useI18n();
-  const [messages, setMessages] = useState<TeamMessage[]>([]);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let stale = false;
-    const reload = () =>
-      teamThreads(id, mentions).then(
-        (rows) => {
-          if (!stale) setMessages(rows);
-        },
-        (reason: unknown) => {
-          if (!stale) setError(String(reason));
-        },
-      );
-    void reload();
-    const timer = window.setInterval(reload, 2500);
-    return () => {
-      stale = true;
-      clearInterval(timer);
-    };
-  }, [id, mentions]);
-  return (
-    <div className={styles.list}>
-      {error && <p role="alert">{error}</p>}
-      {(mentions ? orderedMessages(messages) : recentThreads(messages)).map(
-        (message) => (
-          <button type="button" key={message.id} onClick={() => open(message)}>
-            <MessageSquare size={16} aria-hidden />
-            <span>{message.data.title || message.text}</span>
-            <time dateTime={threadActivity(message)}>
-              {threadDate(threadActivity(message), locale)}
-            </time>
-          </button>
-        ),
-      )}
-    </div>
-  );
-}
-
 function MessagePane({
   team,
   channel,
@@ -664,6 +620,12 @@ function MessagePane({
         []),
     ].find((el) => el.dataset.messageId === locateId);
     if (row) {
+      scroll.current
+        ?.querySelectorAll<HTMLElement>("[data-located]")
+        .forEach((previous) => {
+          delete previous.dataset.located;
+        });
+      row.dataset.located = "true";
       row.scrollIntoView({ block: "center" });
       row.focus({ preventScroll: true });
       pinned.current = false;
@@ -689,7 +651,17 @@ function MessagePane({
     <>
       {researchId && go && (
         <div className={styles.research}>
-          <ResearchProject id={researchId} go={go} embedded />
+          <ResearchProject
+            id={researchId}
+            go={go}
+            embedded
+            locateId={
+              messages.find((message) => message.id === locateId)?.data
+                .event_id ||
+              messages.find((message) => message.id === locateId)?.data
+                .sprint_id
+            }
+          />
         </div>
       )}
       <div
@@ -1122,12 +1094,44 @@ export function MessageRow({
               minute: "2-digit",
             })}
           </time>
-          {message.replies > 0 && (
+          {!message.thread_id && message.replies > 0 && (
             <button
               className={styles.replies}
+              aria-label={t("team.replies", { n: message.replies })}
               onClick={() => openThread(message)}
             >
-              {t("team.replies", { n: message.replies })}
+              {!!message.reply_authors?.length && (
+                <span
+                  className={styles.replyAuthors}
+                  role="group"
+                  aria-label={t("team.threadParticipants")}
+                >
+                  {message.reply_authors.slice(0, 3).map((id) => {
+                    const author = team.members.find((m) => m.id === id);
+                    const label = author ? displayMemberName(author, t) : id;
+                    return (
+                      <span
+                        key={id}
+                        role="img"
+                        aria-label={label}
+                        title={label}
+                      >
+                        <MemberAvatar
+                          member={author}
+                          seed={author ? undefined : id}
+                          size="sm"
+                        />
+                      </span>
+                    );
+                  })}
+                </span>
+              )}
+              <span>{t("team.replies", { n: message.replies })}</span>
+              {message.last_message_at && (
+                <time dateTime={message.last_message_at}>
+                  {threadDate(message.last_message_at, locale)}
+                </time>
+              )}
             </button>
           )}
           {message.data.rule && message.data.rule !== "@mention" && (

@@ -118,6 +118,8 @@ export interface TeamMessage {
     workflow_version?: number;
     waiting?: boolean;
     research_id?: string;
+    event_id?: string;
+    sprint_id?: string;
     title?: string;
     research_forwarded?: boolean;
     attachments?: { id: string; name: string; url: string }[];
@@ -129,14 +131,33 @@ export interface TeamMessage {
     file_error?: string;
     reason?: string;
     limit?: number;
+    read?: boolean;
   };
   created_at: string;
   last_message_at?: string;
+  channel?: Pick<TeamChannel, "id" | "key" | "name" | "member_id">;
+  participant_ids?: string[];
+  unread?: number;
+  preview?: string;
   replies: number;
+  reply_authors?: string[];
   run?: Omit<ResearchRun, "role"> & {
     model_config_id?: string;
     model?: string;
   };
+}
+export type ActivityType =
+  | "mention"
+  | "reply"
+  | "completed"
+  | "waiting"
+  | "budget"
+  | "limit";
+export interface TeamActivity extends Omit<TeamMessage, "unread"> {
+  activity_type: ActivityType;
+  activity_types: ActivityType[];
+  actor_id: string | null;
+  unread: boolean;
 }
 export interface Team {
   workspace_id: string;
@@ -145,6 +166,7 @@ export interface Team {
   notifications: TeamMessage[];
   threads_unread?: number;
   mentions_unread?: number;
+  activity_unread?: number;
   workflow?: Workflow;
   runtime?: WorkflowRuntime;
   budget?: TeamBudget;
@@ -232,6 +254,17 @@ export const readChannel = (
   });
 export const teamThreads = (id: string, mentions = false) =>
   api<TeamMessage[]>(`${base(id)}/threads?mentions=${mentions}`);
+export const teamActivity = (id: string) =>
+  api<TeamActivity[]>(`${base(id)}/activity`);
+export const readTeamActivity = (
+  id: string,
+  through: string,
+  message_id?: string,
+) =>
+  send(`${base(id)}/activity/read`, {
+    through,
+    ...(message_id ? { message_id } : {}),
+  });
 export const teamHash = (id: string, channel = "", thread = "", full = false) =>
   `team/${id}${channel ? `/${channel}` : ""}${thread ? `?thread=${encodeURIComponent(thread)}${full ? "&full=1" : ""}` : ""}`;
 export const TEAM_EVENT = "research-team-updated";

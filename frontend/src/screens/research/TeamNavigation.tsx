@@ -1,7 +1,7 @@
 import { MemberAvatar } from "../team/MemberEditor";
 import { followLink } from "../../reader/route";
 import { memberName } from "../team/member-model";
-import { AtSign, Hash, MessageSquare, Plus, Settings } from "lucide-react";
+import { Bell, Hash, MessageSquare, Plus, Settings } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { parseAppRoute } from "../../app/routes";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -297,13 +297,17 @@ export function TeamConversationList({
         {(
           [
             ["threads", MessageSquare, team?.threads_unread || 0],
-            ["mentions", AtSign, team?.mentions_unread || 0],
+            [
+              "mentions",
+              Bell,
+              team?.activity_unread ?? team?.mentions_unread ?? 0,
+            ],
           ] as const
         ).map(([key, icon, count]) => (
           <div key={key} className={nav.shortcut}>
             <SidebarItem
               icon={icon}
-              label={t(`team.${key}`)}
+              label={t(key === "mentions" ? "team.activity" : "team.threads")}
               href={`#${teamHash(id, key)}`}
               active={current(key)}
               onClick={followLink(go, teamHash(id, key))}

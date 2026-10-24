@@ -337,10 +337,13 @@ def post(
         kind=kind,
         mentions=tagged,
         relay=relay,
+        # A reply to a channel message starts its own scope; keep older thread routes.
         data={
             **(
                 {"routing_scope": root.data["routing_scope"]}
-                if isinstance(root, TeamMessage) and root.data.get("routing_scope")
+                if isinstance(root, TeamMessage)
+                and root.data.get("routing_scope")
+                and root.data["routing_scope"][2] is not None
                 else {}
             ),
             **(data or {}),
@@ -430,11 +433,18 @@ def message_out(d, message):
             out["run"]["error"] = "成员未返回回答 / Member returned no answer"
             out["run"]["status"] = "failed"
             out["run"]["runtime"] = {**(run.runtime or {}), "no_answer": True}
-    out["replies"] = len(
-        list(
-            d.scalars(select(TeamMessage.id).where(TeamMessage.thread_id == message.id))
+    replies = list(
+        d.execute(
+            select(TeamMessage.author_id, TeamMessage.created_at)
+            .where(TeamMessage.thread_id == message.id)
+            .order_by(TeamMessage.created_at.desc(), TeamMessage.id.desc())
         )
     )
+    out["replies"] = len(replies)
+    out["reply_authors"] = list(
+        dict.fromkeys(reply.author_id for reply in replies if reply.author_id)
+    )
+    out["last_message_at"] = replies[0].created_at if replies else message.created_at
     return out
 
 
@@ -452,6 +462,8 @@ def has_message_content(message):
         or data.get("links")
         or data.get("file_error")
         or run.get("error")
+        or (run.get("runtime") or {}).get("time_limit_reached")
+        or (run.get("runtime") or {}).get("budget_limit")
         or run.get("status") in {"failed", "cancelled"}
     )
 
@@ -637,6 +649,101 @@ def history(d, workspace, channel, thread_id=None):
     }
 
 
+def conversation_out(channel):
+    return {key: getattr(channel, key) for key in ("id", "key", "name", "member_id")}
+
+
+def activity(d, workspace, *, messages=None, values=None, unread_only=False):
+    """One event per message, with all applicable filters and shared read state."""
+    human = stable(workspace, "human")
+    channels = {
+        c.id: c
+        for c in d.scalars(
+            select(TeamChannel).where(
+                TeamChannel.workspace_id == workspace.id,
+                TeamChannel.archived.is_(False),
+            )
+        )
+    }
+    if messages is None:
+        messages = list(
+            d.scalars(
+                select(TeamMessage)
+                .where(TeamMessage.workspace_id == workspace.id)
+                .order_by(TeamMessage.created_at, TeamMessage.id)
+            )
+        )
+    by_id = {m.id: m for m in messages}
+    requested_runs = set(
+        d.scalars(
+            select(TeamDelivery.run_id)
+            .join(TeamMessage, TeamDelivery.message_id == TeamMessage.id)
+            .where(
+                TeamMessage.workspace_id == workspace.id,
+                TeamMessage.author_id == human,
+                TeamDelivery.run_id.is_not(None),
+                TeamDelivery.status.in_(["applied", "running", "steering"]),
+            )
+        )
+    )
+    participating = set(
+        f"research:{identifier}"
+        for identifier in d.scalars(
+            select(ResearchProject.id).where(
+                ResearchProject.workspace_id == workspace.id
+            )
+        )
+    )
+    events = []
+    for message in messages:
+        if message.channel_id not in channels:
+            continue
+        root = message.thread_id or message.id
+        if message.author_id == human:
+            participating.add(root)
+            continue
+        if unread_only and message.data.get("read"):
+            continue
+        value = (values or {}).get(message.id) or message_out(d, message)
+        run = value.get("run") or {}
+        runtime = run.get("runtime") or {}
+        types = []
+        if message.data.get("waiting"):
+            types.append("waiting")
+        if message.kind == "budget" or runtime.get("budget_limit"):
+            types.append("budget")
+        if (message.kind == "relay_limit" and not types) or runtime.get(
+            "time_limit_reached"
+        ):
+            types.append("limit")
+        if not types and not has_message_content(value):
+            continue
+        if human in message.mentions or human in message.data.get("to", []):
+            types.append("mention")
+        origin = by_id.get((runtime.get("team") or {}).get("message_id"))
+        if run.get("status") == "completed" and (
+            run["id"] in requested_runs or origin and origin.author_id == human
+        ):
+            types.append("completed")
+        if message.thread_id in participating:
+            types.append("reply")
+        if not types:
+            continue
+        events.append(
+            {
+                **value,
+                "activity_type": types[0],
+                "activity_types": types,
+                "actor_id": message.author_id
+                or (runtime.get("team") or {}).get("member_id"),
+                "channel": conversation_out(channels[message.channel_id]),
+                "unread": not message.data.get("read", False),
+                "preview": preview_text(value["text"]),
+            }
+        )
+    return list(reversed(events))
+
+
 def overview(d, workspace):
     members = ensure(d, workspace)
     channels = list(
@@ -796,6 +903,11 @@ def overview(d, workspace):
             ):
                 unread.append(unread_values[message.id])
         channel.unread_count = count
+    unread_events = activity(
+        d, workspace, messages=messages, values=unread_values, unread_only=True
+    )
+    notifications = {m["id"]: m for m in unread}
+    notifications.update({event["id"]: event for event in unread_events})
     from .team_budgets import limits, tokens
 
     return dict(
@@ -825,11 +937,14 @@ def overview(d, workspace):
             )
             for c in channels
         ],
-        notifications=unread[-100:],
+        notifications=sorted(
+            notifications.values(), key=lambda m: (m["created_at"], m["id"])
+        )[-100:],
         threads_unread=sum(
             (m.thread_id or m.id) in thread_roots for m in unread_messages
         ),
         mentions_unread=sum(human in m.mentions for m in unread_messages),
+        activity_unread=len(unread_events),
         tokens=tokens(d, workspace=workspace),
         max_tokens=limits(workspace)["max_tokens"],
         budget=limits(workspace),
@@ -871,7 +986,7 @@ def context(d, workspace, message):
         + json.dumps(board, ensure_ascii=False)
         + "\n\nConversation (latest 40, bounded):\n"
         + json.dumps(recent, ensure_ascii=False, default=str)[-20000:]
-        + f"\nChannel: {channel.id}; Thread: {message.thread_id or message.id}\n"
+        + f"\nChannel: {channel.id}; Thread: {message.thread_id}\n"
         + "Members: "
         + json.dumps(
             [
@@ -1000,14 +1115,14 @@ def dispatch(settings, d, workspace, delivery):
         workspace_id=workspace.id,
         member_id=member.id,
         channel_id=channel.id,
-        thread_id=message.thread_id or message.id,
+        thread_id=message.thread_id,
         message_id=message.id,
         relay=relay,
         routing_scope=message.data.get("routing_scope")
         or [
             workspace.id,
             channel.id,
-            delivery.action.get("thread", message.thread_id or message.id),
+            message.thread_id,
         ],
         **delivery.action,
     )
@@ -1085,7 +1200,7 @@ def settle(settings, maker):
                                 TeamMessage(
                                     workspace_id=workspace.id,
                                     channel_id=incoming.channel_id,
-                                    thread_id=incoming.thread_id or incoming.id,
+                                    thread_id=incoming.thread_id,
                                     author_id=delivery.member_id,
                                     data={"run_id": run.id},
                                     source_key=f"steer:{delivery.id}",

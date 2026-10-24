@@ -1,6 +1,12 @@
 import { zh } from "../../i18n/messages/zh";
 import { createTranslator } from "../../i18n/i18n";
-import type { Team, TeamMember, TeamMessage } from "./team-api";
+import type {
+  Team,
+  TeamActivity,
+  TeamChannel,
+  TeamMember,
+  TeamMessage,
+} from "./team-api";
 import { memberName } from "../team/member-model";
 
 export const memberLabel = (
@@ -62,14 +68,60 @@ export function recentThreads(messages: TeamMessage[]) {
   );
 }
 
+export function activityMessages(
+  events: TeamActivity[],
+  filter: "all" | "mention" | "reply",
+) {
+  return [...new Map(events.map((event) => [event.id, event])).values()]
+    .filter(
+      (event) => filter === "all" || event.activity_types.includes(filter),
+    )
+    .sort(
+      (a, b) =>
+        Date.parse(b.created_at) - Date.parse(a.created_at) ||
+        b.id.localeCompare(a.id),
+    );
+}
+
+export function conversationName(
+  channel: Pick<TeamChannel, "key" | "name" | "member_id"> | undefined,
+  members: TeamMember[],
+  t: Parameters<typeof memberName>[1],
+) {
+  if (!channel) return "";
+  const member = members.find((member) => member.id === channel.member_id);
+  if (member) return memberName(member, t);
+  if (channel.member_id) return channel.name;
+  return `#${
+    defaultChannelNames[channel.key] === channel.name
+      ? t(`team.channel.${channel.key}` as Parameters<typeof t>[0])
+      : channel.name
+  }`;
+}
+
 export function threadDate(
   stamp: string,
   locale: string,
   now = new Date(),
-  format: "thread" | "conversation" = "thread",
+  format: "thread" | "conversation" | "relative" = "thread",
 ) {
   const date = new Date(stamp);
   if (!Number.isFinite(date.getTime())) return "—";
+  if (format === "relative") {
+    const seconds = Math.min(0, (date.getTime() - now.getTime()) / 1000);
+    const [value, unit] =
+      Math.abs(seconds) < 60
+        ? ([0, "second"] as const)
+        : Math.abs(seconds) < 3600
+          ? ([Math.ceil(seconds / 60), "minute"] as const)
+          : Math.abs(seconds) < 86400
+            ? ([Math.ceil(seconds / 3600), "hour"] as const)
+            : ([Math.ceil(seconds / 86400), "day"] as const);
+    return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+      value,
+      unit,
+    );
+  }
   const today = date.toDateString() === now.toDateString();
   if (format === "conversation" && !today) {
     const yesterday = new Date(

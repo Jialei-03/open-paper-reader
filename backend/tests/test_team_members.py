@@ -80,6 +80,10 @@ def test_disabled_member_cancels_queued_and_rules_do_not_wake(world):
     mid, _ = create(world)
     send(world, "@Ada first")
     first = deliveries(app)[0]
+    # Busy, so the second message queues instead of joining the unstarted wake.
+    with app.state.maker() as d:
+        d.get(AgentRun, first.run_id).status = "running"
+        d.commit()
     send(world, "@Ada second")
     assert deliveries(app)[1].status == "queued"
     assert a.patch(base + f"/members/{mid}", json={"enabled": False}).status_code == 200
@@ -116,12 +120,13 @@ def test_overview_distinguishes_queued_deliveries_runs_and_idle(world):
     # A delivery has a run before a worker claims it.
     assert status()["status"] == "queued"
     assert status()["active_run_id"] == first.run_id
-    send(world, "@Ada second")
-    assert deliveries(app)[1].status == "queued"
     with app.state.maker() as d:
         d.get(AgentRun, first.run_id).status = "running"
         d.commit()
     assert status()["status"] == "working"
+    # Busy, so the second message queues instead of joining the unstarted wake.
+    send(world, "@Ada second")
+    assert deliveries(app)[1].status == "queued"
     finish(app, first.run_id, "done")
     assert status()["status"] == "queued"
     assert status()["active_run_id"] is None

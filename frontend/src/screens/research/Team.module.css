@@ -223,6 +223,22 @@
   font-size: var(--ui-text-12);
   background: transparent;
 }
+.replies:focus-visible {
+  outline: 0;
+  box-shadow: var(--ui-focus-ring);
+}
+.replyAuthors {
+  display: inline-flex;
+  align-items: center;
+}
+.replyAuthors > span {
+  display: inline-flex;
+  border: 1px solid var(--ui-bg);
+  border-radius: var(--ui-r-pill);
+}
+.replyAuthors > span + span {
+  margin-left: calc(-1 * var(--ui-space-8));
+}
 .dock {
   padding: var(--ui-space-12) var(--ui-space-24) var(--ui-space-24);
   max-width: var(--ui-conversation-width);
@@ -544,6 +560,10 @@
 .message:focus-visible {
   outline: none;
   box-shadow: var(--ui-focus-ring);
+}
+:is(.message, .systemMessage)[data-located] {
+  background: var(--ui-highlight);
+  border-radius: var(--ui-r-8);
 }
 .empty p {
   margin: 0;

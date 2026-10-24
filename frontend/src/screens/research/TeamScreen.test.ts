@@ -45,7 +45,7 @@ const team: Team = {
 const message: TeamMessage = {
   id: "reply",
   channel_id: "channel",
-  thread_id: "request",
+  thread_id: null,
   author_id: "member",
   kind: "message",
   text: "",
@@ -122,6 +122,50 @@ describe("team member replies", () => {
       expect(html).toContain('aria-label="draft.md"');
       expect(html).toContain('aria-label="data.csv"');
       expect(html).toContain(t("team.open"));
+    });
+
+    it(`${locale} shows up to three recent participants and the last reply time on a thread entry`, () => {
+      const html = render({
+        ...message,
+        run: undefined,
+        text: "Root message",
+        replies: 5,
+        reply_authors: ["writer", "member", "human", "fourth"],
+        last_message_at: finished,
+      });
+      expect(html).toContain(`aria-label="${t("team.threadParticipants")}"`);
+      expect(html.match(/<span role="img"/g)).toHaveLength(3);
+      expect(html).toContain('aria-label="writer" title="writer"');
+      expect(html).toContain('aria-label="Ada" title="Ada"');
+      expect(html).toContain(
+        `aria-label="${t("team.member.human")}" title="${t("team.member.human")}"`,
+      );
+      expect(html).not.toContain("fourth");
+      expect(html.indexOf('title="writer"')).toBeLessThan(
+        html.indexOf('title="Ada"'),
+      );
+      expect(html.indexOf('title="Ada"')).toBeLessThan(
+        html.indexOf(`<span>${t("team.replies", { n: 5 })}</span>`),
+      );
+      expect(html).toContain(`<time dateTime="${finished}">`);
+      expect(html).toContain(`aria-label="${t("team.reply")}"`);
+    });
+
+    it(`${locale} shows inline answers as agent cards and only offers a thread entry after replies exist`, () => {
+      const html = render({
+        ...message,
+        run: undefined,
+        text: "Inline answer",
+      });
+      expect(html).toContain('data-author="agent"');
+      expect(html).toContain('data-testid="team-message-bubble"');
+      expect(html).toContain("Inline answer");
+      expect(html).toContain(`aria-label="${t("team.reply")}"`);
+      expect(html).not.toContain(t("team.threadParticipants"));
+      expect(html).not.toContain(t("team.replies", { n: 0 }));
+      expect(
+        render({ ...message, run: undefined, thread_id: "root", replies: 2 }),
+      ).not.toContain(t("team.replies", { n: 2 }));
     });
 
     it(`${locale} groups consecutive agent messages without repeating their identity`, () => {

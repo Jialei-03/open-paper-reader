@@ -252,12 +252,12 @@ def test_comparison_team_threads_use_last_message_without_changing_root_time(env
     response = a.get(base + "/threads")
     assert response.status_code == 200, response.text
     rows = response.json()
-    assert [r["id"] for r in rows] == [old_id, f"research:{pid}", newer_id]
+    assert [r["id"] for r in rows] == [old_id, f"research:{pid}"]
+    assert newer_id not in {r["id"] for r in rows}
     assert rows[0]["created_at"] == "2026-10-01T00:00:00Z"
     assert [r["last_message_at"] for r in rows] == [
         "2026-10-04T00:00:00Z",
         "2026-10-03T00:00:00Z",
-        "2026-10-02T00:00:00Z",
     ]
     assert [r["id"] for r in a.get(base + "/threads?mentions=true").json()] == [
         reply_id
@@ -277,7 +277,6 @@ def test_comparison_team_threads_use_last_message_without_changing_root_time(env
         d.commit()
     assert [r["id"] for r in a.get(base + "/threads").json()] == [
         f"research:{pid}",
-        newer_id,
         old_id,
     ]
 
@@ -347,8 +346,8 @@ def test_member_threads_use_latest_activity_from_all_authors_and_legacy_research
     ] == [
         (old_id, "Earlier root", "2026-10-06T00:00:00Z"),
         (f"research:{pid}", "Legacy summary", "2026-10-05T00:00:00Z"),
-        (newer_id, "Newer root", "2026-10-03T00:00:00Z"),
     ]
+    assert newer_id not in {t["id"] for t in detail.json()["threads"]}
     assert b.get(base + f"/members/{advisor_id}").status_code == 404
     with app.state.maker() as d:
         workspace = d.get(ResearchWorkspace, wid)
@@ -364,7 +363,7 @@ def test_member_threads_use_latest_activity_from_all_authors_and_legacy_research
         reply.created_at = "2026-10-07T00:00:00Z"
         d.commit()
     threads = a.get(base + f"/members/{advisor_id}").json()["threads"]
-    assert len(threads) == 3
+    assert len(threads) == 2
     assert (threads[0]["id"], threads[0]["last_message_at"]) == (
         f"research:{pid}",
         "2026-10-07T00:00:00Z",

@@ -7,6 +7,11 @@ import {
   type XYPosition,
 } from "@xyflow/react";
 import type { MessageKey, Translator } from "../../../i18n/i18n";
+import {
+  layoutWorkflow,
+  savedNodeIds,
+  type EdgeCurve,
+} from "./workflow-layout";
 
 // References and payloads follow docs/design/agent-team-contract.md.
 export interface WorkflowMember {
@@ -120,9 +125,16 @@ export type WorkflowNode = Node<
   },
   "workflow"
 >;
+type WorkflowEdgeKind =
+  | WorkflowRule["then"]["action"]
+  | "return"
+  | "subscription"
+  | "schedule";
 export type WorkflowEdge = Edge<{
   rule: string;
-  kind: WorkflowRule["then"]["action"] | "return" | "subscription" | "schedule";
+  kind: WorkflowEdgeKind;
+  rules?: { rule: string; kind: WorkflowEdgeKind }[];
+  curve?: EdgeCurve;
 }>;
 
 export const nodeId = (kind: WorkflowNode["data"]["kind"], id: string) =>
@@ -218,6 +230,60 @@ export function edgeToRule(
   return workflow.rules.find((rule) => rule.id === edge.data?.rule);
 }
 
+/** Group only the canvas projection; persisted rule identities and order stay intact. */
+export function mergeWorkflowEdges(edges: WorkflowEdge[]): WorkflowEdge[] {
+  const groups = new Map<string, WorkflowEdge>();
+  for (const edge of edges) {
+    if (!edge.data) continue;
+    const key = JSON.stringify([edge.source, edge.target]);
+    const entries = edge.data.rules ?? [
+      { rule: edge.data.rule, kind: edge.data.kind },
+    ];
+    const existing = groups.get(key);
+    if (existing) existing.data!.rules!.push(...entries);
+    else
+      groups.set(key, { ...edge, data: { ...edge.data, rules: [...entries] } });
+  }
+  return [...groups.values()];
+}
+
+export function edgeRules(
+  edge: WorkflowEdge,
+  workflow: Workflow,
+): WorkflowRule[] {
+  const ids = new Set(
+    (edge.data?.rules ?? (edge.data ? [edge.data] : [])).map(
+      (entry) => entry.rule,
+    ),
+  );
+  return workflow.rules.filter((rule) => ids.has(rule.id));
+}
+
+export function workflowEdgeLabel(
+  edge: WorkflowEdge,
+  t: Translator["t"],
+): string {
+  const counts = new Map<WorkflowEdgeKind, number>();
+  for (const { kind } of edge.data?.rules ?? (edge.data ? [edge.data] : []))
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  return [...counts]
+    .map(([kind, count]) => {
+      const label = t(
+        kind === "return"
+          ? "teamWorkflow.return"
+          : kind === "subscription"
+            ? "teamWorkflow.subscription"
+            : kind === "schedule"
+              ? "teamWorkflow.event.schedule"
+              : `teamWorkflow.action.${kind}`,
+      );
+      return count === 1
+        ? label
+        : t("teamWorkflow.edgeCount", { label, count });
+    })
+    .join(" · ");
+}
+
 export function workflowToFlow(
   workflow: Workflow,
   members: WorkflowMember[],
@@ -238,10 +304,7 @@ export function workflowToFlow(
       nodes.set(id, {
         id,
         type: "workflow",
-        position: position ?? {
-          x: (nodes.size % 3) * 300,
-          y: Math.floor(nodes.size / 3) * 180,
-        },
+        position: position ?? { x: 0, y: 0 },
         data: {
           kind,
           ref,
@@ -323,7 +386,7 @@ export function workflowToFlow(
             target: subscriberTarget,
             sourceHandle: "out",
             targetHandle: "in",
-            type: "smoothstep",
+            type: "workflow",
             data: { rule: rule.id, kind: "subscription" },
             focusable: true,
             reconnectable: false,
@@ -352,7 +415,7 @@ export function workflowToFlow(
       target,
       sourceHandle: "out",
       targetHandle: "in",
-      type: "smoothstep",
+      type: "workflow",
       data: { rule: rule.id, kind },
       focusable: true,
       reconnectable: false,
@@ -364,16 +427,19 @@ export function workflowToFlow(
           id: `return:${rule.id}`,
           source: target,
           target: back,
-          sourceHandle: "return-out",
-          targetHandle: "return-in",
-          type: "smoothstep",
+          sourceHandle: "back-out",
+          targetHandle: "back-in",
+          type: "workflow",
           data: { rule: rule.id, kind: "return" },
           focusable: true,
           reconnectable: false,
         });
     }
   }
-  return { nodes: [...nodes.values()], edges };
+  return {
+    nodes: layoutWorkflow([...nodes.values()], edges, savedNodeIds(workflow)),
+    edges,
+  };
 }
 
 /** A connection seeds the shared editor; only Save adds it to the workflow. */
@@ -439,7 +505,20 @@ export function updateCanvasNodes(
         change.type === "position" && change.position && !change.dragging,
     )
   )
-    onChange(layoutFromNodes(workflow, next));
+    onChange(
+      layoutFromNodes(
+        workflow,
+        next.filter((node) =>
+          changes.some(
+            (change) =>
+              change.type === "position" &&
+              change.id === node.id &&
+              change.position &&
+              !change.dragging,
+          ),
+        ),
+      ),
+    );
   return next;
 }
 

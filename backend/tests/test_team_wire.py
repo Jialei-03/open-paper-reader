@@ -313,9 +313,9 @@ def test_rule_posts_reenter_channel_rules_once_without_recursive_dispatch(world)
         )
         assert len(posts) == 2 and all(p.thread_id is None for p in posts)
     team.settle(settings, app.state.maker)
-    assert len(deliveries(app)) == 2
+    assert len(deliveries(app)) == 1
     team.settle(settings, app.state.maker)
-    assert len(deliveries(app)) == 2
+    assert len(deliveries(app)) == 1
 
 
 def test_switching_workflows_restores_the_teams_saved_rules_and_layout(world):

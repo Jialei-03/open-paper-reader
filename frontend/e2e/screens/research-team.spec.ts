@@ -443,6 +443,23 @@ async function setup(page: import("@playwright/test").Page) {
         return route.fulfill({ json: message });
       }
       const thread = url.searchParams.get("thread_id");
+      const messageOut = (message: TeamMessage) => {
+        const replies = messages
+          .filter((m) => m.thread_id === message.id)
+          .sort((a, b) => b.created_at.localeCompare(a.created_at));
+        return replies.length
+          ? {
+              ...message,
+              replies: replies.length,
+              reply_authors: [
+                ...new Set(
+                  replies.map((m) => m.author_id).filter((id) => !!id),
+                ),
+              ],
+              last_message_at: replies[0].created_at,
+            }
+          : message;
+      };
       return route.fulfill({
         json: {
           activity: thread
@@ -457,7 +474,7 @@ async function setup(page: import("@playwright/test").Page) {
               (m) =>
                 m.channel_id === target && m.thread_id === (thread || null),
             ),
-          ],
+          ].map(messageOut),
           root:
             thread === root.id
               ? root
@@ -473,29 +490,73 @@ async function setup(page: import("@playwright/test").Page) {
   return { posted, messages, members };
 }
 
-test("channel messages, mentions, side thread, fullscreen and research thread", async ({
+test("member answers stay inline until the user replies; threads show participants", async ({
   page,
 }) => {
-  const { posted } = await setup(page);
+  const { posted, messages } = await setup(page);
   const screen = page.getByTestId("team-screen");
   const composer = screen.getByRole("textbox", { name: "消息", exact: true });
   await composer.fill("频道消息");
   await composer.press("Enter");
   const message = screen.locator("article").filter({ hasText: "频道消息" });
   await expect(message).toBeVisible();
-  await message.hover();
-  await message.getByRole("button", { name: "回复", exact: true }).click();
+  messages.push({
+    ...messages[0],
+    id: "inline-answer",
+    author_id: "librarian",
+    text: "会话中的回答",
+    created_at: "2026-10-23T10:01:00+00:00",
+  });
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("research-team-updated")),
+  );
+  const answer = screen.locator('[data-message-id="inline-answer"]');
+  await expect(answer.getByText("会话中的回答", { exact: true })).toBeVisible();
+  await expect(answer).toHaveAttribute("data-author", "agent");
+  await expect(answer.getByText("智能体", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "线程", exact: true }),
+  ).toHaveCount(0);
+  await expect(answer.getByRole("button", { name: /条回复/ })).toHaveCount(0);
+  await answer.hover();
+  await answer.getByRole("button", { name: "回复", exact: true }).click();
   const thread = page.getByRole("region", { name: "线程", exact: true });
   await thread
     .getByRole("textbox", { name: "消息", exact: true })
-    .fill("线程回复");
+    .fill("@writer 线程回复");
   await thread
     .getByRole("textbox", { name: "消息", exact: true })
     .press("Enter");
-  await expect.poll(() => posted.some((m) => !!m.thread_id)).toBe(true);
+  await expect
+    .poll(() => posted.some((m) => m.thread_id === "inline-answer"))
+    .toBe(true);
+  messages.push({
+    ...messages[0],
+    id: "thread-answer",
+    thread_id: "inline-answer",
+    author_id: "writer",
+    text: "线程中的回答",
+    created_at: "2026-10-23T10:02:00+00:00",
+  });
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("research-team-updated")),
+  );
+  await expect(thread.getByText("线程中的回答", { exact: true })).toBeVisible();
   await thread.getByRole("button", { name: "全屏线程" }).click();
   await expect(thread).toBeVisible();
   await thread.getByRole("button", { name: "关闭", exact: true }).click();
+  const entry = answer.getByRole("button", { name: "2 条回复", exact: true });
+  await expect(entry).toBeVisible();
+  await expect(
+    entry.getByRole("group", { name: "参与者", exact: true }).getByRole("img"),
+  ).toHaveCount(2);
+  await expect(entry.locator("time")).toHaveAttribute(
+    "datetime",
+    "2026-10-23T10:02:00+00:00",
+  );
+  await expect(screen.locator('[data-message-id="thread-answer"]')).toHaveCount(
+    0,
+  );
   await screen.getByRole("button", { name: "研究问题", exact: true }).click();
   await expect(thread.getByRole("heading", { name: "研究问题" })).toBeVisible();
 });
@@ -858,7 +919,7 @@ test("thread results stay with their request and link to cross-channel posts", a
   ).toHaveAttribute("href", `#team/${workspace}/${channel}?thread=draft`);
 });
 
-test("queued replies become working turns and settle in completion order", async ({
+test("inline queued replies become working turns and settle in completion order", async ({
   page,
 }) => {
   const { messages } = await setup(page);
@@ -873,14 +934,14 @@ test("queued replies become working turns and settle in completion order", async
     kind: "text",
     mentions: [],
     data: {},
-    replies: 2,
+    replies: 0,
     created_at: stamp,
   };
   const reply: TeamMessage = {
     ...request,
     id: "timed-reply",
     author_id: "librarian",
-    thread_id: request.id,
+    thread_id: null,
     text: "",
     replies: 0,
     created_at: started,
@@ -898,18 +959,30 @@ test("queued replies become working turns and settle in completion order", async
   messages.push(request, reply, {
     ...request,
     id: "intervening-update",
-    thread_id: request.id,
+    thread_id: null,
     text: "补充要求",
     replies: 0,
     created_at: "2026-10-23T15:35:00Z",
   });
-  await page.goto(`/#team/${workspace}/${channel}?thread=${request.id}`);
-  const thread = page.getByRole("region", { name: "线程", exact: true });
+  messages.push(
+    ...Array.from({ length: 30 }, (_, index) => ({
+      ...request,
+      id: `history-${index}`,
+      text: `Earlier message ${index}`,
+      created_at: "2026-10-23T15:00:00Z",
+    })),
+  );
+  await page.goto(`/#team/${workspace}/${channel}`);
+  const thread = page.getByRole("region", { name: "实验", exact: true });
   const row = thread.locator('[data-message-id="timed-reply"]');
   const rows = thread.locator("[data-message-id]");
   const order = () =>
-    rows.evaluateAll((els) =>
-      els.map((el) => el.getAttribute("data-message-id")),
+    rows.evaluateAll(
+      (els, ids) =>
+        els
+          .map((el) => el.getAttribute("data-message-id"))
+          .filter((id) => id && ids.includes(id)),
+      [request.id, reply.id, "intervening-update"],
     );
   await expect(row.getByRole("status")).toHaveText("排队中");
   await expect(row.locator('svg[shape-rendering="crispEdges"]')).toBeVisible();
@@ -926,6 +999,16 @@ test("queued replies become working turns and settle in completion order", async
   await expect
     .poll(order)
     .toEqual([request.id, reply.id, "intervening-update"]);
+  const scroller = row.locator("..");
+  const atBottom = () =>
+    scroller.evaluate(
+      (el) => el.scrollHeight - el.clientHeight - el.scrollTop < 2,
+    );
+  await expect.poll(atBottom).toBe(true);
+  await scroller.evaluate((el) => {
+    el.scrollTop = 0;
+    el.dispatchEvent(new Event("scroll"));
+  });
 
   reply.run!.status = "running";
   reply.run!.updated_at = "2026-10-23T15:36:00Z";
@@ -963,6 +1046,23 @@ test("queued replies become working turns and settle in completion order", async
   await expect
     .poll(order)
     .toEqual([request.id, "intervening-update", reply.id]);
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBe(0);
+  await scroller.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+    el.dispatchEvent(new Event("scroll"));
+  });
+  messages.push({
+    ...request,
+    id: "new-inline",
+    author_id: "writer",
+    text: "新的会话回复",
+    created_at: "2026-10-23T15:45:00Z",
+  });
+  await page.evaluate(() =>
+    window.dispatchEvent(new Event("research-team-updated")),
+  );
+  await expect(thread.getByText("新的会话回复", { exact: true })).toBeVisible();
+  await expect.poll(atBottom).toBe(true);
 });
 
 for (const [locale, theme, width] of [
@@ -987,17 +1087,17 @@ for (const [locale, theme, width] of [
       channel_id: channel,
       thread_id: null,
       author_id: "human",
-      text: "Read the thread",
+      text: "Read the conversation",
       kind: "text",
       mentions: [],
       data: {},
-      replies: 2,
+      replies: 0,
       created_at: stamp,
     };
     const reply: TeamMessage = {
       ...request,
       id: "empty-reply",
-      thread_id: request.id,
+      thread_id: null,
       author_id: "librarian",
       text: "",
       replies: 0,
@@ -1019,9 +1119,9 @@ for (const [locale, theme, width] of [
       run: undefined,
       created_at: "2026-10-23T10:02:00+00:00",
     });
-    await page.goto(`/#team/${workspace}/${channel}?thread=${request.id}`);
+    await page.goto(`/#team/${workspace}/${channel}`);
     const thread = page.getByRole("region", {
-      name: t("team.thread"),
+      name: t("team.channel.experiments"),
       exact: true,
     });
     const row = thread.locator('[data-message-id="empty-reply"]');
@@ -1182,7 +1282,9 @@ for (const theme of ["light", "dark"] as const) {
       // Start after the research card so it cannot interrupt this author group.
       created_at: "2026-10-23T10:01:00+00:00",
       mentions: [],
-      replies: 2,
+      replies: 5,
+      reply_authors: ["librarian", "human", "reviewer", "advisor"],
+      last_message_at: "2026-10-23T10:02:00+00:00",
       data: {
         to: ["librarian"],
         files: [{ path: "draft.md", name: "draft.md" }],
@@ -1246,8 +1348,18 @@ for (const theme of ["light", "dark"] as const) {
     ).toBeVisible();
     await expect(first.locator("footer")).toContainText("Offline");
     await expect(
-      first.getByRole("button", { name: "2 条回复", exact: true }),
+      first.getByRole("button", { name: "5 条回复", exact: true }),
     ).toBeVisible();
+    const entry = first.getByRole("button", { name: "5 条回复", exact: true });
+    await expect(
+      entry
+        .getByRole("group", { name: "参与者", exact: true })
+        .getByRole("img"),
+    ).toHaveCount(3);
+    await expect(entry.locator("time")).toHaveAttribute(
+      "datetime",
+      "2026-10-23T10:02:00+00:00",
+    );
     await expect(
       first.getByText("folded-notes.md", { exact: true }),
     ).toHaveCount(0);
@@ -1360,7 +1472,8 @@ for (const theme of ["light", "dark"] as const) {
           ],
           notifications: [],
           threads_unread: 9,
-          mentions_unread: 2,
+          mentions_unread: 1,
+          activity_unread: 2,
         },
       }),
     );
@@ -1433,7 +1546,7 @@ for (const theme of ["light", "dark"] as const) {
     ).toHaveText("10月18日");
     for (const [label, count] of [
       ["线程", 9],
-      ["提及我的", 2],
+      ["动态", 2],
     ] as const) {
       const shortcut = sidebar
         .getByRole("link", { name: label, exact: true })

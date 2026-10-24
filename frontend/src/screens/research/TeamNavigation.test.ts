@@ -138,6 +138,7 @@ describe("team conversation navigation", () => {
     });
 
     it(`${locale} shows per-conversation work and numeric unread badges`, () => {
+      const { t } = createTranslator(locale);
       const html = render(
         {
           ...team,
@@ -165,6 +166,14 @@ describe("team conversation navigation", () => {
         locale === "zh"
           ? 'aria-label="新建频道"'
           : 'aria-label="Create channel"',
+      );
+      const activity = render({ ...team, activity_unread: 19 }, locale);
+      expect(activity).toContain(t("team.activity"));
+      expect(activity).toContain(
+        `aria-label="${t("team.unreadCount", { count: 19 })}">19</span>`,
+      );
+      expect(activity).not.toContain(
+        `aria-label="${t("team.unreadCount", { count: 7 })}">7</span>`,
       );
     });
   }

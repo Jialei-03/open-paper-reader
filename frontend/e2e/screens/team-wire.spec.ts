@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import type { Workflow } from "../../src/screens/team/workflow/workflow-model";
-import type { TeamMessage } from "../../src/screens/research/team-api";
+import { createTranslator } from "../../src/i18n/i18n";
+import type {
+  TeamActivity,
+  TeamMessage,
+} from "../../src/screens/research/team-api";
 import { signIn } from "../reader/fixtures";
 
 test.use({ locale: "zh-CN", timezoneId: "Asia/Singapore" });
@@ -231,6 +235,11 @@ test("team settings persist rules, switch workflows and open canvas messages", a
   await expect.poll(() => writes.length).toBe(1);
   await page.getByRole("tab", { name: "画布", exact: true }).click();
   await expect(page.getByTestId("workflow-canvas")).toBeVisible();
+  const advisor = page.locator('.react-flow__node[data-id="member:advisor"]');
+  await expect(
+    advisor.getByRole("status", { name: "工作中", exact: true }),
+  ).toHaveText("");
+  await expect(advisor.locator('[data-size="sm"]')).toHaveCount(1);
   await page.locator('[data-id="member:advisor"]').press("Enter");
   await expect(page).toHaveURL(new RegExp(dm));
   await page.goto(`/#team/${wid}/settings?thread=workflow`);
@@ -267,7 +276,9 @@ test("message provenance and schedule links locate the rule editor at 720px", as
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 
-test("queued rule wakes stay compact until work starts", async ({ page }) => {
+test("queued rule wakes stay inline and compact until work starts", async ({
+  page,
+}) => {
   const { reply } = await setup(page);
   reply.text = "";
   reply.created_at = reply.run!.created_at;
@@ -275,6 +286,10 @@ test("queued rule wakes stay compact until work starts", async ({ page }) => {
   reply.run!.response = "";
   await page.goto(`/#team/${wid}/${cid}`);
   const row = page.locator('[data-message-id="reply"]');
+  await expect(
+    page.getByRole("region", { name: "线程", exact: true }),
+  ).toHaveCount(0);
+  await expect(row.getByRole("button", { name: /条回复/ })).toHaveCount(0);
   const conversations = page
     .getByRole("navigation", { name: "侧栏", exact: true })
     .getByRole("group", { name: "消息", exact: true });
@@ -303,6 +318,7 @@ test("queued rule wakes stay compact until work starts", async ({ page }) => {
     window.dispatchEvent(new Event("research-team-updated")),
   );
   await expect(row.locator('[data-live="true"]')).toBeVisible();
+  await expect(row).toHaveAttribute("data-author", "agent");
   await expect(row.getByText("排队中", { exact: true })).toHaveCount(0);
   reply.text = reply.run!.response = "已完成核对";
   reply.run!.status = "completed";
@@ -341,7 +357,7 @@ test("customization manages rule workflows with the same list and canvas editor"
 test("team canvas fills the main area and lists channels without DMs", async ({
   page,
 }) => {
-  await setup(page);
+  const { writes } = await setup(page);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(`/#team/${wid}/settings?thread=workflow`);
   await expect(
@@ -365,11 +381,27 @@ test("team canvas fills the main area and lists channels without DMs", async ({
   ).toHaveCount(1);
   await expect(channelNodes.getByRole("button")).toHaveCount(1);
   await expect(
-    palette.getByRole("button", { name: "添加 advisor", exact: true }),
+    palette.getByRole("button", { name: "advisor", exact: true }),
   ).toHaveCount(1);
+  await expect(
+    palette.getByRole("button", { name: "advisor", exact: true }),
+  ).toHaveAttribute("data-placed", "true");
+  await expect(
+    palette.getByRole("button", { name: "添加 实验", exact: true }),
+  ).toHaveAttribute("data-placed", "false");
   await expect(
     palette.getByRole("button", { name: "添加 导师", exact: true }),
   ).toHaveCount(0);
+  await page.getByRole("button", { name: "自动整理", exact: true }).click();
+  await expect.poll(() => writes.length).toBe(1);
+  expect(writes[0].layout.members.executor.x).toBeLessThan(
+    writes[0].layout.members.advisor.x,
+  );
+  await page.getByRole("tab", { name: "列表", exact: true }).click();
+  await page.getByRole("tab", { name: "画布", exact: true }).click();
+  await expect(
+    palette.getByRole("button", { name: "advisor", exact: true }),
+  ).toHaveAttribute("data-placed", "true");
   await page.setViewportSize({ width: 720, height: 900 });
   expect(
     await page.evaluate(
@@ -468,11 +500,15 @@ test("threads use latest replies, the sidebar icon and local dates", async ({
       ...reply,
       id: "newer",
       text: "昨天的线程",
+      participant_ids: ["advisor", "writer", "human", "executor"],
+      replies: 4,
+      unread: 1,
       created_at: "2026-10-23T00:00:00Z",
     },
     {
       ...reply,
       id: "oldest",
+      channel_id: dm,
       text: "去年的线程",
       created_at: "2025-12-31T00:00:00Z",
     },
@@ -489,11 +525,24 @@ test("threads use latest replies, the sidebar icon and local dates", async ({
   );
   await page.goto(`/#team/${wid}/threads`);
   const list = page.getByRole("region", { name: "线程", exact: true });
-  await expect(list.getByRole("button")).toHaveText([
-    "刚回复的旧线程14:35",
-    "昨天的线程10月23日",
-    "去年的线程2025年12月31日",
-  ]);
+  const threadRows = list.locator("[data-thread-id]");
+  await expect(threadRows).toHaveCount(3);
+  await expect(threadRows.nth(0)).toContainText("刚回复的旧线程");
+  await expect(threadRows.nth(1)).toContainText("昨天的线程");
+  await expect(threadRows.nth(2)).toContainText("去年的线程");
+  await expect(threadRows.nth(0).locator("time")).toHaveText("14:35");
+  await expect(threadRows.nth(1).locator("time")).toHaveText("10月23日");
+  await expect(threadRows.nth(2).locator("time")).toHaveText("2025年12月31日");
+  await expect(threadRows.nth(1)).toContainText("#实验");
+  await expect(threadRows.nth(1)).toContainText("4 条回复");
+  await expect(threadRows.nth(2)).toContainText("advisor");
+  await expect(
+    threadRows.nth(2).locator('svg[shape-rendering="crispEdges"]'),
+  ).toHaveCount(2);
+  await expect(threadRows.nth(1)).toHaveAttribute("data-unread", "true");
+  await expect(
+    threadRows.nth(1).locator('svg[shape-rendering="crispEdges"]'),
+  ).toHaveCount(4);
   const sidebarIcon = page
     .getByRole("link", { name: "线程", exact: true })
     .locator("svg");
@@ -506,9 +555,140 @@ test("threads use latest replies, the sidebar icon and local dates", async ({
     "2026-10-24T06:35:00Z",
   );
   rows[0].last_message_at = "2026-10-24T06:40:00Z";
-  await expect(list.getByRole("button").first()).toHaveText("昨天的线程14:40");
-  await list.getByRole("button").first().click();
+  await expect(threadRows.first()).toContainText("昨天的线程");
+  await expect(threadRows.first().locator("time")).toHaveText("14:40");
+  await threadRows.first().click();
   await expect(page).toHaveURL(
     new RegExp(`#team/${wid}/${cid}\\?thread=newer$`),
   );
 });
+
+for (const locale of ["zh", "en"] as const) {
+  test(`${locale}: activity filters, read receipts, message location and icon-only empty state`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.addInitScript(
+      (value) => localStorage.setItem("paper-locale", value),
+      locale,
+    );
+    const { reply } = await setup(page);
+    await page.clock.setFixedTime(new Date("2026-10-24T07:00:00Z"));
+    const events: TeamActivity[] = [
+      "mention",
+      "reply",
+      "completed",
+      "waiting",
+      "budget",
+      "limit",
+    ].map((kind, index) => ({
+      ...reply,
+      id: `activity-${kind}`,
+      thread_id: kind === "reply" ? "root" : null,
+      text: `Activity summary ${kind}`,
+      run: undefined,
+      actor_id: "advisor",
+      activity_type: kind as TeamActivity["activity_type"],
+      activity_types: [kind] as TeamActivity["activity_types"],
+      unread: true,
+      created_at: `2026-10-24T06:${50 - index}:00Z`,
+    }));
+    const reads: { through: string; message_id?: string }[] = [];
+    await page.route("**/team/activity", (route) =>
+      route.fulfill({ json: events }),
+    );
+    await page.route("**/team/activity/read", (route) => {
+      const body = route.request().postDataJSON();
+      reads.push(body);
+      for (const event of events)
+        if (
+          (!body.message_id || body.message_id === event.id) &&
+          event.created_at <= body.through
+        )
+          event.unread = false;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.route("**/team/channels/*/messages*", (route) => {
+      const query = new URL(route.request().url()).searchParams;
+      const thread = query.get("thread_id");
+      return route.fulfill({
+        json: {
+          root: thread ? { ...reply, id: "root", run: undefined } : null,
+          research_id: null,
+          messages: events.filter(
+            (event) => event.thread_id === (thread || null),
+          ),
+        },
+      });
+    });
+    await page.goto(`/#team/${wid}/mentions`);
+    const activity = page.getByRole("region", {
+      name: t("team.activity"),
+      exact: true,
+    });
+    const rows = activity.locator("[data-activity-id]");
+    await expect(rows).toHaveCount(6);
+    await expect(rows.first()).toContainText(
+      t("team.activity.event", {
+        name: "advisor",
+        channel: locale === "zh" ? "#实验" : "#Experiments",
+        action: t("team.activity.mention"),
+      }),
+    );
+    await expect(
+      rows.first().locator('svg[shape-rendering="crispEdges"]'),
+    ).toHaveCount(1);
+    await expect(rows.first().locator("time")).toHaveText(
+      locale === "zh" ? "10分钟前" : "10 minutes ago",
+    );
+    await activity
+      .getByRole("radio", { name: t("team.activity.mentions"), exact: true })
+      .click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toHaveAttribute(
+      "data-activity-id",
+      "activity-mention",
+    );
+    await activity
+      .getByRole("radio", { name: t("team.activity.replies"), exact: true })
+      .click();
+    await expect(rows).toHaveCount(1);
+    await rows.first().click();
+    const thread = page.getByRole("region", {
+      name: t("team.thread"),
+      exact: true,
+    });
+    const located = thread.locator('[data-message-id="activity-reply"]');
+    await expect(located).toHaveAttribute("data-located", "true");
+    await expect(located).toBeFocused();
+    await expect.poll(() => reads[0]?.message_id).toBe("activity-reply");
+    await page.goto(`/#team/${wid}/mentions`);
+    await activity
+      .getByRole("radio", { name: t("team.activity.all"), exact: true })
+      .click();
+    await activity
+      .getByRole("button", { name: t("team.activity.readAll"), exact: true })
+      .click();
+    await expect(activity.locator("[data-unread]")).toHaveCount(0);
+    await expect.poll(() => reads.some((read) => !read.message_id)).toBe(true);
+    await expect(
+      activity.getByRole("button", {
+        name: t("team.activity.readAll"),
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await rows.first().click();
+    const channel = page.getByRole("region", {
+      name: locale === "zh" ? "实验" : "Experiments",
+      exact: true,
+    });
+    await expect(
+      channel.locator('[data-message-id="activity-mention"]'),
+    ).toHaveAttribute("data-located", "true");
+    events.length = 0;
+    await page.goto(`/#team/${wid}/mentions`);
+    await expect(activity.locator("[data-activity-id]")).toHaveCount(0);
+    await expect(activity.locator('[class*="empty"]')).toHaveText("");
+    await expect(activity.locator('[class*="empty"] > svg')).toBeVisible();
+  });
+}

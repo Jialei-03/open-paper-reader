@@ -8,9 +8,16 @@ import {
   recentThreads,
   sendMode,
   threadDate,
+  activityMessages,
+  conversationName,
 } from "./team-model";
 import { createTranslator } from "../../i18n/i18n";
-import type { TeamChannel, TeamMember, TeamMessage } from "./team-api";
+import type {
+  TeamActivity,
+  TeamChannel,
+  TeamMember,
+  TeamMessage,
+} from "./team-api";
 
 const members: TeamMember[] = [
   {
@@ -144,6 +151,75 @@ describe("team messages", () => {
           january,
         ),
       ).toContain("2025");
+    });
+  }
+});
+
+describe("team activity", () => {
+  it("keeps one event per message, newest first, including read events and overlapping filters", () => {
+    const older = {
+      id: "older",
+      created_at: "2026-10-23T10:00:00Z",
+      activity_types: ["mention", "reply"],
+      unread: true,
+    } as TeamActivity;
+    const latest = {
+      ...older,
+      id: "latest",
+      created_at: "2026-10-23T19:00:00+08:00",
+      activity_types: ["waiting"],
+      unread: false,
+    } as TeamActivity;
+    const updated = { ...older, unread: false };
+    expect(activityMessages([older, latest, updated], "all")).toEqual([
+      latest,
+      updated,
+    ]);
+    expect(activityMessages([older, latest], "mention")).toEqual([older]);
+    expect(activityMessages([older, latest], "reply")).toEqual([older]);
+    expect(older.unread).toBe(true);
+  });
+
+  for (const locale of ["zh", "en"] as const) {
+    it(`${locale} formats sources and relative activity times`, () => {
+      const { t } = createTranslator(locale);
+      expect(
+        conversationName(
+          { key: "experiments", name: "实验", member_id: null },
+          members,
+          t,
+        ),
+      ).toBe(locale === "zh" ? "#实验" : "#Experiments");
+      expect(
+        conversationName(
+          { key: "custom", name: "Evidence", member_id: null },
+          members,
+          t,
+        ),
+      ).toBe("#Evidence");
+      expect(
+        conversationName(
+          { key: "dm:advisor", name: "导师", member_id: "advisor" },
+          members,
+          t,
+        ),
+      ).toBe(locale === "zh" ? "导师" : "Advisor");
+      const now = new Date("2026-10-24T12:00:00Z");
+      const relative = (stamp: string) =>
+        threadDate(stamp, locale, now, "relative");
+      expect(relative("2026-10-24T11:55:00Z")).toBe(
+        locale === "zh" ? "5分钟前" : "5 minutes ago",
+      );
+      expect(relative("2026-10-24T10:00:00Z")).toBe(
+        locale === "zh" ? "2小时前" : "2 hours ago",
+      );
+      expect(relative("2026-10-23T12:00:00Z")).toBe(
+        locale === "zh" ? "昨天" : "yesterday",
+      );
+      expect(relative("2026-10-24T12:00:30Z")).toBe(
+        locale === "zh" ? "现在" : "now",
+      );
+      expect(relative("invalid")).toBe("—");
     });
   }
 });

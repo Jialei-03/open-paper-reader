@@ -39,6 +39,11 @@ class ReadInput(Strict):
     thread_id: str | None = Field(default=None, max_length=80)
 
 
+class ActivityReadInput(Strict):
+    through: str = Field(max_length=40)
+    message_id: str | None = Field(default=None, max_length=80)
+
+
 class AgentDocumentInput(Strict):
     source: str = Field(default="", max_length=150000)
     config: members.MemberConfig | None = None
@@ -300,10 +305,17 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                 .order_by(TeamMessage.created_at.desc())
             )
         )
+        roots = set(
+            d.scalars(
+                select(TeamMessage.thread_id).where(
+                    TeamMessage.workspace_id == id, TeamMessage.thread_id.is_not(None)
+                )
+            )
+        )
         seen, threads = set(), []
         for message in rows:
             thread = message.thread_id or message.id
-            if (message.channel_id, thread) in seen:
+            if thread not in roots or (message.channel_id, thread) in seen:
                 continue
             seen.add((message.channel_id, thread))
             # A thread is named by the message that started it.
@@ -624,7 +636,7 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                 workspace,
                 channel,
                 f"@{message.author_id} {instruction}",
-                thread_id=message.thread_id or message.id,
+                thread_id=message.thread_id,
                 source_key=key,
             )
             for delivery in d.scalars(
@@ -773,6 +785,28 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         d.commit()
         return {"ok": True}
 
+    @app.get(base + "/activity")
+    def activity(id: str, a=Depends(auth), d=Depends(db)):
+        workspace = workspace_of(d, id, a)
+        team.ensure(d, workspace)
+        out = team.activity(d, workspace)
+        d.commit()
+        return out
+
+    @app.post(base + "/activity/read")
+    def read_activity(id: str, body: ActivityReadInput, a=Depends(auth), d=Depends(db)):
+        workspace = workspace_of(d, id, a)
+        team.ensure(d, workspace)
+        through = min(body.through, team.now())
+        for event in team.activity(d, workspace):
+            if event["created_at"] <= through and (
+                body.message_id is None or event["id"] == body.message_id
+            ):
+                message = d.get(TeamMessage, event["id"])
+                message.data = {**message.data, "read": True}
+        d.commit()
+        return {"ok": True}
+
     @app.get(base + "/threads")
     def threads(id: str, mentions: bool = False, a=Depends(auth), d=Depends(db)):
         workspace = workspace_of(d, id, a)
@@ -789,8 +823,11 @@ def install_team_routes(app, settings, db, auth, workspace_of):
             out = [team.message_out(d, m) for m in rows if human in m.mentions]
             out = [m for m in out if team.has_message_content(m)]
         else:
+            # A thread whose replies all said nothing is not listed.
             roots = {
-                m.thread_id or m.id for m in rows if m.author_id == human or m.thread_id
+                m.thread_id
+                for m in rows
+                if m.thread_id and team.has_message_content(team.message_out(d, m))
             }
             out = [
                 team.message_out(d, m)
@@ -812,7 +849,76 @@ def install_team_routes(app, settings, db, auth, workspace_of):
             ]
         if not mentions:
             activity = thread_activity(d, id)
+            channels = {
+                c.id: c
+                for c in d.scalars(
+                    select(TeamChannel).where(TeamChannel.workspace_id == id)
+                )
+            }
+            grouped = {}
+            for row in rows:
+                value = team.message_out(d, row)
+                if row.data.get("research_forwarded") or not team.has_message_content(
+                    value
+                ):
+                    continue
+                grouped.setdefault(
+                    (row.channel_id, row.thread_id or row.id), []
+                ).append(value)
+            legacy_participants = {}
+            role_members = {m.role: m.id for m in members}
+            for model, role in (
+                (team.ResearchEvent, team.ResearchEvent.actor),
+                (team.ResearchSprint, team.ResearchSprint.role),
+            ):
+                query = (
+                    select(model.project_id, role)
+                    .join(team.ResearchProject)
+                    .where(team.ResearchProject.workspace_id == id)
+                    .order_by(model.created_at.desc())
+                )
+                if model is team.ResearchEvent:
+                    query = query.where(model.action == "message")
+                for project_id, author_role in d.execute(query):
+                    author_role = {
+                        "scoping": "advisor",
+                        "discussion": "advisor",
+                        "workflow": "executor",
+                        "review": "advisor",
+                    }.get(author_role, author_role)
+                    if author_role in role_members:
+                        legacy_participants.setdefault(
+                            f"research:{project_id}", []
+                        ).append(role_members[author_role])
             for message in out:
+                channel = channels[message["channel_id"]]
+                messages = grouped.get((channel.id, message["id"]), [])
+                message["channel"] = team.conversation_out(channel)
+                message["preview"] = team.preview_text(
+                    message["data"].get("title") or message["text"]
+                )
+                message["participant_ids"] = list(
+                    dict.fromkeys(
+                        m["author_id"] for m in reversed(messages) if m["author_id"]
+                    )
+                )
+                message["unread"] = sum(
+                    m["author_id"] != human and not m["data"].get("read")
+                    for m in messages
+                )
+                if message["kind"] == "research":
+                    message["author_id"] = human
+                    message["participant_ids"] = list(
+                        dict.fromkeys(
+                            [
+                                *message["participant_ids"],
+                                *legacy_participants.get(message["id"], []),
+                                human,
+                            ]
+                        )
+                    )
+                else:
+                    message["replies"] = sum(m["id"] != message["id"] for m in messages)
                 message["last_message_at"] = max(
                     message["created_at"], activity.get(message["id"], "")
                 )
