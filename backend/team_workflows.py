@@ -32,6 +32,7 @@ def references(d, workspace):
             "kind": "human" if m.role == "human" else "agent",
             "role": "owner" if m.role == "human" else m.role,
             "enabled": m.enabled and not m.deleted,
+            "paused": m.paused,
             "subscriptions": m.subscriptions,
         }
         for m in d.scalars(
@@ -453,7 +454,9 @@ def apply(d, workspace, message, flow, actions):
                         else None
                     ),
                     kind=(
-                        "relay_limit"
+                        "member_paused"
+                        if action["action"] == "skip"
+                        else "relay_limit"
                         if action["action"] in {"wait_for_owner", "limit"}
                         else "text"
                     ),
@@ -461,6 +464,9 @@ def apply(d, workspace, message, flow, actions):
                     data={
                         **metadata,
                         "reason": action.get("reason"),
+                        "paused_member": action.get("member")
+                        if action["action"] == "skip"
+                        else None,
                         "limit": action.get("limit"),
                         "waiting": action["action"] == "wait_for_owner",
                         "rule_event_pending": action["action"] == "post",
@@ -745,7 +751,7 @@ def research_event(
     project.workflow_state = state
     if workspace and actions:
         for action in actions:
-            if action["action"] in {"post", "wait_for_owner", "limit"}:
+            if action["action"] in {"post", "wait_for_owner", "limit", "skip"}:
                 waiting = action["action"] == "wait_for_owner"
                 stopped = action["action"] in {"wait_for_owner", "limit"}
                 d.add(
@@ -757,7 +763,11 @@ def research_event(
                             if action.get("channel", channel_id) == channel_id
                             else None
                         ),
-                        kind="relay_limit" if stopped else "text",
+                        kind="member_paused"
+                        if action["action"] == "skip"
+                        else "relay_limit"
+                        if stopped
+                        else "text",
                         text=action.get("text") or "",
                         mentions=[m["id"] for m in members if m["role"] == "owner"]
                         if stopped
@@ -766,8 +776,11 @@ def research_event(
                             **provenance(flow, action),
                             "waiting": waiting,
                             "reason": action.get("reason"),
+                            "paused_member": action.get("member")
+                            if action["action"] == "skip"
+                            else None,
                             "limit": action.get("limit"),
-                            "rule_event_pending": not stopped,
+                            "rule_event_pending": action["action"] == "post",
                         },
                     )
                 )

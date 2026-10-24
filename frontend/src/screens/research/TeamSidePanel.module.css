@@ -46,7 +46,8 @@
 }
 .file,
 .source,
-.progress {
+.progress,
+.pin {
   display: flex;
   align-items: center;
   gap: var(--ui-space-8);
@@ -79,7 +80,8 @@
 }
 .file svg,
 .source svg,
-.progress svg {
+.progress svg,
+.pin svg {
   width: var(--ui-space-16);
   height: var(--ui-space-16);
   flex-shrink: 0;
@@ -94,8 +96,27 @@
 }
 .file:hover,
 .source:hover,
-.progress:hover {
+.progress:hover,
+.pin:hover {
   background: var(--ui-hover);
+}
+.pin > span {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--ui-space-8);
+  min-width: 0;
+}
+.pin > span > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pin > span > span:has(svg) {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-2);
 }
 .panel :is(button, a, section):focus-visible,
 .file:focus-visible {

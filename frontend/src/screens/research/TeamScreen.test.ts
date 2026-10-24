@@ -99,6 +99,50 @@ describe("team member replies", () => {
       expect(html).toContain(`<time dateTime="${started}">`);
       expect(html).toContain("My request");
     });
+    it(`${locale} labels a broadcast reply with its thread origin`, () => {
+      const html = render({
+        ...message,
+        run: undefined,
+        kind: "thread_broadcast",
+        text: "Conclusion",
+        data: { thread_origin: { thread_id: "root", message_id: "source" } },
+      });
+      expect(html).toContain(t("team.fromThread"));
+      expect(html).toContain("Conclusion");
+      expect(html).toContain(`aria-label="${t("research.actions")}"`);
+    });
+    it(`${locale} offers channel sharing only for a channel thread composer`, () => {
+      for (const member_id of [null, "writer"]) {
+        for (const threadId of [undefined, "root"]) {
+          const html = renderToStaticMarkup(
+            createElement(I18nProvider, {
+              locale,
+              children: createElement(TeamComposer, {
+                team,
+                threadId,
+                channel: {
+                  id: "channel",
+                  key: "general",
+                  name: "Lab",
+                  member_id,
+                  unread: 0,
+                },
+                models: [],
+                model: "",
+                modelsKnown: false,
+                onModel() {},
+                sent() {},
+              }),
+            }),
+          );
+          expect(html.includes('type="checkbox"')).toBe(
+            !!threadId && !member_id,
+          );
+          if (threadId && !member_id)
+            expect(html).toContain(t("team.alsoChannel", { channel: "#Lab" }));
+        }
+      }
+    });
 
     it(`${locale} keeps agent identity, handoff, model, files and replies accessible`, () => {
       const html = render({
@@ -243,7 +287,7 @@ describe("team member replies", () => {
       expect(html).not.toContain(`>${t("research.changes.undo")}</span>`);
     });
 
-    it(`${locale} centers system statuses without message actions or identity`, () => {
+    it(`${locale} centers system statuses with a more menu and no identity`, () => {
       const html = render({
         ...message,
         author_id: null,
@@ -254,9 +298,8 @@ describe("team member replies", () => {
       });
       expect(html).toContain(`aria-label="${t("team.system")}"`);
       expect(html).toContain(`<span>${t("team.status.waiting")}</span>`);
-      expect(html).not.toContain("<svg");
       expect(html).not.toContain("<img");
-      expect(html).not.toContain("<button");
+      expect(html).toContain(`aria-label="${t("research.actions")}"`);
       expect(html).not.toContain("<time");
     });
 
@@ -328,7 +371,7 @@ describe("team member replies", () => {
       }
     });
 
-    it(`${locale} queues with only avatar, name, short status and stop`, () => {
+    it(`${locale} queues with avatar, name, short status, stop and more`, () => {
       const html = render(message);
       expect(html).toContain(`<strong>Ada</strong>`);
       expect(html).toContain(`role="status">${t("team.queued")}</span>`);
@@ -389,7 +432,9 @@ describe("team member replies", () => {
           expect(html).not.toContain('data-testid="team-message-bubble"');
           expect(html).not.toContain("<time");
           expect(html).not.toContain("<section");
-          expect(html).not.toContain("<button");
+          expect(html.match(/aria-haspopup="dialog"/g)).toHaveLength(2);
+          expect(html).not.toContain('aria-label="' + t("team.reply") + '"');
+          expect(html).toContain(`aria-label="${t("research.actions")}"`);
           expect(html).not.toContain("offline-model");
           expect(html).not.toContain("notes.md");
           expect(html).not.toContain(t("team.noAnswer"));

@@ -1,4 +1,5 @@
 import { MemberAvatar } from "../team/MemberEditor";
+import { TeamMemberCard, colleagueStatus } from "./TeamMemberCard";
 import { followLink } from "../../reader/route";
 import { memberName } from "../team/member-model";
 import { Bell, Hash, MessageSquare, Plus, Settings } from "lucide-react";
@@ -119,9 +120,10 @@ export function TeamSwitcher({
 export function MemberStatus({
   status,
   enabled,
-}: Pick<TeamMember, "status" | "enabled">) {
+  paused,
+}: Pick<TeamMember, "status" | "enabled" | "paused">) {
   const { t } = useI18n();
-  const state = enabled === false ? "disabled" : status;
+  const state = enabled === false ? "disabled" : paused ? "paused" : status;
   return (
     <span
       className={styles.status}
@@ -230,7 +232,7 @@ export function TeamConversationList({
   go(hash: string): void;
   onCreate(): void;
 }) {
-  const { t, locale } = useI18n();
+  const { t, tn, locale } = useI18n();
   const { owner = "" } = useContext(AppActions);
   const [limit, choose] = useSidebarPage(
     sidebarPageKey(owner, id, "messages"),
@@ -272,7 +274,11 @@ export function TeamConversationList({
   const avatar = (member: TeamMember) => (
     <span className={nav.memberAvatar}>
       <MemberAvatar member={member} />
-      <MemberStatus status={member.status} enabled={member.enabled} />
+      <MemberStatus
+        status={member.status}
+        enabled={member.enabled}
+        paused={member.paused}
+      />
     </span>
   );
   return (
@@ -337,59 +343,80 @@ export function TeamConversationList({
             ? members.get(last.author_id)
             : undefined;
           const authorName = author ? memberName(author, t) : last?.author_name;
-          const working = !!channel.working_member_ids?.length;
+          const activeMember =
+            member && ["working", "queued"].includes(member.status)
+              ? member
+              : channel.working_member_ids
+                  ?.map((id) => members.get(id))
+                  .find(
+                    (item) =>
+                      item && ["working", "queued"].includes(item.status),
+                  );
+          const working = !!activeMember;
           const target = teamHash(id, channel.id);
           return (
-            <a
-              key={channel.id}
-              className={nav.conversation}
-              data-id={sidebarId("conversation")}
-              href={`#${target}`}
-              aria-label={name}
-              aria-current={current(channel.id) ? "page" : undefined}
-              onClick={followLink(go, target)}
-            >
-              {member ? (
-                avatar(member)
-              ) : (
-                <span className={nav.channelAvatar}>
-                  <Hash size={16} aria-hidden="true" />
-                </span>
-              )}
-              <span className={nav.content}>
-                <span className={nav.line}>
-                  <span className={nav.name}>{name}</span>
-                  {channel.last_at && (
-                    <time dateTime={channel.last_at}>
-                      {threadDate(
-                        channel.last_at,
-                        locale,
-                        new Date(),
-                        "conversation",
-                      )}
-                    </time>
-                  )}
-                </span>
-                <span className={nav.line}>
-                  <span
-                    className={nav.preview}
-                    data-working={working || undefined}
-                  >
-                    {working
-                      ? t("team.workingPreview")
-                      : last
-                        ? authorName
-                          ? t("team.preview", {
-                              author: authorName,
-                              text: last.text,
-                            })
-                          : last.text
-                        : ""}
+            <div key={channel.id} className={nav.conversationRow}>
+              <a
+                className={nav.conversation}
+                data-id={sidebarId("conversation")}
+                href={`#${target}`}
+                aria-label={name}
+                aria-current={current(channel.id) ? "page" : undefined}
+                onClick={followLink(go, target)}
+              >
+                {member ? (
+                  <span className={nav.memberAvatar} aria-hidden />
+                ) : (
+                  <span className={nav.channelAvatar}>
+                    <Hash size={16} aria-hidden="true" />
                   </span>
-                  <UnreadBadge count={channel.unread} />
+                )}
+                <span className={nav.content}>
+                  <span className={nav.line}>
+                    <span className={nav.name}>{name}</span>
+                    {channel.last_at && (
+                      <time dateTime={channel.last_at}>
+                        {threadDate(
+                          channel.last_at,
+                          locale,
+                          new Date(),
+                          "conversation",
+                        )}
+                      </time>
+                    )}
+                  </span>
+                  <span className={nav.line}>
+                    <span
+                      className={nav.preview}
+                      data-working={working || undefined}
+                    >
+                      {member?.paused
+                        ? t("team.status.paused")
+                        : working
+                          ? colleagueStatus(activeMember!, { t, tn })
+                          : last
+                            ? authorName
+                              ? t("team.preview", {
+                                  author: authorName,
+                                  text: last.text,
+                                })
+                              : last.text
+                            : ""}
+                    </span>
+                    <UnreadBadge count={channel.unread} />
+                  </span>
                 </span>
-              </span>
-            </a>
+              </a>
+              {member && team && (
+                <TeamMemberCard
+                  team={team}
+                  member={member}
+                  className={nav.profileTrigger}
+                >
+                  {avatar(member)}
+                </TeamMemberCard>
+              )}
+            </div>
           );
         })}
         <SidebarPagination

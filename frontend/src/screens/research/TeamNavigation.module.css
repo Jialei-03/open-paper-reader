@@ -134,6 +134,18 @@
     color var(--ui-dur-2) var(--ui-ease-out);
 }
 
+.conversationRow {
+  position: relative;
+  flex: none;
+}
+
+.profileTrigger {
+  position: absolute;
+  left: var(--ui-space-8);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
 .content {
   display: flex;
   flex: 1;

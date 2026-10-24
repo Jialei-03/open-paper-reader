@@ -273,4 +273,19 @@ for (const locale of ["zh", "en"] as const) {
     expect(html).toContain('href="https://example.test/paper"');
     expect(html).toContain("Cited paper");
   });
+  it(`${locale} shows pinned thread excerpts and files as a location target`, () => {
+    const pinned = {
+      ...working,
+      pinned: true,
+      text: "A pinned finding",
+      data: { files: [{ path: "finding.md", name: "finding.md" }] },
+    };
+    const html = render([pinned, pinned], []);
+    expect(html).toContain(`aria-label="${t("team.pinned")}"`);
+    expect(html).toContain('data-pin-id="reply"');
+    expect(html.match(/data-pin-id=/g)).toHaveLength(1);
+    expect(html).toContain("A pinned finding");
+    expect(html).toContain("finding.md");
+    expect(html).not.toContain(t("team.noOutputs"));
+  });
 }

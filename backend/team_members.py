@@ -78,6 +78,7 @@ class MemberCreate(Strict):
 
 
 class MemberEdit(Strict):
+    paused: bool | None = None
     avatar_upload: AvatarUpload | None = None
     source: str | None = Field(default=None, max_length=150000)
     revision: str | None = None
@@ -309,6 +310,10 @@ def edit(d, workspace, member, body):
 
     if member.role == "human":
         raise ValueError("研究者不可编辑 / Researcher cannot be edited")
+    if body.paused is not None:
+        member.paused = body.paused
+    if body.model_fields_set == {"paused"}:
+        return
     current = file_out(member)
     check_revision(current["source"], body.revision)
     original, values = files.read_member(member)
@@ -595,6 +600,9 @@ def apply_runtime(d, run, payload, info, settings=None):
     if not brief.startswith(role_text):
         brief = role_text + "\n\n" + brief
     payload["context"] = language + brief
+    from .team_message_features import refresh_feedback
+
+    payload["context"] = refresh_feedback(d, member, payload["context"])
     from .team_budgets import snapshot
 
     run.runtime = {**run.runtime, **snapshot(member)}

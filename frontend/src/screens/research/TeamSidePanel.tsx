@@ -1,4 +1,4 @@
-import { ArrowUpRight, FileText, Inbox, Link, X } from "lucide-react";
+import { ArrowUpRight, FileText, Inbox, Link, Pin, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { IconButton } from "../../ui";
@@ -141,7 +141,15 @@ export function TeamSidePanel({
   const filesSection = useRef<HTMLElement>(null);
   const { files, sources } = conversationOutputs(messages);
   const progress = conversationProgress(team, messages, deliveries);
-  const empty = !progress.length && !files.length && !sources.length;
+  const pins = [
+    ...new Map(
+      messages
+        .filter((message) => message.pinned)
+        .map((message) => [message.id, message]),
+    ).values(),
+  ];
+  const empty =
+    !progress.length && !files.length && !sources.length && !pins.length;
   useEffect(() => {
     if (fileRequest) {
       filesSection.current?.scrollIntoView({ block: "nearest" });
@@ -159,6 +167,37 @@ export function TeamSidePanel({
         <IconButton icon={X} label={t("team.hidePanel")} onClick={onClose} />
       </header>
       <div className={empty ? styles.empty : styles.sections}>
+        {!!pins.length && (
+          <section aria-label={t("team.pinned")}>
+            <h3>{t("team.pinned")}</h3>
+            {pins.map((message) => (
+              <button
+                key={message.id}
+                type="button"
+                className={styles.pin}
+                aria-label={
+                  message.preview || message.text || t("team.message")
+                }
+                data-pin-id={message.id}
+                onClick={() => onLocate(message.id)}
+              >
+                <Pin aria-hidden />
+                <span>
+                  {message.text && (
+                    <span>{message.preview || message.text}</span>
+                  )}
+                  {conversationOutputs([message]).files.map((file) => (
+                    <span key={file.path || file.url}>
+                      <FileText aria-hidden />
+                      {file.name}
+                    </span>
+                  ))}
+                </span>
+                <ArrowUpRight aria-hidden />
+              </button>
+            ))}
+          </section>
+        )}
         {progress.length > 0 && (
           <section aria-label={t("team.progress")}>
             <h3>{t("team.progress")}</h3>

@@ -54,6 +54,7 @@ export interface TeamMember extends Partial<MemberConfig>, AgentFile {
   builtin?: boolean;
   builtin_update_available?: boolean;
   enabled?: boolean;
+  paused?: boolean;
   deleted?: boolean;
   subscriptions?: string[];
   overrides?: string[];
@@ -64,6 +65,11 @@ export interface TeamMember extends Partial<MemberConfig>, AgentFile {
   name: string;
   status: "idle" | "working" | "queued" | "waiting";
   active_run_id: string | null;
+  current_step?: import("./process/model").RunStep | null;
+  elapsed_seconds?: number;
+  queue_ahead?: number;
+  active_model?: string;
+  effective_model_config_id?: string;
 }
 export interface TeamChannel {
   id: string;
@@ -71,6 +77,7 @@ export interface TeamChannel {
   name: string;
   member_id: string | null;
   unread: number;
+  pinned_count?: number;
   last_message?: {
     author_id: string | null;
     author_name: string;
@@ -99,6 +106,21 @@ export interface TeamFileDiff {
   diff: string;
   truncated: boolean;
 }
+export type ReactionEmoji = "👍" | "👎" | "✅";
+export interface TeamReaction {
+  emoji: ReactionEmoji;
+  count: number;
+  mine: boolean;
+}
+export interface TeamMessageReference {
+  message_id: string;
+  channel_id: string;
+  thread_id: string | null;
+  author_id: string | null;
+  author_name: string;
+  created_at: string;
+  text: string;
+}
 export interface TeamMessage {
   id: string;
   channel_id: string;
@@ -106,8 +128,12 @@ export interface TeamMessage {
   author_id: string | null;
   text: string;
   kind: string;
+  pinned?: boolean;
   mentions: string[];
+  reactions?: TeamReaction[];
   data: {
+    forward?: TeamMessageReference;
+    quote?: TeamMessageReference;
     to?: string[];
     paper?: TeamPaperLink;
     papers?: TeamPaperLink[];
@@ -132,6 +158,14 @@ export interface TeamMessage {
     reason?: string;
     limit?: number;
     read?: boolean;
+    also_channel?: boolean;
+    thread_origin?: { thread_id: string; message_id: string };
+    paused_member?: string;
+    reminder?: {
+      message_id: string;
+      channel_id: string;
+      thread_id: string | null;
+    };
   };
   created_at: string;
   last_message_at?: string;
@@ -152,12 +186,18 @@ export type ActivityType =
   | "completed"
   | "waiting"
   | "budget"
-  | "limit";
+  | "limit"
+  | "paused"
+  | "reminder";
 export interface TeamActivity extends Omit<TeamMessage, "unread"> {
   activity_type: ActivityType;
   activity_types: ActivityType[];
   actor_id: string | null;
   unread: boolean;
+}
+export interface SavedTeamMessage extends TeamMessage {
+  completed: boolean;
+  saved_at: string;
 }
 export interface Team {
   workspace_id: string;
@@ -208,6 +248,7 @@ export const getMessages = (id: string, channel: string, thread?: string) =>
     activity?: TeamMessage[];
     root: TeamMessage | null;
     research_id: string | null;
+    read_through?: string;
   }>(
     `${base(id)}/channels/${channel}/messages${thread ? `?thread_id=${encodeURIComponent(thread)}` : ""}`,
   );
@@ -221,12 +262,26 @@ export const sendTeamMessage = (
     model_config_id?: string;
     client_id: string;
     attachment_ids?: string[];
+    forward_message_id?: string;
+    quote?: Pick<TeamMessageReference, "message_id" | "text">;
+    also_channel?: boolean;
   },
 ) =>
   send(
     `${base(id)}/channels/${channel}/messages`,
     body,
   ) as Promise<TeamMessage>;
+export const setTeamReaction = (
+  id: string,
+  message: string,
+  emoji: ReactionEmoji,
+  remove: boolean,
+) =>
+  send(
+    `${base(id)}/messages/${encodeURIComponent(message)}/reactions/${encodeURIComponent(emoji)}`,
+    {},
+    remove ? "DELETE" : "PUT",
+  ) as Promise<TeamReaction[]>;
 export const getDeliveries = (id: string) =>
   api<Delivery[]>(`${base(id)}/deliveries`);
 export const continueTeamMessage = (id: string, message: string) =>
@@ -252,10 +307,52 @@ export const readChannel = (
     through,
     ...(thread_id ? { thread_id } : {}),
   });
+export interface ColleagueFile {
+  path: string;
+  name: string;
+  deleted?: boolean;
+  member_id?: string | null;
+}
+export interface CatchupEvent {
+  message_id: string;
+  member_id: string | null;
+  text: string;
+}
+export interface TeamCatchup {
+  since: string;
+  through: string;
+  show: boolean;
+  new_messages: number;
+  first_unread: { id: string; thread_id: string | null } | null;
+  completed: { member_id: string; count: number }[];
+  files: ColleagueFile[];
+  handoffs: { message_id: string; member_id: string | null; to: string[] }[];
+  waiting: CatchupEvent[];
+  failed: CatchupEvent[];
+}
+export const getTeamCatchup = (id: string, channel: string) =>
+  api<TeamCatchup>(`${base(id)}/channels/${channel}/summary`);
 export const teamThreads = (id: string, mentions = false) =>
   api<TeamMessage[]>(`${base(id)}/threads?mentions=${mentions}`);
 export const teamActivity = (id: string) =>
   api<TeamActivity[]>(`${base(id)}/activity`);
+export const savedTeamMessages = (id: string) =>
+  api<SavedTeamMessage[]>(`${base(id)}/saved`);
+export const markTeamMessage = (
+  id: string,
+  message: Pick<TeamMessage, "id" | "channel_id">,
+  kind: "pin" | "later",
+  remove = false,
+  completed?: boolean,
+) =>
+  send(
+    `${base(id)}/messages/${encodeURIComponent(message.id)}/marks/${kind}`,
+    {
+      channel_id: message.channel_id,
+      ...(completed === undefined ? {} : { completed }),
+    },
+    remove ? "DELETE" : "PUT",
+  );
 export const readTeamActivity = (
   id: string,
   through: string,
@@ -329,6 +426,7 @@ export const editTeamMember = (
     source?: string;
     config?: MemberConfig;
     enabled?: boolean;
+    paused?: boolean;
     subscriptions?: string[];
     reset_overrides?: boolean;
     restore_builtin?: boolean;
@@ -350,6 +448,7 @@ export const deleteTeamMember = (id: string, member: string) =>
   send(`${base(id)}/members/${member}`, {}, "DELETE");
 export interface MemberDetail extends TeamMember {
   activity: string;
+  recent_files?: ColleagueFile[];
   threads: {
     id: string;
     channel_id: string;
@@ -382,3 +481,13 @@ export const importAgentDocument = (
     source,
     filename,
   }) as Promise<AgentDocument>;
+
+export const remindTeamMessage = (
+  id: string,
+  message: TeamMessage,
+  remind_at: string,
+) =>
+  send(
+    `${base(id)}/channels/${encodeURIComponent(message.channel_id)}/messages/${encodeURIComponent(message.id)}/reminders`,
+    { remind_at },
+  );

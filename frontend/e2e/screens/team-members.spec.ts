@@ -274,6 +274,7 @@ async function setup(page: Page, extraMembers: TeamMember[] = []) {
                 ...(body.enabled !== undefined
                   ? { enabled: body.enabled }
                   : {}),
+                ...(body.paused !== undefined ? { paused: body.paused } : {}),
                 ...(body.subscriptions
                   ? { subscriptions: body.subscriptions }
                   : {}),
@@ -931,3 +932,55 @@ test("成员列表、私信侧栏和消息头像使用一致的状态点", async
     await page.goto(`/#team/${wid}/settings?thread=members`);
   }
 });
+
+for (const locale of ["zh", "en"] as const) {
+  test(`${locale}: pause and resume a colleague from detail and their card`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.addInitScript(
+      (value) => localStorage.setItem("paper-locale", value),
+      locale,
+    );
+    const { saved } = await setup(page);
+    await page
+      .getByRole("button", { name: t("team.member.advisor"), exact: true })
+      .click();
+    const pageArea = page.getByTestId("team-screen");
+    // The existing member details are reached through settings, without changing their file.
+    await page
+      .getByRole("button", { name: t("members.pause"), exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: t("members.resume"), exact: true }),
+    ).toBeVisible();
+    expect(saved.at(-1)).toEqual({ paused: true });
+    const direct = page.getByRole("link", {
+      name: t("team.member.advisor"),
+      exact: true,
+    });
+    await expect(
+      direct.getByRole("img", { name: t("team.status.paused"), exact: true }),
+    ).toBeVisible();
+    await expect(
+      direct.getByText(t("team.status.paused"), { exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: t("members.message"), exact: true })
+      .click();
+    const card = pageArea.getByTestId("team-empty");
+    await expect(
+      card.getByText(t("team.status.paused"), { exact: true }),
+    ).toBeVisible();
+    await card
+      .getByRole("button", { name: t("members.resume"), exact: true })
+      .click();
+    await expect(
+      card.getByRole("button", { name: t("members.pause"), exact: true }),
+    ).toBeVisible();
+    expect(saved.at(-1)).toEqual({ paused: false });
+    await expect(
+      direct.getByRole("img", { name: t("team.status.idle"), exact: true }),
+    ).toBeVisible();
+  });
+}

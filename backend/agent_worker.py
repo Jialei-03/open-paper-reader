@@ -504,6 +504,14 @@ def _process(app, job_id, cfg):
                 r.runtime = {**r.runtime, "team": team_context}
                 payload["tools"] = [*payload["tools"], *TEAM_TOOLS]
                 payload["context"] += "\nTeam context: " + json.dumps(team_context)
+                from .models import ResearchWorkspace
+                from .team_message_marks import context_pins
+
+                workspace = d.get(ResearchWorkspace, team_context["workspace_id"])
+                payload["context"] += "\nChannel pins:\n" + json.dumps(
+                    context_pins(d, workspace, team_context["channel_id"]),
+                    ensure_ascii=False,
+                )
                 d.commit()
     payload["context"] += selection_context(app, owner, session_id, job_id, snapshot)
     if research:
@@ -1189,6 +1197,28 @@ def ready_job(d, settings):
         .limit(32)
         .with_for_update(skip_locked=True)
     ):
+        from .models import AgentSession, TeamMember
+        from .research_team import research_context
+
+        info = (job.runtime or {}).get("team")
+        if not info and (job.runtime or {}).get("research", {}).get("project_id"):
+            info = research_context(d, job.runtime["research"], job.owner)
+        member = d.get(TeamMember, info["member_id"]) if info else None
+        if member is None:
+            member = d.scalar(
+                select(TeamMember).where(TeamMember.session_id == job.session_id)
+            )
+        if member is None:
+            session = d.get(AgentSession, job.session_id)
+            if session and session.kind in {"project_lead", "project_chat"}:
+                member = d.scalar(
+                    select(TeamMember).where(
+                        TeamMember.workspace_id == session.workspace_id,
+                        TeamMember.role == "advisor",
+                    )
+                )
+        if member and member.paused:
+            continue
         if (
             job.lane == "translation"
             and settings.agent_translation_workers

@@ -20,6 +20,7 @@ from .models import (
     TeamDelivery,
     TeamMember,
     TeamMessage,
+    TeamMessageMark,
     now,
 )
 
@@ -47,6 +48,10 @@ def normalize(text):
 
 def preview_text(text):
     """A single plain-text line for the conversation list."""
+    return plain_text(text)[:80]
+
+
+def plain_text(text):
     # ponytail: preview-only cleanup; use a Markdown parser for complex nesting.
     text = normalize(text)
     text = re.sub(r"(?m)^\s{0,3}(?:`{3,}|~{3,}).*$", "", text)
@@ -84,7 +89,7 @@ def preview_text(text):
         flags=re.DOTALL,
     )
     text = re.sub(r"\\([\\`*_{}\[\]()#+.!>~-])", r"\1", text)
-    return " ".join(unescape(text).split())[:80]
+    return " ".join(unescape(text).split())
 
 
 def stable(workspace, key):
@@ -188,6 +193,7 @@ def root_of(d, workspace, channel, thread_id):
         human = thread_id.startswith("legacy-user:")
         return TeamMessage(
             id=thread_id,
+            workspace_id=workspace.id,
             channel_id=channel.id,
             author_id=stable(workspace, "human" if human else "advisor"),
             text=run.prompt if human else run.response,
@@ -198,7 +204,7 @@ def root_of(d, workspace, channel, thread_id):
             thread_id=None,
         )
     root = d.get(TeamMessage, thread_id)
-    if root is None or root.channel_id != channel.id or root.thread_id:
+    if root is None or root.channel_id != channel.id or root.thread_id or root.kind == "reminder":
         raise ValueError("线程不存在 / Thread not found")
     return root
 
@@ -316,18 +322,25 @@ def post(
     source_key=None,
     kind="text",
     trigger="message",
+    also_channel=False,
 ):
     if workspace.archived or channel.archived:
         raise ValueError("团队或频道已归档 / Team or channel archived")
     text = normalize(text).strip()
-    if not text or len(text) > 12000:
+    if (
+        not text and not any((data or {}).get(k) for k in ("forward", "quote"))
+    ) or len(text) > 12000:
         raise ValueError("消息为空或过长 / Empty or oversized message")
     root = root_of(d, workspace, channel, thread_id)
+    if also_channel:
+        validate_broadcast(channel, thread_id)
     members = ensure(d, workspace)
     author = author or next(m for m in members if m.role == "human")
     if author.workspace_id != workspace.id:
         raise ValueError("成员不属于团队 / Member outside team")
     tagged = mentions(d, workspace, text)
+    if (data or {}).get("forward") and channel.member_id and author.role == "human":
+        tagged = list(dict.fromkeys([*tagged, channel.member_id]))
     message = TeamMessage(
         workspace_id=workspace.id,
         channel_id=channel.id,
@@ -357,7 +370,42 @@ def post(
     message.data = {**message.data, "mode": mode}
     route_message(d, workspace, message, trigger=trigger)
     workspace.updated_at = now()
+    if also_channel:
+        broadcast_reply(d, workspace, channel, message)
     return message
+
+
+def validate_broadcast(channel, thread_id):
+    if not thread_id or channel.member_id:
+        raise ValueError(
+            "只能同步频道线程回复 / Only channel thread replies can be broadcast"
+        )
+
+
+def broadcast_reply(d, workspace, channel, message):
+    """A durable channel reference; routing happens once on the original reply."""
+    validate_broadcast(channel, message.thread_id)
+    key = f"broadcast:{message.id}"
+    mirror = d.scalar(select(TeamMessage).where(TeamMessage.source_key == key))
+    if not mirror:
+        mirror = TeamMessage(
+            workspace_id=workspace.id,
+            channel_id=channel.id,
+            author_id=message.author_id,
+            text=message.text,
+            kind="thread_broadcast",
+            source_key=key,
+            data={
+                "thread_origin": {
+                    "thread_id": message.thread_id,
+                    "message_id": message.id,
+                }
+            },
+        )
+        d.add(mirror)
+    message.data = {**message.data, "also_channel": True}
+    d.flush()
+    return mirror
 
 
 def run_out(run):
@@ -379,6 +427,30 @@ def run_out(run):
 
 
 def message_out(d, message):
+    from .team_message_features import reactions
+
+    origin = (
+        message.data.get("thread_origin") if message.kind == "thread_broadcast" else None
+    )
+    if origin:
+        source = d.get(TeamMessage, origin.get("message_id"))
+        if source and source.channel_id == message.channel_id and source.thread_id:
+            value = message_out(d, source)
+            return {
+                **value,
+                "id": message.id,
+                "thread_id": None,
+                "kind": message.kind,
+                "created_at": message.created_at,
+                "data": {
+                    **value["data"],
+                    "read": message.data.get("read", False),
+                    "research_forwarded": False,
+                    "thread_origin": origin,
+                },
+                "replies": 0,
+                "reply_authors": [],
+            }
     out = {
         k: getattr(message, k)
         for k in (
@@ -394,6 +466,7 @@ def message_out(d, message):
         )
     }
     out["text"] = normalize(out["text"])
+    out["reactions"] = reactions(d, message.workspace_id, message.id)
     if message.kind == "sprint_reference":
         sprint = d.get(ResearchSprint, message.data.get("sprint_id"))
         out["text"] = normalize(sprint.summary) if sprint else ""
@@ -460,6 +533,8 @@ def has_message_content(message):
         or data.get("attachments")
         or (data.get("changes") or {}).get("files")
         or data.get("links")
+        or data.get("forward")
+        or data.get("quote")
         or data.get("file_error")
         or run.get("error")
         or (run.get("runtime") or {}).get("time_limit_reached")
@@ -469,6 +544,8 @@ def has_message_content(message):
 
 
 def research_root(project, channel, d):
+    from .team_message_features import reactions
+
     inherited = project.inherited_history or {}
     sprints = {s["id"] for s in inherited.get("sprints", [])}
     sprints.update(
@@ -507,6 +584,7 @@ def research_root(project, channel, d):
         text=project.question,
         kind="research",
         mentions=[],
+        reactions=reactions(d, project.workspace_id, f"research:{project.id}"),
         created_at=project.created_at,
         data={
             "research_id": project.id,
@@ -518,13 +596,17 @@ def research_root(project, channel, d):
 
 
 def history(d, workspace, channel, thread_id=None):
+    from .team_message_features import reactions
+
     root = root_of(d, workspace, channel, thread_id)
     rows = [
         message_out(d, m)
         for m in d.scalars(
             select(TeamMessage)
             .where(
-                TeamMessage.channel_id == channel.id, TeamMessage.thread_id == thread_id
+                TeamMessage.channel_id == channel.id,
+                TeamMessage.thread_id == thread_id,
+                TeamMessage.kind != "reminder",
             )
             .order_by(TeamMessage.created_at, TeamMessage.id)
         )
@@ -561,6 +643,7 @@ def history(d, workspace, channel, thread_id=None):
                 dict(
                     base,
                     id=f"legacy-user:{run.id}",
+                    reactions=reactions(d, workspace.id, f"legacy-user:{run.id}"),
                     author_id=stable(workspace, "human"),
                     text=normalize(run.prompt),
                     created_at=run.created_at,
@@ -571,6 +654,7 @@ def history(d, workspace, channel, thread_id=None):
                     dict(
                         base,
                         id=f"legacy:{run.id}",
+                        reactions=reactions(d, workspace.id, f"legacy:{run.id}"),
                         author_id=stable(workspace, "advisor"),
                         text=normalize(run.response or run.error),
                         created_at=run.updated_at,
@@ -616,7 +700,7 @@ def history(d, workspace, channel, thread_id=None):
             ],
             nodes=[node_out(n) for n in nodes(d, root)],
         )
-    return {
+    result = {
         "research": research,
         # The conversation panel includes work and outputs inside its threads.
         "activity": (
@@ -647,6 +731,20 @@ def history(d, workspace, channel, thread_id=None):
         ),
         "research_id": root.id if isinstance(root, ResearchProject) else None,
     }
+    pins = set(
+        d.scalars(
+            select(TeamMessageMark.message_id).where(
+                TeamMessageMark.workspace_id == workspace.id,
+                TeamMessageMark.channel_id == channel.id,
+                TeamMessageMark.kind == "pin",
+                TeamMessageMark.owner == "",
+            )
+        )
+    )
+    for value in [*result["messages"], *result["activity"], result["root"]]:
+        if value is not None:
+            value["pinned"] = value["id"] in pins
+    return result
 
 
 def conversation_out(channel):
@@ -708,6 +806,10 @@ def activity(d, workspace, *, messages=None, values=None, unread_only=False):
         run = value.get("run") or {}
         runtime = run.get("runtime") or {}
         types = []
+        if message.kind == "reminder":
+            types.append("reminder")
+        if message.kind == "member_paused":
+            types.append("paused")
         if message.data.get("waiting"):
             types.append("waiting")
         if message.kind == "budget" or runtime.get("budget_limit"):
@@ -744,7 +846,7 @@ def activity(d, workspace, *, messages=None, values=None, unread_only=False):
     return list(reversed(events))
 
 
-def overview(d, workspace):
+def overview(d, workspace, *, include_reminders=True):
     members = ensure(d, workspace)
     channels = list(
         d.scalars(
@@ -755,6 +857,7 @@ def overview(d, workspace):
         )
     )
     from .team_members import avatar_out, config, file_out
+    from .team_presence import presence
 
     active_deliveries = list(
         d.execute(
@@ -843,6 +946,7 @@ def overview(d, workspace):
                 library_id=member.library_id,
                 builtin=member.role in ROLES,
                 enabled=member.enabled and not member.deleted,
+                paused=member.paused,
                 deleted=member.deleted,
                 overrides=member.overrides,
                 subscriptions=member.subscriptions,
@@ -854,22 +958,27 @@ def overview(d, workspace):
                 if run or member.id in queued
                 else "idle",
                 active_run_id=run.id if run else None,
+                **presence(d, workspace, member, run),
                 tokens=member.tokens,
                 max_tokens=member.max_tokens,
             )
         )
-    messages = list(
-        d.scalars(
+    messages = [
+        m
+        for m in d.scalars(
             select(TeamMessage)
             .where(TeamMessage.workspace_id == workspace.id)
             .order_by(TeamMessage.created_at, TeamMessage.id)
         )
-    )
+        if include_reminders or m.kind != "reminder"
+    ]
     human = stable(workspace, "human")
     participating = {m.thread_id or m.id for m in messages if m.author_id == human}
     thread_roots = participating | {m.thread_id for m in messages if m.thread_id}
     unread_messages = [
-        m for m in messages if m.author_id != human and not m.data.get("read")
+        m
+        for m in messages
+        if m.author_id != human and not m.data.get("read") and m.kind != "reminder"
     ]
     unread_values = {m.id: message_out(d, m) for m in unread_messages}
     unread_messages = [
@@ -878,6 +987,8 @@ def overview(d, workspace):
     last_messages = {}
     names = {m.id: m.name for m in members}
     for message in reversed(messages):
+        if message.kind == "reminder":
+            continue
         if message.channel_id in last_messages:
             continue
         value = unread_values.get(message.id) or message_out(d, message)
@@ -886,7 +997,12 @@ def overview(d, workspace):
         last_messages[message.channel_id] = {
             "author_id": message.author_id,
             "author_name": names.get(message.author_id, ""),
-            "text": preview_text(value["text"]),
+            "text": preview_text(
+                value["text"]
+                or (
+                    value["data"].get("forward") or value["data"].get("quote") or {}
+                ).get("text", "")
+            ),
             "created_at": message.created_at,
         }
     unread = []
@@ -910,6 +1026,15 @@ def overview(d, workspace):
     notifications.update({event["id"]: event for event in unread_events})
     from .team_budgets import limits, tokens
 
+    pin_channels = list(
+        d.scalars(
+            select(TeamMessageMark.channel_id).where(
+                TeamMessageMark.workspace_id == workspace.id,
+                TeamMessageMark.kind == "pin",
+                TeamMessageMark.owner == "",
+            )
+        )
+    )
     return dict(
         workspace_id=workspace.id,
         workflow=workspace.workflow,
@@ -929,6 +1054,7 @@ def overview(d, workspace):
                 name=c.name,
                 member_id=c.member_id,
                 unread=c.unread_count,
+                pinned_count=pin_channels.count(c.id),
                 last_message=last_messages.get(c.id),
                 last_at=last_messages[c.id]["created_at"]
                 if c.id in last_messages
@@ -953,9 +1079,13 @@ def overview(d, workspace):
 
 def context(d, workspace, message):
     from .research_chat import context as project_context
+    from .team_message_marks import context_pins
 
     channel = channel_of(d, workspace, message.channel_id)
-    recent = history(d, workspace, channel, message.thread_id)["messages"][-40:]
+    recent = [
+        {key: value for key, value in row.items() if key != "reactions"}
+        for row in history(d, workspace, channel, message.thread_id)["messages"][-40:]
+    ]
     board = []
     for c in d.scalars(
         select(TeamChannel).where(
@@ -967,7 +1097,7 @@ def context(d, workspace, message):
         tail = list(
             d.scalars(
                 select(TeamMessage)
-                .where(TeamMessage.channel_id == c.id)
+                .where(TeamMessage.channel_id == c.id, TeamMessage.kind != "reminder")
                 .order_by(TeamMessage.created_at.desc())
                 .limit(4)
             )
@@ -976,7 +1106,14 @@ def context(d, workspace, message):
             {
                 "channel_id": c.id,
                 "name": c.name,
-                "recent": [normalize(m.text)[-800:] for m in reversed(tail)],
+                "recent": [
+                    (
+                        message_out(d, m)["text"]
+                        if m.kind == "thread_broadcast"
+                        else normalize(m.text)
+                    )[-800:]
+                    for m in reversed(tail)
+                ],
             }
         )
     return (
@@ -984,6 +1121,8 @@ def context(d, workspace, message):
         + project_context(d, workspace)[:16000]
         + "\n\nTeam blackboard:\n"
         + json.dumps(board, ensure_ascii=False)
+        + "\n\nChannel pins:\n"
+        + json.dumps(context_pins(d, workspace, channel.id), ensure_ascii=False)
         + "\n\nConversation (latest 40, bounded):\n"
         + json.dumps(recent, ensure_ascii=False, default=str)[-20000:]
         + f"\nChannel: {channel.id}; Thread: {message.thread_id}\n"
@@ -1004,14 +1143,16 @@ def context(d, workspace, message):
 
 
 def dispatch(settings, d, workspace, delivery):
+    from .team_message_features import feedback_part, message_text
+
     member = d.get(TeamMember, delivery.member_id)
     message = d.get(TeamMessage, delivery.message_id)
-    text = message_out(d, message)["text"]
+    text = message_text(d, message)
     attachment_ids = [a["id"] for a in message.data.get("attachments", [])]
     for identifier in delivery.action.get("merged_messages", []):
         extra = d.get(TeamMessage, identifier)
         if extra:
-            text += "\n\n" + extra.text
+            text += "\n\n" + message_text(d, extra)
             attachment_ids.extend(a["id"] for a in extra.data.get("attachments", []))
     if delivery.action.get("instruction"):
         text += "\n\n" + delivery.action["instruction"]
@@ -1019,6 +1160,8 @@ def dispatch(settings, d, workspace, delivery):
         return
     if not member.enabled or member.deleted:
         delivery.status, delivery.error = "cancelled", "成员已停用 / Member disabled"
+        return
+    if member.paused:
         return
     run = active_run(d, member)
     if run:
@@ -1136,7 +1279,8 @@ def dispatch(settings, d, workspace, delivery):
         context=language
         + description(member)
         + "\n\n"
-        + context(d, workspace, message).removeprefix(language),
+        + context(d, workspace, message).removeprefix(language)
+        + feedback_part(d, member),
         attachment_ids=list(dict.fromkeys(attachment_ids)),
         lane="research",
         runtime={"team": team, **snapshot(member)},
@@ -1402,7 +1546,7 @@ def available(d, project, role):
     budget = limits(workspace)
     if member is None:
         return True
-    if not member.enabled or member.deleted or active_run(d, member):
+    if member.paused or not member.enabled or member.deleted or active_run(d, member):
         return False
     reason = (
         "member_total_tokens"

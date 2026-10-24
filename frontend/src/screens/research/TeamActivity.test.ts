@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { I18nProvider } from "../../i18n/I18nProvider";
 import { createTranslator } from "../../i18n/i18n";
-import { ActivityRow, ThreadRow } from "./TeamActivity";
+import { ActivityRow, SavedMessageRow, ThreadRow } from "./TeamActivity";
 import type { Team, TeamActivity, TeamMessage } from "./team-api";
 
 const team: Team = {
@@ -56,6 +56,8 @@ describe("team inbox rows", () => {
         "waiting",
         "budget",
         "limit",
+        "paused",
+        "reminder",
       ] as const) {
         const event: TeamActivity = {
           ...message,
@@ -63,6 +65,7 @@ describe("team inbox rows", () => {
           actor_id: "Ada",
           activity_type: kind,
           activity_types: [kind],
+          data: kind === "paused" ? { paused_member: "Ada" } : message.data,
         };
         const html = render(
           createElement(ActivityRow, { team, event, open() {} }),
@@ -75,7 +78,11 @@ describe("team inbox rows", () => {
           }),
         );
         expect(html).toContain('src="/Ada.png"');
-        expect(html).toContain("Root summary");
+        expect(html).toContain(
+          kind === "paused"
+            ? t("team.memberPaused", { name: "Ada" })
+            : "Root summary",
+        );
         expect(html).toContain(`dateTime="${event.created_at}"`);
         expect(html).toContain('data-unread="true"');
         const read = render(
@@ -110,6 +117,27 @@ describe("team inbox rows", () => {
       expect(direct).not.toContain("data-unread");
       expect(direct.match(/<img /g)).toHaveLength(5);
       expect(direct).toContain("Ada");
+    });
+    it(`${locale} lists saved messages with completion and removal actions`, () => {
+      for (const completed of [false, true]) {
+        const html = render(
+          createElement(SavedMessageRow, {
+            team,
+            message: { ...message, completed, saved_at: message.created_at },
+            open() {},
+            async change() {},
+          }),
+        );
+        expect(html).toContain('data-saved-id="root"');
+        expect(html).toContain("Root summary");
+        expect(html).toContain(
+          t(completed ? "team.later.reopen" : "team.later.complete"),
+        );
+        expect(html).toContain(t("team.later.remove"));
+        expect(html.includes('data-completed="true"')).toBe(completed);
+        expect(html.includes(t("team.later.completed"))).toBe(completed);
+        expect(html).not.toContain("data-unread");
+      }
     });
   }
 });

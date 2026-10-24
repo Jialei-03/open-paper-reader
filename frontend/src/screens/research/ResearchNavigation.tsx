@@ -39,6 +39,7 @@ import { getTeam, TEAM_EVENT } from "./team-api";
 import { needsYou, type AttentionMessage } from "./navigation-attention";
 import { sidebarId } from "../../app/sidebar-entries";
 import nav from "./TeamNavigation.module.css";
+import { notifyTeamReminders } from "./team-reminder-notifications";
 
 const EMPTY: Navigation = { workspaces: [], collections: [] };
 const Context = createContext({
@@ -57,6 +58,7 @@ export function ResearchNavigationProvider({
   children: ReactNode;
 }) {
   const local = useLocal();
+  const { t } = useI18n();
   const [data, setData] = useState<Navigation>(EMPTY);
   const [connections, setConnections] = useState<SSHConnection[]>([]);
   const [ready, setReady] = useState(false);
@@ -100,6 +102,32 @@ export function ResearchNavigationProvider({
       window.removeEventListener("focus", refresh);
     };
   }, [local, reload]);
+  useEffect(() => {
+    if (local !== true || !window.oraDesktop) return;
+    let stale = false;
+    const load = () =>
+      Promise.allSettled(
+        data.workspaces
+          .filter((w) => !w.archived)
+          .map(async (w) => {
+            const team = await getTeam(w.id);
+            if (!stale)
+              notifyTeamReminders(
+                w.id,
+                team.notifications,
+                t("team.reminder.title"),
+              );
+          }),
+      );
+    void load();
+    const timer = window.setInterval(load, 5000);
+    window.addEventListener(TEAM_EVENT, load);
+    return () => {
+      stale = true;
+      clearInterval(timer);
+      window.removeEventListener(TEAM_EVENT, load);
+    };
+  }, [local, data.workspaces, t]);
   return (
     <Context.Provider
       value={{ data, connections, ready, loading, error, reload }}

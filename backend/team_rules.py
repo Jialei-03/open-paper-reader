@@ -31,7 +31,7 @@ Text = Annotated[str, Field(min_length=1)]
 
 class Action(TypedDict, total=False):
     rule: str
-    action: Literal["wake", "review", "wait_for_owner", "post", "limit"]
+    action: Literal["wake", "review", "wait_for_owner", "post", "limit", "skip"]
     reason: str
     limit: int
     member: str
@@ -493,6 +493,20 @@ def match(workflow, event, state, *, members) -> MatchResult:
 
     def emit(rule, action, *, advance=True):
         if action["action"] in {"wake", "review"}:
+            if any(m["id"] == action["member"] and m.get("paused") for m in members):
+                if rule:
+                    name = next(
+                        m["name"] for m in members if m["id"] == action["member"]
+                    )
+                    actions.append(
+                        {
+                            **action,
+                            "action": "skip",
+                            "reason": "paused",
+                            "text": f"{name} 暂停中 / {name} is paused",
+                        }
+                    )
+                return False
             if any(
                 m["id"] == action["member"] and not m.get("enabled", True)
                 for m in members
@@ -645,6 +659,8 @@ def match(workflow, event, state, *, members) -> MatchResult:
                 ).get("pending"):
                     continue
                 if not emit(rule, action):
+                    if any(m["id"] == target and m.get("paused") for m in members):
+                        continue
                     break
                 delivered.add(target)
                 if action["action"] == "review":
@@ -672,7 +688,10 @@ def match(workflow, event, state, *, members) -> MatchResult:
             current["counts"][rule["id"]] = before + 1
     for member in mentions:
         if member not in delivered | claimed and any(
-            m["id"] == member and m["kind"] == "agent" and m.get("enabled", True)
+            m["id"] == member
+            and m["kind"] == "agent"
+            and m.get("enabled", True)
+            and not m.get("paused")
             for m in members
         ):
             action = {

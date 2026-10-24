@@ -1,5 +1,7 @@
 import { memberName as displayMemberName } from "../team/member-model";
 import { MemberAvatar } from "../team/MemberEditor";
+import { MemberPause } from "../team/MemberPause";
+import { TeamReminderDialog } from "./TeamReminderDialog";
 import { TeamSettings } from "../team/TeamSettings";
 import settingStyles from "../team/TeamSettings.module.css";
 import {
@@ -8,10 +10,12 @@ import {
   AtSign,
   Bot,
   Bell,
+  Bookmark,
   ChevronRight,
   Copy,
   GitFork,
   FileText,
+  Forward,
   Hash,
   Maximize2,
   MessageSquare,
@@ -21,6 +25,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pencil,
+  Pin,
   Plus,
   Search,
   Send,
@@ -30,6 +35,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  Fragment,
   useCallback,
   useContext,
   useEffect,
@@ -51,7 +57,17 @@ import { summary } from "./process/model";
 import { ResearchProject } from "./ResearchProject";
 import { TeamFilePreview } from "./TeamFilePreview";
 import { TeamInbox } from "./TeamActivity";
+import { TeamMemberCard, ColleagueStatus } from "./TeamMemberCard";
+import { TeamCatchup, catchupAnchor } from "./TeamCatchup";
 import { TeamMessageChanges } from "./TeamMessageChanges";
+import {
+  ForwardMessageDialog,
+  MessageReactions,
+  MessageReference,
+  QuoteDraft,
+  QuoteSelection,
+  ReactionPicker,
+} from "./TeamMessageFeatures";
 import { TeamFileCard, TeamSidePanel } from "./TeamSidePanel";
 import { startProject } from "./research-api";
 import { useResearchNavigation } from "./ResearchNavigation";
@@ -62,6 +78,8 @@ import {
   editDelivery,
   getDeliveries,
   getMessages,
+  getTeamCatchup,
+  markTeamMessage,
   readChannel,
   refreshTeam,
   renameChannel,
@@ -74,6 +92,8 @@ import {
   type TeamChannel,
   type TeamMember,
   type TeamMessage,
+  type TeamMessageReference,
+  type TeamCatchup as Catchup,
 } from "./team-api";
 import {
   defaultChannelNames,
@@ -99,7 +119,7 @@ export function TeamScreen({
   full?: boolean;
   go(hash: string): void;
 }) {
-  const { t } = useI18n();
+  const { t, tn } = useI18n();
   const { data } = useResearchNavigation();
   const { quickOpen } = useContext(AppActions);
   const workspace = data.workspaces.find((w) => w.id === id);
@@ -124,6 +144,7 @@ export function TeamScreen({
   });
   const [fileRequest, setFileRequest] = useState(0);
   const [locateMessage, setLocateMessage] = useState("");
+  const [locateRequest, setLocateRequest] = useState(0);
   const [conversation, setConversation] = useState<{
     channelId: string;
     messages: TeamMessage[];
@@ -185,6 +206,7 @@ export function TeamScreen({
   const memberModel = team?.members.find(
     (m) => m.id === channel?.member_id,
   )?.model_config_id;
+  const directMember = team?.members.find((m) => m.id === channel?.member_id);
   useEffect(() => {
     if (channel?.member_id)
       setModel(
@@ -218,8 +240,22 @@ export function TeamScreen({
     (m) =>
       m.role !== "human" && (!channel?.member_id || m.id === channel.member_id),
   ).length;
-  const openThread = (message: TeamMessage) =>
-    go(teamHash(id, message.channel_id, message.thread_id || message.id));
+  const openThread = (message: TeamMessage) => {
+    const origin = message.data.thread_origin;
+    if (origin) setLocateMessage(origin.message_id);
+    go(
+      teamHash(
+        id,
+        message.channel_id,
+        origin?.thread_id || message.thread_id || message.id,
+      ),
+    );
+  };
+  const openReference = (reference: TeamMessageReference) => {
+    setLocateMessage(reference.message_id);
+    setLocateRequest((request) => request + 1);
+    go(teamHash(id, reference.channel_id, reference.thread_id || ""));
+  };
   const fork = async (message: TeamMessage) => {
     try {
       const project = await startProject({
@@ -251,7 +287,20 @@ export function TeamScreen({
             ) : (
               <Hash size={16} aria-hidden />
             )}
-            <h1>{title}</h1>
+            {team && directMember ? (
+              <TeamMemberCard
+                heading
+                team={team}
+                member={directMember}
+                onFile={setFile}
+              >
+                <MemberAvatar member={directMember} size="sm" />
+                {title}
+              </TeamMemberCard>
+            ) : (
+              <h1>{title}</h1>
+            )}
+            {directMember && <ColleagueStatus member={directMember} />}
             {team && channel && (
               <div
                 className={styles.counts}
@@ -271,6 +320,20 @@ export function TeamScreen({
             <div className={styles.actions}>
               {channel && (
                 <>
+                  {!channel.member_id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={Pin}
+                      onClick={() => {
+                        setFile("");
+                        togglePanel(true);
+                        if (threadId) go(teamHash(id, channel.id));
+                      }}
+                    >
+                      {tn("team.pins", channel.pinned_count || 0)}
+                    </Button>
+                  )}
                   <IconButton
                     icon={Search}
                     label={t("team.search")}
@@ -358,10 +421,13 @@ export function TeamScreen({
               model={model}
               onModel={setModel}
               openThread={openThread}
+              onReference={openReference}
               fork={fork}
               onFile={setFile}
               onConversation={receiveConversation}
+              onLocate={setLocateMessage}
               locateId={!threadId ? locateMessage : undefined}
+              locateRequest={locateRequest}
             />
           ) : (
             team && (
@@ -448,10 +514,13 @@ export function TeamScreen({
             model={model}
             onModel={setModel}
             openThread={openThread}
+            onReference={openReference}
             fork={fork}
             onFile={setFile}
             go={go}
             locateId={locateMessage}
+            locateRequest={locateRequest}
+            onLocate={setLocateMessage}
           />
         </section>
       )}
@@ -533,9 +602,15 @@ function MessagePane({
   onFile,
   onConversation,
   locateId,
+  onReference,
+  locateRequest,
+  onLocate,
 }: {
+  locateRequest: number;
+  onReference(reference: TeamMessageReference): void;
   onConversation?(messages: TeamMessage[], deliveries: Delivery[]): void;
   locateId?: string;
+  onLocate?(id: string): void;
   onFile(path: string): void;
   team: Team;
   channel: TeamChannel;
@@ -555,6 +630,10 @@ function MessagePane({
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [error, setError] = useState("");
   const [version, setVersion] = useState(0);
+  const [quote, setQuote] = useState<TeamMessageReference | null>(null);
+  const [catchup, setCatchup] = useState<Catchup | null>(null);
+  const caughtUp = useRef(false);
+  const catchupLocated = useRef(false);
   const scroll = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const located = useRef("");
@@ -565,23 +644,36 @@ function MessagePane({
     Promise.all([
       getMessages(team.workspace_id, channel.id, threadId),
       getDeliveries(team.workspace_id),
+      !threadId && !caughtUp.current && document.hasFocus() && !document.hidden
+        ? getTeamCatchup(team.workspace_id, channel.id).catch(() => null)
+        : Promise.resolve(null),
     ]).then(
-      ([result, pending]) => {
+      ([result, pending, summary]) => {
         if (stale) return;
+        if (summary) {
+          caughtUp.current = true;
+          catchupLocated.current = false;
+          setCatchup(summary);
+        }
         setLoaded(true);
         setMessages(result.messages);
         setRoot(result.root);
         setDeliveries(pending);
         onConversation?.(
           (result.activity || result.messages).filter(
-            (m) => !m.data.research_forwarded,
+            (m) => !m.data.research_forwarded || m.pinned,
           ),
           pending.filter((d) => d.channel_id === channel.id),
         );
         setError("");
-        if (document.hasFocus() && !document.hidden && result.messages.length) {
+        if (
+          document.hasFocus() &&
+          !document.hidden &&
+          (threadId || caughtUp.current)
+        ) {
           const through =
-            result.messages[result.messages.length - 1].created_at;
+            result.read_through || result.messages.at(-1)?.created_at;
+          if (!through) return;
           void readChannel(
             team.workspace_id,
             channel.id,
@@ -603,18 +695,45 @@ function MessagePane({
   }, [team.workspace_id, channel.id, threadId, version, onConversation]);
   useEffect(() => {
     const timer = window.setInterval(reload, 2000);
+    const away = () => {
+      caughtUp.current = false;
+    };
+    const returned = () => {
+      if (!document.hidden) reload();
+    };
+    const visibility = () => {
+      document.hidden ? away() : returned();
+    };
     window.addEventListener(TEAM_EVENT, reload);
+    window.addEventListener("blur", away);
+    window.addEventListener("focus", returned);
+    document.addEventListener("visibilitychange", visibility);
     return () => {
       clearInterval(timer);
       window.removeEventListener(TEAM_EVENT, reload);
+      window.removeEventListener("blur", away);
+      window.removeEventListener("focus", returned);
+      document.removeEventListener("visibilitychange", visibility);
     };
   }, [reload]);
   useEffect(() => {
+    if (
+      catchup?.show &&
+      !catchupLocated.current &&
+      !messages.some((message) => message.id === locateId)
+    ) {
+      scroll.current
+        ?.querySelector<HTMLElement>('[data-testid="team-catchup"]')
+        ?.scrollIntoView({ block: "start" });
+      pinned.current = false;
+      catchupLocated.current = true;
+    }
     if (pinned.current)
       scroll.current?.scrollTo({ top: scroll.current.scrollHeight });
-  }, [messages]);
+  }, [messages, catchup, locateId]);
   useEffect(() => {
-    if (!locateId || located.current === locateId) return;
+    const request = `${locateId}:${locateRequest}`;
+    if (!locateId || located.current === request) return;
     const row = [
       ...(scroll.current?.querySelectorAll<HTMLElement>("[data-message-id]") ||
         []),
@@ -629,9 +748,9 @@ function MessagePane({
       row.scrollIntoView({ block: "center" });
       row.focus({ preventScroll: true });
       pinned.current = false;
-      located.current = locateId;
+      located.current = request;
     }
-  }, [locateId, messages]);
+  }, [locateId, locateRequest, messages]);
   const pending = deliveries.filter(
     (d) =>
       d.editable &&
@@ -642,11 +761,53 @@ function MessagePane({
     (m) => !m.data.research_forwarded,
   );
   const dmMember = team.members.find((m) => m.id === channel.member_id);
+  const summaryAnchor = catchupAnchor(catchup, visibleMessages);
+  const jumpToUnread = () => {
+    const first = catchup?.first_unread;
+    if (!first) return;
+    if (first.thread_id) {
+      onLocate?.(first.id);
+      openThread({
+        id: first.id,
+        thread_id: first.thread_id,
+        channel_id: channel.id,
+      } as TeamMessage);
+      return;
+    }
+    const row = [
+      ...(scroll.current?.querySelectorAll<HTMLElement>("[data-message-id]") ||
+        []),
+    ].find((element) => element.dataset.messageId === first.id);
+    row?.scrollIntoView({ block: "start", behavior: "smooth" });
+    row?.focus({ preventScroll: true });
+    pinned.current = false;
+  };
+  const catchupCard = catchup?.show && (
+    <TeamCatchup
+      team={team}
+      summary={catchup}
+      onFile={onFile}
+      onJump={jumpToUnread}
+    />
+  );
   const modelName = (member?: TeamMember, message?: TeamMessage) => {
     const id =
       message?.run?.model_config_id || member?.model_config_id || model;
     return message?.run?.model || models.find((m) => m.id === id)?.model || id;
   };
+  const selectQuote = (message: TeamMessage, text: string) =>
+    setQuote({
+      message_id: message.id,
+      channel_id: message.channel_id,
+      thread_id: message.thread_id,
+      author_id: message.author_id,
+      author_name: memberLabel(
+        team.members.find((member) => member.id === message.author_id),
+        t,
+      ),
+      created_at: message.created_at,
+      text,
+    });
   return (
     <>
       {researchId && go && (
@@ -677,6 +838,8 @@ function MessagePane({
         {root && !researchId && (
           <MessageRow
             message={root}
+            onQuote={selectQuote}
+            onReference={onReference}
             team={team}
             openThread={openThread}
             fork={fork}
@@ -702,6 +865,7 @@ function MessagePane({
                   <MemberAvatar member={dmMember} size="lg" />
                 </div>
                 <strong>{displayMemberName(dmMember, t)}</strong>
+                {dmMember.paused && <span>{t("team.status.paused")}</span>}
                 {dmMember.description && <p>{dmMember.description}</p>}
                 {modelName(dmMember) && (
                   <span className={styles.memberModel}>
@@ -715,6 +879,7 @@ function MessagePane({
                     </span>
                   ))}
                 </div>
+                <MemberPause workspace={team.workspace_id} member={dmMember} />
               </>
             ) : (
               <>
@@ -728,26 +893,34 @@ function MessagePane({
             )}
           </div>
         )}
+        {!visibleMessages.length && catchupCard}
         {visibleMessages.map((message, index) => (
-          <MessageRow
-            key={message.id}
-            message={message}
-            grouped={groupMessages(
-              visibleMessages[index - 1] ||
-                (!researchId && root
-                  ? { ...root, thread_id: threadId || null }
-                  : undefined),
-              message,
-            )}
-            modelName={modelName(
-              team.members.find((m) => m.id === message.author_id),
-              message,
-            )}
-            team={team}
-            openThread={openThread}
-            fork={fork}
-            onFile={onFile}
-          />
+          <Fragment key={message.id}>
+            {message.id === summaryAnchor && catchupCard}
+            <MessageRow
+              message={message}
+              onQuote={selectQuote}
+              onReference={onReference}
+              grouped={
+                message.id !== summaryAnchor &&
+                groupMessages(
+                  visibleMessages[index - 1] ||
+                    (!researchId && root
+                      ? { ...root, thread_id: threadId || null }
+                      : undefined),
+                  message,
+                )
+              }
+              modelName={modelName(
+                team.members.find((m) => m.id === message.author_id),
+                message,
+              )}
+              team={team}
+              openThread={openThread}
+              fork={fork}
+              onFile={onFile}
+            />
+          </Fragment>
         ))}
         {error && <p role="alert">{error}</p>}
       </div>
@@ -769,7 +942,16 @@ function MessagePane({
           modelsKnown={modelsKnown}
           model={model}
           onModel={onModel}
+          quote={quote}
+          onClearQuote={() => setQuote(null)}
           sent={() => {
+            if (quote) {
+              const source = [root, ...messages].find(
+                (message) => message?.id === quote.message_id,
+              );
+              if (source) openThread(source);
+              setQuote(null);
+            }
             pinned.current = true;
             reload();
             refreshTeam();
@@ -797,6 +979,8 @@ const emptyReply = (message: TeamMessage) =>
   !message.data.attachments?.length &&
   !message.data.changes?.files.length &&
   !message.data.links?.length &&
+  !message.data.forward &&
+  !message.data.quote &&
   !message.data.file_error;
 
 export function groupMessages(
@@ -901,7 +1085,11 @@ export function MessageRow({
   onFile,
   grouped = false,
   modelName,
+  onQuote,
+  onReference,
 }: {
+  onReference?(reference: TeamMessageReference): void;
+  onQuote?(message: TeamMessage, text: string): void;
   onFile(path: string): void;
   message: TeamMessage;
   team: Team;
@@ -911,6 +1099,8 @@ export function MessageRow({
   modelName?: string;
 }) {
   const { t, tn, locale } = useI18n();
+  const [forwarding, setForwarding] = useState(false);
+  const [reminding, setReminding] = useState(false);
   const member =
     team.members.find((m) => m.id === message.author_id) ??
     (message.kind === "research"
@@ -949,16 +1139,46 @@ export function MessageRow({
         aria-label={t("team.system")}
         tabIndex={-1}
       >
-        <span>{systemText}</span>
+        <span>
+          {message.kind === "member_paused"
+            ? t("team.memberPaused", {
+                name: memberLabel(
+                  team.members.find((m) => m.id === message.data.paused_member),
+                  t,
+                ),
+              })
+            : systemText}
+        </span>
+        <div className={styles.hoverActions}>
+          <MessageMoreMenu message={message} team={team} />
+        </div>
       </article>
     );
-  const avatar = (
+  const avatarImage = (
     <div className={styles.avatar} data-member={member ? "" : undefined}>
       <MemberAvatar member={member} seed={member ? undefined : name} />
       {member && (
-        <MemberStatus status={member.status} enabled={member.enabled} />
+        <MemberStatus
+          status={member.status}
+          enabled={member.enabled}
+          paused={member.paused}
+        />
       )}
     </div>
+  );
+  const avatar = member ? (
+    <TeamMemberCard team={team} member={member} onFile={onFile}>
+      {avatarImage}
+    </TeamMemberCard>
+  ) : (
+    avatarImage
+  );
+  const authorName = member ? (
+    <TeamMemberCard team={team} member={member} onFile={onFile}>
+      <strong>{name}</strong>
+    </TeamMemberCard>
+  ) : (
+    <strong>{name}</strong>
   );
   const stop = (message.run?.status === "queued" ||
     message.run?.status === "running") && (
@@ -986,13 +1206,16 @@ export function MessageRow({
         tabIndex={-1}
       >
         {avatar}
-        <strong>{name}</strong>
+        {authorName}
         <span className={styles.messageStatus} role="status">
           {t(
             message.run?.status === "queued" ? "team.queued" : "team.noContent",
           )}
         </span>
-        {stop && <div className={styles.hoverActions}>{stop}</div>}
+        <div className={styles.hoverActions}>
+          {stop}
+          <MessageMoreMenu message={message} team={team} />
+        </div>
       </article>
     );
   // Only members are woken; older records may still name the researcher.
@@ -1015,24 +1238,44 @@ export function MessageRow({
       <div className={styles.messageBody}>
         {!human && !grouped && (
           <header>
-            <strong>{name}</strong>
+            {authorName}
             <span className={styles.agentTag}>{t("team.agent")}</span>
           </header>
         )}
         <div className={styles.bubble} data-testid="team-message-bubble">
-          {message.kind === "research" ? (
-            <button
-              className={styles.researchCard}
-              onClick={() => openThread(message)}
-            >
-              <MessageSquare size={16} aria-hidden />
-              {message.data.title || message.text}
-            </button>
-          ) : message.run ? (
-            <MessageRun message={message} member={member} name={name} />
-          ) : (
-            <Prose text={message.text} />
+          {message.data.forward && (
+            <MessageReference
+              reference={message.data.forward}
+              team={team}
+              kind="forward"
+              onLocate={onReference}
+            />
           )}
+          {message.data.quote && (
+            <MessageReference
+              reference={message.data.quote}
+              team={team}
+              kind="quote"
+              onLocate={onReference}
+            />
+          )}
+          <QuoteSelection
+            onQuote={onQuote ? (text) => onQuote(message, text) : undefined}
+          >
+            {message.kind === "research" ? (
+              <button
+                className={styles.researchCard}
+                onClick={() => openThread(message)}
+              >
+                <MessageSquare size={16} aria-hidden />
+                {message.data.title || message.text}
+              </button>
+            ) : message.run ? (
+              <MessageRun message={message} member={member} name={name} />
+            ) : (
+              <Prose text={message.text} />
+            )}
+          </QuoteSelection>
           {(message.run?.runtime?.time_limit_reached ||
             message.run?.runtime?.budget_limit) && (
             <Button
@@ -1073,7 +1316,16 @@ export function MessageRow({
             <p role="alert">{message.data.file_error}</p>
           )}
         </div>
+        <MessageReactions team={team} message={message} />
         <footer className={styles.metadata}>
+          {message.data.thread_origin && (
+            <button
+              className={styles.replies}
+              onClick={() => openThread(message)}
+            >
+              {t("team.fromThread")}
+            </button>
+          )}
           {!!recipients?.length && (
             <span className={styles.handoff}>
               <ArrowRight aria-hidden />
@@ -1145,6 +1397,7 @@ export function MessageRow({
         </footer>
       </div>
       <div className={styles.hoverActions}>
+        <ReactionPicker team={team} message={message} />
         <IconButton
           size="sm"
           icon={Copy}
@@ -1164,27 +1417,114 @@ export function MessageRow({
           onClick={() => openThread(message)}
         />
         {stop}
-        <Menu
-          label={t("research.actions")}
-          trigger={(props) => (
-            <IconButton
-              {...props}
-              size="sm"
-              icon={MoreHorizontal}
-              label={t("research.actions")}
-            />
-          )}
-          items={[
-            {
-              id: "fork",
-              icon: GitFork,
-              label: t("research.fork.action"),
-              onSelect: () => fork(message),
-            },
-          ]}
+        <MessageMoreMenu
+          message={message}
+          team={team}
+          fork={fork}
+          onForward={() => setForwarding(true)}
+          onRemind={() => setReminding(true)}
         />
       </div>
+      {reminding && (
+        <TeamReminderDialog
+          workspace={team.workspace_id}
+          message={message}
+          onClose={() => setReminding(false)}
+        />
+      )}
+      {forwarding && (
+        <ForwardMessageDialog
+          team={team}
+          message={message}
+          onClose={() => setForwarding(false)}
+        />
+      )}
     </article>
+  );
+}
+
+function MessageMoreMenu({
+  message,
+  team,
+  fork,
+  onForward,
+  onRemind,
+}: {
+  message: TeamMessage;
+  team: Team;
+  fork?(message: TeamMessage): void;
+  onForward?(): void;
+  onRemind?(): void;
+}) {
+  const { t } = useI18n();
+  const channel = team.channels.find((c) => c.id === message.channel_id);
+  const mark = (kind: "pin" | "later", remove = false) => {
+    void markTeamMessage(team.workspace_id, message, kind, remove)
+      .then(refreshTeam)
+      .catch((reason: unknown) =>
+        toast.show({ message: String(reason), tone: "error" }),
+      );
+  };
+  return (
+    <Menu
+      label={t("research.actions")}
+      trigger={(props) => (
+        <IconButton
+          {...props}
+          size="sm"
+          icon={MoreHorizontal}
+          label={t("research.actions")}
+        />
+      )}
+      items={[
+        ...(!channel?.member_id
+          ? [
+              {
+                id: "pin",
+                icon: Pin,
+                label: t(message.pinned ? "team.unpin" : "team.pin"),
+                onSelect: () => mark("pin", !!message.pinned),
+              },
+            ]
+          : []),
+        {
+          id: "later",
+          icon: Bookmark,
+          label: t("team.saveLater"),
+          onSelect: () => mark("later"),
+        },
+        ...(onRemind
+          ? [
+              {
+                id: "remind",
+                icon: Bell,
+                label: t("team.reminder.action"),
+                onSelect: onRemind,
+              },
+            ]
+          : []),
+        ...(onForward
+          ? [
+              {
+                id: "forward",
+                icon: Forward,
+                label: t("team.forward"),
+                onSelect: onForward,
+              },
+            ]
+          : []),
+        ...(fork
+          ? [
+              {
+                id: "fork",
+                icon: GitFork,
+                label: t("research.fork.action"),
+                onSelect: () => fork(message),
+              },
+            ]
+          : []),
+      ]}
+    />
   );
 }
 
@@ -1276,7 +1616,11 @@ export function TeamComposer({
   model,
   onModel,
   sent,
+  quote,
+  onClearQuote,
 }: {
+  quote?: TeamMessageReference | null;
+  onClearQuote?(): void;
   team: Team;
   channel: TeamChannel;
   threadId?: string;
@@ -1304,10 +1648,15 @@ export function TeamComposer({
   const [option, setOption] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [alsoChannel, setAlsoChannel] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const upload = useRef<HTMLInputElement>(null);
   const listId = useId();
   const client = useRef(crypto.randomUUID());
+  useEffect(() => {
+    client.current = crypto.randomUUID();
+    if (quote) field.current?.focus();
+  }, [quote]);
   const name = (m: TeamMember) => displayMemberName(m, t);
   const dmMember = team.members.find((m) => m.id === channel.member_id);
   const conversationName = channel.member_id
@@ -1350,7 +1699,7 @@ export function TeamComposer({
     });
   };
   const submit = async (mode: "queue" | "immediate") => {
-    if (!text.trim() || busy) return;
+    if ((!text.trim() && !quote) || busy) return;
     if (needsModel) {
       openModelSetup();
       return;
@@ -1374,7 +1723,17 @@ export function TeamComposer({
       await sendTeamMessage(team.workspace_id, channel.id, {
         text: sending,
         mode,
-        ...(threadId ? { thread_id: threadId } : {}),
+        ...(quote
+          ? {
+              thread_id: quote.thread_id || quote.message_id,
+              quote: { message_id: quote.message_id, text: quote.text },
+            }
+          : threadId
+            ? { thread_id: threadId }
+            : {}),
+        ...(threadId && !channel.member_id
+          ? { also_channel: alsoChannel }
+          : {}),
         ...(channel.member_id ? { model_config_id: model } : {}),
         client_id: clientId,
         attachment_ids: attachmentIds,
@@ -1399,6 +1758,9 @@ export function TeamComposer({
         void submit("queue");
       }}
     >
+      {quote && onClearQuote && (
+        <QuoteDraft quote={quote} onClear={onClearQuote} />
+      )}
       {!!matches.length && (
         <div
           id={listId}
@@ -1419,7 +1781,11 @@ export function TeamComposer({
               <MemberAvatar member={member} size="sm" />
               {name(member)}
               <span className={styles.mentionStatus}>
-                {t(`team.status.${member.status}`)}
+                {t(
+                  member.paused
+                    ? "team.status.paused"
+                    : `team.status.${member.status}`,
+                )}
               </span>
             </button>
           ))}
@@ -1485,6 +1851,17 @@ export function TeamComposer({
           }
         }}
       />
+      {threadId && !channel.member_id && (
+        <label className={styles.alsoChannel}>
+          <input
+            type="checkbox"
+            checked={alsoChannel}
+            disabled={busy}
+            onChange={(event) => setAlsoChannel(event.target.checked)}
+          />
+          {t("team.alsoChannel", { channel: conversationName })}
+        </label>
+      )}
       <footer>
         <input
           ref={upload}
@@ -1541,7 +1918,7 @@ export function TeamComposer({
             <Button
               variant="ghost"
               size="sm"
-              disabled={busy || !text.trim()}
+              disabled={busy || (!text.trim() && !quote)}
               onClick={() => void submit("immediate")}
             >
               {t("team.immediate")}
@@ -1551,7 +1928,7 @@ export function TeamComposer({
             icon={Send}
             className={styles.send}
             label={t(active ? "team.queue" : "research.home.send")}
-            disabled={busy || !text.trim()}
+            disabled={busy || (!text.trim() && !quote)}
             type="submit"
           />
         </div>

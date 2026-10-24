@@ -116,6 +116,15 @@ describe("team conversation navigation", () => {
   });
 
   for (const locale of ["zh", "en"] as const) {
+    it(`${locale} shows paused status even while existing work continues`, () => {
+      const { t } = createTranslator(locale);
+      const html = render(
+        { ...team, members: team.members.map((m) => ({ ...m, paused: true })) },
+        locale,
+      );
+      expect(html).toContain('data-status="paused"');
+      expect(html).toContain(t("team.status.paused"));
+    });
     it(`${locale} has fixed navigation and no duplicate member shortcuts`, () => {
       const html = render(team, locale);
       for (const id of ["threads", "activity", "team-settings"])
@@ -147,11 +156,14 @@ describe("team conversation navigation", () => {
         },
         locale,
       );
-      expect(html).toContain(locale === "zh" ? "工作中…" : "Working…");
-      expect(html).not.toContain("Preview channel-new");
       expect(html).toContain(
-        locale === "zh" ? "Member 0：Preview dm-0" : "Member 0: Preview dm-0",
+        t("team.colleague.working", {
+          task: t("team.colleague.thinking"),
+          elapsed: t("reader.assistant.duration.seconds", { seconds: 0 }),
+        }),
       );
+      expect(html).not.toContain("Preview channel-new");
+      expect(html).not.toContain("Preview dm-0");
       for (const count of [123, 7, 42])
         expect(html).toContain(
           `aria-label="${locale === "zh" ? `${count} 条未读` : `${count} unread`}">${count}</span>`,

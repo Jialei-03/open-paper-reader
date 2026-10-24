@@ -1,20 +1,31 @@
-import { Bell, CheckCheck, MessageSquare } from "lucide-react";
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  MessageSquare,
+  RotateCcw,
+  X,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/I18nProvider";
 import { IconButton, SegmentedControl, toast } from "../../ui";
 import { MemberAvatar } from "../team/MemberEditor";
 import {
   readTeamActivity,
+  markTeamMessage,
   refreshTeam,
   teamActivity,
+  savedTeamMessages,
   teamThreads,
   TEAM_EVENT,
   type Team,
   type TeamActivity,
   type TeamMessage,
+  type SavedTeamMessage,
 } from "./team-api";
 import {
   activityMessages,
+  activityTarget,
   conversationName,
   memberLabel,
   recentThreads,
@@ -37,7 +48,10 @@ export function TeamInbox({
   const { t } = useI18n();
   const [events, setEvents] = useState<TeamActivity[]>([]);
   const [threads, setThreads] = useState<TeamMessage[]>([]);
-  const [filter, setFilter] = useState<"all" | "mention" | "reply">("all");
+  const [saved, setSaved] = useState<SavedTeamMessage[]>([]);
+  const [filter, setFilter] = useState<"all" | "mention" | "reply" | "later">(
+    "all",
+  );
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
   const [reading, setReading] = useState(false);
@@ -46,12 +60,19 @@ export function TeamInbox({
     setLoaded(false);
     setEvents([]);
     setThreads([]);
+    setSaved([]);
     setError("");
     const reload = async () => {
       try {
         if (activity) {
-          const rows = await teamActivity(team.workspace_id);
-          if (!stale) setEvents(rows);
+          const [rows, savedRows] = await Promise.all([
+            teamActivity(team.workspace_id),
+            savedTeamMessages(team.workspace_id),
+          ]);
+          if (!stale) {
+            setEvents(rows);
+            setSaved(savedRows);
+          }
         } else {
           const rows = await teamThreads(team.workspace_id);
           if (!stale) setThreads(rows);
@@ -93,7 +114,7 @@ export function TeamInbox({
   };
   const fail = (reason: unknown) =>
     toast.show({ message: String(reason), tone: "error" });
-  const visible = activityMessages(events, filter);
+  const visible = activityMessages(events, filter === "later" ? "all" : filter);
   const rows = recentThreads(threads);
   return (
     <div className={styles.inbox}>
@@ -108,23 +129,26 @@ export function TeamInbox({
               { value: "all", label: t("team.activity.all") },
               { value: "mention", label: t("team.activity.mentions") },
               { value: "reply", label: t("team.activity.replies") },
+              { value: "later", label: t("team.later") },
             ]}
           />
-          <IconButton
-            icon={CheckCheck}
-            label={t("team.activity.readAll")}
-            disabled={reading || !events.some((event) => event.unread)}
-            onClick={async () => {
-              setReading(true);
-              try {
-                await read();
-              } catch (reason) {
-                fail(reason);
-              } finally {
-                setReading(false);
-              }
-            }}
-          />
+          {filter !== "later" && (
+            <IconButton
+              icon={CheckCheck}
+              label={t("team.activity.readAll")}
+              disabled={reading || !events.some((event) => event.unread)}
+              onClick={async () => {
+                setReading(true);
+                try {
+                  await read();
+                } catch (reason) {
+                  fail(reason);
+                } finally {
+                  setReading(false);
+                }
+              }}
+            />
+          )}
         </div>
       )}
       {error && <p role="alert">{error}</p>}
@@ -135,24 +159,54 @@ export function TeamInbox({
           <span />
         </div>
       )}
-      {loaded && !(activity ? visible : rows).length && !error && (
-        <div className={styles.empty}>
-          {activity ? <Bell aria-hidden /> : <MessageSquare aria-hidden />}
-        </div>
-      )}
+      {loaded &&
+        !(activity ? (filter === "later" ? saved : visible) : rows).length &&
+        !error && (
+          <div className={styles.empty}>
+            {activity ? <Bell aria-hidden /> : <MessageSquare aria-hidden />}
+          </div>
+        )}
       <div className={styles.rows}>
         {activity
-          ? visible.map((event) => (
-              <ActivityRow
-                key={event.id}
-                team={team}
-                event={event}
-                open={() => {
-                  if (event.unread) void read(event).catch(fail);
-                  open(event);
-                }}
-              />
-            ))
+          ? filter === "later"
+            ? saved.map((message) => (
+                <SavedMessageRow
+                  key={message.id}
+                  team={team}
+                  message={message}
+                  open={() => open(message)}
+                  change={async (remove) => {
+                    await markTeamMessage(
+                      team.workspace_id,
+                      message,
+                      "later",
+                      remove,
+                      !message.completed,
+                    );
+                    setSaved((current) =>
+                      remove
+                        ? current.filter((row) => row.id !== message.id)
+                        : current.map((row) =>
+                            row.id === message.id
+                              ? { ...row, completed: !message.completed }
+                              : row,
+                          ),
+                    );
+                    refreshTeam();
+                  }}
+                />
+              ))
+            : visible.map((event) => (
+                <ActivityRow
+                  key={event.id}
+                  team={team}
+                  event={event}
+                  open={() => {
+                    if (event.unread) void read(event).catch(fail);
+                    open(activityTarget(event));
+                  }}
+                />
+              ))
           : rows.map((message) => (
               <ThreadRow
                 key={message.id}
@@ -171,6 +225,82 @@ export function TeamInbox({
   );
 }
 
+export function SavedMessageRow({
+  team,
+  message,
+  open,
+  change,
+}: {
+  team: Team;
+  message: SavedTeamMessage;
+  open(): void;
+  change(remove: boolean): Promise<void>;
+}) {
+  const { t, locale } = useI18n();
+  const [busy, setBusy] = useState(false);
+  const update = async (remove: boolean) => {
+    setBusy(true);
+    try {
+      await change(remove);
+    } catch (reason) {
+      toast.show({ message: String(reason), tone: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const channel =
+    message.channel || team.channels.find((c) => c.id === message.channel_id);
+  const author = team.members.find((m) => m.id === message.author_id);
+  return (
+    <div
+      className={styles.row}
+      data-saved-id={message.id}
+      data-completed={message.completed || undefined}
+    >
+      <button type="button" className={styles.savedOpen} onClick={open}>
+        <MemberAvatar member={author} seed={author ? undefined : "system"} />
+        <span className={styles.content}>
+          <span className={styles.line}>
+            <span className={styles.title}>
+              {conversationName(channel, team.members, t)}
+            </span>
+            <time dateTime={message.saved_at}>
+              {threadDate(message.saved_at, locale)}
+            </time>
+          </span>
+          <span className={styles.preview}>
+            {message.preview ||
+              message.text ||
+              message.data.files?.map((file) => file.name).join(", ") ||
+              message.data.attachments?.map((file) => file.name).join(", ")}
+          </span>
+          {message.completed && (
+            <span className={styles.meta}>{t("team.later.completed")}</span>
+          )}
+        </span>
+      </button>
+      <span className={styles.savedActions}>
+        <IconButton
+          size="sm"
+          icon={message.completed ? RotateCcw : Check}
+          disabled={busy}
+          label={t(
+            message.completed ? "team.later.reopen" : "team.later.complete",
+          )}
+          onClick={() => void update(false)}
+        />
+        <IconButton
+          size="sm"
+          icon={X}
+          disabled={busy}
+          label={t("team.later.remove")}
+          onClick={() => void update(true)}
+        />
+      </span>
+    </div>
+  );
+}
+
 export function ActivityRow({
   team,
   event,
@@ -182,11 +312,17 @@ export function ActivityRow({
 }) {
   const { t, locale } = useI18n();
   const actor = team.members.find((member) => member.id === event.actor_id);
+  const pausedMember = team.members.find(
+    (member) => member.id === event.data.paused_member,
+  );
   const channel =
     event.channel ||
     team.channels.find((channel) => channel.id === event.channel_id);
   const action = t(`team.activity.${event.activity_type}`);
   const preview =
+    (event.activity_type === "paused"
+      ? t("team.memberPaused", { name: memberLabel(pausedMember, t) })
+      : "") ||
     event.preview ||
     event.text ||
     event.data.files?.map((file) => file.name).join(", ") ||

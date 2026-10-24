@@ -47,6 +47,37 @@
   outline: none;
   box-shadow: var(--ui-focus-ring);
 }
+.savedOpen {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--ui-space-12);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.savedOpen:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+.savedActions {
+  display: flex;
+  flex: none;
+  opacity: 0;
+}
+.row:is(:hover, :focus-within) .savedActions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .savedActions {
+    opacity: 1;
+  }
+}
 .row[data-unread] .title {
   font-weight: var(--ui-weight-strong);
 }

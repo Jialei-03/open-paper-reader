@@ -100,7 +100,7 @@
 .queuedMessage {
   align-items: center;
   padding: var(--ui-space-6) 0;
-  padding-right: var(--ui-control-md);
+  padding-right: calc(var(--ui-control-md) + var(--ui-control-md));
   font-size: var(--ui-text-13);
 }
 .queuedMessage strong {
@@ -154,6 +154,13 @@
 .status[data-status="disabled"] {
   background: var(--ui-edge);
 }
+.status[data-status="paused"] {
+  background: var(--ui-warning-text);
+}
+.reminderFields {
+  display: grid;
+  gap: var(--ui-space-16);
+}
 .memberRow {
   display: flex;
   align-items: center;
@@ -199,8 +206,8 @@
   opacity: 0;
   pointer-events: none;
 }
-.message:hover .hoverActions,
-.message:focus-within .hoverActions {
+:is(.message, .systemMessage):hover .hoverActions,
+:is(.message, .systemMessage):focus-within .hoverActions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -577,6 +584,7 @@
   opacity: 1;
 }
 .systemMessage {
+  position: relative;
   display: flex;
   justify-content: center;
   padding: var(--ui-space-8) 0;
@@ -587,6 +595,20 @@
   padding: var(--ui-space-4) var(--ui-space-12);
   border-radius: var(--ui-r-pill);
   background: var(--ui-fill);
+}
+.alsoChannel {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  color: var(--ui-fg-2);
+  font-size: var(--ui-text-12);
+}
+.alsoChannel input {
+  accent-color: var(--ui-accent);
+}
+.alsoChannel input:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
 }
 .run {
   display: flex;

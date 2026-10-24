@@ -83,6 +83,19 @@ export function activityMessages(
     );
 }
 
+export function activityTarget(
+  event: Pick<TeamMessage, "id" | "channel_id" | "thread_id" | "data">,
+) {
+  const reminder = event.data.reminder;
+  return reminder
+    ? {
+        id: reminder.message_id,
+        channel_id: reminder.channel_id,
+        thread_id: reminder.thread_id,
+      }
+    : event;
+}
+
 export function conversationName(
   channel: Pick<TeamChannel, "key" | "name" | "member_id"> | undefined,
   members: TeamMember[],

@@ -13,15 +13,24 @@ from . import team_members as members
 from .models import AgentRun, TeamChannel, TeamDelivery, TeamMember, TeamMessage
 from .schemas import Strict
 from .team_budgets import TeamBudget
+from .team_reminders import ReminderInput
+
+
+class QuoteInput(Strict):
+    message_id: str = Field(min_length=1, max_length=80)
+    text: str = Field(min_length=1, max_length=12000)
 
 
 class MessageInput(Strict):
-    text: str = Field(min_length=1, max_length=12000)
+    text: str = Field(default="", max_length=12000)
     thread_id: str | None = Field(default=None, max_length=80)
     mode: Literal["queue", "immediate"] = "queue"
     model_config_id: str = Field(default="", max_length=64)
     client_id: str = Field(min_length=1, max_length=100)
     attachment_ids: list[str] = Field(default_factory=list, max_length=5)
+    forward_message_id: str | None = Field(default=None, min_length=1, max_length=80)
+    quote: QuoteInput | None = None
+    also_channel: bool = False
 
 
 class ChannelInput(Strict):
@@ -54,6 +63,9 @@ class AgentDocumentInput(Strict):
 
 def install_team_routes(app, settings, db, auth, workspace_of):
     base = "/api/v1/research/workspaces/{id}/team"
+    from .team_message_marks import install_mark_routes
+
+    install_mark_routes(app, base, db, auth, workspace_of)
 
     @app.put(base + "/budget")
     def save_budget(id: str, body: TeamBudget, a=Depends(auth), d=Depends(db)):
@@ -124,6 +136,26 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         if workspace.archived:
             raise HTTPException(409, "团队已归档 / Team archived")
         return workspace
+
+    @app.post(base + "/channels/{channel_id}/messages/{message_id}/reminders")
+    def remind(
+        id: str,
+        channel_id: str,
+        message_id: str,
+        body: ReminderInput,
+        a=Depends(auth),
+        d=Depends(db),
+    ):
+        from .team_reminders import create
+
+        workspace = editable_workspace(d, id, a)
+        channel = channel_of(d, workspace, channel_id)
+        try:
+            result = create(d, workspace, channel, message_id, body.remind_at)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
+        d.commit()
+        return result
 
     def validate_config(workspace, config):
         if config and config.model_config_id:
@@ -376,6 +408,9 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         run = team.active_run(d, member)
         # What the member is working on now; nothing while idle.
         out["activity"] = run.prompt[:500] if run else ""
+        from .team_presence import recent_files
+
+        out["recent_files"] = recent_files(d, member)
         d.commit()
         return out
 
@@ -465,14 +500,34 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         d=Depends(db),
     ):
         workspace = workspace_of(d, id, a)
+        read_through = team.now()
         try:
             team.ensure(d, workspace)
             channel = channel_of(d, workspace, channel_id)
             out = team.history(d, workspace, channel, thread_id)
+            out["read_through"] = read_through
         except ValueError as error:
             raise HTTPException(404, str(error)) from None
         d.commit()
         return out
+
+    @app.get(base + "/channels/{channel_id}/summary")
+    def channel_summary(
+        id: str,
+        channel_id: str,
+        since: str | None = None,
+        through: str | None = None,
+        a=Depends(auth),
+        d=Depends(db),
+    ):
+        from .team_catchup import summary
+
+        workspace = workspace_of(d, id, a)
+        channel = channel_of(d, workspace, channel_id)
+        try:
+            return summary(d, workspace, channel, since, through)
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
 
     @app.post(base + "/channels/{channel_id}/messages")
     def send(
@@ -491,7 +546,37 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                     team.normalize(body.text).strip(),
                 ):
                     raise ValueError("消息标识已用于其他内容 / Message ID already used")
+                if (
+                    (message.data.get("forward") or {}).get("message_id")
+                    != body.forward_message_id
+                    or (
+                        {k: message.data["quote"][k] for k in ("message_id", "text")}
+                        if message.data.get("quote")
+                        else None
+                    )
+                    != (
+                        {
+                            **body.quote.model_dump(),
+                            "text": team.normalize(body.quote.text).strip(),
+                        }
+                        if body.quote
+                        else None
+                    )
+                    or bool(message.data.get("also_channel")) != body.also_channel
+                ):
+                    raise ValueError("消息标识已用于其他内容 / Message ID already used")
             else:
+                from .team_message_features import reference
+
+                references = {}
+                if body.forward_message_id:
+                    references["forward"] = reference(
+                        d, workspace, body.forward_message_id
+                    )
+                if body.quote:
+                    references["quote"] = reference(
+                        d, workspace, body.quote.message_id, body.quote.text
+                    )
                 if body.model_config_id:
                     if not channel.member_id:
                         raise ValueError("只能在私信选择模型 / Choose model in DM")
@@ -512,7 +597,8 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                     thread_id=body.thread_id,
                     mode=body.mode,
                     source_key=key,
-                    data={"attachments": attached},
+                    data={"attachments": attached, **references},
+                    also_channel=body.also_channel,
                 )
                 for row in d.scalars(
                     select(TeamDelivery)
@@ -531,6 +617,39 @@ def install_team_routes(app, settings, db, auth, workspace_of):
             return out
         except ValueError as error:
             raise HTTPException(409, str(error)) from None
+
+    def message_of(d, workspace, message_id):
+        from .team_message_features import source_message
+
+        try:
+            return source_message(d, workspace, message_id)
+        except ValueError as error:
+            raise HTTPException(404, str(error)) from None
+
+    @app.put(base + "/messages/{message_id}/reactions/{emoji}")
+    def add_reaction(
+        id: str, message_id: str, emoji: str, a=Depends(auth), d=Depends(db)
+    ):
+        return change_reaction(d, id, a, message_id, emoji)
+
+    @app.delete(base + "/messages/{message_id}/reactions/{emoji}")
+    def remove_reaction(
+        id: str, message_id: str, emoji: str, a=Depends(auth), d=Depends(db)
+    ):
+        return change_reaction(d, id, a, message_id, emoji, remove=True)
+
+    def change_reaction(d, id, a, message_id, emoji, *, remove=False):
+        from .team_message_features import react
+
+        workspace = workspace_of(d, id, a)
+        team.ensure(d, workspace)
+        message = message_of(d, workspace, message_id)
+        try:
+            out = react(d, workspace, message, emoji, remove=remove)
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from None
+        d.commit()
+        return out
 
     @app.post(base + "/channels")
     def create_channel(id: str, body: ChannelInput, a=Depends(auth), d=Depends(db)):
@@ -772,16 +891,24 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         workspace = workspace_of(d, id, a)
         channel = channel_of(d, workspace, channel_id)
         team.root_of(d, workspace, channel, body.thread_id)
-        through = min(body.through, team.now())
+        from .team_catchup import timestamp
+
+        try:
+            through = min(timestamp(body.through), team.now())
+        except ValueError as error:
+            raise HTTPException(422, str(error)) from None
         for message in d.scalars(
             select(TeamMessage).where(
                 TeamMessage.channel_id == channel.id,
                 TeamMessage.thread_id == body.thread_id,
-                TeamMessage.created_at <= through,
+                TeamMessage.kind != "reminder",
             )
         ):
-            message.data = {**message.data, "read": True}
-        channel.read_at = max(channel.read_at, through)
+            # Compared as instants: stored and sent stamps may end in Z or +00:00.
+            if timestamp(message.created_at) <= through:
+                message.data = {**message.data, "read": True}
+        if body.thread_id is None:
+            channel.read_at = max(channel.read_at, through)
         d.commit()
         return {"ok": True}
 
@@ -815,7 +942,7 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         rows = list(
             d.scalars(
                 select(TeamMessage)
-                .where(TeamMessage.workspace_id == id)
+                .where(TeamMessage.workspace_id == id, TeamMessage.kind != "reminder")
                 .order_by(TeamMessage.created_at)
             )
         )

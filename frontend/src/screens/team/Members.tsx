@@ -24,6 +24,7 @@ import { useResearchNavigation } from "../research/ResearchNavigation";
 import { MemberStatus } from "../research/TeamNavigation";
 import { Prose } from "../research/talk/ThreadView";
 import { MemberAvatar, MemberEditor } from "./MemberEditor";
+import { MemberPause } from "./MemberPause";
 import { memberAvatarSeed, memberDraft, memberName } from "./member-model";
 import { threadDate } from "../research/team-model";
 import teamStyles from "../research/Team.module.css";
@@ -98,6 +99,7 @@ export function Members({
     listed?.status,
     listed?.tokens,
     listed?.revision,
+    listed?.paused,
   ]);
   const availableMachines = [
     ...new Map([...machines, ...connections].map((m) => [m.id, m])).values(),
@@ -150,7 +152,9 @@ export function Members({
                 {t(
                   member.enabled === false
                     ? "members.disabled"
-                    : `team.status.${member.status}`,
+                    : member.paused
+                      ? "team.status.paused"
+                      : `team.status.${member.status}`,
                 )}
               </span>
             </div>
@@ -166,6 +170,9 @@ export function Members({
               >
                 {t("members.message")}
               </Button>
+              {member.role !== "human" && (
+                <MemberPause workspace={team.workspace_id} member={member} />
+              )}
               {member.role !== "human" && (
                 <Button onClick={() => setEditing({ member })}>
                   {t("members.edit")}
@@ -310,11 +317,17 @@ export function Members({
                   </Button>
                   <span className={styles.summary}>{m.description ?? ""}</span>
                   <span className={styles.meta}>
-                    <MemberStatus status={m.status} enabled={m.enabled} />
+                    <MemberStatus
+                      status={m.status}
+                      enabled={m.enabled}
+                      paused={m.paused}
+                    />
                     {t(
                       m.enabled === false
                         ? "members.disabled"
-                        : `team.status.${m.status}`,
+                        : m.paused
+                          ? "team.status.paused"
+                          : `team.status.${m.status}`,
                     )}
                   </span>
                   {m.role !== "human" && (

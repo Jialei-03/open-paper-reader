@@ -49,7 +49,7 @@ TEAM_TOOLS = [
     ),
     tool(
         "team_send_message",
-        "Send a message to a channel or thread in this team. `wake`: members who must now do more work on it; they are woken. Leave `wake` empty when you report results or answer. @Name in text only refers to someone. Omit channel_id/thread_id to reply here.",
+        "Send a message to a channel or thread in this team. `wake`: members who must now do more work on it; they are woken. Leave `wake` empty when you report results or answer. @Name in text only refers to someone. Omit channel_id/thread_id to reply here. Set also_channel=true to share a thread conclusion in its channel too.",
         {
             "text": TEXT,
             "wake": {"type": "array", "items": {"type": "string"}},
@@ -65,6 +65,7 @@ TEAM_TOOLS = [
             },
             "channel_id": {"type": "string"},
             "thread_id": {"type": "string"},
+            "also_channel": {"type": "boolean"},
         },
         ["text"],
         write=True,
@@ -224,6 +225,11 @@ def _call(app, owner, info, name, args):
                 )
             )
             text = team.normalize(args["text"]).strip()
+            also_channel = name == "team_send_message" and args.get(
+                "also_channel", False
+            )
+            if also_channel:
+                team.validate_broadcast(channel, thread_id)
             if not text or len(text) > 12000:
                 raise ValueError("消息为空或过长 / Empty or oversized message")
             response = d.scalar(
@@ -244,6 +250,13 @@ def _call(app, owner, info, name, args):
                 )
                 if d.get(TeamMember, i).role != "human"
             ]
+            paused = [
+                d.get(TeamMember, i).name for i in to if d.get(TeamMember, i).paused
+            ]
+            if paused:
+                raise ValueError(
+                    "、".join(paused) + " 暂停中 / " + ", ".join(paused) + " is paused"
+                )
             if response and (channel.id, thread_id) == (
                 info["channel_id"],
                 info.get("thread_id"),
@@ -262,6 +275,8 @@ def _call(app, owner, info, name, args):
 
                     route_message(d, workspace, response, trigger="conclusion_proposed")
                     response.data = {**response.data, "routed": True}
+                if also_channel:
+                    team.broadcast_reply(d, workspace, channel, response)
                 d.commit()
                 return {"message_id": response.id}
             message = team.post(
@@ -272,6 +287,7 @@ def _call(app, owner, info, name, args):
                 thread_id=thread_id,
                 author=member,
                 kind=kind,
+                also_channel=also_channel,
                 data={
                     "routing_scope": info.get("routing_scope"),
                     "waiting": name == "team_wait_for_owner",
@@ -294,13 +310,22 @@ def _call(app, owner, info, name, args):
             d.commit()
             return {"message_id": message.id}
         if name == "team_overview":
-            return team.overview(d, workspace) | {
+            result = team.overview(d, workspace, include_reminders=False) | {
                 "research": overview(d, workspace, app.state.settings)
             }
+            for message in result["notifications"]:
+                message.pop("reactions", None)
+            return result
         result = team.history(
             d, workspace, channel, thread_id if name == "team_read_thread" else None
         )
         result["messages"] = result["messages"][-50:]
+        # Reactions are researcher UI state; only +/- feedback enters member context.
+        for message in [
+            *result["messages"], *result.get("activity", []), result.get("root")
+        ]:
+            if message:
+                message.pop("reactions", None)
         if result["research_id"]:
             result["research"] = read_research(
                 d,

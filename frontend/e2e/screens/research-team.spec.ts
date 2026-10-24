@@ -4,6 +4,7 @@ import { createTranslator } from "../../src/i18n/i18n";
 import type {
   TeamMember,
   TeamMessage,
+  TeamCatchup,
 } from "../../src/screens/research/team-api";
 
 // Fake team and model transport; no provider requests are made by these flows.
@@ -40,6 +41,269 @@ function changedReply(): TeamMessage {
       },
     },
   };
+}
+
+for (const [locale, theme, width] of [
+  ["zh", "light", 1440],
+  ["en", "dark", 720],
+] as const) {
+  test(`${locale}: colleague profile, live status and recent files`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(
+      ({ locale, theme }) => {
+        localStorage.setItem("paper-locale", locale);
+        localStorage.setItem("paper-appearance", theme);
+      },
+      { locale, theme },
+    );
+    const { members, messages } = await setup(page);
+    const member = members.find((member) => member.id === "writer")!;
+    Object.assign(member, {
+      description: "Checks evidence",
+      tools: ["files", "shell"],
+      status: "working",
+      active_model: "Offline model",
+      elapsed_seconds: 72,
+      current_step: {
+        name: "bash",
+        status: "running",
+        arguments: { command: "python train.py" },
+      },
+    });
+    messages.push({
+      id: "colleague-message",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "writer",
+      text: "Evidence ready",
+      kind: "text",
+      mentions: [],
+      data: {},
+      replies: 0,
+      created_at: stamp,
+    });
+    let filesRead = 0;
+    await page.route("**/team/members/writer", (route) =>
+      route.fulfill({
+        json: {
+          ...member,
+          activity: "",
+          threads: [],
+          recent_files: ["conclusion.md", "shared/plan.md", "metrics.csv"].map(
+            (path) => ({ path, name: path }),
+          ),
+        },
+      }),
+    );
+    await page.route("**/team/file?**", (route) => {
+      filesRead++;
+      return route.fulfill({
+        json: { kind: "markdown", content: "# Saved conclusion" },
+      });
+    });
+    await page.reload();
+    const row = page.locator('[data-message-id="colleague-message"]');
+    const profile = row.getByRole("button", {
+      name: t("team.colleague.card", { name: "writer" }),
+      exact: true,
+    });
+    await profile.first().hover();
+    const card = page.getByRole("dialog", { name: "writer", exact: true });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText(
+      t("team.colleague.working", {
+        task: `${t("team.colleague.run")} python train.py`,
+        elapsed: t("reader.assistant.duration.minutes", {
+          minutes: 1,
+          seconds: 12,
+        }),
+      }),
+    );
+    await expect(card).toContainText("Checks evidence");
+    await expect(card).toContainText("Offline model");
+    await expect(
+      card.getByRole("button", { name: /\.md$|\.csv$/ }),
+    ).toHaveCount(3);
+    expect(filesRead).toBe(0);
+    await profile.last().click();
+    await card
+      .getByRole("button", { name: "conclusion.md", exact: true })
+      .click();
+    await expect(
+      page.getByRole("complementary", { name: "conclusion.md", exact: true }),
+    ).toContainText("Saved conclusion");
+    expect(filesRead).toBe(1);
+    await page
+      .getByRole("complementary", { name: "conclusion.md", exact: true })
+      .getByRole("button", { name: t("common.close"), exact: true })
+      .click();
+    await profile.last().click();
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+    await expect(profile.last()).toBeFocused();
+    await profile.last().press("Enter");
+    await card
+      .getByRole("button", { name: t("team.colleague.send"), exact: true })
+      .click();
+    const direct = `10000000-0000-0000-0000-${String(members.filter((member) => member.role !== "human").findIndex((member) => member.id === "writer") + 10).padStart(12, "0")}`;
+    await expect(page).toHaveURL(new RegExp(`#team/${workspace}/${direct}$`));
+    const header = page.getByTestId("team-screen").locator("header").first();
+    await expect(header).toContainText("python train.py");
+    member.active_model = "";
+    member.status = "idle";
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("research-team-updated")),
+    );
+    await expect(header).toContainText(t("team.status.idle"));
+    await header
+      .getByRole("button", {
+        name: t("team.colleague.card", { name: "writer" }),
+        exact: true,
+      })
+      .click();
+    await expect(card).toContainText("Fake");
+    await card
+      .getByRole("button", { name: t("team.colleague.details"), exact: true })
+      .click();
+    await expect(page).toHaveURL(/settings\?thread=member%3Awriter$/);
+  });
+
+  test(`${locale}: catch-up stays above unread messages across polling and supports files, collapse and jump`, async ({
+    page,
+  }) => {
+    const { t, tn } = createTranslator(locale);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(
+      ({ locale, theme }) => {
+        localStorage.setItem("paper-locale", locale);
+        localStorage.setItem("paper-appearance", theme);
+      },
+      { locale, theme },
+    );
+    const { messages } = await setup(page);
+    await expect(
+      page.locator(`[data-message-id="research:${research}"]`),
+    ).toBeVisible();
+    for (let index = 0; index < 6; index++)
+      messages.push({
+        id: `catchup-${index}`,
+        channel_id: channel,
+        thread_id: null,
+        author_id: "writer",
+        text: `Update ${index}`,
+        kind: "text",
+        mentions: [],
+        data: {},
+        replies: 0,
+        created_at: `2026-10-23T10:0${index}:00+00:00`,
+      });
+    const data: TeamCatchup = {
+      since: stamp,
+      through: "2026-10-23T11:00:00+00:00",
+      show: true,
+      new_messages: 5,
+      first_unread: { id: "catchup-1", thread_id: null },
+      completed: [{ member_id: "writer", count: 2 }],
+      files: [{ path: "conclusion.md", name: "conclusion.md" }],
+      handoffs: [
+        { message_id: "handoff", member_id: "writer", to: ["reviewer"] },
+      ],
+      waiting: [
+        { message_id: "decision", member_id: "writer", text: "Approve?" },
+      ],
+      failed: [
+        { message_id: "failure", member_id: "executor", text: "Exit 1" },
+      ],
+    };
+    let summaries = 0;
+    let reads = 0;
+    await page.route("**/team/channels/*/summary", (route) => {
+      summaries++;
+      return route.fulfill({ json: data });
+    });
+    await page.route("**/team/channels/*/read", (route) => {
+      reads++;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.route("**/team/file?**", (route) =>
+      route.fulfill({
+        json: { kind: "markdown", content: "# Saved conclusion" },
+      }),
+    );
+    await page.reload();
+    const summary = page.getByTestId("team-catchup");
+    await expect(summary).toBeInViewport();
+    await expect(summary).toContainText(
+      tn("team.catchup.completed", 2, { name: "writer" }),
+    );
+    await expect(summary).toContainText("Approve?");
+    await expect(summary).toContainText("Exit 1");
+    expect(
+      await summary.evaluate((element) =>
+        element.nextElementSibling?.getAttribute("data-message-id"),
+      ),
+    ).toBe("catchup-1");
+    await summary
+      .getByRole("button", { name: t("team.catchup.collapse"), exact: true })
+      .click();
+    await expect(summary.getByText("Approve?", { exact: false })).toHaveCount(
+      0,
+    );
+    await summary
+      .getByRole("button", { name: t("team.catchup.expand"), exact: true })
+      .click();
+    await summary
+      .getByRole("button", { name: t("team.catchup.jump"), exact: true })
+      .click();
+    await expect(page.locator('[data-message-id="catchup-1"]')).toBeFocused();
+    await summary
+      .getByRole("button", { name: "conclusion.md", exact: true })
+      .click();
+    await expect(
+      page.getByRole("complementary", { name: "conclusion.md", exact: true }),
+    ).toContainText("Saved conclusion");
+    const readBeforePoll = reads;
+    data.show = false;
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("research-team-updated")),
+    );
+    await expect.poll(() => reads).toBeGreaterThan(readBeforePoll);
+    expect(summaries).toBe(1);
+    await expect(summary).toBeVisible();
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("blur"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(summary).toHaveCount(0);
+    messages.push({
+      ...messages[1],
+      id: "thread-first",
+      thread_id: "catchup-0",
+      text: "First unread reply",
+    });
+    data.show = true;
+    data.first_unread = { id: "thread-first", thread_id: "catchup-0" };
+    await page
+      .getByRole("complementary", { name: "conclusion.md", exact: true })
+      .getByRole("button", { name: t("common.close"), exact: true })
+      .click();
+    await page.evaluate(() => {
+      window.dispatchEvent(new Event("blur"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await expect(summary).toBeVisible();
+    await summary
+      .getByRole("button", { name: t("team.catchup.jump"), exact: true })
+      .click();
+    await expect(
+      page
+        .getByRole("region", { name: t("team.thread"), exact: true })
+        .locator('[data-message-id="thread-first"]'),
+    ).toBeFocused();
+  });
 }
 
 for (const [locale, theme, width] of [
@@ -231,10 +495,154 @@ test("member changes keep conflicts visible and retry diff reads", async ({
   ).toBeVisible();
 });
 
+for (const [locale, theme, width] of [
+  ["zh", "light", 1440],
+  ["en", "dark", 720],
+] as const) {
+  test(`${locale}: reactions toggle, forwards link to sources, selected quotes become thread replies`, async ({
+    page,
+  }) => {
+    const { t, tn } = createTranslator(locale);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(
+      ({ locale, theme }) => {
+        localStorage.setItem("paper-locale", locale);
+        localStorage.setItem("paper-appearance", theme);
+      },
+      { locale, theme },
+    );
+    const { messages, posted } = await setup(page);
+    messages.push({
+      id: "feature-source",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "librarian",
+      text: "A useful finding",
+      kind: "text",
+      mentions: [],
+      data: {},
+      created_at: stamp,
+      replies: 0,
+    });
+    await page.reload();
+    const source = page.locator('[data-message-id="feature-source"]');
+    await source.hover();
+    for (const emoji of ["👍", "👎", "✅"]) {
+      await source.hover();
+      await source
+        .getByRole("button", { name: t("team.react"), exact: true })
+        .click();
+      const picker = page.getByRole("menu", {
+        name: t("team.react"),
+        exact: true,
+      });
+      await expect(picker.getByRole("menuitem")).toHaveCount(3);
+      await picker.getByRole("menuitem", { name: emoji, exact: true }).click();
+      const reaction = source.getByRole("button", {
+        name: `${emoji} ${tn("team.reactionCount", 1)}`,
+        exact: true,
+      });
+      await expect(reaction).toHaveAttribute("aria-pressed", "true");
+      await reaction.click();
+      await expect(reaction).toHaveCount(0);
+    }
+    await source.hover();
+    await source
+      .getByRole("button", { name: t("research.actions"), exact: true })
+      .click();
+    await page
+      .getByRole("menuitem", { name: t("team.forward"), exact: true })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: t("team.forward"),
+      exact: true,
+    });
+    await dialog
+      .getByRole("button", { name: t("team.forwardTo"), exact: true })
+      .click();
+    await page
+      .getByRole("menu", { name: t("team.forwardTo"), exact: true })
+      .getByRole("menuitemradio", { name: "advisor", exact: true })
+      .click();
+    await dialog
+      .getByRole("textbox", { name: t("team.forwardNote"), exact: true })
+      .fill("Please check");
+    await dialog
+      .getByRole("button", { name: t("team.forward"), exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    await expect
+      .poll(() =>
+        posted.some(
+          (body) =>
+            body.forward_message_id === "feature-source" &&
+            body.text === "Please check",
+        ),
+      )
+      .toBe(true);
+    await page.goto(`/#team/${workspace}/${dm}`);
+    const forwarded = page.getByTestId("team-forward");
+    await expect(forwarded).toContainText("A useful finding");
+    await expect(forwarded).toContainText("librarian");
+    await expect(forwarded.locator("time")).toHaveAttribute("datetime", stamp);
+    await forwarded.click();
+    await expect(source).toHaveAttribute("data-located", "true");
+    const selectQuote = async () => {
+      await source.locator("[data-message-text] p").evaluate((element) => {
+        const range = document.createRange();
+        range.setStart(element.firstChild!, 2);
+        range.setEnd(element.firstChild!, element.textContent!.length);
+        const selection = window.getSelection()!;
+        selection.removeAllRanges();
+        selection.addRange(range);
+      });
+      await source
+        .getByRole("button", { name: t("team.quote"), exact: true })
+        .click();
+    };
+    await selectQuote();
+    const draft = page.getByTestId("team-quote-draft");
+    await expect(draft).toContainText("useful finding");
+    await draft
+      .getByRole("button", { name: t("team.removeQuote"), exact: true })
+      .click();
+    await expect(draft).toHaveCount(0);
+    await selectQuote();
+    const composer = page.getByRole("textbox", {
+      name: t("team.message"),
+      exact: true,
+    });
+    await composer.fill("Quote comment");
+    await composer.press("Enter");
+    await expect
+      .poll(() =>
+        posted.some(
+          (body) =>
+            body.thread_id === "feature-source" &&
+            (body.quote as { text?: string })?.text === "useful finding",
+        ),
+      )
+      .toBe(true);
+    const thread = page.getByRole("region", {
+      name: t("team.thread"),
+      exact: true,
+    });
+    await expect(thread.getByTestId("team-quote")).toContainText(
+      "useful finding",
+    );
+    await expect(thread.getByTestId("team-quote-draft")).toHaveCount(0);
+    await expect(page.locator("body")).toHaveJSProperty("scrollWidth", width);
+  });
+}
+
 async function setup(page: import("@playwright/test").Page) {
   let working = false;
   const posted: Record<string, unknown>[] = [];
   const messages: TeamMessage[] = [];
+  const saved = new Map<
+    string,
+    { message: TeamMessage; completed: boolean; saved_at: string }
+  >();
   const deliveries: Record<string, unknown>[] = [];
   const members: TeamMember[] = [
     "human",
@@ -268,7 +676,7 @@ async function setup(page: import("@playwright/test").Page) {
     created_at: stamp,
     updated_at: stamp,
   };
-  const root = {
+  const root: TeamMessage = {
     id: `research:${research}`,
     channel_id: channel,
     thread_id: null,
@@ -361,6 +769,9 @@ async function setup(page: import("@playwright/test").Page) {
               name: "实验",
               member_id: null,
               unread: 0,
+              pinned_count: [root, ...messages].filter(
+                (m) => m.channel_id === channel && m.pinned,
+              ).length,
               last_message: null,
               last_at: stamp,
               working_member_ids: working ? ["advisor"] : [],
@@ -386,6 +797,61 @@ async function setup(page: import("@playwright/test").Page) {
         },
       });
     if (path.endsWith("/read")) return route.fulfill({ json: { ok: true } });
+    if (path.includes("/reactions/")) {
+      const [messageId, encodedEmoji] = path
+        .split("/messages/")[1]
+        .split("/reactions/");
+      const message = messages.find((message) => message.id === messageId);
+      if (!message) return route.fulfill({ status: 404, json: {} });
+      const emoji = decodeURIComponent(encodedEmoji) as "👍" | "👎" | "✅";
+      message.reactions = (message.reactions || []).filter(
+        (reaction) => reaction.emoji !== emoji,
+      );
+      if (request.method() === "PUT")
+        message.reactions.push({ emoji, count: 1, mine: true });
+      return route.fulfill({ json: message.reactions });
+    }
+    if (path.endsWith("/summary"))
+      return route.fulfill({
+        json: {
+          since: stamp,
+          through: stamp,
+          show: false,
+          new_messages: 0,
+          first_unread: null,
+          completed: [],
+          files: [],
+          handoffs: [],
+          waiting: [],
+          failed: [],
+        },
+      });
+    if (path.endsWith("/saved"))
+      return route.fulfill({
+        json: [...saved.values()].map(({ message, ...state }) => ({
+          ...message,
+          ...state,
+        })),
+      });
+    if (path.includes("/marks/")) {
+      const body = request.postDataJSON();
+      const identifier = decodeURIComponent(
+        path.split("/messages/")[1].split("/marks/")[0],
+      );
+      const message = [root, ...messages].find((m) => m.id === identifier);
+      if (!message || message.channel_id !== body.channel_id)
+        return route.fulfill({ status: 404, json: {} });
+      if (path.endsWith("/pin")) message.pinned = request.method() !== "DELETE";
+      else if (request.method() === "DELETE") saved.delete(identifier);
+      else
+        saved.set(identifier, {
+          message,
+          completed:
+            body.completed ?? saved.get(identifier)?.completed ?? false,
+          saved_at: stamp,
+        });
+      return route.fulfill({ json: { ok: true } });
+    }
     if (path.endsWith("/deliveries"))
       return route.fulfill({ json: deliveries });
     if (path.includes("/deliveries/")) {
@@ -410,6 +876,20 @@ async function setup(page: import("@playwright/test").Page) {
       if (request.method() === "POST") {
         const body = request.postDataJSON();
         posted.push(body);
+        const sourceReference = (id: string, text?: string) => {
+          const source = messages.find((message) => message.id === id)!;
+          return {
+            message_id: source.id,
+            channel_id: source.channel_id,
+            thread_id: source.thread_id,
+            author_id: source.author_id,
+            author_name:
+              members.find((member) => member.id === source.author_id)?.name ||
+              "",
+            created_at: source.created_at,
+            text: text ?? source.text,
+          };
+        };
         const message: TeamMessage = {
           id: crypto.randomUUID(),
           channel_id: target,
@@ -418,11 +898,37 @@ async function setup(page: import("@playwright/test").Page) {
           text: body.text,
           kind: "message",
           mentions: [],
-          data: {},
+          data: {
+            ...(body.forward_message_id
+              ? { forward: sourceReference(body.forward_message_id) }
+              : {}),
+            ...(body.quote
+              ? {
+                  quote: sourceReference(
+                    body.quote.message_id,
+                    body.quote.text,
+                  ),
+                }
+              : {}),
+          },
           created_at: stamp,
           replies: 0,
         };
         messages.push(message);
+        if (body.also_channel) {
+          message.data.also_channel = true;
+          messages.push({
+            ...message,
+            id: crypto.randomUUID(),
+            thread_id: null,
+            data: {
+              thread_origin: {
+                thread_id: message.thread_id!,
+                message_id: message.id,
+              },
+            },
+          });
+        }
         if (working && body.mode === "queue")
           deliveries.push({
             id: crypto.randomUUID(),
@@ -488,6 +994,176 @@ async function setup(page: import("@playwright/test").Page) {
   await signIn(page);
   await page.goto(`/#team/${workspace}/${channel}`);
   return { posted, messages, members };
+}
+
+for (const locale of ["zh", "en"] as const) {
+  test(`${locale}: pins locate thread messages and Later keeps private completion state`, async ({
+    page,
+  }) => {
+    const { t, tn } = createTranslator(locale);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript((value) => {
+      localStorage.setItem("paper-locale", value);
+      localStorage.setItem("team-side-panel", "true");
+    }, locale);
+    const { messages } = await setup(page);
+    const request: TeamMessage = {
+      id: "pin-root",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "human",
+      text: "Question",
+      kind: "text",
+      mentions: [],
+      data: {},
+      created_at: stamp,
+      replies: 1,
+    };
+    messages.push(request, {
+      ...request,
+      id: "pinned-answer",
+      thread_id: request.id,
+      author_id: "writer",
+      text: "A pinned finding",
+      replies: 0,
+      data: { files: [{ path: "finding.md", name: "finding.md" }] },
+    });
+    await page.goto(`/#team/${workspace}/${channel}?thread=${request.id}`);
+    const thread = page.getByRole("region", {
+      name: t("team.thread"),
+      exact: true,
+    });
+    const answer = thread.locator('[data-message-id="pinned-answer"]');
+    const more = async (label: string) => {
+      await answer.hover();
+      await answer
+        .getByRole("button", { name: t("research.actions"), exact: true })
+        .click();
+      await page.getByRole("menuitem", { name: label, exact: true }).click();
+    };
+    await more(t("team.pin"));
+    await expect(
+      page.getByRole("button", { name: tn("team.pins", 1), exact: true }),
+    ).toBeVisible();
+    await more(t("team.saveLater"));
+    await thread
+      .getByRole("button", { name: t("common.close"), exact: true })
+      .click();
+    const panel = page.getByTestId("team-side-panel");
+    const pin = panel.locator('[data-pin-id="pinned-answer"]');
+    await expect(pin).toContainText("A pinned finding");
+    await expect(pin).toContainText("finding.md");
+    await pin.click();
+    await expect(answer).toHaveAttribute("data-located", "true");
+    await more(t("team.unpin"));
+    await expect(
+      page.getByRole("button", { name: tn("team.pins", 0), exact: true }),
+    ).toBeVisible();
+    await page.goto(`/#team/${workspace}/mentions`);
+    const later = () =>
+      page.getByRole("radio", { name: t("team.later"), exact: true });
+    await later().click();
+    const saved = page.locator('[data-saved-id="pinned-answer"]');
+    await expect(saved).toContainText("A pinned finding");
+    await saved
+      .getByRole("button", { name: t("team.later.complete"), exact: true })
+      .click();
+    await expect(saved).toHaveAttribute("data-completed", "true");
+    await page.reload();
+    await later().click();
+    await expect(saved).toContainText(t("team.later.completed"));
+    await saved
+      .getByRole("button", { name: t("team.later.reopen"), exact: true })
+      .click();
+    await expect(saved).not.toHaveAttribute("data-completed", "true");
+    await saved.getByRole("button").first().click();
+    await expect(answer).toHaveAttribute("data-located", "true");
+    await page.goto(`/#team/${workspace}/mentions`);
+    await later().click();
+    await saved
+      .getByRole("button", { name: t("team.later.remove"), exact: true })
+      .click();
+    await expect(saved).toHaveCount(0);
+  });
+
+  test(`${locale}: thread checkbox shares one reply to the channel and links back`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("paper-locale", value),
+      locale,
+    );
+    const { messages, posted } = await setup(page);
+    messages.push({
+      id: "broadcast-root",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "human",
+      text: "Question",
+      kind: "text",
+      mentions: [],
+      data: {},
+      created_at: stamp,
+      replies: 0,
+    });
+    await page.goto(`/#team/${workspace}/${channel}?thread=broadcast-root`);
+    const thread = page.getByRole("region", {
+      name: t("team.thread"),
+      exact: true,
+    });
+    const checkbox = thread.getByRole("checkbox", {
+      name: t("team.alsoChannel", {
+        channel: locale === "zh" ? "#实验" : "#Experiments",
+      }),
+      exact: true,
+    });
+    await expect(checkbox).not.toBeChecked();
+    await checkbox.check();
+    const composer = thread.getByRole("textbox", {
+      name: t("team.message"),
+      exact: true,
+    });
+    await composer.fill("Shared conclusion");
+    await composer.press("Enter");
+    await expect
+      .poll(() => posted.filter((p) => p.text === "Shared conclusion").length)
+      .toBe(1);
+    expect(posted.find((p) => p.text === "Shared conclusion")).toMatchObject({
+      also_channel: true,
+      thread_id: "broadcast-root",
+    });
+    const broadcast = messages.find((m) => m.data.thread_origin)!;
+    expect(messages.filter((m) => m.text === "Shared conclusion")).toHaveLength(
+      2,
+    );
+    await thread
+      .getByRole("button", { name: t("common.close"), exact: true })
+      .click();
+    const channelReply = page.locator(`[data-message-id="${broadcast.id}"]`);
+    await expect(channelReply).toContainText("Shared conclusion");
+    await channelReply
+      .getByRole("button", { name: t("team.fromThread"), exact: true })
+      .click();
+    await expect(
+      thread.locator(
+        `[data-message-id="${broadcast.data.thread_origin!.message_id}"]`,
+      ),
+    ).toHaveAttribute("data-located", "true");
+    await checkbox.uncheck();
+    await composer.fill("Thread only");
+    await composer.press("Enter");
+    await expect
+      .poll(() => posted.some((p) => p.text === "Thread only"))
+      .toBe(true);
+    expect(posted.find((p) => p.text === "Thread only")).toMatchObject({
+      also_channel: false,
+    });
+    expect(messages.filter((m) => m.text === "Thread only")).toHaveLength(1);
+    await page.goto(`/#team/${workspace}/${dm}?thread=direct-root`);
+    await expect(page.getByRole("checkbox")).toHaveCount(0);
+  });
 }
 
 test("member answers stay inline until the user replies; threads show participants", async ({
@@ -707,7 +1383,9 @@ for (const theme of ["light", "dark"] as const) {
       const dmRow = sidebar
         .getByRole("group", { name: "消息", exact: true })
         .getByRole("link", { name: role, exact: true });
-      const marker = dmRow.getByRole("img", { name: status, exact: true });
+      const marker = dmRow
+        .locator("..")
+        .getByRole("img", { name: status, exact: true });
       await expect(
         marker.locator("..").locator('svg[shape-rendering="crispEdges"]'),
       ).toBeVisible();
@@ -1162,7 +1840,17 @@ for (const [locale, theme, width] of [
     ).toBeVisible();
     await expect(row.getByText("librarian", { exact: true })).toHaveCount(1);
     await expect(row.getByTestId("team-message-bubble")).toHaveCount(0);
-    await expect(row.locator("time, section, button")).toHaveCount(0);
+    await expect(row.locator("time, section")).toHaveCount(0);
+    await expect(
+      row.getByRole("button", {
+        name: t("team.colleague.card", { name: "librarian" }),
+        exact: true,
+      }),
+    ).toHaveCount(2);
+    await row.hover();
+    await expect(
+      row.getByRole("button", { name: t("research.actions"), exact: true }),
+    ).toBeVisible();
     await expect(
       row.getByText(t("team.noAnswer"), { exact: true }),
     ).toHaveCount(0);
@@ -1268,7 +1956,16 @@ for (const [locale, waiting] of [
     );
     const message = page.locator('[data-message-id="owner-wait"]');
     await expect(message).toHaveCSS("justify-content", "center");
-    await expect(message.locator("svg, img, button, time")).toHaveCount(0);
+    await expect(message.locator(":scope > span svg, img, time")).toHaveCount(
+      0,
+    );
+    await message.hover();
+    await expect(
+      message.getByRole("button", {
+        name: createTranslator(locale).t("research.actions"),
+        exact: true,
+      }),
+    ).toBeVisible();
     await expect(message.getByText(waiting, { exact: true })).toHaveCount(1);
     await expect(
       message.getByText(locale === "zh" ? "Waiting for you" : "等你", {
@@ -1584,7 +2281,7 @@ for (const theme of ["light", "dark"] as const) {
     });
     await expect(experiment).toHaveAttribute("aria-current", "page");
     await expect(
-      experiment.getByText("工作中…", { exact: true }),
+      experiment.getByText("正在：思考中 · 0 秒", { exact: true }),
     ).toBeVisible();
     await expect(
       experiment.getByLabel("12 条未读", { exact: true }),
@@ -1593,8 +2290,8 @@ for (const theme of ["light", "dark"] as const) {
       name: "advisor",
       exact: true,
     });
-    await expect(advisor).toContainText("advisor：私信 advisor");
-    await expect(advisor.getByText("工作中…", { exact: true })).toHaveCount(0);
+    await expect(advisor).toContainText("正在：思考中 · 0 秒");
+    await expect(advisor).not.toContainText("私信 advisor");
     await expect(advisor.getByLabel("3 条未读", { exact: true })).toHaveText(
       "3",
     );
@@ -1790,5 +2487,158 @@ for (const locale of ["zh", "en"] as const) {
     messages.splice(0);
     await expect(empty).toBeVisible();
     await expect(panel.locator("section, h3")).toHaveCount(0);
+  });
+}
+
+for (const [locale, width] of [
+  ["zh", 1440],
+  ["en", 720],
+] as const) {
+  test(`${locale}: message reminders offer four times, enter activity and locate the original`, async ({
+    page,
+  }) => {
+    const { t } = createTranslator(locale);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("paper-locale", value),
+      locale,
+    );
+    const { messages, members } = await setup(page);
+    await page.clock.setFixedTime(new Date("2026-10-24T04:00:00Z"));
+    const original: TeamMessage = {
+      id: "remind-original",
+      channel_id: channel,
+      thread_id: null,
+      author_id: "advisor",
+      text: "Original reminder excerpt",
+      kind: "text",
+      mentions: [],
+      data: {},
+      replies: 0,
+      created_at: stamp,
+    };
+    messages.push(original);
+    const planned: string[] = [];
+    let delivered = false;
+    let read = false;
+    const reminder = () => ({
+      ...original,
+      id: "reminder-event",
+      kind: "reminder",
+      created_at: "2026-10-24T04:20:00Z",
+      actor_id: null,
+      activity_type: "reminder",
+      activity_types: ["reminder"],
+      unread: !read,
+      data: {
+        read,
+        reminder: {
+          message_id: original.id,
+          channel_id: channel,
+          thread_id: null,
+        },
+      },
+    });
+    await page.route("**/team/channels/*/messages/*/reminders", (route) => {
+      planned.push(route.request().postDataJSON().remind_at);
+      return route.fulfill({
+        json: { id: `reminder-${planned.length}`, remind_at: planned.at(-1) },
+      });
+    });
+    await page.route("**/team/activity", (route) =>
+      route.fulfill({ json: delivered ? [reminder()] : [] }),
+    );
+    await page.route("**/team/activity/read", (route) => {
+      read = true;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.route("**/research/workspaces/*/team", (route) =>
+      route.fulfill({
+        json: {
+          workspace_id: workspace,
+          members,
+          channels: [
+            {
+              id: channel,
+              key: "experiments",
+              name: "实验",
+              member_id: null,
+              unread: 0,
+            },
+          ],
+          activity_unread: delivered && !read ? 1 : 0,
+          notifications: delivered && !read ? [reminder()] : [],
+        },
+      }),
+    );
+    await page.reload();
+    const row = page.locator('[data-message-id="remind-original"]');
+    const expected = [
+      "2026-10-24T04:20:00.000Z",
+      "2026-10-24T05:00:00.000Z",
+      "2026-10-25T01:00:00.000Z",
+      "2026-10-26T06:30:00.000Z",
+    ];
+    for (const [index, preset] of (
+      ["minutes", "hour", "morning", "custom"] as const
+    ).entries()) {
+      await row.hover();
+      await row
+        .getByRole("button", { name: t("research.actions"), exact: true })
+        .click();
+      await page
+        .getByRole("menuitem", { name: t("team.reminder.action"), exact: true })
+        .click();
+      const dialog = page.getByRole("dialog", {
+        name: t("team.reminder.title"),
+        exact: true,
+      });
+      if (preset !== "minutes") {
+        await dialog
+          .getByRole("button", {
+            name: t("team.reminder.minutes"),
+            exact: true,
+          })
+          .click();
+        await page
+          .getByRole("menuitemradio", {
+            name: t(`team.reminder.${preset}`),
+            exact: true,
+          })
+          .click();
+      }
+      if (preset === "custom")
+        await dialog
+          .getByLabel(t("team.reminder.time"), { exact: true })
+          .fill("2026-10-26T14:30");
+      await dialog
+        .getByRole("button", { name: t("team.reminder.create"), exact: true })
+        .click();
+      await expect(dialog).not.toBeVisible();
+      expect(planned[index]).toBe(expected[index]);
+    }
+    delivered = true;
+    await page.clock.setFixedTime(new Date("2026-10-24T04:20:00Z"));
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("research-team-updated")),
+    );
+    const activity = page.locator('[data-id="activity"]');
+    await expect(
+      activity.locator("..").getByText("1", { exact: true }),
+    ).toBeVisible();
+    await activity.click();
+    const event = page.locator('[data-activity-id="reminder-event"]');
+    await expect(event).toHaveAttribute("data-unread", "true");
+    await expect(event).toContainText("Original reminder excerpt");
+    await event.click();
+    await expect(row).toHaveAttribute("data-located", "true");
+    await expect(row).toBeFocused();
+    await expect.poll(() => read).toBe(true);
+    await expect(
+      page
+        .locator('[data-id="activity"]')
+        .locator("..")
+        .getByText("1", { exact: true }),
+    ).toHaveCount(0);
   });
 }
