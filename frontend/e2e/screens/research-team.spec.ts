@@ -81,7 +81,7 @@ for (const [locale, theme, width] of [
       text: "Evidence ready",
       kind: "text",
       mentions: [],
-      data: {},
+      data: { woken_by: "reviewer" },
       replies: 0,
       created_at: stamp,
     });
@@ -106,6 +106,7 @@ for (const [locale, theme, width] of [
     });
     await page.reload();
     const row = page.locator('[data-message-id="colleague-message"]');
+    await expect(row).toContainText(t("team.wokenBy", { name: "reviewer" }));
     const profile = row.getByRole("button", {
       name: t("team.colleague.card", { name: "writer" }),
       exact: true,
@@ -124,6 +125,20 @@ for (const [locale, theme, width] of [
     );
     await expect(card).toContainText("Checks evidence");
     await expect(card).toContainText("Offline model");
+    member.status_text = "Checking citations";
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("research-team-updated")),
+    );
+    await expect(card).toContainText(
+      t("team.colleague.working", {
+        task: "Checking citations",
+        elapsed: t("reader.assistant.duration.minutes", {
+          minutes: 1,
+          seconds: 12,
+        }),
+      }),
+    );
+    await expect(card).not.toContainText("python train.py");
     await expect(
       card.getByRole("button", { name: /\.md$|\.csv$/ }),
     ).toHaveCount(3);
@@ -151,6 +166,17 @@ for (const [locale, theme, width] of [
     const direct = `10000000-0000-0000-0000-${String(members.filter((member) => member.role !== "human").findIndex((member) => member.id === "writer") + 10).padStart(12, "0")}`;
     await expect(page).toHaveURL(new RegExp(`#team/${workspace}/${direct}$`));
     const header = page.getByTestId("team-screen").locator("header").first();
+    await expect(header).toContainText("Checking citations");
+    if (width === 1440)
+      await expect(
+        page.locator(
+          `[data-id="conversation"][href="#team/${workspace}/${direct}"]`,
+        ),
+      ).toContainText("Checking citations");
+    member.status_text = "";
+    await page.evaluate(() =>
+      window.dispatchEvent(new Event("research-team-updated")),
+    );
     await expect(header).toContainText("python train.py");
     member.active_model = "";
     member.status = "idle";

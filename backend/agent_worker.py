@@ -1144,7 +1144,7 @@ def _process(app, job_id, cfg):
             current.runtime = {
                 k: v
                 for k, v in (current.runtime or {}).items()
-                if k != "artifact_preview"
+                if k not in {"artifact_preview", "team_status"}
             }
         d.commit()
 
@@ -1260,7 +1260,14 @@ def main():
             for interrupted in d.scalars(
                 select(AgentRun).where(AgentRun.status.in_(["running", "cancelled"]))
             ):
-                interrupted.runtime = {**(interrupted.runtime or {}), "settled": True}
+                interrupted.runtime = {
+                    **{
+                        k: v
+                        for k, v in (interrupted.runtime or {}).items()
+                        if k != "team_status"
+                    },
+                    "settled": True,
+                }
                 if interrupted.status == "running":
                     interrupted.runtime = {**interrupted.runtime, "interrupted": True}
                     interrupted.status = "failed"
@@ -1301,7 +1308,11 @@ def main():
                         )
                         if stopped:
                             stopped.runtime = {
-                                **(stopped.runtime or {}),
+                                **{
+                                    k: v
+                                    for k, v in (stopped.runtime or {}).items()
+                                    if k != "team_status"
+                                },
                                 "settled": True,
                             }
                         d.execute(

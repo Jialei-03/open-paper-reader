@@ -77,9 +77,11 @@ function CanvasNode({ data }: NodeProps<WorkflowNode>) {
   const name =
     data.kind === "owner" || data.human
       ? t("teamWorkflow.me")
-      : data.kind === "trigger"
-        ? data.name || t(`teamWorkflow.event.${data.event ?? "message"}`)
-        : data.name;
+      : data.kind === "author"
+        ? t("teamWorkflow.originalAuthor")
+        : data.kind === "trigger"
+          ? data.name || t(`teamWorkflow.event.${data.event ?? "message"}`)
+          : data.name;
   return (
     <div
       className={`${styles.node} ${data.kind === "channel" ? styles.channelNode : ""} ${data.kind === "trigger" ? styles.triggerNode : ""}`}
@@ -365,7 +367,9 @@ function Canvas({
   const entityName =
     selected?.data.kind === "owner"
       ? t("teamWorkflow.me")
-      : (selected?.data.name ?? "");
+      : selected?.data.kind === "author"
+        ? t("teamWorkflow.originalAuthor")
+        : (selected?.data.name ?? "");
   return (
     <div className={styles.canvasLayout}>
       <aside
@@ -525,7 +529,9 @@ function Canvas({
                   ? `${t(`teamWorkflow.event.${node.data.event ?? "message"}`)} ${node.data.name}`
                   : node.data.kind === "owner" || node.data.human
                     ? t("teamWorkflow.me")
-                    : node.data.name,
+                    : node.data.kind === "author"
+                      ? t("teamWorkflow.originalAuthor")
+                      : node.data.name,
               data: {
                 ...node.data,
                 status:

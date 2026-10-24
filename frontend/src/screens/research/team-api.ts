@@ -66,6 +66,7 @@ export interface TeamMember extends Partial<MemberConfig>, AgentFile {
   status: "idle" | "working" | "queued" | "waiting";
   active_run_id: string | null;
   current_step?: import("./process/model").RunStep | null;
+  status_text?: string;
   elapsed_seconds?: number;
   queue_ahead?: number;
   active_model?: string;
@@ -132,9 +133,18 @@ export interface TeamMessage {
   mentions: string[];
   reactions?: TeamReaction[];
   data: {
+    done_when?: string;
+    mode?: "queue" | "immediate" | "record";
+    decision?: {
+      status: "accepted" | "changes_requested";
+      feedback: string;
+      event_id: string;
+      created_at: string;
+    };
     forward?: TeamMessageReference;
     quote?: TeamMessageReference;
     to?: string[];
+    woken_by?: string;
     paper?: TeamPaperLink;
     papers?: TeamPaperLink[];
     citation?: TeamPaperLink;
@@ -258,7 +268,8 @@ export const sendTeamMessage = (
   body: {
     text: string;
     thread_id?: string;
-    mode: "queue" | "immediate";
+    mode: "queue" | "immediate" | "record";
+    done_when?: string;
     model_config_id?: string;
     client_id: string;
     attachment_ids?: string[];
@@ -282,6 +293,16 @@ export const setTeamReaction = (
     {},
     remove ? "DELETE" : "PUT",
   ) as Promise<TeamReaction[]>;
+export const decideTeamMessage = (
+  id: string,
+  message: string,
+  status: "accepted" | "changes_requested",
+  feedback = "",
+) =>
+  send(`${base(id)}/messages/${encodeURIComponent(message)}/decision`, {
+    status,
+    feedback,
+  }) as Promise<TeamMessage>;
 export const getDeliveries = (id: string) =>
   api<Delivery[]>(`${base(id)}/deliveries`);
 export const continueTeamMessage = (id: string, message: string) =>
@@ -447,6 +468,7 @@ const saveMember = (
 export const deleteTeamMember = (id: string, member: string) =>
   send(`${base(id)}/members/${member}`, {}, "DELETE");
 export interface MemberDetail extends TeamMember {
+  attention?: import("./team-work-api").AttentionMetrics | null;
   activity: string;
   recent_files?: ColleagueFile[];
   threads: {

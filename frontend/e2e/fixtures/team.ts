@@ -121,6 +121,25 @@ export async function mockTeam(
       });
     if (url.pathname.endsWith("/deliveries"))
       return route.fulfill({ json: [] });
+    if (url.pathname.endsWith("/team/work")) {
+      const none = {
+        asks: 0,
+        pending: 0,
+        median_wait_seconds: null,
+        waiting_seconds: 0,
+        total_seconds: 0,
+        waiting_share: null,
+        partial: false,
+      };
+      return route.fulfill({
+        json: {
+          generated_at: new Date().toISOString(),
+          items: [],
+          counts: { waiting: 0, review: 0, working: 0, queued: 0, done: 0 },
+          attention: { total: none, researches: [], members: {} },
+        },
+      });
+    }
     return route.fulfill({
       status: 404,
       json: { detail: "Unexpected team request" },

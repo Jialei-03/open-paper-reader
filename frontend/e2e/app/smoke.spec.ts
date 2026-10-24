@@ -241,9 +241,11 @@ async function ready(page: Page, data: SmokeData) {
             ? zh["team.threads"]
             : route.channelId === "mentions"
               ? zh["team.activity"]
-              : route.channelId === advisorDM
-                ? "冒烟成员"
-                : "冒烟频道";
+              : route.channelId === "work"
+                ? zh["team.work.title"]
+                : route.channelId === advisorDM
+                  ? "冒烟成员"
+                  : "冒烟频道";
       if (
         !route.channelId ||
         [experiments, advisorDM].includes(route.channelId)

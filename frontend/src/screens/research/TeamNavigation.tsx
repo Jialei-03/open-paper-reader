@@ -2,7 +2,14 @@ import { MemberAvatar } from "../team/MemberEditor";
 import { TeamMemberCard, colleagueStatus } from "./TeamMemberCard";
 import { followLink } from "../../reader/route";
 import { memberName } from "../team/member-model";
-import { Bell, Hash, MessageSquare, Plus, Settings } from "lucide-react";
+import {
+  Bell,
+  ClipboardList,
+  Hash,
+  MessageSquare,
+  Plus,
+  Settings,
+} from "lucide-react";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { parseAppRoute } from "../../app/routes";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -308,6 +315,15 @@ export function TeamConversationList({
           </div>
         ))}
       </SidebarSection>
+      <SidebarItem
+        data-id={sidebarId("work")}
+        icon={ClipboardList}
+        label={t("team.work.title")}
+        href={id ? `#${teamHash(id, "work")}` : undefined}
+        disabled={!id}
+        active={current("work")}
+        onClick={followLink(go, teamHash(id, "work"))}
+      />
       <ResearchAttention go={go} />
       <div className={nav.heading} data-sidebar-place="messages">
         <span id="team-conversations">{t("team.messages")}</span>

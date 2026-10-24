@@ -16,7 +16,7 @@
   "id": "r-…",
   "enabled": true,
   "when": {
-    "event": "message" | "mention" | "job_finished" | "plan_approved" | "conclusion_proposed" | "review_failed" | "schedule",
+    "event": "message" | "mention" | "job_finished" | "plan_approved" | "conclusion_proposed" | "review_failed" | "accepted" | "changes_requested" | "schedule",
     "channel": "频道 id，可省略表示任意",
     "from_role": "可省略",
     "from_member": "可省略",
@@ -26,7 +26,7 @@
   },
   "then": {
     "action": "wake" | "review" | "wait_for_owner" | "post",
-    "member": "成员 id（wake / review）",
+    "member": "成员 id（wake / review）；裁决事件可用 $author 指向原作者",
     "role": "或者按角色找成员",
     "subscribers": true,
     "instruction": "给被叫醒成员的一句话",
@@ -47,12 +47,14 @@
 ## 事件（Event）——规则引擎的输入
 
 ```json
-{ "type": "message" | "mention" | "job_finished" | "plan_approved" | "conclusion_proposed" | "review_failed" | "schedule",
+{ "type": "message" | "mention" | "job_finished" | "plan_approved" | "conclusion_proposed" | "review_failed" | "accepted" | "changes_requested" | "schedule",
   "team": "团队 id", "channel": "频道 id", "thread": "线程根消息 id 或 null",
   "author": { "id", "kind", "role" }, "kind": "消息类型", "mentions": ["成员 id"], "at": "ISO 时间" }
 ```
 
 `author` 对系统事件可为 `null`，`at` 必须带时区。`mentions` 是适配层已经解析好的收件人：用户的文字 `@`、私信隐式收件人、agent 的 `team_send_message.to`；引擎不扫描正文。用户可同时叫醒所有指定成员，不限人数；agent 正文 `@` 只是提到，提及负责人可保留通知。
+
+交付物裁决事件由研究者发出，另带 `original_author` 指向被裁决消息作者，`kind` 为原消息类型；作者过滤和 `$author` 按该字段解析。`accepted` 记录并匹配规则，不投递唤醒；`changes_requested` 默认向原作者投递意见，并与规则唤醒去重。发送方式 `record` 只保存消息，绕过事件路由。`done_when` 是可选消息数据，随唤醒 prompt 和后续评审上下文传递。
 
 适配层还可传 `scope: [team, channel, thread]` 保留跨频道的原路由范围，以及 `pending_members: str[]` 合并尚未开工的投递。agent 主动发起等待只能用 `team_wait_for_owner`，适配成显式等待事件；正文提及不会触发等待。工作流显式 `wait_for_owner` 与研究审批仍按各自状态机执行。
 

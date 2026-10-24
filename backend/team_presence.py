@@ -46,6 +46,11 @@ def presence(d, workspace, member, run):
         (run.steps or [])[-1] if run and run.status == "running" and run.steps else None
     )
     return {
+        "status_text": (
+            (run.runtime or {}).get("team_status", "")
+            if run and run.status == "running"
+            else ""
+        ),
         "current_step": {
             key: step[key]
             for key in ("name", "label", "arguments", "status")

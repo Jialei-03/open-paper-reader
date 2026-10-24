@@ -41,6 +41,33 @@ describe("colleagues and deterministic catch-up", () => {
   for (const locale of ["zh", "en"] as const) {
     const translator = createTranslator(locale);
     const { t, tn } = translator;
+    it(`${locale} prioritizes the member's status while working and drops it at rest`, () => {
+      const value = {
+        ...member,
+        status_text: "Checking evidence",
+        current_step: {
+          name: "read",
+          arguments: { path: "trace.md" },
+          status: "completed",
+        },
+      };
+      expect(colleagueStatus(value, translator)).toBe(
+        t("team.colleague.working", {
+          task: "Checking evidence",
+          elapsed: t("reader.assistant.duration.minutes", {
+            minutes: 1,
+            seconds: 12,
+          }),
+        }),
+      );
+      expect(colleagueStatus(value, translator)).not.toContain("trace.md");
+      expect(colleagueStatus({ ...value, status: "idle" }, translator)).toBe(
+        t("team.status.idle"),
+      );
+      expect(
+        colleagueStatus({ ...value, status_text: "" }, translator),
+      ).toContain("trace.md");
+    });
     it(`${locale} describes commands, paths, thinking and queues`, () => {
       for (const [step, task] of [
         [

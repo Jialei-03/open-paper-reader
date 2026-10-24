@@ -127,7 +127,7 @@ describe("team conversation navigation", () => {
     });
     it(`${locale} has fixed navigation and no duplicate member shortcuts`, () => {
       const html = render(team, locale);
-      for (const id of ["threads", "activity", "team-settings"])
+      for (const id of ["threads", "activity", "work", "team-settings"])
         expect(html).toContain(`data-id="${id}"`);
       expect(html).not.toContain('aria-label="常用成员"');
       expect(html).not.toContain('aria-label="Frequent members"');
@@ -184,6 +184,30 @@ describe("team conversation navigation", () => {
       expect(activity).not.toContain(
         `aria-label="${t("team.unreadCount", { count: 7 })}">7</span>`,
       );
+    });
+    it(`${locale} shows a working member's status in conversation previews`, () => {
+      const html = render(
+        {
+          ...team,
+          members: team.members.map((member) => ({
+            ...member,
+            status_text: "Checking evidence",
+            current_step: {
+              name: "read",
+              arguments: { path: "trace.md" },
+              status: "running",
+            },
+          })),
+          channels: team.channels.map((c) =>
+            c.id === newChannel
+              ? { ...c, working_member_ids: ["member-0"] }
+              : c,
+          ),
+        },
+        locale,
+      );
+      expect(html).toContain("Checking evidence");
+      expect(html).not.toContain("trace.md");
     });
   }
 });

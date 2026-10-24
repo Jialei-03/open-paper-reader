@@ -111,6 +111,22 @@ describe("team member replies", () => {
       expect(html).toContain("Conclusion");
       expect(html).toContain(`aria-label="${t("research.actions")}"`);
     });
+    it(`${locale} attributes colleague wakes on queued, running and completed messages`, () => {
+      const label = t("team.wokenBy", { name: "writer" });
+      for (const status of ["queued", "running", "completed"]) {
+        const value = {
+          ...message,
+          data: { woken_by: "writer" },
+          run: { ...message.run!, status, response: "Finding" },
+        };
+        expect(render(value)).toContain(label);
+        expect(render(value, true)).toContain(label);
+      }
+      expect(render({ ...message, data: { woken_by: "human" } })).not.toContain(
+        t("team.wokenBy", { name: t("team.member.human") }),
+      );
+      expect(render(message)).not.toContain(label);
+    });
     it(`${locale} offers channel sharing only for a channel thread composer`, () => {
       for (const member_id of [null, "writer"]) {
         for (const threadId of [undefined, "root"]) {

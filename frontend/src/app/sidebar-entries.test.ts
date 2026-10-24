@@ -32,6 +32,7 @@ describe("sidebar entry registry", () => {
       "new-research",
       "threads",
       "activity",
+      "work",
     ]);
   });
 });

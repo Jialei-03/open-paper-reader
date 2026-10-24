@@ -23,6 +23,8 @@ EVENTS = Literal[
     "plan_approved",
     "conclusion_proposed",
     "review_failed",
+    "accepted",
+    "changes_requested",
     "schedule",
 ]
 KINDS = Literal["text", "result", "plan", "conclusion", "draft", "review"]
@@ -126,6 +128,11 @@ class RuleInput(Strict):
     def subscribers_event(self):
         if self.then.subscribers and self.when.event != "message":
             raise ValueError("subscribers requires a message trigger")
+        if self.then.member == "$author" and self.when.event not in {
+            "accepted",
+            "changes_requested",
+        }:
+            raise ValueError("original author requires a decision trigger")
         return self
 
 
@@ -164,7 +171,11 @@ def _resolve(ref, members, *, role=None):
 def _references(rule, members=None, channels=None):
     if members is not None:
         spec = rule["then"]
-        if spec["action"] in {"wake", "review"} and not spec.get("subscribers"):
+        if (
+            spec["action"] in {"wake", "review"}
+            and not spec.get("subscribers")
+            and spec.get("member") != "$author"
+        ):
             _resolve(
                 spec.get("member") or spec["role"],
                 members,
@@ -369,7 +380,7 @@ def _workflow_key(workflow):
 
 def _matches(rule, event, *, mention=False):
     when = rule["when"]
-    author = event.get("author") or {}
+    author = event.get("original_author") or event.get("author") or {}
     return when["event"] == ("mention" if mention else event["type"]) and all(
         when.get(key) is None or when[key] == value
         for key, value in (
@@ -393,7 +404,11 @@ def _action(rule, event, members):
         result["channel"] = channel
     if spec["action"] in {"wake", "review"}:
         result["member"] = _resolve(
-            spec.get("member") or spec["role"],
+            (
+                (event.get("original_author") or event.get("author") or {}).get("id")
+                if spec.get("member") == "$author"
+                else spec.get("member") or spec["role"]
+            ),
             members,
             role=not bool(spec.get("member")),
         )

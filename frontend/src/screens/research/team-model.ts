@@ -46,6 +46,24 @@ export function mentionMatches(
 }
 export const sendMode = (event: { metaKey: boolean; ctrlKey: boolean }) =>
   event.metaKey || event.ctrlKey ? ("immediate" as const) : ("queue" as const);
+export function mentionedAgents(
+  text: string,
+  members: TeamMember[],
+  name: (member: TeamMember) => string,
+) {
+  return members.filter(
+    (member) =>
+      member.role !== "human" &&
+      member.enabled !== false &&
+      !member.deleted &&
+      [member.id, member.name, member.role, name(member)].some((alias) =>
+        new RegExp(
+          `@${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_-])`,
+          "iu",
+        ).test(text),
+      ),
+  );
+}
 export function orderedMessages(messages: TeamMessage[]) {
   return [
     ...new Map(

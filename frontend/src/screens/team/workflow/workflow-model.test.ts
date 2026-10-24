@@ -38,6 +38,35 @@ const connect = (source: string, target: string): Connection => ({
 });
 
 describe("contract rules and flow edges", () => {
+  it("preserves decision events and the dynamic original-author target", () => {
+    for (const event of ["accepted", "changes_requested"] as const) {
+      const rule: WorkflowRule = {
+        id: "decision",
+        enabled: true,
+        when: { event },
+        then: { action: "wake", member: "$author" },
+      };
+      expect(validateRule(rule)).toBe(true);
+      const flow = { ...fixture(), rules: [rule] };
+      const { nodes, edges } = graph(flow);
+      expect(
+        nodes.find((node) => node.id === "author:$author")?.data.kind,
+      ).toBe("author");
+      expect(edges[0].target).toBe("author:$author");
+      expect(layoutFromNodes(flow, nodes).layout.members).not.toHaveProperty(
+        "$author",
+      );
+      for (const locale of ["zh", "en"] as const) {
+        const { t } = createTranslator(locale);
+        expect(ruleSummary(rule, members, channels, t)).toContain(
+          t("teamWorkflow.originalAuthor"),
+        );
+        expect(ruleSummary(rule, members, channels, t)).toContain(
+          t(`teamWorkflow.event.${event}`),
+        );
+      }
+    }
+  });
   it("projects reviews, return lines, owner waits, subscriptions and schedules without losing fields", () => {
     const workflow = fixture();
     const before = structuredClone(workflow);

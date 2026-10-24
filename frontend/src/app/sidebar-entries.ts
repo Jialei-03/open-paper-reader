@@ -12,7 +12,14 @@ export const PLACES = {
     "hosted-models",
     "hosted-settings",
   ],
-  research: ["workspace", "search", "new-research", "threads", "activity"],
+  research: [
+    "workspace",
+    "search",
+    "new-research",
+    "threads",
+    "activity",
+    "work",
+  ],
   attention: ["attention", "attention-item"],
   messages: [
     "messages",

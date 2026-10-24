@@ -12,6 +12,8 @@ import {
   Bell,
   Bookmark,
   ChevronRight,
+  ClipboardList,
+  ChevronDown,
   Copy,
   GitFork,
   FileText,
@@ -57,9 +59,11 @@ import { summary } from "./process/model";
 import { ResearchProject } from "./ResearchProject";
 import { TeamFilePreview } from "./TeamFilePreview";
 import { TeamInbox } from "./TeamActivity";
+import { TeamWorkScreen } from "./TeamWork";
 import { TeamMemberCard, ColleagueStatus } from "./TeamMemberCard";
 import { TeamCatchup, catchupAnchor } from "./TeamCatchup";
 import { TeamMessageChanges } from "./TeamMessageChanges";
+import { TeamMessageDecision } from "./TeamMessageDecision";
 import {
   ForwardMessageDialog,
   MessageReactions,
@@ -100,6 +104,7 @@ import {
   memberLabel,
   mentionMatches,
   mentionQuery,
+  mentionedAgents,
   orderedMessages,
   sendMode,
   threadDate,
@@ -226,7 +231,14 @@ export function TeamScreen({
         ? defaultChannelNames[channel.key] === channel.name
           ? t(`team.channel.${channel.key}` as MessageKey)
           : channel.name
-        : "") || t(channelId === "mentions" ? "team.activity" : "team.threads");
+        : "") ||
+      t(
+        channelId === "work"
+          ? "team.work.title"
+          : channelId === "mentions"
+            ? "team.activity"
+            : "team.threads",
+      );
   const receiveConversation = useCallback(
     (messages: TeamMessage[], deliveries: Delivery[]) => {
       setConversation({ channelId: channel?.id || "", messages, deliveries });
@@ -280,7 +292,9 @@ export function TeamScreen({
           aria-label={title}
         >
           <header className={styles.header}>
-            {channelId === "mentions" ? (
+            {channelId === "work" ? (
+              <ClipboardList size={16} aria-hidden />
+            ) : channelId === "mentions" ? (
               <Bell size={16} aria-hidden />
             ) : channel?.member_id || channelId === "threads" ? (
               <MessageSquare size={16} aria-hidden />
@@ -411,7 +425,9 @@ export function TeamScreen({
               <span />
             </div>
           )}
-          {team && channel ? (
+          {team && channelId === "work" ? (
+            <TeamWorkScreen team={team} go={go} />
+          ) : team && channel ? (
             <MessagePane
               key={channel.id}
               team={team}
@@ -967,7 +983,9 @@ export const defaultPanelOpen = (width: number, stored: string | null) =>
   width >= 900 && stored !== "false";
 
 const systemMessage = (message: TeamMessage) =>
-  ["budget", "relay_limit"].includes(message.kind) ||
+  ["budget", "relay_limit", "accepted", "changes_requested"].includes(
+    message.kind,
+  ) ||
   (!message.author_id && message.kind !== "research");
 
 const emptyReply = (message: TeamMessage) =>
@@ -1108,6 +1126,12 @@ export function MessageRow({
       ? team.members.find((m) => m.role === "human")
       : undefined);
   const human = member?.role === "human" || message.kind === "research";
+  const waker = team.members.find((m) => m.id === message.data.woken_by);
+  const wakeLabel = waker && waker.role !== "human" && (
+    <span className={styles.messageStatus}>
+      {t("team.wokenBy", { name: displayMemberName(waker, t) })}
+    </span>
+  );
   const name = member
     ? displayMemberName(member, t)
     : t(human ? "team.member.human" : "team.system");
@@ -1148,7 +1172,10 @@ export function MessageRow({
                   t,
                 ),
               })
-            : systemText}
+            : message.kind === "accepted" ||
+                message.kind === "changes_requested"
+              ? `${t(message.kind === "accepted" ? "team.accepted" : "team.changesRequested")}${message.text ? ` · ${message.text}` : ""}`
+              : systemText}
         </span>
         <div className={styles.hoverActions}>
           <MessageMoreMenu message={message} team={team} />
@@ -1213,6 +1240,7 @@ export function MessageRow({
             message.run?.status === "queued" ? "team.queued" : "team.noContent",
           )}
         </span>
+        {wakeLabel}
         <div className={styles.hoverActions}>
           {stop}
           <MessageMoreMenu message={message} team={team} />
@@ -1316,9 +1344,19 @@ export function MessageRow({
           {message.data.file_error && (
             <p role="alert">{message.data.file_error}</p>
           )}
+          {message.data.done_when && (
+            <p>{t("team.doneWhenValue", { value: message.data.done_when })}</p>
+          )}
+          {!human && member && (
+            <TeamMessageDecision
+              workspace={team.workspace_id}
+              message={message}
+            />
+          )}
         </div>
         <MessageReactions team={team} message={message} />
         <footer className={styles.metadata}>
+          {wakeLabel}
           {message.data.thread_origin && (
             <button
               className={styles.replies}
@@ -1650,6 +1688,8 @@ export function TeamComposer({
   const [dismissed, setDismissed] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [alsoChannel, setAlsoChannel] = useState(false);
+  const [mode, setMode] = useState<"queue" | "immediate" | "record">("queue");
+  const [doneWhen, setDoneWhen] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   const upload = useRef<HTMLInputElement>(null);
   const listId = useId();
@@ -1660,6 +1700,7 @@ export function TeamComposer({
   }, [quote]);
   const name = (m: TeamMember) => displayMemberName(m, t);
   const dmMember = team.members.find((m) => m.id === channel.member_id);
+  const hasMentions = mentionedAgents(text, team.members, name).length > 0;
   const conversationName = channel.member_id
     ? dmMember
       ? name(dmMember)
@@ -1699,16 +1740,18 @@ export function TeamComposer({
       );
     });
   };
-  const submit = async (mode: "queue" | "immediate") => {
+  const submit = async (mode: "queue" | "immediate" | "record") => {
     if ((!text.trim() && !quote) || busy) return;
-    if (needsModel) {
+    if (needsModel && mode !== "record") {
       openModelSetup();
       return;
     }
     // Clear at once so typing the next message is never wiped by this send.
     const [sending, sendingFiles, clientId] = [text, files, client.current];
+    const sendingDoneWhen = hasMentions ? doneWhen.trim() : "";
     change("");
     setFiles([]);
+    setDoneWhen("");
     setBusy(true);
     try {
       const attachmentIds: string[] = [];
@@ -1724,6 +1767,7 @@ export function TeamComposer({
       await sendTeamMessage(team.workspace_id, channel.id, {
         text: sending,
         mode,
+        ...(sendingDoneWhen ? { done_when: sendingDoneWhen } : {}),
         ...(quote
           ? {
               thread_id: quote.thread_id || quote.message_id,
@@ -1735,7 +1779,9 @@ export function TeamComposer({
         ...(threadId && !channel.member_id
           ? { also_channel: alsoChannel }
           : {}),
-        ...(channel.member_id ? { model_config_id: model } : {}),
+        ...(channel.member_id && mode !== "record"
+          ? { model_config_id: model }
+          : {}),
         client_id: clientId,
         attachment_ids: attachmentIds,
       });
@@ -1746,6 +1792,7 @@ export function TeamComposer({
         change(sending);
         client.current = clientId;
         setFiles(sendingFiles);
+        setDoneWhen(sendingDoneWhen);
       }
     } finally {
       setBusy(false);
@@ -1756,11 +1803,21 @@ export function TeamComposer({
       className={styles.composer}
       onSubmit={(event) => {
         event.preventDefault();
-        void submit("queue");
+        void submit(mode);
       }}
     >
       {quote && onClearQuote && (
         <QuoteDraft quote={quote} onClear={onClearQuote} />
+      )}
+      {hasMentions && (
+        <TextField
+          label={t("team.doneWhen")}
+          value={doneWhen}
+          onChange={(event) => {
+            setDoneWhen(event.target.value);
+            client.current = crypto.randomUUID();
+          }}
+        />
       )}
       {!!matches.length && (
         <div
@@ -1848,7 +1905,7 @@ export function TeamComposer({
           }
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
-            void submit(sendMode(e));
+            void submit(sendMode(e) === "immediate" ? "immediate" : mode);
           }
         }}
       />
@@ -1928,9 +1985,43 @@ export function TeamComposer({
           <IconButton
             icon={Send}
             className={styles.send}
-            label={t(active ? "team.queue" : "research.home.send")}
+            label={t(
+              mode === "record"
+                ? "team.recordOnly"
+                : mode === "immediate"
+                  ? "team.immediate"
+                  : active
+                    ? "team.queue"
+                    : "research.home.send",
+            )}
             disabled={busy || (!text.trim() && !quote)}
             type="submit"
+          />
+          <Menu
+            label={t("team.sendMode")}
+            trigger={(props) => (
+              <IconButton
+                {...props}
+                icon={ChevronDown}
+                label={t("team.sendMode")}
+                disabled={busy}
+              />
+            )}
+            items={(["queue", "immediate", "record"] as const).map((value) => ({
+              id: value,
+              label: t(
+                value === "record"
+                  ? "team.recordOnly"
+                  : value === "queue"
+                    ? "team.queue"
+                    : "team.immediate",
+              ),
+              checked: mode === value,
+              onSelect: () => {
+                setMode(value);
+                client.current = crypto.randomUUID();
+              },
+            }))}
           />
         </div>
       </footer>

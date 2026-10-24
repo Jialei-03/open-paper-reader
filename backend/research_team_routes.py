@@ -24,7 +24,8 @@ class QuoteInput(Strict):
 class MessageInput(Strict):
     text: str = Field(default="", max_length=12000)
     thread_id: str | None = Field(default=None, max_length=80)
-    mode: Literal["queue", "immediate"] = "queue"
+    mode: Literal["queue", "immediate", "record"] = "queue"
+    done_when: str = ""
     model_config_id: str = Field(default="", max_length=64)
     client_id: str = Field(min_length=1, max_length=100)
     attachment_ids: list[str] = Field(default_factory=list, max_length=5)
@@ -35,6 +36,11 @@ class MessageInput(Strict):
 
 class ChannelInput(Strict):
     name: str = Field(min_length=1, max_length=100)
+
+
+class DecisionInput(Strict):
+    status: Literal["accepted", "changes_requested"]
+    feedback: str = ""
 
 
 class DeliveryInput(Strict):
@@ -411,6 +417,9 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         from .team_presence import recent_files
 
         out["recent_files"] = recent_files(d, member)
+        out["attention"] = team.work_overview(d, workspace)["attention"]["members"].get(
+            member.id
+        )
         d.commit()
         return out
 
@@ -491,6 +500,10 @@ def install_team_routes(app, settings, db, auth, workspace_of):
         d.commit()
         return out
 
+    @app.get(base + "/work")
+    def work_overview(id: str, a=Depends(auth), d=Depends(db)):
+        return team.work_overview(d, workspace_of(d, id, a))
+
     @app.get(base + "/channels/{channel_id}/messages")
     def messages(
         id: str,
@@ -563,6 +576,9 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                         else None
                     )
                     or bool(message.data.get("also_channel")) != body.also_channel
+                    or message.data.get("mode", "queue") != body.mode
+                    or message.data.get("done_when", "")
+                    != team.normalize(body.done_when).strip()
                 ):
                     raise ValueError("消息标识已用于其他内容 / Message ID already used")
             else:
@@ -597,7 +613,11 @@ def install_team_routes(app, settings, db, auth, workspace_of):
                     thread_id=body.thread_id,
                     mode=body.mode,
                     source_key=key,
-                    data={"attachments": attached, **references},
+                    data={
+                        "attachments": attached,
+                        "done_when": team.normalize(body.done_when).strip(),
+                        **references,
+                    },
                     also_channel=body.also_channel,
                 )
                 for row in d.scalars(
@@ -625,6 +645,34 @@ def install_team_routes(app, settings, db, auth, workspace_of):
             return source_message(d, workspace, message_id)
         except ValueError as error:
             raise HTTPException(404, str(error)) from None
+
+    @app.post(base + "/messages/{message_id}/decision")
+    def decide_message(
+        id: str, message_id: str, body: DecisionInput, a=Depends(auth), d=Depends(db)
+    ):
+        from .team_message_decisions import decide
+
+        workspace = editable_workspace(d, id, a)
+        message = message_of(d, workspace, message_id)
+        try:
+            result = decide(d, workspace, message, body.status, body.feedback)
+            for row in d.scalars(
+                select(TeamDelivery)
+                .join(TeamMember)
+                .where(
+                    TeamMember.workspace_id == workspace.id,
+                    TeamDelivery.status == "queued",
+                )
+            ):
+                if row.message_id == result.id or result.id in row.action.get(
+                    "merged_messages", []
+                ):
+                    team.dispatch(settings, d, workspace, row)
+        except ValueError as error:
+            raise HTTPException(409, str(error)) from None
+        out = team.message_out(d, message)
+        d.commit()
+        return out
 
     @app.put(base + "/messages/{message_id}/reactions/{emoji}")
     def add_reaction(

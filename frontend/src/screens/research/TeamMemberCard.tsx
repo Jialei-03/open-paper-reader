@@ -26,7 +26,16 @@ export function colleagueStatus(
   if (member.status === "queued")
     return tn("team.colleague.ahead", member.queue_ahead ?? 0);
   if (member.status !== "working") return t(`team.status.${member.status}`);
-  const step = member.current_step;
+  return t("team.colleague.working", {
+    task: member.status_text || colleagueTask(member.current_step, t),
+    elapsed: shortDuration(member.elapsed_seconds ?? 0, t),
+  });
+}
+
+export function colleagueTask(
+  step: RunStep | null | undefined,
+  t: Translator["t"],
+) {
   const labels: Record<string, MessageKey> = {
     bash: "team.colleague.run",
     read: "team.colleague.read",
@@ -41,7 +50,7 @@ export function colleagueStatus(
     team_send_message: "team.colleague.message",
     team_wait_for_owner: "team.colleague.decide",
   };
-  const task = step
+  return step
     ? [
         labels[step.name] ? t(labels[step.name]) : stepLabel(step, t),
         target(step),
@@ -49,10 +58,6 @@ export function colleagueStatus(
         .filter(Boolean)
         .join(" ")
     : t("team.colleague.thinking");
-  return t("team.colleague.working", {
-    task,
-    elapsed: shortDuration(member.elapsed_seconds ?? 0, t),
-  });
 }
 
 function stepLabel(step: RunStep, t: Translator["t"]) {

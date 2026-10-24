@@ -272,6 +272,7 @@ def event(
         if author is not None
         else next((m for m in members if m["id"] == message.author_id), None)
     )
+    data = getattr(message, "data", {})
     incoming = dict(
         type=trigger,
         team=workspace.id,
@@ -282,8 +283,12 @@ def event(
         or (message.kind if message.kind in team_rules.KINDS.__args__ else "text"),
         mentions=message.mentions or [],
         at=message.created_at or now(),
-        scope=getattr(message, "data", {}).get("routing_scope"),
+        scope=data.get("routing_scope"),
         pending_members=[row.member_id for row in unstarted(d, message)],
+        original_author=next(
+            (m for m in members if m["id"] == data.get("decision_author_id")),
+            None,
+        ),
     )
     state = deepcopy(workspace.workflow_state)
     state.setdefault("snapshots", {}).setdefault(
@@ -393,12 +398,12 @@ def apply(d, workspace, message, flow, actions):
                         )
                     )
                     if existing.run_id:
-                        from .research_team import message_out
+                        from .team_member_context import trigger_text
 
                         run = d.get(AgentRun, existing.run_id)
-                        extra = message_out(d, d.get(TeamMessage, message.id))["text"]
+                        extra = trigger_text(d, d.get(TeamMessage, message.id))
                         if action.get("instruction"):
-                            extra += "\n\n" + action["instruction"]
+                            extra += "\n\nRule instruction:\n" + action["instruction"]
                         changed = d.execute(
                             update(AgentRun)
                             .where(
@@ -492,6 +497,8 @@ def route_message(d, workspace, message, *, trigger="message"):
 
     from .research_team import active_run, channel_of
 
+    if message.data.get("mode") == "record":
+        return []
     channel = channel_of(d, workspace, message.channel_id)
     tagged = list(message.mentions or [])
     author = d.get(TeamMember, message.author_id) if message.author_id else None

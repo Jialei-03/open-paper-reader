@@ -27,6 +27,7 @@ import { MemberAvatar, MemberEditor } from "./MemberEditor";
 import { MemberPause } from "./MemberPause";
 import { memberAvatarSeed, memberDraft, memberName } from "./member-model";
 import { threadDate } from "../research/team-model";
+import { AttentionLine } from "../research/TeamWork";
 import teamStyles from "../research/Team.module.css";
 import styles from "./Members.module.css";
 
@@ -86,12 +87,19 @@ export function Members({
     setDetail(null);
     if (!selected) return;
     let stale = false;
-    readMember(team.workspace_id, selected).then(
-      (value) => !stale && setDetail(value),
-      (reason) => !stale && setError(String(reason)),
-    );
+    let request = 0;
+    const load = () => {
+      const current = ++request;
+      readMember(team.workspace_id, selected).then(
+        (value) => !stale && current === request && setDetail(value),
+        (reason) => !stale && current === request && setError(String(reason)),
+      );
+    };
+    load();
+    const timer = window.setInterval(load, 5000);
     return () => {
       stale = true;
+      window.clearInterval(timer);
     };
   }, [
     selected,
@@ -184,6 +192,9 @@ export function Members({
             <dt>{t("members.spent")}</dt>
             <dd>{(member.tokens ?? 0).toLocaleString()} token</dd>
           </dl>
+          {detail && detail.id === selected && detail.attention && (
+            <AttentionLine value={detail.attention} />
+          )}
           {detail?.activity && (
             <>
               <h3>{t("members.activity")}</h3>

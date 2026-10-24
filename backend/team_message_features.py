@@ -97,6 +97,8 @@ def message_text(d, message):
         ref = message.data.get(key)
         if ref:
             text += f"\n\n{key}:\n" + json.dumps(ref, ensure_ascii=False)
+    if message.data.get("done_when"):
+        text += "\n\n完成标准 / Done when: " + message.data["done_when"]
     return text.strip()
 
 

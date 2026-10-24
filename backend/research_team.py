@@ -368,7 +368,8 @@ def post(
     from .team_workflows import route_message
 
     message.data = {**message.data, "mode": mode}
-    route_message(d, workspace, message, trigger=trigger)
+    if mode != "record":
+        route_message(d, workspace, message, trigger=trigger)
     workspace.updated_at = now()
     if also_channel:
         broadcast_reply(d, workspace, channel, message)
@@ -1077,15 +1078,21 @@ def overview(d, workspace, *, include_reminders=True):
     )
 
 
+def work_overview(d, workspace):
+    from .team_work import project
+
+    return project(d, workspace)
+
+
 def context(d, workspace, message):
     from .research_chat import context as project_context
+    from .team_member_context import CONTENT_BOUNDARY, read_messages
     from .team_message_marks import context_pins
 
     channel = channel_of(d, workspace, message.channel_id)
-    recent = [
-        {key: value for key, value in row.items() if key != "reactions"}
-        for row in history(d, workspace, channel, message.thread_id)["messages"][-40:]
-    ]
+    recent = read_messages(
+        d, workspace, channel, message.thread_id, limit=40, max_chars=20000, latest=True
+    )
     board = []
     for c in d.scalars(
         select(TeamChannel).where(
@@ -1094,45 +1101,48 @@ def context(d, workspace, message):
             TeamChannel.archived.is_(False),
         )
     ):
-        tail = list(
-            d.scalars(
-                select(TeamMessage)
-                .where(TeamMessage.channel_id == c.id, TeamMessage.kind != "reminder")
-                .order_by(TeamMessage.created_at.desc())
-                .limit(4)
-            )
-        )
         board.append(
             {
                 "channel_id": c.id,
                 "name": c.name,
-                "recent": [
-                    (
-                        message_out(d, m)["text"]
-                        if m.kind == "thread_broadcast"
-                        else normalize(m.text)
-                    )[-800:]
-                    for m in reversed(tail)
-                ],
+                "recent": read_messages(
+                    d,
+                    workspace,
+                    c,
+                    limit=4,
+                    max_chars=3200,
+                    latest=True,
+                    include_threads=True,
+                ),
             }
         )
+    roster = overview(d, workspace, include_reminders=False)["members"]
     return (
         language_part(d, workspace)
+        + CONTENT_BOUNDARY
         + project_context(d, workspace)[:16000]
         + "\n\nTeam blackboard:\n"
         + json.dumps(board, ensure_ascii=False)
         + "\n\nChannel pins:\n"
         + json.dumps(context_pins(d, workspace, channel.id), ensure_ascii=False)
-        + "\n\nConversation (latest 40, bounded):\n"
-        + json.dumps(recent, ensure_ascii=False, default=str)[-20000:]
+        + "\n\nConversation (latest 40, bounded; team_read_channel / team_read_thread for more):\n"
+        + json.dumps(recent, ensure_ascii=False)
+        + (
+            "\n\n完成标准 / Done when: " + message.data["done_when"]
+            if message.data.get("done_when")
+            else ""
+        )
         + f"\nChannel: {channel.id}; Thread: {message.thread_id}\n"
-        + "Members: "
-        + json.dumps(
-            [
-                {"id": m.id, "role": m.role, "name": m.name}
-                for m in ensure(d, workspace)
-            ],
-            ensure_ascii=False,
+        + "Members:\n"
+        + "\n".join(
+            f"{m['name']} · {' '.join((m.get('description') or m['role']).split())} · "
+            + (
+                "disabled"
+                if not m["enabled"]
+                else "paused" if m["paused"] else m.get("status_text") or m["status"]
+            )
+            for m in roster
+            if not m["deleted"]
         )
         + "\nTo have members act, name them in team_send_message's `wake`;"
         " @Name in text only refers to them.\n"
@@ -1143,19 +1153,20 @@ def context(d, workspace, message):
 
 
 def dispatch(settings, d, workspace, delivery):
-    from .team_message_features import feedback_part, message_text
+    from .team_member_context import CONTENT_BOUNDARY, trigger_text
+    from .team_message_features import feedback_part
 
     member = d.get(TeamMember, delivery.member_id)
     message = d.get(TeamMessage, delivery.message_id)
-    text = message_text(d, message)
+    text = trigger_text(d, message)
     attachment_ids = [a["id"] for a in message.data.get("attachments", [])]
     for identifier in delivery.action.get("merged_messages", []):
         extra = d.get(TeamMessage, identifier)
         if extra:
-            text += "\n\n" + message_text(d, extra)
+            text += "\n\n" + trigger_text(d, extra)
             attachment_ids.extend(a["id"] for a in extra.data.get("attachments", []))
     if delivery.action.get("instruction"):
-        text += "\n\n" + delivery.action["instruction"]
+        text += "\n\nRule instruction:\n" + delivery.action["instruction"]
     if delivery.status != "queued":
         return
     if not member.enabled or member.deleted:
@@ -1277,9 +1288,10 @@ def dispatch(settings, d, workspace, delivery):
         model=model,
         prompt=text,
         context=language
+        + CONTENT_BOUNDARY
         + description(member)
         + "\n\n"
-        + context(d, workspace, message).removeprefix(language)
+        + context(d, workspace, message).removeprefix(language + CONTENT_BOUNDARY)
         + feedback_part(d, member),
         attachment_ids=list(dict.fromkeys(attachment_ids)),
         lane="research",
@@ -1295,6 +1307,12 @@ def dispatch(settings, d, workspace, delivery):
         author_id=member.id,
         data={
             "run_id": run.id,
+            **({"woken_by": author.id} if author and author.role != "human" else {}),
+            **(
+                {"done_when": message.data["done_when"]}
+                if message.data.get("done_when")
+                else {}
+            ),
             **{
                 k: delivery.action[k]
                 for k in ("rule", "workflow", "workflow_version")
@@ -1353,6 +1371,11 @@ def settle(settings, maker):
                 elif delivery.status == "running":
                     run = d.get(AgentRun, delivery.run_id)
                     if run.status not in ACTIVE:
+                        run.runtime = {
+                            k: v
+                            for k, v in (run.runtime or {}).items()
+                            if k != "team_status"
+                        }
                         delivery.status = (
                             "applied"
                             if run.status == "completed"

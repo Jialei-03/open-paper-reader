@@ -37,6 +37,8 @@ export const RULE_EVENTS = [
   "plan_approved",
   "conclusion_proposed",
   "review_failed",
+  "accepted",
+  "changes_requested",
   "schedule",
 ] as const;
 export const RULE_ACTIONS = [
@@ -114,7 +116,7 @@ export interface WorkflowDataProps {
 export type WorkflowNodeTarget = { kind: "member" | "channel"; id: string };
 export type WorkflowNode = Node<
   {
-    kind: "member" | "channel" | "trigger" | "owner";
+    kind: "member" | "channel" | "trigger" | "owner" | "author";
     ref: string;
     name: string;
     status?: WorkflowRuntime["members"][string];
@@ -154,7 +156,9 @@ export function ruleSummary(
   t: Translator["t"],
 ) {
   const memberName = (id?: string, role?: string) =>
-    memberFor(members, id, role)?.name ??
+    (id === "$author"
+      ? t("teamWorkflow.originalAuthor")
+      : memberFor(members, id, role)?.name) ??
     id ??
     role ??
     t("teamWorkflow.anyMember");
@@ -322,7 +326,7 @@ export function workflowToFlow(
         },
         ariaLabel: name,
         focusable: true,
-        draggable: kind !== "owner",
+        draggable: kind !== "owner" && kind !== "author",
       });
     return id;
   };
@@ -393,7 +397,11 @@ export function workflowToFlow(
           });
       }
       continue;
-    } else target = member(rule.then.member, rule.then.role);
+    } else
+      target =
+        rule.then.member === "$author"
+          ? add("author", "$author", "")
+          : member(rule.then.member, rule.then.role);
     // Incomplete rules still have an editable event node, without inventing references.
     if (!target) {
       add("trigger", rule.id, "", rule.position, rule.when.event);
@@ -461,6 +469,7 @@ export function connectionToRule(
     rule.then = { action: "post", channel: target.ref };
   else if (target.kind === "owner" || target.human)
     rule.then = { action: "wait_for_owner" };
+  else if (target.kind === "author") rule.then.member = "$author";
   else rule.then.member = target.ref;
   return rule;
 }
@@ -523,6 +532,11 @@ export function updateCanvasNodes(
 }
 
 export function validateRule(rule: WorkflowRule): boolean {
+  if (
+    rule.then.member === "$author" &&
+    !["accepted", "changes_requested"].includes(rule.when.event)
+  )
+    return false;
   const perThread = rule.limit?.per_thread ?? 0;
   if (!Number.isSafeInteger(perThread) || perThread < 0) return false;
   if (rule.when.event === "schedule") {
