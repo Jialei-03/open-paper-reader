@@ -29,6 +29,20 @@ export async function seedSidebarState(page: Page, smoke: SmokeData) {
   }));
   const firstWorkspace = navigation.workspaces[0];
   firstWorkspace.researches[0].status = "waiting";
+  // Enough researches for the research section to page.
+  const research = firstWorkspace.researches[0];
+  firstWorkspace.researches.push(
+    ...Array.from({ length: 12 }, (_, index) => ({
+      ...research,
+      id: `cccccccc-cccc-4ccc-8ccc-${String(index).padStart(12, "0")}`,
+      title: `侧栏研究 ${index}`,
+      question: `侧栏研究 ${index}`,
+      status: "finished" as const,
+      working: "",
+      unread: false,
+      updated_at: new Date(Date.UTC(2026, 9, 1, 0, 12 - index)).toISOString(),
+    })),
+  );
   const otherWorkspace = "aaaaaaaa-aaaa-4aaa-8aaa-000000000002";
   navigation.workspaces.push({
     ...firstWorkspace,

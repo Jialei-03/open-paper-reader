@@ -57,7 +57,7 @@ export function SidebarPagination({
   hidden,
   choose,
 }: {
-  list: "messages" | "recent";
+  list: "messages" | "recent" | "researches";
   first: number;
   limit: number;
   hidden: number;

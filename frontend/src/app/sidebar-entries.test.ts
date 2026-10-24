@@ -30,9 +30,9 @@ describe("sidebar entry registry", () => {
       "workspace",
       "search",
       "new-research",
-      "threads",
       "activity",
       "work",
+      "members",
     ]);
   });
 });

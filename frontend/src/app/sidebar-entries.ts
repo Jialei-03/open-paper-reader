@@ -16,10 +16,17 @@ export const PLACES = {
     "workspace",
     "search",
     "new-research",
-    "threads",
     "activity",
     "work",
+    "members",
   ],
+  researches: [
+    "research-new",
+    "research-row",
+    "researches-more",
+    "researches-less",
+  ],
+  empty: ["create-project"],
   attention: ["attention", "attention-item"],
   messages: [
     "messages",

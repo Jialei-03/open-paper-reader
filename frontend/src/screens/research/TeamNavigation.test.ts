@@ -84,7 +84,6 @@ describe("team conversation navigation", () => {
       "dm-2",
       "dm-1",
       "channel-old",
-      "settings",
     ]);
     expect(html).toContain('aria-label="channel-new" aria-current="page"');
     expect(html).not.toContain("missing-member");
@@ -127,7 +126,7 @@ describe("team conversation navigation", () => {
     });
     it(`${locale} has fixed navigation and no duplicate member shortcuts`, () => {
       const html = render(team, locale);
-      for (const id of ["threads", "activity", "work", "team-settings"])
+      for (const id of ["activity", "work", "members", "team-settings"])
         expect(html).toContain(`data-id="${id}"`);
       expect(html).not.toContain('aria-label="常用成员"');
       expect(html).not.toContain('aria-label="Frequent members"');
@@ -136,8 +135,9 @@ describe("team conversation navigation", () => {
       );
       expect(html).toContain('data-id="messages-more"');
       expect(html).toContain(locale === "zh" ? "再显示 1 个" : "Show 1 more");
+      expect(html).not.toContain('data-id="threads"');
       expect(render({ ...team, channels: [] }, locale)).toContain(
-        'data-id="threads"',
+        'data-id="activity"',
       );
     });
 
@@ -164,7 +164,7 @@ describe("team conversation navigation", () => {
       );
       expect(html).not.toContain("Preview channel-new");
       expect(html).not.toContain("Preview dm-0");
-      for (const count of [123, 7, 42])
+      for (const count of [7, 42])
         expect(html).toContain(
           `aria-label="${locale === "zh" ? `${count} 条未读` : `${count} unread`}">${count}</span>`,
         );

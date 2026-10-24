@@ -56,18 +56,10 @@ describe("project creation", () => {
       expect(html).not.toContain(t("workspace.noWorkspaces"));
     });
 
-    it(`${locale} keeps the empty sidebar entries fixed and unavailable until a project exists`, () => {
+    it(`${locale} lists no team entries until a project exists`, () => {
       const html = render(createElement(TeamNavigation, { hash: "", go() {} }));
-      for (const id of [
-        "threads",
-        "activity",
-        "team-settings",
-        "create-channel",
-      ])
-        expect(html).toMatch(
-          new RegExp(`<button[^>]*data-id="${id}"[^>]*disabled=""`),
-        );
-      expect(html).not.toContain(t("workspace.add"));
+      for (const id of ["activity", "work", "members", "team-settings"])
+        expect(html).not.toContain(`data-id="${id}"`);
       expect(html).not.toContain("#workspaces");
       expect(t("team.switch")).toBe(
         locale === "zh" ? "切换项目" : "Switch project",

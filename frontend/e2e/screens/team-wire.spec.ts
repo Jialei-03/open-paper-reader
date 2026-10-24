@@ -223,7 +223,7 @@ test("team settings persist rules, switch workflows and open canvas messages", a
 }) => {
   const { writes } = await setup(page);
   await page.goto(`/#team/${wid}/${cid}`);
-  await page.getByRole("link", { name: "团队设置", exact: true }).click();
+  await page.getByRole("link", { name: "成员", exact: true }).click();
   await expect(page.getByRole("heading", { name: "团队设置" })).toBeVisible();
   await expect(
     page
@@ -543,12 +543,9 @@ test("threads use latest replies, the sidebar icon and local dates", async ({
   await expect(
     threadRows.nth(1).locator('svg[shape-rendering="crispEdges"]'),
   ).toHaveCount(4);
-  const sidebarIcon = page
-    .getByRole("link", { name: "线程", exact: true })
-    .locator("svg");
   await expect(list.locator("header > svg")).toHaveAttribute(
     "class",
-    (await sidebarIcon.getAttribute("class"))!,
+    /lucide-message-square/,
   );
   await expect(list.locator("time").first()).toHaveAttribute(
     "datetime",

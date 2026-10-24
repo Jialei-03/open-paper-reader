@@ -47,12 +47,13 @@
   position: relative;
 }
 
-.navigation > [role="group"]:has(> .shortcut) {
+/* The fixed entries (activity, work, members) are one group of 34px rows. */
+.navigation > [role="group"]:first-child {
   flex: none;
   gap: 1px;
 }
 
-.shortcut :is(a, button),
+.navigation > [role="group"]:first-child :is(a, button),
 .settings :is(a, button) {
   height: 34px;
   gap: var(--ui-space-10);
@@ -257,4 +258,82 @@
   flex: none;
   color: var(--ui-warning-text);
   font-size: var(--ui-text-12);
+}
+
+/* The project's researches: claude-web's conversation rows — one line, 32px, a state at the end. */
+.researchList {
+  display: grid;
+  gap: 1px;
+}
+
+.researchRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-8);
+  height: var(--ui-control-md);
+  padding: 0 var(--ui-space-10);
+  border-radius: var(--ui-r-8);
+  color: var(--ui-fg-1);
+  font-size: var(--ui-text-13);
+  text-decoration: none;
+  transition:
+    background-color var(--ui-dur-2) var(--ui-ease-out),
+    color var(--ui-dur-2) var(--ui-ease-out);
+}
+
+.researchRow:hover {
+  background: var(--ui-hover);
+  color: var(--ui-fg);
+}
+
+.researchRow:active {
+  background: var(--ui-active);
+}
+
+.researchRow[aria-current="page"] {
+  background: var(--ui-selected);
+  color: var(--ui-fg);
+}
+
+.researchRow:focus-visible {
+  outline: none;
+  box-shadow: var(--ui-focus-ring);
+}
+
+.researchRow > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.researchRow small {
+  flex: none;
+  color: var(--ui-warning-text);
+  font-size: var(--ui-text-12);
+}
+
+.researchState {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-fg-3);
+}
+
+.researchDot {
+  flex: none;
+  width: var(--ui-space-6);
+  height: var(--ui-space-6);
+  border-radius: 50%;
+  background: var(--ui-fg-2);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-space-12);
+  padding: var(--ui-space-40) var(--ui-space-16);
+  color: var(--ui-fg-3);
+  font-size: var(--ui-text-13);
 }

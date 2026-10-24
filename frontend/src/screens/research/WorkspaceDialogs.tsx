@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   Folder,
+  FolderOpen,
   Laptop,
   Plus,
   Server,
@@ -41,6 +42,7 @@ export function WorkspacePicker({
   onChange,
   prominent = false,
   label,
+  onAll,
   "data-id": dataId,
 }: {
   "data-id"?: string;
@@ -48,6 +50,8 @@ export function WorkspacePicker({
   onChange(id: string): void;
   prominent?: boolean;
   label?: string;
+  /** Where the sidebar's picker sends "All projects"; absent elsewhere. */
+  onAll?(): void;
 }) {
   const { t } = useI18n();
   const { data, connections } = useResearchNavigation();
@@ -212,6 +216,19 @@ export function WorkspacePicker({
             >
               {t("workspace.add")}
             </Button>
+            {onAll && (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={FolderOpen}
+                onClick={() => {
+                  close();
+                  onAll();
+                }}
+              >
+                {t("workspace.all")}
+              </Button>
+            )}
           </div>
         )}
       </Floating>

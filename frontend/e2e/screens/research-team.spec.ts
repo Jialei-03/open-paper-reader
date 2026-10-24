@@ -1088,8 +1088,11 @@ for (const locale of ["zh", "en"] as const) {
     await expect(answer).toHaveAttribute("data-located", "true");
     await more(t("team.unpin"));
     await expect(
+      page.getByRole("button", { name: tn("team.pins", 1), exact: true }),
+    ).toHaveCount(0);
+    await expect(
       page.getByRole("button", { name: tn("team.pins", 0), exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await page.goto(`/#team/${workspace}/mentions`);
     const later = () =>
       page.getByRole("radio", { name: t("team.later"), exact: true });
@@ -2266,7 +2269,7 @@ for (const theme of ["light", "dark"] as const) {
       exact: true,
     });
     await expect(resize).toHaveAttribute("aria-valuenow", "264");
-    for (const label of ["新研究", "线程", "动态"]) {
+    for (const label of ["新研究", "动态", "工作"]) {
       const row = sidebar.getByRole("link", { name: label, exact: true });
       await expect(row).toHaveCSS("height", "34px");
       await expect(row).toHaveCSS("font-size", "14px");
@@ -2346,10 +2349,7 @@ for (const theme of ["light", "dark"] as const) {
         .getByRole("link", { name: "reviewer", exact: true })
         .locator("time"),
     ).toHaveText("10月18日");
-    for (const [label, count] of [
-      ["线程", 9],
-      ["动态", 2],
-    ] as const) {
+    for (const [label, count] of [["动态", 2]] as const) {
       const shortcut = sidebar
         .getByRole("link", { name: label, exact: true })
         .locator("xpath=ancestor::div[1]");

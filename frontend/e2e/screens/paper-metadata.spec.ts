@@ -83,7 +83,9 @@ test("the sheet shows the public record, refreshes it and copies three citations
   await expect(facts).toContainText("2017");
   await expect(facts).toContainText("123,456");
   await expect(facts).toContainText("41");
-  expect(mock.refreshed).toEqual([paper.paperId]);
+  // Workers reuse accounts; the library may also refresh their earlier papers.
+  const refreshes = () => mock.refreshed.filter((id) => id === paper.paperId);
+  expect(refreshes()).toEqual([paper.paperId]);
 
   // Three formats, each copied as shown.
   const text = sheet.getByTestId("citation-text");
@@ -108,7 +110,7 @@ test("the sheet shows the public record, refreshes it and copies three citations
   await sheet.getByRole("button", { name: "重新查询这篇论文" }).click();
   await expect(sheet.getByRole("alert")).toHaveCount(0);
   // Each press asked again (a busy page may ask once more; that is fine).
-  expect(mock.refreshed.length).toBeGreaterThanOrEqual(3);
+  expect(refreshes().length).toBeGreaterThanOrEqual(3);
 });
 
 test("the library shows sources, sorts by citations and exports a .bib", async ({

@@ -1285,8 +1285,16 @@ test("a new user creates a project through the fixed switcher and empty list", a
   await page.goto("/#new");
   await page.reload();
   const sidebar = page.getByRole("navigation", { name: "侧栏", exact: true });
-  for (const id of ["threads", "activity", "team-settings", "create-channel"])
-    await expect(sidebar.locator(`[data-id="${id}"]`)).toBeDisabled();
+  for (const id of ["activity", "work", "members", "team-settings"])
+    await expect(sidebar.locator(`[data-id="${id}"]`)).toHaveCount(0);
+  await sidebar.locator('[data-id="create-project"]').click();
+  await expect(
+    page.getByRole("dialog", { name: "新建项目", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "新建项目", exact: true })
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
   await sidebar.getByRole("button", { name: "切换项目", exact: true }).click();
   await page
     .getByRole("dialog", { name: "选择项目", exact: true })

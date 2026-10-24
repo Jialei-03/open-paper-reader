@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "../../i18n/I18nProvider";
 import { createTranslator } from "../../i18n/i18n";
 import {
@@ -8,9 +8,16 @@ import {
   groupMessages,
   MessageRow,
   TeamComposer,
+  TeamScreen,
 } from "./TeamScreen";
+import { useTeam } from "./TeamNavigation";
 import { orderedMessages } from "./team-model";
 import type { Team, TeamMessage } from "./team-api";
+
+vi.mock("./TeamNavigation", async (original) => ({
+  ...(await original<typeof import("./TeamNavigation")>()),
+  useTeam: vi.fn(),
+}));
 
 const started = "2026-10-23T15:27:00Z";
 const finished = "2026-10-23T15:44:00Z";
@@ -64,6 +71,50 @@ const message: TeamMessage = {
     updated_at: started,
   },
 };
+
+describe("team channel pins", () => {
+  for (const locale of ["zh", "en"] as const) {
+    const { tn } = createTranslator(locale);
+    for (const member_id of [null, "writer"]) {
+      it.each([undefined, 0, 1, 2])(
+        `${locale} shows only positive channel pin counts (member: ${member_id}, pins: %s)`,
+        (pinned_count) => {
+          vi.mocked(useTeam).mockReturnValue({
+            team: {
+              ...team,
+              channels: [
+                {
+                  id: "channel",
+                  key: "general",
+                  name: "Lab",
+                  member_id,
+                  pinned_count,
+                  unread: 0,
+                },
+              ],
+            },
+            error: "",
+            reload() {},
+          });
+          const html = renderToStaticMarkup(
+            createElement(I18nProvider, {
+              locale,
+              children: createElement(TeamScreen, {
+                id: team.workspace_id,
+                channelId: "channel",
+                go() {},
+              }),
+            }),
+          );
+          const label = tn("team.pins", pinned_count ?? 0);
+          if (!member_id && (pinned_count ?? 0) > 0)
+            expect(html).toContain(label);
+          else expect(html).not.toContain(label);
+        },
+      );
+    }
+  }
+});
 
 describe("team member replies", () => {
   for (const locale of ["zh", "en"] as const) {

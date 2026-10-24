@@ -1014,10 +1014,16 @@ test("侧栏入口登记表、按需事项、分页和固定 rail", async ({ pag
     "rail",
     "research",
     "attention",
+    "researches",
     "messages",
     "team",
   ] as const)
     await collect(place);
+  // The research section pages like the messages: eight, then more, then less.
+  await nav.locator('[data-id="researches-more"]').click();
+  await collect("researches");
+  await nav.locator('[data-id="researches-less"]').click();
+  await collect("researches");
   await assertRail();
   await nav.locator('[data-id="messages-more"]').click();
   await expect(nav.locator('[data-id="conversation"]')).toHaveCount(31);
@@ -1053,9 +1059,20 @@ test("侧栏入口登记表、按需事项、分页和固定 rail", async ({ pag
   fixture.team.notifications[0].data = {}; // a normal mention is not a decision
   await page.reload();
   await expect(attention).toHaveCount(0);
-  for (const id of ["new-research", "threads", "activity"])
+  for (const id of ["new-research", "activity", "work", "members"])
     await expect(nav.locator(`[data-id="${id}"]`)).toHaveCount(1);
   await assertRail();
+  // Before any project: the way to make one, and none of the team's entries.
+  const workspaces = fixture.navigation.workspaces;
+  fixture.navigation.workspaces = [];
+  await page.goto("/#new");
+  await page.reload();
+  await expect(nav.locator('[data-id="create-project"]')).toBeVisible();
+  for (const id of ["activity", "work", "members", "team-settings"])
+    await expect(nav.locator(`[data-id="${id}"]`)).toHaveCount(0);
+  await collect("empty");
+  fixture.navigation.workspaces = workspaces;
+  await page.reload();
 
   await visit(page, smoke, "library");
   await expect(nav.locator('[data-id="recent-paper"]')).toHaveCount(5);

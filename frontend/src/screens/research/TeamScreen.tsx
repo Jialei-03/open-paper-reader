@@ -334,7 +334,7 @@ export function TeamScreen({
             <div className={styles.actions}>
               {channel && (
                 <>
-                  {!channel.member_id && (
+                  {!channel.member_id && (channel.pinned_count ?? 0) > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"

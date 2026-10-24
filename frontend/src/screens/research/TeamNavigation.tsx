@@ -5,10 +5,11 @@ import { memberName } from "../team/member-model";
 import {
   Bell,
   ClipboardList,
+  FolderPlus,
   Hash,
-  MessageSquare,
   Plus,
   Settings,
+  Users,
 } from "lucide-react";
 import { useCallback, useContext, useEffect, useState } from "react";
 import { parseAppRoute } from "../../app/routes";
@@ -26,6 +27,7 @@ import {
   createChannel,
   getTeam,
   refreshTeam,
+  settingsHash,
   TEAM_EVENT,
   teamHash,
   type Team,
@@ -41,7 +43,8 @@ import {
   SidebarPagination,
   useSidebarPage,
 } from "../../app/sidebar-pagination";
-import { WorkspacePicker } from "./WorkspaceDialogs";
+import { CreateWorkspaceDialog, WorkspacePicker } from "./WorkspaceDialogs";
+import { SidebarResearches } from "./SidebarResearches";
 import styles from "./Team.module.css";
 import { defaultChannelNames, threadDate } from "./team-model";
 import nav from "./TeamNavigation.module.css";
@@ -119,6 +122,7 @@ export function TeamSwitcher({
         data-id={sidebarId("workspace")}
         label={t("team.switch")}
         onChange={(next) => go(teamHash(next))}
+        onAll={() => go("projects")}
       />
     </div>
   );
@@ -157,6 +161,33 @@ export function TeamNavigation({
   const [name, setName] = useState("");
   const [failure, setFailure] = useState("");
   const [saving, setSaving] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const { ready } = useResearchNavigation();
+  // Nothing to list before there is a project: one way forward, nothing that leads nowhere.
+  if (!id)
+    return ready ? (
+      <div className={nav.empty} data-sidebar-place="empty">
+        <FolderPlus size={24} aria-hidden="true" />
+        <span>{t("sidebar.noProject")}</span>
+        <Button
+          size="sm"
+          variant="secondary"
+          data-id={sidebarId("create-project")}
+          onClick={() => setCreatingProject(true)}
+        >
+          {t("workspace.add")}
+        </Button>
+        {creatingProject && (
+          <CreateWorkspaceDialog
+            onClose={() => setCreatingProject(false)}
+            onCreated={(workspace) => {
+              setCreatingProject(false);
+              go(teamHash(workspace.id));
+            }}
+          />
+        )}
+      </div>
+    ) : null;
   return (
     <>
       <TeamConversationList
@@ -270,6 +301,13 @@ export function TeamConversationList({
   const current = (channel: string) =>
     route.screen === "team" &&
     (route.channelId === channel || selectedChannel?.id === channel);
+  // The settings page's tab: members have their own entry, the rest is "team settings".
+  const settingsTab =
+    route.screen === "team" && route.channelId === "settings"
+      ? (route.threadId || "members").startsWith("member")
+        ? "members"
+        : route.threadId
+      : undefined;
   const { rows, hidden } = pageRows(
     channels,
     limit,
@@ -291,45 +329,42 @@ export function TeamConversationList({
   return (
     <div className={nav.navigation}>
       <SidebarSection>
-        {(
-          [
-            ["threads", MessageSquare, team?.threads_unread || 0],
-            [
-              "mentions",
-              Bell,
-              team?.activity_unread ?? team?.mentions_unread ?? 0,
-            ],
-          ] as const
-        ).map(([key, icon, count]) => (
-          <div key={key} className={nav.shortcut}>
-            <SidebarItem
-              data-id={sidebarId(key === "mentions" ? "activity" : "threads")}
-              icon={icon}
-              label={t(key === "mentions" ? "team.activity" : "team.threads")}
-              href={id ? `#${teamHash(id, key)}` : undefined}
-              disabled={!id}
-              active={current(key)}
-              onClick={followLink(go, teamHash(id, key))}
-            />
-            <UnreadBadge count={count} />
-          </div>
-        ))}
+        <div className={nav.shortcut}>
+          <SidebarItem
+            data-id={sidebarId("activity")}
+            icon={Bell}
+            label={t("team.activity")}
+            href={`#${teamHash(id, "mentions")}`}
+            active={current("mentions")}
+            onClick={followLink(go, teamHash(id, "mentions"))}
+          />
+          <UnreadBadge
+            count={team?.activity_unread ?? team?.mentions_unread ?? 0}
+          />
+        </div>
+        <SidebarItem
+          data-id={sidebarId("work")}
+          icon={ClipboardList}
+          label={t("team.work.title")}
+          href={`#${teamHash(id, "work")}`}
+          active={current("work")}
+          onClick={followLink(go, teamHash(id, "work"))}
+        />
+        <SidebarItem
+          data-id={sidebarId("members")}
+          icon={Users}
+          label={t("team.members")}
+          href={`#${settingsHash(id, "members")}`}
+          active={settingsTab === "members"}
+          onClick={followLink(go, settingsHash(id, "members"))}
+        />
       </SidebarSection>
-      <SidebarItem
-        data-id={sidebarId("work")}
-        icon={ClipboardList}
-        label={t("team.work.title")}
-        href={id ? `#${teamHash(id, "work")}` : undefined}
-        disabled={!id}
-        active={current("work")}
-        onClick={followLink(go, teamHash(id, "work"))}
-      />
       <ResearchAttention go={go} />
+      <SidebarResearches workspaceId={id} hash={hash} go={go} />
       <div className={nav.heading} data-sidebar-place="messages">
         <span id="team-conversations">{t("team.messages")}</span>
         <IconButton
           data-id={sidebarId("create-channel")}
-          disabled={!id}
           icon={Plus}
           label={t("team.addChannel")}
           onClick={onCreate}
@@ -452,10 +487,9 @@ export function TeamConversationList({
           data-id={sidebarId("team-settings")}
           icon={Settings}
           label={t("team.settings")}
-          href={id ? `#${teamHash(id, "settings")}` : undefined}
-          disabled={!id}
-          active={current("settings")}
-          onClick={followLink(go, teamHash(id, "settings"))}
+          href={`#${settingsHash(id, "workflow")}`}
+          active={!!settingsTab && settingsTab !== "members"}
+          onClick={followLink(go, settingsHash(id, "workflow"))}
         />
       </div>
     </div>
